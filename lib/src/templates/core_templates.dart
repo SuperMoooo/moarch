@@ -3,14 +3,14 @@ class CoreTemplates {
 
   static String mainDart() => r'''
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'config/router/app_router.dart';
 import 'config/theme/app_theme.dart';
 
-Future<void> main() async{
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  await dotenv.load();
   runApp(const ProviderScope(child: App()));
 }
 
@@ -19,12 +19,12 @@ class App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
+    return MaterialApp(
       title: 'App',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
+      // TODO: set your initial route/home
     );
   }
 }
@@ -35,39 +35,21 @@ class AppException implements Exception {
   const AppException({
     required this.message,
     this.statusCode,
-    this.stackTrace,
   });
 
   final String message;
   final int? statusCode;
-  final StackTrace? stackTrace;
 
   @override
   String toString() => 'AppException(message: $message, statusCode: $statusCode)';
 }
 ''';
 
-  static String failure() => r'''
-sealed class Failure {
-  const Failure({required this.message});
-  final String message;
-}
+  static String logger() => r'''
+import 'package:flutter/foundation.dart';
 
-final class ServerFailure extends Failure {
-  const ServerFailure({required super.message, this.statusCode});
-  final int? statusCode;
-}
-
-final class NetworkFailure extends Failure {
-  const NetworkFailure({required super.message});
-}
-
-final class CacheFailure extends Failure {
-  const CacheFailure({required super.message});
-}
-
-final class UnknownFailure extends Failure {
-  const UnknownFailure({required super.message});
+void log(Object? value) {
+  if (kDebugMode) debugPrint(value?.toString());
 }
 ''';
 
@@ -80,15 +62,6 @@ extension ContextX on BuildContext {
   ColorScheme get colorScheme => Theme.of(this).colorScheme;
   double get screenWidth => MediaQuery.of(this).size.width;
   double get screenHeight => MediaQuery.of(this).size.height;
-
-  void showSnackBar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(this).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? colorScheme.error : null,
-      ),
-    );
-  }
 }
 
 extension StringX on String {
@@ -107,77 +80,89 @@ extension DateTimeX on DateTime {
 }
 ''';
 
-  static String logger() => r'''
-import 'package:flutter/foundation.dart';
-
-class AppLogger {
-  AppLogger._();
-
-  static void debug(String message, [Object? error, StackTrace? st]) {
-    if (kDebugMode) _log('DEBUG', message, error, st);
-  }
-
-  static void info(String message, [Object? error, StackTrace? st]) {
-    _log('INFO', message, error, st);
-  }
-
-  static void warning(String message, [Object? error, StackTrace? st]) {
-    _log('WARNING', message, error, st);
-  }
-
-  static void error(String message, [Object? error, StackTrace? st]) {
-    _log('ERROR', message, error, st);
-  }
-
-  static void _log(String level, String message, Object? error, StackTrace? st) {
-    final ts = DateTime.now().toIso8601String();
-    debugPrint('[$ts][$level] $message');
-    if (error != null) debugPrint('  Error: $error');
-    if (st != null) debugPrint('  StackTrace: $st');
-  }
-}
-''';
-
+  // Material & Cupertino guidelines:
+  // Spacing: 4pt grid (4, 8, 12, 16, 24, 32, 48)
+  // Text: iOS SF / Material type scale — body 17, callout 16, subhead 15, footnote 13, caption 12
+  // Touch targets: min 44pt (iOS HIG) / 48dp (Material)
+  // Border radius: iOS uses 10-13 for cards, Material uses 12 (medium)
   static String appConstants() => r'''
 import 'package:flutter/material.dart';
 
 abstract final class AppConstants {
-  // ── Spacing ────────────────────────────────────────────────────────────────
-  static const paddingPage  = EdgeInsets.symmetric(
-    horizontal: 14,
-    vertical: 10,
+  // ── Spacing — 4pt grid ────────────────────────────────────────────────────
+  static const double space4  = 4;
+  static const double space8  = 8;
+  static const double space12 = 12;
+  static const double space16 = 16;
+  static const double space24 = 24;
+  static const double space32 = 32;
+  static const double space48 = 48;
+
+  // ── Padding helpers ───────────────────────────────────────────────────────
+  static const padding4  = EdgeInsets.all(space4);
+  static const padding8  = EdgeInsets.all(space8);
+  static const padding12 = EdgeInsets.all(space12);
+  static const padding16 = EdgeInsets.all(space16);
+  static const padding24 = EdgeInsets.all(space24);
+
+  static const paddingH16 = EdgeInsets.symmetric(horizontal: space16);
+  static const paddingH24 = EdgeInsets.symmetric(horizontal: space24);
+  static const paddingV8  = EdgeInsets.symmetric(vertical: space8);
+  static const paddingV16 = EdgeInsets.symmetric(vertical: space16);
+
+  // common page inset (Material: 16dp sides, iOS: 16-20pt sides)
+  static const paddingPage = EdgeInsets.symmetric(
+    horizontal: space16,
+    vertical: space16,
   );
-  
 
-  // ── Text sizes ─────────────────────────────────────────────────────────────
-  static const double label  = 12;
-  static const double subtext  = 14;
-  static const double text  = 16;
-  static const double title  = 20;
-  static const double bigTitle = 24;
-  static const double biggerTitle = 36;
+  // ── Text sizes — Material type scale / iOS HIG ────────────────────────────
+  // iOS: largeTitle 34, title1 28, title2 22, title3 20, headline 17,
+  //      body 17, callout 16, subheadline 15, footnote 13, caption1/2 12/11
+  // Material: displayL 57, displayM 45, displayS 36, headlineL 32,
+  //           headlineM 28, headlineS 24, titleL 22, titleM 16, titleS 14,
+  //           bodyL 16, bodyM 14, bodyS 12, labelL 14, labelM 12, labelS 11
+  static const double fontSize11 = 11; // caption2 / label small
+  static const double fontSize12 = 12; // caption1 / body small
+  static const double fontSize13 = 13; // footnote
+  static const double fontSize14 = 14; // label / body medium (Material)
+  static const double fontSize15 = 15; // subheadline
+  static const double fontSize16 = 16; // callout / body large
+  static const double fontSize17 = 17; // body / headline (iOS default)
+  static const double fontSize20 = 20; // title3
+  static const double fontSize22 = 22; // title2 / titleL
+  static const double fontSize28 = 28; // title1 / headlineM
+  static const double fontSize34 = 34; // largeTitle (iOS)
 
-  // ── Border radius ──────────────────────────────────────────────────────────
-  static const double radiusSmall   = 8;
-  static const double radius   = 12;
-  static const double radiusFull = 999;
+  // ── Touch targets ─────────────────────────────────────────────────────────
+  // iOS HIG: 44pt minimum, Material: 48dp minimum
+  static const double touchTarget = 48;
 
-  static final borderRadiusSmall   = BorderRadius.circular(radiusSm);
-  static final borderRadius   = BorderRadius.circular(radius);
+  // ── Border radius — Material medium = 12, iOS cards ≈ 10–13 ──────────────
+  static const double radius8  = 8;
+  static const double radius12 = 12; // Material medium / iOS card
+  static const double radius16 = 16; // Material large
+  static const double radius24 = 24; // bottom sheets, large cards
+  static const double radiusFull = 999; // pills / chips
+
+  static final borderRadius8    = BorderRadius.circular(radius8);
+  static final borderRadius12   = BorderRadius.circular(radius12);
+  static final borderRadius16   = BorderRadius.circular(radius16);
+  static final borderRadius24   = BorderRadius.circular(radius24);
   static final borderRadiusFull = BorderRadius.circular(radiusFull);
 
-  // ── Durations ──────────────────────────────────────────────────────────────
-  static const Duration animationFast   = Duration(milliseconds: 150);
-  static const Duration animationNormal = Duration(milliseconds: 300);
-  static const Duration animationSlow   = Duration(milliseconds: 500);
-  static const Duration splashDuration  = Duration(seconds: 2);
+  // ── Animation durations ───────────────────────────────────────────────────
+  // Material motion: 100ms micro, 200ms simple, 300ms complex, 500ms dramatic
+  static const Duration duration100 = Duration(milliseconds: 100);
+  static const Duration duration200 = Duration(milliseconds: 200);
+  static const Duration duration300 = Duration(milliseconds: 300);
+  static const Duration duration500 = Duration(milliseconds: 500);
 }
 ''';
 
   static String apiConstants() => r'''
 abstract final class ApiConstants {
-  
-
+  // BASE_URL comes from .env via flutter_dotenv
   static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
 }
@@ -185,101 +170,64 @@ abstract final class ApiConstants {
 
   static String dioClient() => r'''
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../constants/api_constants.dart';
-import '../errors/app_exception.dart';
 import '../utils/logger.dart';
+import '../security/secure_storage.dart';
 
-final dioClientProvider = Provider<DioClient>((ref) => DioClient());
+final dioClientProvider = Provider<Dio>((ref) => buildDioClient());
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-class DioClient {
-  DioClient() {
-    _dio = Dio(
-      BaseOptions(
-        baseUrl: dotenv.get('BASE_URL'),,
-        connectTimeout: ApiConstants.connectTimeout,
-        receiveTimeout: ApiConstants.receiveTimeout,
-        headers: const {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      ),
-    )
-      ..interceptors.add(_authInterceptor())
-      ..interceptors.add(_loggingInterceptor());
-  }
-
-  late final Dio _dio;
-
-  InterceptorsWrapper _authInterceptor() {
-    return InterceptorsWrapper(
-      onRequest: (options, handler) {
-        // TODO: inject token from secure storage
-        // options.headers['Authorization'] = 'Bearer $token';
-        handler.next(options);
+Dio buildDioClient() {
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: dotenv.get('BASE_URL'),
+      connectTimeout: ApiConstants.connectTimeout,
+      receiveTimeout: ApiConstants.receiveTimeout,
+      headers: const {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
-      onError: (error, handler) {
-        if (error.response?.statusCode == 401) {
-          // TODO: handle token refresh
-        }
-        handler.next(error);
-      },
-    );
-  }
+      // let all status codes through — errors are handled in the repository
+      validateStatus: (_) => true,
+    ),
+  )
+    ..interceptors.add(_authInterceptor())
+    ..interceptors.add(LogInterceptor(
+      requestBody: true,
+      responseBody: true,
+      logPrint: log,
+    ));
 
-  LogInterceptor _loggingInterceptor() => LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-        logPrint: (o) => AppLogger.debug(o.toString()),
-      );
-
-  Future<Response<T>> get<T>(
-    String path, {
-    Map<String, dynamic>? params,
-  }) async {
-    try {
-      return await _dio.get<T>(path, queryParameters: params);
-    } on DioException catch (e) {
-      throw _wrap(e);
-    }
-  }
-
-  Future<Response<T>> post<T>(String path, {dynamic data}) async {
-    try {
-      return await _dio.post<T>(path, data: data);
-    } on DioException catch (e) {
-      throw _wrap(e);
-    }
-  }
-
-  Future<Response<T>> put<T>(String path, {dynamic data}) async {
-    try {
-      return await _dio.put<T>(path, data: data);
-    } on DioException catch (e) {
-      throw _wrap(e);
-    }
-  }
-
-  Future<Response<T>> delete<T>(String path) async {
-    try {
-      return await _dio.delete<T>(path);
-    } on DioException catch (e) {
-      throw _wrap(e);
-    }
-  }
-
-  AppException _wrap(DioException e) => AppException(
-        message: e.response?.data?['message'] as String? ??
-            e.message ??
-            'Unknown error',
-        statusCode: e.response?.statusCode,
-        stackTrace: e.stackTrace,
-      );
+  return dio;
 }
+
+InterceptorsWrapper _authInterceptor() {
+  const storage = ref.watch(secureStorageProvider);
+
+  return InterceptorsWrapper(
+    onRequest: (options, handler) async {
+      final token = await storage.read(key: 'token');
+      if (token != null) {
+        options.headers['Authorization'] = 'Bearer $token';
+      }
+      handler.next(options);
+    },
+  );
+}
+''';
+
+  static String secureStorage() => r''' 
+  import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+  import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+  final secureStorageProvider = Provider<FlutterSecureStorage>((ref) => FlutterSecureStorage());
+
+
+
 ''';
 
   static String usecaseBase() => r'''
@@ -289,10 +237,6 @@ abstract interface class UseCase<Type, Params> {
 
 abstract interface class NoParamsUseCase<Type> {
   Future<Type> call();
-}
-
-class NoParams {
-  const NoParams();
 }
 ''';
 }

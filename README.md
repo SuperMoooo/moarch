@@ -7,28 +7,65 @@ Flutter CLI — scaffold Clean Architecture projects with Riverpod and your own 
 ## Install
 
 ```bash
-# from pub.dev (once published)
-dart pub global activate moarch
-
-# local development
 dart pub global activate --source path /path/to/moarch
 ```
 
-Make sure `~/.pub-cache/bin` is in your `PATH`.
+Make sure `~/.pub-cache/bin` is in your `PATH`. Add to `.zshrc` or `.bashrc`:
+
+```bash
+export PATH="$PATH:$HOME/.pub-cache/bin"
+```
+
+Verify it works:
+
+```bash
+moarch --version
+```
+
+After any change to `moarch` itself, re-run the activate command to pick up the changes.
+
+---
+
+## Setting up a new Flutter project
+
+```bash
+# 1. create the Flutter project (Empty Application in VS Code, or via CLI)
+flutter create my_app
+cd my_app
+
+# 2. add required dependencies to pubspec.yaml (see below) then:
+flutter pub get
+
+# 3. delete the generated main.dart so moarch can write its own
+rm lib/main.dart
+
+# 4. scaffold the full structure
+moarch init
+```
 
 ---
 
 ## Required Flutter project dependencies
 
-Only two runtime dependencies needed:
-
 ```yaml
 dependencies:
+    flutter:
+        sdk: flutter
     flutter_riverpod: ^2.5.1
     dio: ^5.4.3
+    flutter_dotenv: ^5.1.0
+    flutter_secure_storage: ^9.2.2
 ```
 
-No `build_runner`, no `freezed`, no `riverpod_annotation`, no `go_router` — everything generated compiles immediately.
+Also add your `.env` to `pubspec.yaml` assets:
+
+```yaml
+flutter:
+    assets:
+        - .env
+```
+
+No `build_runner`, no `freezed`, no `riverpod_annotation` — everything generated compiles immediately.
 
 ---
 
@@ -36,7 +73,7 @@ No `build_runner`, no `freezed`, no `riverpod_annotation`, no `go_router` — ev
 
 ### `moarch init`
 
-Scaffolds the full `lib/` structure in the current Flutter project.
+Scaffolds the full `lib/` structure and creates `.env` and `.fvmrc` at the project root.
 
 ```bash
 moarch init
@@ -44,28 +81,28 @@ moarch init --path /path/to/my_app
 ```
 
 ```
+.env                             ← BASE_URL=   (fill in your value)
+.fvmrc                           ← { "flutter": "stable" }
 lib/
 ├── main.dart
 ├── core/
 │   ├── constants/
-│   │   ├── app_constants.dart   ← spacing, text sizes, padding helpers, radii, durations
-│   │   └── api_constants.dart
+│   │   ├── app_constants.dart   ← spacing, text sizes, touch targets, radii, durations
+│   │   └── api_constants.dart   ← timeouts only (BASE_URL comes from .env)
 │   ├── errors/
-│   │   ├── app_exception.dart
-│   │   └── failure.dart         ← sealed: Server / Network / Cache / Unknown
+│   │   └── app_exception.dart
 │   ├── network/
-│   │   └── dio_client.dart      ← provider at top, auth interceptor stub
+│   │   └── dio_client.dart      ← dotenv baseUrl, secure storage token, all status codes pass through
 │   ├── usecases/
 │   │   └── usecase.dart
 │   └── utils/
 │       ├── extensions.dart      ← ContextX, StringX, DateTimeX
-│       └── logger.dart
+│       └── logger.dart          ← single log() function, kDebugMode only
 ├── config/
-│   ├── env/env.dart
-│   ├── router/app_router.dart   ← Navigator 2.0, no go_router
-│   └── theme/app_theme.dart     ← Material 3 light + dark
+│   └── theme/
+│       └── app_theme.dart       ← useMaterial3 only, you fill in the rest
 ├── shared/widgets/
-│   ├── app_button.dart          ← filled / outlined / text variants
+│   ├── app_button.dart
 │   ├── app_loading.dart
 │   └── error_view.dart
 └── features/
@@ -75,7 +112,7 @@ lib/
 
 ### `moarch create feature <n>`
 
-Interactive checklist to pick exactly what you need. Always generated: entity, view. Toggle on/off the rest.
+Interactive checklist — pick exactly the layers you need.
 
 ```bash
 moarch create feature auth
@@ -87,10 +124,10 @@ moarch create feature auth --all        # skip checklist, generate everything
 
 ```
   Select layers for "Auth":
-▶ [✓]  Remoarchte Datasource
-  [ ]  Local/Cache Datasource
+▶ [✓]  Remote Datasource
+  [ ]  Local/Cache Datasource        ← off by default
   [✓]  Repository (interface + impl)
-  [ ]  Use Cases
+  [ ]  Use Cases                     ← off by default
   [✓]  State + Notifier
   [✓]  View
 ```
@@ -100,44 +137,61 @@ moarch create feature auth --all        # skip checklist, generate everything
 ```
 lib/features/auth/
 ├── domain/
-│   ├── entities/auth_entity.dart             ← plain immutable class + copyWith + ==
-│   ├── repositories/auth_repository.dart     ← abstract interface
-│   └── usecases/get_auth.dart                ← provider at top (if selected)
+│   ├── entities/auth_entity.dart             ← structure only, you add fields
+│   ├── repositories/auth_repository.dart     ← abstract interface, you add methods
+│   └── usecases/get_auth.dart                ← if selected
 ├── data/
 │   ├── datasources/
-│   │   ├── auth_remoarchte_datasource.dart       ← provider at top, manual fromJson
-│   │   └── auth_local_datasource.dart        ← provider at top (if selected)
+│   │   ├── auth_remote_datasource.dart       ← provider + Dio, structure only
+│   │   └── auth_local_datasource.dart        ← if selected
 │   └── repositories/
-│       └── auth_repository_impl.dart         ← provider at top, error handling
+│       └── auth_repository_impl.dart         ← provider, DioException → AppException comment
 └── presentation/
-    ├── states/auth_state.dart                ← sealed class (Dart 3 native)
-    ├── notifiers/auth_notifier.dart          ← NotifierProvider at top
-    ├── views/auth_view.dart                  ← ConsumerStatefulWidget + switch on state
+    ├── states/auth_state.dart                ← isLoadingAction, error, success + safe copyWith
+    ├── notifiers/auth_notifier.dart          ← AsyncNotifierProvider, example action commented
+    ├── views/auth_view.dart                  ← async.when, ref.listen stub, no microtask
     └── widgets/
+```
+
+**State pattern:**
+
+```dart
+// copyWith resets to false/null when not passed — intentional:
+// calling copyWith(isLoadingAction: true) clears error and success automatically
+state.copyWith(isLoadingAction: true)           // loading, clears error+success
+state.copyWith(error: e.message)                // sets error, resets loading
+state.copyWith(success: 'Done!')                // sets success, resets loading
+
+// In the view, listen for errors from state.value (your ApiException message)
+// not from the AsyncValue error (which is an unhandled exception):
+ref.listen(authNotifierProvider, (_, next) {
+  final value = next.value;
+  if (value?.error != null) { /* show snackbar */ }
+});
 ```
 
 ---
 
-## Design tokens (AppConstants)
+## Customizing moarch
 
-```dart
-// Spacing
-AppConstants.spaceMd          // 16
-AppConstants.spaceLg          // 24
+All customization is in `lib/src/` — no other files need to be touched.
 
-// Padding shortcuts
-AppConstants.paddingPage      // horizontal 24 + vertical 16
-AppConstants.paddingMd        // EdgeInsets.all(16)
-AppConstants.paddingPageH     // horizontal 24 only
+**Change generated file content**
+Open `lib/src/templates/` and edit the string inside the method you want to change:
 
-// Text sizes
-AppConstants.textMd           // 15
-AppConstants.text2xl          // 24
-
-// Border radius
-AppConstants.borderRadiusMd   // BorderRadius.circular(12)
-AppConstants.borderRadiusFull // BorderRadius.circular(999)
-
-// Durations
-AppConstants.animationNormal  // 300ms
 ```
+core_templates.dart      ← main.dart, dio_client, constants, errors, utils
+config_templates.dart    ← theme
+shared_templates.dart    ← app_button, app_loading, error_view
+feature_templates.dart   ← entity, model, datasources, repository, state, notifier, view
+```
+
+**Add a new file to every feature**
+
+1. Add a method to `feature_templates.dart`
+2. Call `FileUtils.writeFile(...)` for it in `create_command.dart`
+
+**Add a new subcommand** (e.g. `moarch create widget <n>`)
+
+1. Create `lib/src/commands/create_widget_command.dart`
+2. Register with `addSubcommand(...)` in `create_command.dart`

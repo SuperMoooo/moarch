@@ -49,6 +49,10 @@ class InitCommand extends Command<int> {
         p.join(p.absolute(targetPath), '.fvmrc'),
         '{\n  "flutter": "stable"\n}\n',
       );
+      await FileUtils.writeFile(
+        p.join(p.absolute(targetPath), '.env'),
+        'BASE_URL=\n',
+      );
 
       progress.complete('Done');
     } catch (e) {
@@ -71,10 +75,6 @@ class InitCommand extends Command<int> {
       CoreTemplates.appException(),
     );
     await FileUtils.writeFile(
-      p.join(c, 'errors', 'failure.dart'),
-      CoreTemplates.failure(),
-    );
-    await FileUtils.writeFile(
       p.join(c, 'utils', 'extensions.dart'),
       CoreTemplates.extensions(),
     );
@@ -87,8 +87,16 @@ class InitCommand extends Command<int> {
       CoreTemplates.appConstants(),
     );
     await FileUtils.writeFile(
+      p.join(c, 'constants', 'api_constants.dart'),
+      CoreTemplates.apiConstants(),
+    );
+    await FileUtils.writeFile(
       p.join(c, 'network', 'dio_client.dart'),
       CoreTemplates.dioClient(),
+    );
+    await FileUtils.writeFile(
+      p.join(c, 'security', 'secure_storage.dart'),
+      CoreTemplates.secureStorage(),
     );
     await FileUtils.writeFile(
       p.join(c, 'usecases', 'usecase.dart'),
@@ -101,14 +109,6 @@ class InitCommand extends Command<int> {
     await FileUtils.writeFile(
       p.join(c, 'theme', 'app_theme.dart'),
       ConfigTemplates.appTheme(),
-    );
-    await FileUtils.writeFile(
-      p.join(c, 'router', 'app_router.dart'),
-      ConfigTemplates.appRouter(),
-    );
-    await FileUtils.writeFile(
-      p.join(c, 'env', 'env.dart'),
-      ConfigTemplates.env(),
     );
   }
 
