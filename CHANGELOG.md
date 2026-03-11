@@ -1,4 +1,3 @@
-## 0.1.2
+## 0.1.3
 
-- fix: AppButton imports and using wrong constants
-- Added AppInput
+- fix: Dio client, and create command checklist
