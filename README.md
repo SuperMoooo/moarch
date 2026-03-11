@@ -146,6 +146,8 @@ lib/features/auth/
 │   ├── datasources/
 │   │   ├── auth_remote_datasource.dart
 │   │   └── auth_local_datasource.dart  ← if selected
+│   ├── models/
+│   │    └── auth_model.dart
 │   └── repositories/
 │       └── auth_repository_impl.dart
 └── presentation/
