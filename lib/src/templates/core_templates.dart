@@ -174,53 +174,51 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../constants/api_constants.dart';
-import '../utils/logger.dart';
 import '../security/secure_storage.dart';
+import '../utils/logger.dart';
 
-final dioClientProvider = Provider<Dio>((ref) => buildDioClient());
+final dioClientProvider = Provider<Dio>((ref) => buildDioClient(ref));
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-Dio buildDioClient() {
-  final dio = Dio(
-    BaseOptions(
-      baseUrl: dotenv.get('BASE_URL'),
-      connectTimeout: ApiConstants.connectTimeout,
-      receiveTimeout: ApiConstants.receiveTimeout,
-      headers: const {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      // let all status codes through — errors are handled in the repository
-      validateStatus: (_) => true,
-    ),
-  )
-    ..interceptors.add(_authInterceptor())
-    ..interceptors.add(LogInterceptor(
-      requestBody: true,
-      responseBody: true,
-      logPrint: log,
-    ));
+Dio buildDioClient(Ref ref) {
+  final storage = ref.watch(secureStorageProvider);
+
+  final dio =
+      Dio(
+          BaseOptions(
+            baseUrl: dotenv.get('BASE_URL'),
+            connectTimeout: ApiConstants.connectTimeout,
+            receiveTimeout: ApiConstants.receiveTimeout,
+            headers: const {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            // let all status codes through — errors are handled in the repository
+            validateStatus: (_) => true,
+          ),
+        )
+        ..interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) async {
+              final token = await storage.read(key: 'token');
+              if (token != null) {
+                options.headers['Authorization'] = 'Bearer $token';
+              }
+              handler.next(options);
+            },
+          ),
+        )
+        ..interceptors.add(
+          LogInterceptor(requestBody: true, responseBody: true, logPrint: log),
+        );
 
   return dio;
 }
 
-InterceptorsWrapper _authInterceptor() {
-  const storage = ref.watch(secureStorageProvider);
-
-  return InterceptorsWrapper(
-    onRequest: (options, handler) async {
-      final token = await storage.read(key: 'token');
-      if (token != null) {
-        options.headers['Authorization'] = 'Bearer $token';
-      }
-      handler.next(options);
-    },
-  );
-}
 ''';
 
-  static String secureStorage() => r''' 
+  static String secureStorage() => r'''
   import 'package:flutter_secure_storage/flutter_secure_storage.dart';
   import 'package:flutter_riverpod/flutter_riverpod.dart';
 

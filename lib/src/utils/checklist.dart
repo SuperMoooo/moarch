@@ -1,7 +1,8 @@
 import 'dart:io';
 
-/// Renders an interactive toggle checklist in the terminal.
-/// Returns a Set of the selected item labels.
+/// Cross-platform checklist prompt.
+/// Shows numbered items — user types numbers to toggle, then presses enter to confirm.
+/// Works on Windows, macOS, and Linux without raw terminal mode.
 class Checklist {
   Checklist._();
 
@@ -9,79 +10,55 @@ class Checklist {
     required String title,
     required List<ChecklistItem> items,
   }) {
-    // Default all to their initial value
     final selected = {
       for (final item in items)
         if (item.defaultOn) item.label,
     };
 
-    stdin.echoMode = false;
-    stdin.lineMode = false;
+    while (true) {
+      _render(title, items, selected);
 
-    int cursor = 0;
+      stdout.write('  Toggle (1-${items.length}) or press enter to confirm: ');
+      final input = stdin.readLineSync()?.trim() ?? '';
 
-    void render() {
-      // Move cursor up to overwrite previous render (skip on first draw)
-      stdout.write('\x1B[${items.length + 2}A');
-      stdout.write('\r');
+      // Empty input = confirm
+      if (input.isEmpty) break;
 
-      stdout.writeln('\n$title');
-      for (int i = 0; i < items.length; i++) {
-        final isOn = selected.contains(items[i].label);
-        final isCursor = i == cursor;
-        final checkbox = isOn ? '[✓]' : '[ ]';
-        final pointer = isCursor ? '▶ ' : '  ';
-        final label = isCursor ? '\x1B[1m${items[i].label}\x1B[0m' : items[i].label;
-        stdout.writeln('$pointer$checkbox  $label');
+      // Accept comma-separated or space-separated numbers e.g. "1 3" or "2,4"
+      final parts = input.split(RegExp(r'[\s,]+'));
+      for (final part in parts) {
+        final n = int.tryParse(part);
+        if (n != null && n >= 1 && n <= items.length) {
+          final label = items[n - 1].label;
+          if (selected.contains(label)) {
+            selected.remove(label);
+          } else {
+            selected.add(label);
+          }
+        }
       }
     }
-
-    // First draw — just print, no overwrite
-    stdout.writeln('\n$title');
-    for (int i = 0; i < items.length; i++) {
-      final isOn = selected.contains(items[i].label);
-      final isCursor = i == cursor;
-      final checkbox = isOn ? '[✓]' : '[ ]';
-      final pointer = isCursor ? '▶ ' : '  ';
-      final label = isCursor ? '\x1B[1m${items[i].label}\x1B[0m' : items[i].label;
-      stdout.writeln('$pointer$checkbox  $label');
-    }
-
-    stdout.writeln('  ↑/↓ navigate  •  space toggle  •  enter confirm');
-
-    bool done = false;
-    while (!done) {
-      final byte = stdin.readByteSync();
-
-      if (byte == 27) {
-        // ESC sequence
-        final b2 = stdin.readByteSync();
-        if (b2 == 91) {
-          final b3 = stdin.readByteSync();
-          if (b3 == 65 && cursor > 0) cursor--; // up
-          if (b3 == 66 && cursor < items.length - 1) cursor++; // down
-        }
-      } else if (byte == 32) {
-        // space — toggle
-        final label = items[cursor].label;
-        if (selected.contains(label)) {
-          selected.remove(label);
-        } else {
-          selected.add(label);
-        }
-      } else if (byte == 10 || byte == 13) {
-        // enter
-        done = true;
-      }
-
-      if (!done) render();
-    }
-
-    stdin.echoMode = true;
-    stdin.lineMode = true;
 
     stdout.writeln('');
     return selected;
+  }
+
+  static void _render(
+    String title,
+    List<ChecklistItem> items,
+    Set<String> selected,
+  ) {
+    stdout.writeln('');
+    stdout.writeln('  $title');
+    stdout.writeln('');
+    for (int i = 0; i < items.length; i++) {
+      final isOn = selected.contains(items[i].label);
+      final checkbox = isOn ? '[✓]' : '[ ]';
+      final n = '${i + 1}'.padLeft(2);
+      stdout.writeln('  $n)  $checkbox  ${items[i].label}');
+    }
+    stdout.writeln('');
+    stdout.writeln('  Type a number to toggle. Press enter to confirm.');
   }
 }
 
