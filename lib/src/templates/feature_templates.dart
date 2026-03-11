@@ -211,8 +211,8 @@ class ${cls}State {
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-${hasUseCase ? "import '../../domain/usecases/get_$name.dart';" : "import 'package:../../data/repositories/${name}_repository_impl.dart';"}
-import 'package:../../domain/repositories/${name}_repository.dart';
+${hasUseCase ? "import '../../domain/usecases/get_$name.dart';" : "import '../../data/repositories/${name}_repository_impl.dart';"}
+import '../../domain/repositories/${name}_repository.dart';
 import '../states/${name}_state.dart';
 
 final ${name}NotifierProvider =

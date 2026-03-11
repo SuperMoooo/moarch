@@ -1,3 +1,3 @@
-## 0.1.5
+## 0.1.6
 
-- fix: Model cant be empty, AppInput missing app constants and wrong construct, on notifier fixed import
+- fix: Notifier fixed import
