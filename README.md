@@ -147,7 +147,7 @@ lib/features/auth/
 │   │   ├── auth_remote_datasource.dart
 │   │   └── auth_local_datasource.dart  ← if selected
 │   ├── models/
-│   │    └── auth_model.dart
+│   │   └── auth_model.dart
 │   └── repositories/
 │       └── auth_repository_impl.dart
 └── presentation/
@@ -219,4 +219,4 @@ dart pub global activate --source path /path/to/moarch
 
 ## License
 
-MIT © [your name](https://github.com/your-username)
+MIT © [André Montoito](https://github.com/SuperMoooo)
