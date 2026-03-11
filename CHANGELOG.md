@@ -1,3 +1,4 @@
-## 0.1.1
+## 0.1.2
 
-- Readme adjustments
+- fix: AppButton imports and using wrong constants
+- Added AppInput

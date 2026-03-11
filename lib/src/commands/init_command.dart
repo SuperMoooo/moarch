@@ -126,5 +126,9 @@ class InitCommand extends Command<int> {
       p.join(s, 'error_view.dart'),
       SharedTemplates.errorView(),
     );
+    await FileUtils.writeFile(
+      p.join(s, 'app_input.dart'),
+      SharedTemplates.appInput(),
+    );
   }
 }

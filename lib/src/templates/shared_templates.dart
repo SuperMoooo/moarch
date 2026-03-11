@@ -3,7 +3,8 @@ class SharedTemplates {
 
   static String appButton() => r'''
 import 'package:flutter/material.dart';
-import 'package:projeto_flutter/core/theme/app_theme.dart';
+import 'package:teste/core/constants/app_constants.dart';
+import 'package:teste/core/utils/extensions.dart';
 
 enum AppButtonType { primary, secondary, tertiary, danger }
 
@@ -18,7 +19,7 @@ class AppButton extends StatelessWidget {
     this.prefixIcon,
     this.suffixIcon,
     this.width,
-    this.size = ButtonSize.large,
+    this.size = AppButtonSize.large,
   });
 
   final AppButtonType type;
@@ -32,11 +33,11 @@ class AppButton extends StatelessWidget {
   (double height, double fontSize, double iconSize, EdgeInsets padding)
   _getSizeConfig() {
     switch (size) {
-      case ButtonSize.small:
+      case AppButtonSize.small:
         return (40, 14, 18, const EdgeInsets.symmetric(horizontal: 12));
-      case ButtonSize.medium:
+      case AppButtonSize.medium:
         return (50, 16, 22, const EdgeInsets.symmetric(horizontal: 16));
-      case ButtonSize.large:
+      case AppButtonSize.large:
         return (65, 18, 26, const EdgeInsets.symmetric(horizontal: 20));
     }
   }
@@ -51,25 +52,25 @@ class AppButton extends StatelessWidget {
     Color? foregroundColor;
 
     switch (type) {
-      case ButtonType.primary:
+      case AppButtonType.primary:
         {
           backgroundColor = theme.colorScheme.primary;
           foregroundColor = theme.colorScheme.onPrimary;
           break;
         }
-      case ButtonType.secondary:
+      case AppButtonType.secondary:
         {
           backgroundColor = theme.colorScheme.secondary;
           foregroundColor = theme.colorScheme.onSecondary;
           break;
         }
-      case ButtonType.tertiary:
+      case AppButtonType.tertiary:
         {
           backgroundColor = theme.colorScheme.tertiary;
           foregroundColor = theme.colorScheme.onTertiary;
           break;
         }
-      case ButtonType.danger:
+      case AppButtonType.danger:
         {
           backgroundColor = theme.colorScheme.error;
           foregroundColor = theme.colorScheme.onError;
@@ -87,12 +88,12 @@ class AppButton extends StatelessWidget {
           backgroundColor: backgroundColor,
           foregroundColor: foregroundColor,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(Sizes.borderRadiusFull),
+            borderRadius: AppConstants.borderRadius16,
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          spacing: Sizes.spacing,
+          spacing: AppConstants.space16,
           children: [
             if (prefixIcon != null) Icon(prefixIcon, size: iconSize),
             Text(
@@ -112,9 +113,11 @@ class AppButton extends StatelessWidget {
 
 ''';
 
-  static String appInput() => r''' 
+  static String appInput() => r'''
   import 'package:flutter/material.dart';
-import 'package:projeto_flutter/core/theme/app_theme.dart';
+import 'package:teste/core/constants/app_constants.dart';
+import 'package:teste/core/utils/extensions.dart';
+
 
 class AppInput extends StatefulWidget {
   const AppInput({
@@ -163,7 +166,7 @@ class _BaseInputState extends State<BaseInput> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final theme = context.theme;
     return IgnorePointer(
       ignoring: widget.readOnly,
       child: TextFormField(
@@ -206,11 +209,11 @@ class _BaseInputState extends State<BaseInput> {
           fillColor: theme.colorScheme.surfaceContainer,
 
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(Sizes.borderRadius),
+            borderRadius: AppConstants.borderRadius16,
             borderSide: BorderSide(color: theme.colorScheme.outline),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(Sizes.borderRadius),
+            borderRadius: AppConstants.borderRadius16,
             borderSide: BorderSide(
               color: theme.colorScheme.primary,
               width: 1.5,
