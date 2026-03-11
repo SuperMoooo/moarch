@@ -146,6 +146,11 @@ class _CreateFeatureCommand extends Command<int> {
           hasLocal: selected.contains(_kLocalDatasource),
         );
       }
+      await _writeModel(
+        featurePath,
+        featureName,
+        className,
+      );
 
       // Domain layer
       await _writeEntity(featurePath, featureName, className);
@@ -227,6 +232,13 @@ class _CreateFeatureCommand extends Command<int> {
     );
   }
 
+  Future<void> _writeModel(String fp, String name, String cls) async {
+    await FileUtils.writeFile(
+      p.join(fp, 'data', 'models', '${name}_model.dart'),
+      FeatureTemplates.model(name, cls),
+    );
+  }
+
   Future<void> _writeEntity(String fp, String name, String cls) async {
     await FileUtils.writeFile(
       p.join(fp, 'domain', 'entities', '${name}_entity.dart'),
@@ -270,10 +282,6 @@ class _CreateFeatureCommand extends Command<int> {
       p.join(fp, 'presentation', 'views', '${name}_view.dart'),
       FeatureTemplates.view(name, cls, hasNotifier: hasNotifier),
     );
-    await FileUtils.writeFile(
-      p.join(fp, 'presentation', 'widgets', '.gitkeep'),
-      '',
-    );
   }
 
   // ── Tree summary ─────────────────────────────────────────────────────────────
@@ -296,6 +304,7 @@ class _CreateFeatureCommand extends Command<int> {
       line('├── datasources/${name}_remote_datasource.dart');
     if (selected.contains(_kLocalDatasource))
       line('├── datasources/${name}_local_datasource.dart');
+    line('├── models/${name}_model.dart');
     if (selected.contains(_kRepository))
       line('└── repositories/${name}_repository_impl.dart');
 
@@ -306,7 +315,6 @@ class _CreateFeatureCommand extends Command<int> {
     }
     if (selected.contains(_kView)) {
       line('├── views/${name}_view.dart');
-      line('└── widgets/');
     }
     _logger.info('');
     _logger.info(

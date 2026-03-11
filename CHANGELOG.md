@@ -1,3 +1,3 @@
-## 0.1.3
+## 0.1.4
 
-- fix: Dio client, and create command checklist
+- fix: Model not writting, remove routepath from view. feat: added repo in notifier. refactor: removed abstract datasources for simplicity

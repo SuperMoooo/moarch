@@ -3,12 +3,9 @@ class FeatureTemplates {
 
   // ── Domain — Entity ─────────────────────────────────────────────────────────
 
-  static String entity(String name, String cls) =>
-      '''
+  static String entity(String name, String cls) => '''
 class ${cls}Entity {
-  const ${cls}Entity({
-    // TODO: add your fields
-  });
+
 
   // TODO: add copyWith, ==, hashCode if needed
 }
@@ -16,8 +13,7 @@ class ${cls}Entity {
 
   // ── Domain — Repository interface ───────────────────────────────────────────
 
-  static String repositoryInterface(String name, String cls) =>
-      '''
+  static String repositoryInterface(String name, String cls) => '''
 import '../entities/${name}_entity.dart';
 
 abstract interface class ${cls}Repository {
@@ -27,8 +23,7 @@ abstract interface class ${cls}Repository {
 
   // ── Domain — Use case ───────────────────────────────────────────────────────
 
-  static String usecase(String name, String cls) =>
-      '''
+  static String usecase(String name, String cls) => '''
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/repositories/${name}_repository_impl.dart';
@@ -54,11 +49,10 @@ class Get$cls implements NoParamsUseCase<List<${cls}Entity>> {
 
   // ── Data — Model ────────────────────────────────────────────────────────────
 
-  static String model(String name, String cls) =>
-      '''
+  static String model(String name, String cls) => '''
 import '../../domain/entities/${name}_entity.dart';
 
-class ${cls}Model {
+class ${cls}Model extends ${cls}Entity{
   const ${cls}Model({
     // TODO: add your fields
   });
@@ -83,8 +77,7 @@ class ${cls}Model {
 
   // ── Data — Remote datasource ────────────────────────────────────────────────
 
-  static String remoteDatasource(String name, String cls) =>
-      '''
+  static String remoteDatasource(String name, String cls) => '''
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -92,17 +85,14 @@ import '../../../../core/network/dio_client.dart';
 import '../models/${name}_model.dart';
 
 final ${name}RemoteDataSourceProvider = Provider<${cls}RemoteDataSource>(
-  (ref) => ${cls}RemoteDataSourceImpl(ref.watch(dioClientProvider)),
+  (ref) => ${cls}RemoteDataSource(ref.watch(dioClientProvider)),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-abstract interface class ${cls}RemoteDataSource {
-  // TODO: add your methods
-}
 
-class ${cls}RemoteDataSourceImpl implements ${cls}RemoteDataSource {
-  const ${cls}RemoteDataSourceImpl(this._dio);
+class ${cls}RemoteDataSource {
+  const ${cls}RemoteDataSource(this._dio);
 
   final Dio _dio;
 
@@ -112,23 +102,20 @@ class ${cls}RemoteDataSourceImpl implements ${cls}RemoteDataSource {
 
   // ── Data — Local/cache datasource ───────────────────────────────────────────
 
-  static String localDatasource(String name, String cls) =>
-      '''
+  static String localDatasource(String name, String cls) => '''
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/${name}_model.dart';
 
 final ${name}LocalDataSourceProvider = Provider<${cls}LocalDataSource>(
-  (ref) => ${cls}LocalDataSourceImpl(),
+  (ref) => ${cls}LocalDataSource(),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-abstract interface class ${cls}LocalDataSource {
-  // TODO: add your methods
-}
 
-class ${cls}LocalDataSourceImpl implements ${cls}LocalDataSource {
+
+class ${cls}LocalDataSource {
   // TODO: inject SharedPreferences / Hive / Isar / etc.
   // TODO: implement methods
 }
@@ -193,8 +180,7 @@ $fields
 
   // ── Presentation — State ────────────────────────────────────────────────────
 
-  static String state(String name, String cls) =>
-      '''
+  static String state(String name, String cls) => '''
 class ${cls}State {
   const ${cls}State({
     this.isLoadingAction = false,
@@ -224,10 +210,12 @@ class ${cls}State {
 
   static String notifier(String name, String cls, {required bool hasUseCase}) =>
       '''
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 ${hasUseCase ? "import '../../domain/usecases/get_$name.dart';" : "import '../../../data/repositories/${name}_repository_impl.dart';"}
-import '${name}_state.dart';
+import 'package:teste/features/${name}/domain/repositories/${name}_repository.dart';
+import '../states/${name}_state.dart';
 
 final ${name}NotifierProvider =
     AsyncNotifierProvider<${cls}Notifier, ${cls}State>(${cls}Notifier.new);
@@ -235,8 +223,10 @@ final ${name}NotifierProvider =
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ${cls}Notifier extends AsyncNotifier<${cls}State> {
+  late ${name}Repository _repo;
   @override
   FutureOr<${cls}State> build() async {
+    _repo = ref.watch(${name}RepositoryProvider);
     return const ${cls}State();
   }
 
@@ -268,7 +258,6 @@ ${hasNotifier ? "import '../notifiers/${name}_notifier.dart';" : ''}
 class ${cls}View extends ${hasNotifier ? 'ConsumerStatefulWidget' : 'StatelessWidget'} {
   const ${cls}View({super.key});
 
-  static const routeName = '/$name';
 
 ${hasNotifier ? '''  @override
   ConsumerState<${cls}View> createState() => _${cls}ViewState();
