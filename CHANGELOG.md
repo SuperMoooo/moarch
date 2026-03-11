@@ -1,3 +1,3 @@
-## 0.1.4
+## 0.1.5
 
-- fix: Model not writting, remove routepath from view. feat: added repo in notifier. refactor: removed abstract datasources for simplicity
+- fix: Model cant be empty, AppInput missing app constants and wrong construct, on notifier fixed import

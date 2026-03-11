@@ -118,7 +118,6 @@ class AppButton extends StatelessWidget {
 import 'package:teste/core/constants/app_constants.dart';
 import 'package:teste/core/utils/extensions.dart';
 
-
 class AppInput extends StatefulWidget {
   const AppInput({
     super.key,
@@ -152,10 +151,10 @@ class AppInput extends StatefulWidget {
   final bool required;
 
   @override
-  State<BaseInput> createState() => _BaseInputState();
+  State<AppInput> createState() => _AppInputState();
 }
 
-class _BaseInputState extends State<BaseInput> {
+class _AppInputState extends State<AppInput> {
   @override
   void initState() {
     if (widget.initialValue != null) {
@@ -202,7 +201,7 @@ class _BaseInputState extends State<BaseInput> {
           labelStyle: theme.textTheme.bodyLarge?.copyWith(
             color: theme.colorScheme.onSurface.withAlpha(220),
           ),
-          contentPadding: EdgeInsets.all(Sizes.padding),
+          contentPadding: AppConstants.padding16,
           prefixIcon: widget.prefixIcon,
           suffixIcon: widget.suffixIcon,
           filled: true,
@@ -224,6 +223,7 @@ class _BaseInputState extends State<BaseInput> {
     );
   }
 }
+
 
 ''';
 

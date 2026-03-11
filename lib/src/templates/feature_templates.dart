@@ -53,9 +53,7 @@ class Get$cls implements NoParamsUseCase<List<${cls}Entity>> {
 import '../../domain/entities/${name}_entity.dart';
 
 class ${cls}Model extends ${cls}Entity{
-  const ${cls}Model({
-    // TODO: add your fields
-  });
+   ${cls}Model();
 
   factory ${cls}Model.fromJson(Map<String, dynamic> json) {
     return ${cls}Model(
@@ -213,8 +211,8 @@ class ${cls}State {
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-${hasUseCase ? "import '../../domain/usecases/get_$name.dart';" : "import '../../../data/repositories/${name}_repository_impl.dart';"}
-import 'package:teste/features/${name}/domain/repositories/${name}_repository.dart';
+${hasUseCase ? "import '../../domain/usecases/get_$name.dart';" : "import 'package:../../data/repositories/${name}_repository_impl.dart';"}
+import 'package:../../domain/repositories/${name}_repository.dart';
 import '../states/${name}_state.dart';
 
 final ${name}NotifierProvider =
@@ -223,7 +221,7 @@ final ${name}NotifierProvider =
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ${cls}Notifier extends AsyncNotifier<${cls}State> {
-  late ${name}Repository _repo;
+  late ${cls}Repository _repo;
   @override
   FutureOr<${cls}State> build() async {
     _repo = ref.watch(${name}RepositoryProvider);
