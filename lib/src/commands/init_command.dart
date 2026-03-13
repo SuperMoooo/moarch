@@ -98,10 +98,6 @@ class InitCommand extends Command<int> {
       p.join(c, 'security', 'secure_storage.dart'),
       CoreTemplates.secureStorage(),
     );
-    await FileUtils.writeFile(
-      p.join(c, 'usecases', 'usecase.dart'),
-      CoreTemplates.usecaseBase(),
-    );
   }
 
   Future<void> _buildConfig(String libPath) async {
@@ -115,19 +111,23 @@ class InitCommand extends Command<int> {
   Future<void> _buildShared(String libPath) async {
     final s = p.join(libPath, 'shared', 'widgets');
     await FileUtils.writeFile(
-      p.join(s, 'app_button.dart'),
+      p.join(s, 'buttons', 'app_button.dart'),
       SharedTemplates.appButton(),
     );
     await FileUtils.writeFile(
-      p.join(s, 'app_loading.dart'),
-      SharedTemplates.appLoading(),
+      p.join(s, 'loadings', 'app_loading_data.dart'),
+      SharedTemplates.appLoadingData(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'loadings', 'app_loading_action.dart'),
+      SharedTemplates.appLoadingAction(),
     );
     await FileUtils.writeFile(
       p.join(s, 'error_view.dart'),
       SharedTemplates.errorView(),
     );
     await FileUtils.writeFile(
-      p.join(s, 'app_input.dart'),
+      p.join(s, 'inputs', 'app_input.dart'),
       SharedTemplates.appInput(),
     );
   }

@@ -227,14 +227,4 @@ Dio buildDioClient(Ref ref) {
 
 
 ''';
-
-  static String usecaseBase() => r'''
-abstract interface class UseCase<Type, Params> {
-  Future<Type> call(Params params);
-}
-
-abstract interface class NoParamsUseCase<Type> {
-  Future<Type> call();
-}
-''';
 }

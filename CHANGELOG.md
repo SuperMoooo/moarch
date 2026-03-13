@@ -1,3 +1,3 @@
-## 0.1.7
+## 0.1.8
 
-- fix: shared import
+- fix: model to entity -> from entity, refactor: some of the widgets folder structure and files

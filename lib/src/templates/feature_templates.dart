@@ -67,8 +67,7 @@ class ${cls}Model extends ${cls}Entity{
     };
   }
 
-  ${cls}Entity toEntity() => ${cls}Entity(
-    // TODO: map fields
+  factory ${cls}Model.fromEntity(${cls}Entity entity) => ${cls}Model(
   );
 }
 ''';

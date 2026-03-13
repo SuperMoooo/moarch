@@ -20,7 +20,7 @@ class AppButton extends StatelessWidget {
     this.prefixIcon,
     this.suffixIcon,
     this.width,
-    this.size = AppButtonSize.large,
+    this.size = AppButtonSize.medium,
   });
 
   final AppButtonType type;
@@ -89,12 +89,12 @@ class AppButton extends StatelessWidget {
           backgroundColor: backgroundColor,
           foregroundColor: foregroundColor,
           shape: RoundedRectangleBorder(
-            borderRadius: AppConstants.borderRadius16,
+            borderRadius: AppConstants.borderRadius12,
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          spacing: AppConstants.space16,
+          spacing: AppConstants.space4,
           children: [
             if (prefixIcon != null) Icon(prefixIcon, size: iconSize),
             Text(
@@ -202,14 +202,14 @@ class _AppInputState extends State<AppInput> {
           labelStyle: theme.textTheme.bodyLarge?.copyWith(
             color: theme.colorScheme.onSurface.withAlpha(220),
           ),
-          contentPadding: AppConstants.padding16,
+          contentPadding: AppConstants.padding12,
           prefixIcon: widget.prefixIcon,
           suffixIcon: widget.suffixIcon,
           filled: true,
           fillColor: theme.colorScheme.surfaceContainer,
 
           enabledBorder: OutlineInputBorder(
-            borderRadius: AppConstants.borderRadius16,
+            borderRadius: AppConstants.borderRadius12,
             borderSide: BorderSide(color: theme.colorScheme.outline),
           ),
           focusedBorder: OutlineInputBorder(
@@ -228,33 +228,56 @@ class _AppInputState extends State<AppInput> {
 
 ''';
 
-  static String appLoading() => r'''
+  static String appLoadingData() => r'''
 import 'package:flutter/material.dart';
 
-class AppLoading extends StatelessWidget {
-  const AppLoading({super.key, this.message});
-  final String? message;
+class AppLoadingData extends StatelessWidget {
+  const AppLoadingData({super.key, this.appBar});
+  final bool? appBar;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(),
-          if (message != null) ...[
-            const SizedBox(height: 16),
-            Text(message!, style: Theme.of(context).textTheme.bodyMedium),
-          ],
-        ],
-      ),
+    return Scaffold(
+      appBar: appBar == true ? AppBar() : null,
+      body: Center(child: CircularProgressIndicator.adaptive()),
     );
   }
 }
+
+''';
+
+  static String appLoadingAction() => r'''
+import 'package:flutter/material.dart';
+
+class AppLoadingAction extends StatelessWidget {
+  const AppLoadingAction({
+    super.key,
+    required this.isLoading,
+    this.onlyLoading = false,
+  });
+  final bool isLoading;
+  final bool onlyLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    if (onlyLoading) return Center(child: CircularProgressIndicator.adaptive());
+
+    return isLoading
+        ? Positioned(
+          child: Container(
+            color: Colors.black.withAlpha(100),
+            child: Center(child: CircularProgressIndicator.adaptive()),
+          ),
+        )
+        : SizedBox.shrink();
+  }
+}
+
 ''';
 
   static String errorView() => r'''
 import 'package:flutter/material.dart';
+import '../../core/constants/app_constants.dart';
 
 class ErrorView extends StatelessWidget {
   const ErrorView({super.key, required this.message, this.onRetry});
@@ -267,7 +290,7 @@ class ErrorView extends StatelessWidget {
     final theme = Theme.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: AppConstants.padding24,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
