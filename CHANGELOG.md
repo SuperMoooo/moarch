@@ -1,3 +1,3 @@
-## 0.1.8
+## 0.1.9
 
-- fix: model to entity -> from entity, refactor: some of the widgets folder structure and files
+- fix: view widget builder

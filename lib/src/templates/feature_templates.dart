@@ -279,16 +279,13 @@ class _${cls}ViewState extends ConsumerState<${cls}View> {
       // TODO: handle value.error and value.success
     });
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('$cls')),
-      body: ${name}Async.when(
+    return ${name}Async.when(
         loading: () => const CircularProgressIndicator(),
         error: (e, _) => Text(e.toString()),
         data: (state) {
           // TODO: build your UI with state
           return const SizedBox.shrink();
         },
-      ),
     );
   }
 }''' : '''  @override
