@@ -4,8 +4,8 @@ class SharedTemplates {
   static String appButton() => r'''
 import 'package:flutter/material.dart';
 
-import '../../core/constants/app_constants.dart';
-import '../../core/utils/extensions.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
 
 enum AppButtonType { primary, secondary, tertiary, danger }
 
@@ -116,8 +116,8 @@ class AppButton extends StatelessWidget {
 
   static String appInput() => r'''
   import 'package:flutter/material.dart';
-import '../../core/constants/app_constants.dart';
-import '../../core/utils/extensions.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
 
 class AppInput extends StatefulWidget {
   const AppInput({

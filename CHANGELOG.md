@@ -1,3 +1,3 @@
-## 0.1.9
+## 1.1.0
 
-- fix: view widget builder
+- fix: shared widget import
