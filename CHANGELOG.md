@@ -1,3 +1,3 @@
-## 1.0.0
+## 1.0.1
 
-- fix: shared widget import
+- feat: transparent type on btn, palette section for constants, theme light has brightness. refactor: error view for optional message.

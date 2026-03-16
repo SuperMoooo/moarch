@@ -73,6 +73,9 @@ extension StringX on String {
 
 extension DateTimeX on DateTime {
   String get formattedDate => '$day/$month/$year';
+  String get formattedTime => '$hour:$minute';
+  String get formattedDateTime => '$formattedDate $formattedTime';
+
   bool get isToday {
     final now = DateTime.now();
     return day == now.day && month == now.month && year == now.year;
@@ -89,6 +92,9 @@ extension DateTimeX on DateTime {
 import 'package:flutter/material.dart';
 
 abstract final class AppConstants {
+  // ── Palette ────────────────────────────────────────────────────
+
+
   // ── Spacing — 4pt grid ────────────────────────────────────────────────────
   static const double space4  = 4;
   static const double space8  = 8;

@@ -248,6 +248,8 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State> {
   static String view(String name, String cls, {required bool hasNotifier}) =>
       '''
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/error_view.dart';
+
 ${hasNotifier ? "import 'package:flutter_riverpod/flutter_riverpod.dart';" : ''}
 
 ${hasNotifier ? "import '../notifiers/${name}_notifier.dart';" : ''}
@@ -281,7 +283,7 @@ class _${cls}ViewState extends ConsumerState<${cls}View> {
 
     return ${name}Async.when(
         loading: () => const CircularProgressIndicator(),
-        error: (e, _) => Text(e.toString()),
+        error: (e, _) => ErrorView("Failed to load ${cls}"),
         data: (state) {
           // TODO: build your UI with state
           return const SizedBox.shrink();

@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
-enum AppButtonType { primary, secondary, tertiary, danger }
+enum AppButtonType { primary, secondary, tertiary, transparent, danger }
 
 enum AppButtonSize { large, medium, small }
 
@@ -35,11 +35,11 @@ class AppButton extends StatelessWidget {
   _getSizeConfig() {
     switch (size) {
       case AppButtonSize.small:
-        return (40, 14, 18, const EdgeInsets.symmetric(horizontal: 12));
+        return (40, 14, 18, AppConstants.padding12);
       case AppButtonSize.medium:
-        return (50, 16, 22, const EdgeInsets.symmetric(horizontal: 16));
+        return (50, 16, 22, AppConstants.padding16);
       case AppButtonSize.large:
-        return (65, 18, 26, const EdgeInsets.symmetric(horizontal: 20));
+        return (65, 18, 26, AppConstants.padding20);
     }
   }
 
@@ -71,6 +71,12 @@ class AppButton extends StatelessWidget {
           foregroundColor = theme.colorScheme.onTertiary;
           break;
         }
+         case AppButtonType.transparent:
+        {
+          backgroundColor = Colors.transparent;
+          foregroundColor = theme.colorScheme.primary;
+          break;
+        }
       case AppButtonType.danger:
         {
           backgroundColor = theme.colorScheme.error;
@@ -85,6 +91,7 @@ class AppButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
+          elevation: 0
           padding: padding,
           backgroundColor: backgroundColor,
           foregroundColor: foregroundColor,
@@ -96,7 +103,7 @@ class AppButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           spacing: AppConstants.space4,
           children: [
-            if (prefixIcon != null) Icon(prefixIcon, size: iconSize),
+            if (prefixIcon != null) Icon(prefixIcon, size: iconSize, color: foregroundColor),
             Text(
               label,
               style: theme.textTheme.titleLarge?.copyWith(
@@ -104,7 +111,7 @@ class AppButton extends StatelessWidget {
                 fontSize: fontSize,
               ),
             ),
-            if (suffixIcon != null) Icon(suffixIcon, size: iconSize),
+            if (suffixIcon != null) Icon(suffixIcon, size: iconSize, color: foregroundColor),
           ],
         ),
       ),
@@ -280,9 +287,9 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
 
 class ErrorView extends StatelessWidget {
-  const ErrorView({super.key, required this.message, this.onRetry});
+  const ErrorView({super.key, this.message, this.onRetry});
 
-  final String message;
+  final String? message;
   final VoidCallback? onRetry;
 
   @override
@@ -303,7 +310,7 @@ class ErrorView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              message,
+              message ?? 'Something went wrong',
               style: theme.textTheme.bodyMedium
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               textAlign: TextAlign.center,
