@@ -35,11 +35,11 @@ class AppButton extends StatelessWidget {
   _getSizeConfig() {
     switch (size) {
       case AppButtonSize.small:
-        return (40, 14, 18, AppConstants.padding12);
+        return (AppConstants.touchTarget, 14, 18, AppConstants.padding12);
       case AppButtonSize.medium:
-        return (50, 16, 22, AppConstants.padding16);
+        return (AppConstants.touchTarget + 4, 16, 22, AppConstants.padding16);
       case AppButtonSize.large:
-        return (65, 18, 26, AppConstants.padding20);
+        return (AppConstants.touchTarget + 8, 18, 26, EdgeInsets.all(AppConstants.space16 + 2));
     }
   }
 
@@ -91,7 +91,7 @@ class AppButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          elevation: 0
+          elevation: 0,
           padding: padding,
           backgroundColor: backgroundColor,
           foregroundColor: foregroundColor,
@@ -174,6 +174,9 @@ class _AppInputState extends State<AppInput> {
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
+
+  final verticalPadding = (AppConstants.touchTarget - AppConstants.fontSize16) / 2;
+
     return IgnorePointer(
       ignoring: widget.readOnly,
       child: TextFormField(
@@ -209,7 +212,10 @@ class _AppInputState extends State<AppInput> {
           labelStyle: theme.textTheme.bodyLarge?.copyWith(
             color: theme.colorScheme.onSurface.withAlpha(220),
           ),
-          contentPadding: AppConstants.padding12,
+          contentPadding: EdgeInsets.symmetric(
+            vertical: verticalPadding,
+            horizontal: AppConstants.space12,
+          ),
           prefixIcon: widget.prefixIcon,
           suffixIcon: widget.suffixIcon,
           filled: true,
@@ -284,6 +290,7 @@ class AppLoadingAction extends StatelessWidget {
 
   static String errorView() => r'''
 import 'package:flutter/material.dart';
+
 import '../../core/constants/app_constants.dart';
 
 class ErrorView extends StatelessWidget {
@@ -295,39 +302,48 @@ class ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: AppConstants.padding24,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: theme.colorScheme.error),
-            const SizedBox(height: 16),
-            Text(
-              'Something went wrong',
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message ?? 'Something went wrong',
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-              textAlign: TextAlign.center,
-            ),
-            if (onRetry != null) ...[
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Try again'),
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: AppConstants.padding24,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 64,
+                color: theme.colorScheme.error,
               ),
+              const SizedBox(height: 16),
+              Text(
+                'Something went wrong',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message ?? 'An unknown error occurred',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              if (onRetry != null) ...[
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try again'),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 }
+
 ''';
 }

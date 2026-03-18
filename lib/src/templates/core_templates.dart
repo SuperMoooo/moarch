@@ -24,6 +24,15 @@ class App extends StatelessWidget {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.noScaling,
+            alwaysUse24HourFormat: true,
+          ),
+          child: child!,
+        );
+      },
       // TODO: set your initial route/home
     );
   }

@@ -1,3 +1,3 @@
-## 1.0.1
+## 1.0.2
 
-- feat: transparent type on btn, palette section for constants, theme light has brightness. refactor: error view for optional message.
+- fix: input and btn the size of touch target
