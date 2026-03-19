@@ -1,3 +1,3 @@
-## 1.0.3
+## 1.0.4
 
-- fix: import in view and param in error view
+- fix: dio config

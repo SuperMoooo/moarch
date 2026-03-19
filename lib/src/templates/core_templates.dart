@@ -209,8 +209,10 @@ Dio buildDioClient(Ref ref) {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
-            // let all status codes through — errors are handled in the repository
-            validateStatus: (_) => true,
+            // Status that pass: 200-399, all the other will be caught in DioException
+            validateStatus: (status) {
+              return status != null && status >= 200 && status < 400;
+            },
           ),
         )
         ..interceptors.add(
