@@ -131,6 +131,7 @@ class AppInput extends StatefulWidget {
     super.key,
     this.controller,
     required this.label,
+    this.hint,
     this.maxLines,
     this.isPassword = false,
     this.initialValue,
@@ -146,6 +147,7 @@ class AppInput extends StatefulWidget {
 
   final TextEditingController? controller;
   final String label;
+  final String? hint;
   final int? maxLines;
   final bool isPassword;
   final String? initialValue;
@@ -175,68 +177,67 @@ class _AppInputState extends State<AppInput> {
   Widget build(BuildContext context) {
     final theme = context.theme;
 
-  final verticalPadding = (AppConstants.touchTarget - AppConstants.fontSize16) / 2;
+    final verticalPadding =
+        (AppConstants.touchTarget - AppConstants.fontSize16) / 2;
 
-    return IgnorePointer(
-      ignoring: widget.readOnly,
-      child: TextFormField(
-        focusNode: widget.focusNode,
-        autofocus: widget.autoFocus,
-        readOnly: widget.readOnly,
-        controller: widget.controller,
-        style: theme.textTheme.bodyLarge,
-        initialValue: widget.controller == null ? widget.initialValue : null,
-        maxLines: widget.maxLines ?? 1,
-        obscureText: widget.isPassword,
-        keyboardType: widget.keyboardType,
-        textInputAction: widget.textInputAction,
-        cursorColor: theme.colorScheme.primary,
-        decoration: InputDecoration(
-          label: Text.rich(
-            TextSpan(
-              text: widget.label,
-              style: theme.textTheme.bodyLarge,
-              children: widget.required
-                  ? [
-                      TextSpan(
-                        text: ' *',
-                        style: TextStyle(
-                          color: theme.colorScheme.error,
-                          fontWeight: FontWeight.bold,
-                        ),
+    return Column(
+      spacing: AppConstants.space8,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(
+          TextSpan(
+            text: widget.label,
+            style: theme.textTheme.bodyLarge?.copyWith(letterSpacing: 1.25),
+            children: widget.required
+                ? [
+                    TextSpan(
+                      text: ' *',
+                      style: TextStyle(
+                        color: theme.colorScheme.error,
+                        fontWeight: FontWeight.bold,
                       ),
-                    ]
-                  : [],
-            ),
+                    ),
+                  ]
+                : [],
           ),
-          labelStyle: theme.textTheme.bodyLarge?.copyWith(
-            color: theme.colorScheme.onSurface.withAlpha(220),
-          ),
-          contentPadding: EdgeInsets.symmetric(
-            vertical: verticalPadding,
-            horizontal: AppConstants.space12,
-          ),
-          prefixIcon: widget.prefixIcon,
-          suffixIcon: widget.suffixIcon,
-          filled: true,
-          fillColor: theme.colorScheme.surfaceContainer,
-
-          enabledBorder: OutlineInputBorder(
-            borderRadius: AppConstants.borderRadius12,
-            borderSide: BorderSide(color: theme.colorScheme.outline),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: AppConstants.borderRadius16,
-            borderSide: BorderSide(
-              color: theme.colorScheme.primary,
-              width: 1.5,
+        ),
+        IgnorePointer(
+          ignoring: widget.readOnly,
+          child: TextFormField(
+            focusNode: widget.focusNode,
+            autofocus: widget.autoFocus,
+            readOnly: widget.readOnly,
+            controller: widget.controller,
+            style: theme.textTheme.bodyLarge,
+            initialValue: widget.controller == null
+                ? widget.initialValue
+                : null,
+            maxLines: widget.maxLines ?? 1,
+            obscureText: widget.isPassword,
+            keyboardType: widget.keyboardType,
+            textInputAction: widget.textInputAction,
+            cursorColor: theme.colorScheme.primary,
+            decoration: InputDecoration(
+              hint: Text(
+                widget.hint ?? "",
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
+                ),
+              ),
+              contentPadding: EdgeInsets.symmetric(
+                vertical: verticalPadding,
+                horizontal: AppConstants.space12,
+              ),
+              prefixIcon: widget.prefixIcon,
+              suffixIcon: widget.suffixIcon,
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 }
+
 
 
 ''';

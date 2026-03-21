@@ -103,6 +103,24 @@ import 'package:flutter/material.dart';
 abstract final class AppConstants {
   // ── Palette ────────────────────────────────────────────────────
 
+  
+  static const Color primary = Color(0xFFFFFFF); 
+  static const Color secondary = Color(0xFFFFFFF); 
+  static const Color tertiary = Color(0xFFFFFFF); 
+  static const Color surface = Color(0xFFFFFFF);
+  static const Color onSurface = Color(0xFFFFFFF); 
+  static const Color outline = Color(0xFFFFFFF); 
+
+  // Accent tokens
+  static const Color identifier = Color(0xFFFFFFF); // Active categories
+  static const Color identifier1 = Color(0xFFFFFFF); // Restorative categories
+  static const Color identifier2 = Color(0xFFFFFFF); // Energetic highlights
+
+  // Surface layers (tonal layering — no borders) (use surface as base)
+  static const Color surfaceContainerLow = Color(0xFFFFFFF);
+  static const Color surfaceContainerLowest = Color(0xFFFFFFF);
+  static const Color surfaceContainerHighest = Color(0xFFFFFFF);
+
 
   // ── Spacing — 4pt grid ────────────────────────────────────────────────────
   static const double space4  = 4;

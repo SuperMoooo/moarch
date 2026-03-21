@@ -1,3 +1,3 @@
-## 1.0.4
+## 1.0.5
 
-- fix: dio config
+- fix: theme and constants
