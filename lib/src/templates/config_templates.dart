@@ -49,9 +49,6 @@ abstract final class AppTheme {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: AppConstants.surfaceContainerLowest,
-      labelStyle: textTheme.bodyMedium?.copyWith(
-        color: AppConstants.surfaceContainerLowest,
-      ),
       border: OutlineInputBorder(
         borderRadius: AppConstants.borderRadius12,
         borderSide: BorderSide.none,
