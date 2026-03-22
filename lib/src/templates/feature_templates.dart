@@ -220,10 +220,11 @@ final ${name}NotifierProvider =
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ${cls}Notifier extends AsyncNotifier<${cls}State> {
-  late ${cls}Repository _repo;
+
+  ${cls}Repository get _repo => ref.watch(${name}RepositoryProvider);
+
   @override
   FutureOr<${cls}State> build() async {
-    _repo = ref.watch(${name}RepositoryProvider);
     return const ${cls}State();
   }
 

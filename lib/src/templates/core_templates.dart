@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'config/router/app_router.dart';
 import 'config/theme/app_theme.dart';
 
 Future<void> main() async {
@@ -19,11 +20,14 @@ class App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+  final router = ref.watch(routerProvider);
+
     return MaterialApp(
       title: 'App',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       debugShowCheckedModeBanner: false,
+      routerConfig: router,
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(

@@ -106,6 +106,10 @@ class InitCommand extends Command<int> {
       p.join(c, 'theme', 'app_theme.dart'),
       ConfigTemplates.appTheme(),
     );
+    await FileUtils.writeFile(
+      p.join(c, 'router', 'app_router.dart'),
+      ConfigTemplates.appRouter(),
+    );
   }
 
   Future<void> _buildShared(String libPath) async {

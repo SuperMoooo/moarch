@@ -1,6 +1,79 @@
 class ConfigTemplates {
   ConfigTemplates._();
 
+  static String appRouter() => r'''
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+ 
+// ── Navigator key ─────────────────────────────────────────────────────────────
+// Use this to navigate from anywhere without BuildContext:
+//   ref.read(routerProvider).go(AppRoutes.home)
+//   ref.read(routerProvider).push(AppRoutes.detail)
+ 
+final routerProvider = Provider<GoRouter>((ref) => _router);
+ 
+final _rootNavigatorKey = GlobalKey<NavigatorState>();
+ 
+// ── Routes ────────────────────────────────────────────────────────────────────
+ 
+abstract final class AppRoutes {
+  static const home   = '/';
+  // static const login  = '/login';
+  // static const detail = '/detail/:id';
+}
+ 
+// ── Router ────────────────────────────────────────────────────────────────────
+ 
+final _router = GoRouter(
+  navigatorKey: _rootNavigatorKey,
+  initialLocation: AppRoutes.home,
+  debugLogDiagnostics: true,
+  routes: [
+    GoRoute(
+      path: AppRoutes.home,
+      builder: (context, state) => const Scaffold(
+        body: Center(child: Text('Home — replace me!')),
+      ),
+    ),
+ 
+    // Example with path parameter:
+    // GoRoute(
+    //   path: AppRoutes.detail,
+    //   builder: (context, state) {
+    //     final id = state.pathParameters['id']!;
+    //     return DetailView(id: id);
+    //   },
+    // ),
+
+    //   GoRoute(
+    //   path: '/recipe/detail',
+    //    builder: (context, state) {
+    //     final recipe = state.extra as RecipeEntity;
+    //      return RecipeDetailView(recipe: recipe);
+    //    },
+    //    ),
+
+    // navegar — passa a entidade directamente
+    //   ref.read(routerProvider).go(
+    //      '/recipe/detail',
+    //      extra: recipe, // qualquer objeto
+    //   );
+ 
+    // Example with redirect (e.g. auth guard):
+    // GoRoute(
+    //   path: AppRoutes.home,
+    //   redirect: (context, state) {
+    //     final isLoggedIn = ...; // read from your auth notifier
+    //     if (!isLoggedIn) return AppRoutes.login;
+    //     return null; // null = no redirect
+    //   },
+    //   builder: (context, state) => const HomeView(),
+    // ),
+  ],
+);
+''';
+
   static String appTheme() => r'''
 import 'package:flutter/material.dart';
 
@@ -29,9 +102,7 @@ abstract final class AppTheme {
       onError: AppConstants.surface,
 
       outline: AppConstants.outline.withValues(alpha: 0.3), // ~15% of 255
-      outlineVariant: AppConstants.outline.withAlpha(
-        20,
-      ),
+      outlineVariant: AppConstants.outline.withValues(alpha: 0.3), // ~15% of 255
     ),
 
     scaffoldBackgroundColor: AppConstants.surface,
@@ -41,9 +112,6 @@ abstract final class AppTheme {
       foregroundColor: AppConstants.surface,
       elevation: 0,
       scrolledUnderElevation: 0,
-      titleTextStyle: textTheme.headlineMedium?.copyWith(
-        color: AppConstants.surface,
-      ),
     ),
 
     inputDecorationTheme: InputDecorationTheme(
@@ -77,7 +145,6 @@ abstract final class AppTheme {
 
     timePickerTheme: TimePickerThemeData(
       backgroundColor: AppConstants.surface,
-      hourMinuteTextStyle: textTheme.bodyMedium,
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
     ),
 
@@ -97,7 +164,7 @@ abstract final class AppTheme {
 
     textSelectionTheme: TextSelectionThemeData(
       cursorColor: AppConstants.primary,
-      selectionColor: AppConstants.primary.withAlpha(80),
+      selectionColor: AppConstants.primary.withValues(alpha: 0.25),
       selectionHandleColor: AppConstants.primary,
     ),
 
@@ -112,8 +179,7 @@ abstract final class AppTheme {
 
     chipTheme: ChipThemeData(
       backgroundColor: AppConstants.surfaceContainerLow,
-      selectedColor: AppConstants.primary.withAlpha(30),
-      labelStyle: textTheme.labelMedium,
+      selectedColor: AppConstants.primary.withValues(alpha: 0.25),
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
       side: BorderSide.none,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
