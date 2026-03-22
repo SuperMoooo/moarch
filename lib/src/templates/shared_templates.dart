@@ -32,15 +32,11 @@ class AppButton extends StatelessWidget {
   final AppButtonSize size;
 
   (double height, double fontSize, double iconSize, EdgeInsets padding)
-  _getSizeConfig() {
-    switch (size) {
-      case AppButtonSize.small:
-        return (AppConstants.touchTarget, 14, 18, AppConstants.padding12);
-      case AppButtonSize.medium:
-        return (AppConstants.touchTarget + 4, 16, 22, AppConstants.padding16);
-      case AppButtonSize.large:
-        return (AppConstants.touchTarget + 8, 18, 26, EdgeInsets.all(AppConstants.space16 + 2));
-    }
+  _getSizeConfig() => switch (size) {
+      AppButtonSize.small => (AppConstants.touchTarget, 14, 18, AppConstants.padding12);
+      AppButtonSize.medium => (AppConstants.touchTarget + 4, 16, 22, AppConstants.padding16);
+      AppButtonSize.large => (AppConstants.touchTarget + 8, 18, 26, EdgeInsets.all(AppConstants.space16 + 2));
+
   }
 
   @override
