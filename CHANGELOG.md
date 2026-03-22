@@ -1,3 +1,3 @@
-## 1.0.6
+## 1.0.7
 
-- fix: input theme label
+- fix: colors
