@@ -104,22 +104,22 @@ abstract final class AppConstants {
   // ── Palette ────────────────────────────────────────────────────
 
   
-  static const Color primary = Color(0xFFFFFFF); 
-  static const Color secondary = Color(0xFFFFFFF); 
-  static const Color tertiary = Color(0xFFFFFFF); 
-  static const Color surface = Color(0xFFFFFFF);
-  static const Color onSurface = Color(0xFFFFFFF); 
-  static const Color outline = Color(0xFFFFFFF); 
+  static const Color primary = Color(0xFFFFFFFF); 
+  static const Color secondary = Color(0xFFFFFFFF); 
+  static const Color tertiary = Color(0xFFFFFFFF); 
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color onSurface = Color(0xFFFFFFFF); 
+  static const Color outline = Color(0xFFFFFFFF); 
 
   // Accent tokens
-  static const Color identifier = Color(0xFFFFFFF); // Active categories
-  static const Color identifier1 = Color(0xFFFFFFF); // Restorative categories
-  static const Color identifier2 = Color(0xFFFFFFF); // Energetic highlights
+  static const Color identifier = Color(0xFFFFFFFF); // Active categories
+  static const Color identifier1 = Color(0xFFFFFFFF); // Restorative categories
+  static const Color identifier2 = Color(0xFFFFFFFF); // Energetic highlights
 
   // Surface layers (tonal layering — no borders) (use surface as base)
-  static const Color surfaceContainerLow = Color(0xFFFFFFF);
-  static const Color surfaceContainerLowest = Color(0xFFFFFFF);
-  static const Color surfaceContainerHighest = Color(0xFFFFFFF);
+  static const Color surfaceContainerLow = Color(0xFFFFFFFF);
+  static const Color surfaceContainerLowest = Color(0xFFFFFFFF);
+  static const Color surfaceContainerHighest = Color(0xFFFFFFFF);
 
 
   // ── Spacing — 4pt grid ────────────────────────────────────────────────────

@@ -52,38 +52,13 @@ class AppButton extends StatelessWidget {
     Color? backgroundColor;
     Color? foregroundColor;
 
-    switch (type) {
-      case AppButtonType.primary:
-        {
-          backgroundColor = theme.colorScheme.primary;
-          foregroundColor = theme.colorScheme.onPrimary;
-          break;
-        }
-      case AppButtonType.secondary:
-        {
-          backgroundColor = theme.colorScheme.secondary;
-          foregroundColor = theme.colorScheme.onSecondary;
-          break;
-        }
-      case AppButtonType.tertiary:
-        {
-          backgroundColor = theme.colorScheme.tertiary;
-          foregroundColor = theme.colorScheme.onTertiary;
-          break;
-        }
-         case AppButtonType.transparent:
-        {
-          backgroundColor = Colors.transparent;
-          foregroundColor = theme.colorScheme.primary;
-          break;
-        }
-      case AppButtonType.danger:
-        {
-          backgroundColor = theme.colorScheme.error;
-          foregroundColor = theme.colorScheme.onError;
-          break;
-        }
-    }
+   (backgroundColor, foregroundColor) = switch (type) {
+    AppButtonType.primary   => (theme.colorScheme.primary, theme.colorScheme.onPrimary),
+    AppButtonType.secondary => (theme.colorScheme.secondary, theme.colorScheme.onSecondary),
+    AppButtonType.tertiary  => (theme.colorScheme.tertiary, theme.colorScheme.onTertiary),
+    AppButtonType.transparent => (Colors.transparent, theme.colorScheme.primary),
+    AppButtonType.danger    => (theme.colorScheme.error, theme.colorScheme.onError),
+    };
 
     return SizedBox(
       width: width ?? double.infinity,
