@@ -1,3 +1,3 @@
-## 1.0.8
+## 1.0.9
 
-- feat: router
+- fix: import on theme, main file adjusted for using ref
