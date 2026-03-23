@@ -11,7 +11,7 @@ A Flutter CLI tool to scaffold Clean Architecture projects with Riverpod — you
 
 - ⚡ **One command setup** — `moarch init` scaffolds your full `lib/` structure with routing, theme, security, and shared widgets
 - 🎯 **Layered feature generation** — `moarch create feature <n>` generates Clean Architecture with an interactive checklist
-- ✨ **Zero boilerplate** — No `build_runner`, `freezed`, or `riverpod_annotation` — everything compiles immediately
+- ✨ **Minimal code generation** — build_runner used only for secure `.env` handling; no `freezed` or `riverpod_annotation` boilerplate
 - 🏗️ **Your conventions** — Fully customizable templates, pre-configured with proven patterns
 - 🔒 **Security included** — Secure storage integration with `flutter_secure_storage`
 - 📍 **Router ready** — GoRouter setup out of the box
