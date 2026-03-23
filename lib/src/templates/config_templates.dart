@@ -76,6 +76,7 @@ final _router = GoRouter(
 
   static String appTheme() => r'''
 import 'package:flutter/material.dart';
+import '../../core/constants/app_constants.dart';
 
 abstract final class AppTheme {
  static ThemeData get light => ThemeData(
