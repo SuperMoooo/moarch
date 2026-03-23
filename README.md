@@ -86,7 +86,7 @@ dev_dependencies:
 When you run `moarch init`, it scaffolds:
 
 - `lib/config/env/app_env.dart` with `@Envied(... obfuscate: true)`
-- `.env` entries: `BASE_URL=` and `API_KEY=` (auto-generated)
+- `.env` entries: `BASE_URL=` (auto-generated)
 - `.gitignore` entry `.env`
 
 In your app, execute codegen:
@@ -94,14 +94,13 @@ In your app, execute codegen:
 ```bash
 fvm flutter pub add envied
 fvm flutter pub add --dev build_runner envied_generator
-fvm flutter pub run build_runner build --delete-conflicting-outputs
+dart run build_runner build --delete-conflicting-outputs
 ```
 
 Then use `AppEnv` values safely:
 
 ```dart
 final baseUrl = AppEnv.baseUrl;
-final apiKey = AppEnv.apiKey;
 ```
 
 ---

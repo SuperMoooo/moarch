@@ -1,3 +1,3 @@
-## 1.0.10
+## 1.0.11
 
-- feat: new env package for security
+- fix: envied file and readme
