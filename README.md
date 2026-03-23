@@ -9,12 +9,14 @@ A Flutter CLI tool to scaffold Clean Architecture projects with Riverpod — you
 
 ## Features
 
-- `moarch init` — scaffolds your full `lib/` structure in seconds
-- `moarch create feature <n>` — generates Clean Architecture layers with an interactive checklist
-- No `build_runner`, no `freezed`, no `riverpod_annotation` — everything compiles immediately
-- Providers live at the top of their own file, no separate DI file
-- State pattern matches your own style: plain class with safe `copyWith`, `AsyncNotifier`, `ref.listen`
-- `.env` and `.fvmrc` generated at project root
+- ⚡ **One command setup** — `moarch init` scaffolds your full `lib/` structure with routing, theme, security, and shared widgets
+- 🎯 **Layered feature generation** — `moarch create feature <n>` generates Clean Architecture with an interactive checklist
+- ✨ **Zero boilerplate** — No `build_runner`, `freezed`, or `riverpod_annotation` — everything compiles immediately
+- 🏗️ **Your conventions** — Fully customizable templates, pre-configured with proven patterns
+- 🔒 **Security included** — Secure storage integration with `flutter_secure_storage`
+- 📍 **Router ready** — GoRouter setup out of the box
+- 🎨 **Reusable widgets** — Pre-built button, input, loading, and error view components
+- 📦 **Environment-aware** — `.env` and `.fvmrc` generated at project root
 
 ---
 
@@ -27,8 +29,10 @@ dart pub global activate moarch
 Make sure `~/.pub-cache/bin` is in your `PATH`:
 
 ```bash
-# add to .zshrc or .bashrc
+# macOS / Linux — add to .zshrc or .bashrc
 export PATH="$PATH:$HOME/.pub-cache/bin"
+
+# Windows — add %APPDATA%\Pub\Cache\bin to your PATH via Environment Variables
 ```
 
 ---
@@ -45,7 +49,7 @@ flutter pub get
 # 3. remove the generated main.dart
 rm lib/main.dart
 
-# 4. scaffold
+# 4. scaffold the project structure
 moarch init
 
 # 5. create your first feature
@@ -54,19 +58,20 @@ moarch create feature auth
 
 ---
 
-## Required project dependencies
+## Required dependencies
 
 ```yaml
 dependencies:
     flutter:
         sdk: flutter
     flutter_riverpod: ^2.5.1
-    dio: ^5.4.3
     flutter_dotenv: ^5.1.0
+    dio: ^5.4.3
+    go_router: ^14.0.0
     flutter_secure_storage: ^9.2.2
 ```
 
-Also register `.env` in your `pubspec.yaml` assets:
+Register `.env` as assets in `pubspec.yaml`:
 
 ```yaml
 flutter:
@@ -78,86 +83,112 @@ flutter:
 
 ## moarch init
 
-Generates the full project structure:
+Generates a complete, production-ready project structure:
 
 ```
 .env                             ← BASE_URL=
 .fvmrc                           ← { "flutter": "stable" }
 lib/
-├── main.dart
+├── main.dart                    ← App with routing & theme setup
 ├── core/
 │   ├── constants/
-│   │   ├── app_constants.dart   ← spacing (4pt grid), text sizes, touch targets, radii, durations
-│   │   └── api_constants.dart   ← timeouts only, BASE_URL comes from .env
+│   │   ├── app_constants.dart   ← spacing (4pt), text sizes, touch targets, radii, durations
+│   │   └── api_constants.dart   ← API timeout, BASE_URL from .env
 │   ├── errors/
-│   │   └── app_exception.dart
+│   │   └── app_exception.dart   ← unified error handling
 │   ├── network/
-│   │   └── dio_client.dart      ← dotenv baseUrl, secure storage auth token, all status codes pass through
-│   ├── usecases/
-│   │   └── usecase.dart
+│   │   └── dio_client.dart      ← HTTP client with interceptors
+│   ├── security/
+│   │   └── secure_storage.dart  ← flutter_secure_storage wrapper
 │   └── utils/
 │       ├── extensions.dart      ← ContextX, StringX, DateTimeX
-│       └── logger.dart          ← single log() function, kDebugMode only
+│       └── logger.dart          ← single log() function
 ├── config/
+│   ├── router/
+│   │   └── app_router.dart      ← GoRouter setup with routes
 │   └── theme/
-│       └── app_theme.dart       ← useMaterial3, you fill in the rest
+│       └── app_theme.dart       ← Material 3 theme, light/dark modes
 ├── shared/widgets/
-│   ├── app_button.dart          ← filled / outlined / text variants
-│   ├── app_loading.dart
-│   └── error_view.dart
-└── features/
+│   ├── buttons/
+│   │   └── app_button.dart      ← filled / outlined / text variants
+│   ├── inputs/
+│   │   └── app_input.dart       ← themed text input field
+│   ├── loadings/
+│   │   ├── app_loading_data.dart    ← progress indicators for data loading
+│   │   └── app_loading_action.dart  ← indicators for actions (submit, delete)
+│   └── error_view.dart          ← error display component
+└── features/                    ← your features go here
 ```
 
----
+**What you get:**
 
-## moarch create feature \<n\>
+- ✅ Routing configured with GoRouter
+- ✅ Secure storage integration ready
+- ✅ DIO client with error handling
+- ✅ Theme system with Material 3 support
+- ✅ Reusable widgets library
+- ✅ Environment variables (.env) support
+- ✅ Extension methods for common operations
 
-Generates Clean Architecture layers with an interactive checklist in the terminal.
+## moarch create feature
+
+Generates a complete feature with Clean Architecture layers and an interactive checklist.
 
 ```bash
 moarch create feature auth
 moarch create feature user_profile
-moarch create feature ProductCatalog    # any casing works
-
+moarch create feature ProductCatalog    # casing doesn't matter
 moarch create feature auth --all        # skip checklist, generate all layers
 ```
 
-**Checklist** — toggle with space, confirm with enter:
+### Interactive Checklist
+
+The CLI presents a checklist to select which layers to generate:
 
 ```
-  Select layers for "Auth":
+  Select layers for "Auth" (space = toggle, enter = confirm):
 ▶ [✓]  Remote Datasource
-  [ ]  Local/Cache Datasource        ← off by default
+  [ ]  Local/Cache Datasource        ← optional, default: off
   [✓]  Repository (interface + impl)
-  [ ]  Use Cases                     ← off by default
+  [ ]  Use Cases                     ← optional, default: off
   [✓]  State + Notifier
   [✓]  View
 ```
 
-**Generated structure:**
+This lets you generate only what you need — skip local datasources if your feature is API-only, or skip use cases if your logic fits in the notifier.
+
+### Generated Structure
 
 ```
 lib/features/auth/
 ├── domain/
-│   ├── entities/auth_entity.dart
-│   ├── repositories/auth_repository.dart
-│   └── usecases/get_auth.dart          ← if selected
+│   ├── entities/
+│   │   └── auth_entity.dart
+│   ├── repositories/
+│   │   └── auth_repository.dart     ← interface
+│   └── usecases/
+│       └── get_auth.dart            ← if selected
 ├── data/
 │   ├── datasources/
 │   │   ├── auth_remote_datasource.dart
 │   │   └── auth_local_datasource.dart  ← if selected
 │   ├── models/
-│   │   └── auth_model.dart
+│   │   └── auth_model.dart          ← copyWith, fromJson, toJson
 │   └── repositories/
 │       └── auth_repository_impl.dart
 └── presentation/
-    ├── states/auth_state.dart
-    ├── notifiers/auth_notifier.dart
-    ├── views/auth_view.dart
+    ├── states/
+    │   └── auth_state.dart
+    ├── notifiers/
+    │   └── auth_notifier.dart       ← StateNotifier with error handling
+    ├── views/
+    │   └── auth_view.dart
     └── widgets/
 ```
 
-**State pattern used:**
+### State Management Pattern
+
+Your state uses a simple, flexible model with `copyWith`:
 
 ```dart
 class AuthState {
@@ -185,35 +216,133 @@ class AuthState {
 }
 ```
 
-Error handling in the view uses `state.value?.error` — your `AppException` message from the repository — not the `AsyncValue` error:
+Error handling in views uses `state.value?.error` — your `AppException` message from the repository, not the `AsyncValue` error:
 
 ```dart
 ref.listen(authNotifierProvider, (_, next) {
   final value = next.value;
   if (value?.error != null) {
     // show snackbar with value.error
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(value!.error!)),
+    );
   }
 });
 ```
+
+### Tips
+
+- **Remote datasource only?** Unselect "Local/Cache Datasource" in the checklist
+- **No use cases?** Skip them if your feature is simple — the repository covers most cases
+- **Reuse widgets?** Put shared feature widgets in `shared/widgets/`, not in the feature folder
+- **Models with JSON?** The generated model includes `fromJson()` and `toJson()`
 
 ---
 
 ## Customizing moarch
 
-All customization is in `lib/src/templates/` — edit the string inside any method to change what gets generated:
+moarch templates are generated from production-ready code that matches default Flutter best practices. If you want to customize what gets generated, clone the repository and modify the templates:
 
-| File                     | Controls                                                      |
-| ------------------------ | ------------------------------------------------------------- |
-| `core_templates.dart`    | `main.dart`, `dio_client`, constants, errors, utils           |
-| `config_templates.dart`  | theme                                                         |
-| `shared_templates.dart`  | `app_button`, `app_loading`, `error_view`                     |
-| `feature_templates.dart` | entity, model, datasources, repository, state, notifier, view |
+### Template files
 
-After any change, re-activate:
+| File                     | Generates                                                                                 |
+| ------------------------ | ----------------------------------------------------------------------------------------- |
+| `core_templates.dart`    | `main.dart`, `dio_client`, `secure_storage`, constants, errors, utils, extensions, logger |
+| `config_templates.dart`  | `app_theme.dart`, `app_router.dart`                                                       |
+| `shared_templates.dart`  | `app_button`, `app_input`, `app_loading_action`, `app_loading_data`, `error_view`         |
+| `feature_templates.dart` | entity, model, datasources, repository, state, notifier, view                             |
+
+### Steps to customize
+
+1. **Clone the repository**
+
+    ```bash
+    git clone https://github.com/SuperMoooo/moarch.git
+    cd moarch
+    ```
+
+2. **Edit templates** in `lib/src/templates/`
+    - Each method returns a string of Dart code
+    - Your changes will be inserted as-is into generated files
+
+3. **Re-activate locally**
+
+    ```bash
+    dart pub global activate --source path ./
+    ```
+
+4. **Test your changes**
+    ```bash
+    moarch init
+    moarch create feature test_feature
+    ```
+
+### Pro Tips
+
+- Keep method signatures consistent — users expect certain class names and patterns
+- Use triple-quoted strings (`r'''...'''`) to avoid escaping special characters
+- Test across different feature names (snake_case, PascalCase, UPPER_CASE)
+- If you change core templates, test `moarch init` first before features
+- Pull requests for improvements are welcome!
+
+---
+
+## Common use cases
+
+### Starting fresh
 
 ```bash
-dart pub global activate --source path /path/to/moarch
+# Quick start with all layers
+moarch create feature user --all
 ```
+
+### API-only feature
+
+```bash
+# Skip local datasource and use cases, generate only remote
+moarch create feature products
+# Then unselect "Local/Cache Datasource" and "Use Cases" in the checklist
+```
+
+### Feature with offline support
+
+```bash
+# Select "Local/Cache Datasource" in the checklist
+moarch create feature downloads
+```
+
+### Add routing to your features
+
+Your `app_router.dart` is ready for GoRouter routes. Add them under a new screen route:
+
+```dart
+GoRoute(
+  path: '/auth',
+  builder: (context, state) => const AuthView(),
+),
+```
+
+---
+
+## Troubleshooting
+
+**Command not found: `moarch`**
+
+- Check that `~/.pub-cache/bin` (or `%APPDATA%\Pub\Cache\bin` on Windows) is in your `PATH`
+- Try: `dart pub global activate moarch` again
+
+**Feature already exists**
+
+- moarch won't overwrite existing features — delete or rename the folder first
+
+**Wrong package imports after init**
+
+- All generated files use relative imports for core/config/shared — verify your lib structure matches
+
+**Customization not working**
+
+- After editing templates, run: `dart pub global activate --source path ./`
+- Make sure you've saved the file and are using the updated version
 
 ---
 
