@@ -3,7 +3,6 @@ class CoreTemplates {
 
   static String mainDart() => r'''
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'config/router/app_router.dart';
@@ -11,7 +10,6 @@ import 'config/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load();
   runApp(const ProviderScope(child: App()));
 }
 
@@ -207,9 +205,9 @@ abstract final class ApiConstants {
 
   static String dioClient() => r'''
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../config/env/app_env.dart';
 import '../constants/api_constants.dart';
 import '../security/secure_storage.dart';
 import '../utils/logger.dart';
@@ -224,7 +222,9 @@ Dio buildDioClient(Ref ref) {
   final dio =
       Dio(
           BaseOptions(
-            baseUrl: dotenv.get('BASE_URL'),
+            baseUrl: AppEnv.baseUrl.isNotEmpty 
+              ? AppEnv.baseUrl 
+              : "",
             connectTimeout: ApiConstants.connectTimeout,
             receiveTimeout: ApiConstants.receiveTimeout,
             headers: const {

@@ -74,6 +74,35 @@ final _router = GoRouter(
 );
 ''';
 
+  static String appEnv() => r'''
+import 'package:envied/envied.dart';
+
+part 'app_env.g.dart';
+
+@Envied(
+  path: '.env',
+  obfuscate: true,
+)
+abstract final class AppEnv {
+  @EnviedField(varName: 'BASE_URL', obfuscate: true)
+  static const String baseUrl = _AppEnv.baseUrl;
+
+  @EnviedField(varName: 'API_KEY', obfuscate: true)
+  static const String apiKey = _AppEnv.apiKey;
+
+  // Copy this pattern for additional environment values.
+  // @EnviedField(varName: 'SOME_KEY', obfuscate: true)
+  // static const String someKey = _AppEnv.someKey;
+}
+
+// Code generation commands (commented in generated code):
+// fvm flutter pub add envied
+// fvm flutter pub add --dev build_runner envied_generator
+// fvm flutter pub run build_runner build --delete-conflicting-outputs
+// Access values in app: final baseUrl = AppEnv.baseUrl;
+// envied `obfuscate` is enabled in this setup, matching your requirement.
+''';
+
   static String appTheme() => r'''
 import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';

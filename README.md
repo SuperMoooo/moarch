@@ -65,18 +65,43 @@ dependencies:
     flutter:
         sdk: flutter
     flutter_riverpod: ^2.5.1
-    flutter_dotenv: ^5.1.0
+    envied: ^1.3.3
     dio: ^5.4.3
     go_router: ^14.0.0
     flutter_secure_storage: ^9.2.2
 ```
 
-Register `.env` as assets in `pubspec.yaml`:
+## Dev dependencies (for build_runner + envied_generator)
 
 ```yaml
-flutter:
-    assets:
-        - .env
+dev_dependencies:
+    lints: ^3.0.0
+    test: ^1.24.0
+    build_runner: ^2.4.0
+    envied_generator: ^1.0.0
+```
+
+## Envied support (added by moarch init)
+
+When you run `moarch init`, it scaffolds:
+
+- `lib/config/env/app_env.dart` with `@Envied(... obfuscate: true)`
+- `.env` entries: `BASE_URL=` and `API_KEY=` (auto-generated)
+- `.gitignore` entry `.env`
+
+In your app, execute codegen:
+
+```bash
+fvm flutter pub add envied
+fvm flutter pub add --dev build_runner envied_generator
+fvm flutter pub run build_runner build --delete-conflicting-outputs
+```
+
+Then use `AppEnv` values safely:
+
+```dart
+final baseUrl = AppEnv.baseUrl;
+final apiKey = AppEnv.apiKey;
 ```
 
 ---

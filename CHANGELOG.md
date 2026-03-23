@@ -1,3 +1,3 @@
-## 1.0.9
+## 1.0.10
 
-- fix: readme
+- feat: new env package for security

@@ -51,7 +51,12 @@ class InitCommand extends Command<int> {
       );
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), '.env'),
-        'BASE_URL=\n',
+        'BASE_URL=',
+      );
+
+      await FileUtils.writeFile(
+        p.join(p.absolute(targetPath), '.gitignore'),
+        '.env\n',
       );
 
       progress.complete('Done');
@@ -102,6 +107,10 @@ class InitCommand extends Command<int> {
 
   Future<void> _buildConfig(String libPath) async {
     final c = p.join(libPath, 'config');
+    await FileUtils.writeFile(
+      p.join(c, 'env', 'app_env.dart'),
+      ConfigTemplates.appEnv(),
+    );
     await FileUtils.writeFile(
       p.join(c, 'theme', 'app_theme.dart'),
       ConfigTemplates.appTheme(),
