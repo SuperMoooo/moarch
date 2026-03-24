@@ -1,3 +1,3 @@
-## 1.0.12
+## 1.0.13
 
-- fix: readme
+- feat: prod checklist file for better app development
