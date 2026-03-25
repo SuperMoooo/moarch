@@ -42,6 +42,8 @@ class App extends ConsumerWidget {
 ''';
 
   static String appException() => r'''
+import 'package:dio/dio.dart';
+
 class AppException implements Exception {
   const AppException({
     required this.message,
@@ -53,6 +55,13 @@ class AppException implements Exception {
 
   @override
   String toString() => 'AppException(message: $message, statusCode: $statusCode)';
+
+   factory AppException.fromDioError(DioException dioError) {
+    return AppException(
+      message: dioError.response?.data['message'] ?? 'Something went wrong',
+      statusCode: dioError.response?.statusCode,
+    );
+  }
 }
 ''';
 
