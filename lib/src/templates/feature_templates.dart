@@ -166,10 +166,7 @@ $fields
   // Catch DioException and throw AppException:
   //
   // } on DioException catch (e) {
-  //   throw AppException(
-  //     message: e.response?.data?['message'] ?? e.message ?? 'Unknown error',
-  //     statusCode: e.response?.statusCode,
-  //   );
+  //    AppException.fromDioError(e);
   // }
 }
 ''';

@@ -1,3 +1,3 @@
-## 1.0.13
+## 1.0.14
 
-- feat: prod checklist file for better app development
+- feat: app exception from dio error. fix: brightness on theme data
