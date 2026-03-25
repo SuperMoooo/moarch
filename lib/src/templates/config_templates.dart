@@ -162,6 +162,10 @@ abstract final class AppTheme {
       ),
       prefixIconColor: AppConstants.primary,
       suffixIconColor: AppConstants.primary,
+      contentPadding: EdgeInsets.symmetric(
+        vertical: (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
+        horizontal: AppConstants.space12,
+      ),
     ),
 
     datePickerTheme: DatePickerThemeData(
