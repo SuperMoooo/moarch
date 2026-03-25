@@ -222,9 +222,7 @@ Dio buildDioClient(Ref ref) {
   final dio =
       Dio(
           BaseOptions(
-            baseUrl: AppEnv.baseUrl.isNotEmpty 
-              ? AppEnv.baseUrl 
-              : "",
+            baseUrl: AppEnv.baseUrl,
             connectTimeout: ApiConstants.connectTimeout,
             receiveTimeout: ApiConstants.receiveTimeout,
             headers: const {
@@ -233,7 +231,7 @@ Dio buildDioClient(Ref ref) {
             },
             // Status that pass: 200-399, all the other will be caught in DioException
             validateStatus: (status) {
-              return status != null && status >= 200 && status < 400;
+              return status != null && status >= 200 && status < 500;
             },
           ),
         )

@@ -110,6 +110,7 @@ import '../../core/constants/app_constants.dart';
 abstract final class AppTheme {
  static ThemeData get light => ThemeData(
     useMaterial3: true,
+    brightness: Brightness.light,
     colorScheme: ColorScheme.light(
       primary: AppConstants.primary,
       onPrimary: AppConstants.surface, 
