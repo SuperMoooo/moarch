@@ -1,3 +1,3 @@
-## 1.0.14
+## 1.0.15
 
-- feat: app exception from dio error. fix: brightness on theme data
+- feat: new inputs (date, time, dropdown), new time extension. fix: minor bugs

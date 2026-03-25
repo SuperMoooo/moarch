@@ -101,6 +101,10 @@ extension DateTimeX on DateTime {
     return day == now.day && month == now.month && year == now.year;
   }
 }
+
+extension TimeOfDayX on TimeOfDay {
+  String get formattedTime => '$hour:$minute';
+}
 ''';
 
   // Material & Cupertino guidelines:

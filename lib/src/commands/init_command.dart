@@ -149,5 +149,17 @@ class InitCommand extends Command<int> {
       p.join(s, 'inputs', 'app_input.dart'),
       SharedTemplates.appInput(),
     );
+    await FileUtils.writeFile(
+      p.join(s, 'inputs', 'app_date_input.dart'),
+      SharedTemplates.dateInput(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'inputs', 'app_time_input.dart'),
+      SharedTemplates.timeInput(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'inputs', 'app_dropdown_input.dart'),
+      SharedTemplates.appDropdown(),
+    );
   }
 }
