@@ -129,7 +129,7 @@ abstract final class AppTheme {
       surfaceContainerLowest: AppConstants.surfaceContainerLowest,
       surfaceContainerHigh: AppConstants.surfaceContainerHighest,
       surfaceContainerHighest: AppConstants.surfaceContainerHighest,
-      error: AppConstants.secondary,
+      error: Colors.red,
       onError: AppConstants.surface,
 
       outline: AppConstants.outline.withValues(alpha: 0.3), // ~15% of 255
