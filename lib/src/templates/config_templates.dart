@@ -154,6 +154,14 @@ abstract final class AppTheme {
       scrolledUnderElevation: 0,
     ),
 
+    cardTheme: CardThemeData(
+      color: AppConstants.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppConstants.borderRadius12,
+        side: BorderSide(width: 0.5, color: AppConstants.outline),
+      ),
+    ),
+
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: AppConstants.surfaceContainerLowest,
