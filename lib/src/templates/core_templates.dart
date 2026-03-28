@@ -103,7 +103,8 @@ extension DateTimeX on DateTime {
 }
 
 extension TimeOfDayX on TimeOfDay {
-  String get formattedTime => '$hour:$minute';
+  String get formattedTime =>
+      '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
 }
 ''';
 
@@ -185,12 +186,14 @@ static const Color surfaceContainerHighest = Color(0xFF000000);
   static const double touchTarget = 48;
 
   // ── Border radius — Material medium = 12, iOS cards ≈ 10–13 ──────────────
+  static const double radius4  = 4;
   static const double radius8  = 8;
   static const double radius12 = 12; // Material medium / iOS card
   static const double radius16 = 16; // Material large
   static const double radius24 = 24; // bottom sheets, large cards
   static const double radiusFull = 999; // pills / chips
 
+  static final borderRadius4    = BorderRadius.circular(radius4);
   static final borderRadius8    = BorderRadius.circular(radius8);
   static final borderRadius12   = BorderRadius.circular(radius12);
   static final borderRadius16   = BorderRadius.circular(radius16);
@@ -208,7 +211,7 @@ static const Color surfaceContainerHighest = Color(0xFF000000);
 
   static String apiConstants() => r'''
 abstract final class ApiConstants {
-  // BASE_URL comes from .env via flutter_dotenv
+  // BASE_URL comes from envied
   static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
 }

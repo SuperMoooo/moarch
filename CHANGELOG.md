@@ -1,3 +1,3 @@
-## 1.1.1
+## 1.1.2
 
-- remove: hint style
+- feat: design system for preview, refactor: hint to hintText

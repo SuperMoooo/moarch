@@ -21,6 +21,10 @@ abstract final class AppRoutes {
   static const home   = '/';
   // static const login  = '/login';
   // static const detail = '/detail/:id';
+
+  //-----Test------//
+  static const designView   = '/design-system';
+  //---------------//
 }
  
 // ── Router ────────────────────────────────────────────────────────────────────
@@ -36,6 +40,11 @@ final _router = GoRouter(
         body: Center(child: Text('Home — replace me!')),
       ),
     ),
+    GoRoute(
+      path: AppRoutes.designView,
+      builder: (_, __) => const DesignSystemView(),
+    )
+    
  
     // Example with path parameter:
     // GoRoute(

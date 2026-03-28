@@ -161,5 +161,7 @@ class InitCommand extends Command<int> {
       p.join(s, 'inputs', 'app_dropdown_input.dart'),
       SharedTemplates.appDropdown(),
     );
+    await FileUtils.writeFile(p.join(s, 'design_system_view.dart'),
+        SharedTemplates.designSystemView());
   }
 }
