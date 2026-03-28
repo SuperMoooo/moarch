@@ -66,7 +66,7 @@ class AppButton extends StatelessWidget {
     AppButtonType.primary   => (theme.colorScheme.primary, theme.colorScheme.onPrimary),
     AppButtonType.secondary => (theme.colorScheme.secondary, theme.colorScheme.onSecondary),
     AppButtonType.tertiary  => (theme.colorScheme.tertiary, theme.colorScheme.onTertiary),
-    AppButtonType.transparent => (Colors.transparent, theme.colorScheme.primary),
+    AppButtonType.transparent => (Colors.transparent, theme.colorScheme.onSurface),
     AppButtonType.danger    => (theme.colorScheme.error, theme.colorScheme.onError),
     };
 
@@ -78,7 +78,9 @@ class AppButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           elevation: 0,
           padding: padding,
-          backgroundColor: backgroundColor,
+          backgroundColor: type == AppButtonType.tertiary
+              ? Colors.transparent
+              : backgroundColor,
           foregroundColor: foregroundColor,
           shape: RoundedRectangleBorder(
             borderRadius: AppConstants.borderRadius12,
@@ -328,9 +330,6 @@ class _DateAppInputState extends State<DateAppInput> {
             readOnly: true,
             controller: widget.controller,
             style: theme.textTheme.bodyLarge,
-            initialValue: DateTimeX(
-              widget.initialValue as DateTime,
-            ).formattedDate,
             maxLines: widget.maxLines ?? 1,
             obscureText: widget.isPassword,
             keyboardType: widget.keyboardType,
@@ -459,9 +458,6 @@ class _AppTimeInputState extends State<AppTimeInput> {
             readOnly: true,
             controller: widget.controller,
             style: theme.textTheme.bodyLarge,
-            initialValue: DateTimeX(
-              widget.initialValue as DateTime,
-            ).formattedDate,
             maxLines: widget.maxLines ?? 1,
             obscureText: widget.isPassword,
             keyboardType: widget.keyboardType,

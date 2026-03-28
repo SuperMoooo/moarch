@@ -116,25 +116,23 @@ extension TimeOfDayX on TimeOfDay {
 import 'package:flutter/material.dart';
 
 abstract final class AppConstants {
-  // ── Palette ────────────────────────────────────────────────────
+ // ── Palette ─────────────────────────────────────────────────
+static const Color primary   = Color(0xFF000000);
+static const Color secondary = Color(0xFF000000);
+static const Color tertiary  = Color(0xFF000000);
+static const Color surface   = Color(0xFF000000);
+static const Color onSurface = Color(0xFF000000);
+static const Color outline   = Color(0xFF000000);
 
-  
-  static const Color primary = Color(0xFFFFFFFF); 
-  static const Color secondary = Color(0xFFFFFFFF); 
-  static const Color tertiary = Color(0xFFFFFFFF); 
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color onSurface = Color(0xFFFFFFFF); 
-  static const Color outline = Color(0xFFFFFFFF); 
+// ── Accent tokens ────────────────────────────────────────────
+static const Color accentActive      = Color(0xFF000000);
+static const Color accentRestorative = Color(0xFF000000);
+static const Color accentEnergetic   = Color(0xFF000000);
 
-  // Accent tokens
-  static const Color identifier = Color(0xFFFFFFFF); // Active categories
-  static const Color identifier1 = Color(0xFFFFFFFF); // Restorative categories
-  static const Color identifier2 = Color(0xFFFFFFFF); // Energetic highlights
-
-  // Surface layers (tonal layering — no borders) (use surface as base)
-  static const Color surfaceContainerLow = Color(0xFFFFFFFF);
-  static const Color surfaceContainerLowest = Color(0xFFFFFFFF);
-  static const Color surfaceContainerHighest = Color(0xFFFFFFFF);
+// ── Surface layers (tonal depth — no borders) ───────────────
+static const Color surfaceContainerLowest  = Color(0xFF000000);
+static const Color surfaceContainerLow     = Color(0xFF000000);
+static const Color surfaceContainerHighest = Color(0xFF000000);
 
 
   // ── Spacing — 4pt grid ────────────────────────────────────────────────────

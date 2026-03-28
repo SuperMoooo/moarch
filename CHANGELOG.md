@@ -1,3 +1,3 @@
-## 1.0.15
+## 1.1.0
 
-- feat: new inputs (date, time, dropdown), new time extension. fix: minor bugs
+- fix: colors, theme, sizes

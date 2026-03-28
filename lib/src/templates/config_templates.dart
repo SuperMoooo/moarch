@@ -158,13 +158,17 @@ abstract final class AppTheme {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: AppConstants.borderRadius12,
-        borderSide: BorderSide(color: AppConstants.primary, width: 0.5),
+        borderSide: BorderSide(color: AppConstants.outline, width: 0.5),
       ),
       prefixIconColor: AppConstants.primary,
       suffixIconColor: AppConstants.primary,
       contentPadding: EdgeInsets.symmetric(
         vertical: (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
         horizontal: AppConstants.space12,
+      ),
+       hintStyle: TextStyle(
+        fontSize: AppConstants.fontSize16,
+        color: AppConstants.lightOnSurface.withValues(alpha: 0.35),
       ),
     ),
 
