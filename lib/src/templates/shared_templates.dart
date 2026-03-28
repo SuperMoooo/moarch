@@ -207,13 +207,6 @@ class _AppInputState extends State<AppInput> {
             decoration: InputDecoration(
               hint: Text(
                 widget.hint ?? "",
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
-                ),
-              ),
-              contentPadding: EdgeInsets.symmetric(
-                vertical: verticalPadding,
-                horizontal: AppConstants.space12,
               ),
               prefixIcon: widget.prefixIcon,
               suffixIcon: widget.suffixIcon,
@@ -338,10 +331,6 @@ class _DateAppInputState extends State<DateAppInput> {
             decoration: InputDecoration(
               hint: Text(
                 widget.hint ?? "",
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.surfaceContainerLow.withValues(
-                    alpha: 0.5,
-                  ),
                 ),
               ),
               prefixIcon: widget.prefixIcon,
@@ -466,11 +455,6 @@ class _AppTimeInputState extends State<AppTimeInput> {
             decoration: InputDecoration(
               hint: Text(
                 widget.hint ?? "",
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.surfaceContainerLow.withValues(
-                    alpha: 0.5,
-                  ),
-                ),
               ),
               prefixIcon: widget.prefixIcon,
               suffixIcon: widget.suffixIcon,

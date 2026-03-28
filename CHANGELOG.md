@@ -1,3 +1,3 @@
-## 1.1.0
+## 1.1.1
 
-- fix: colors, theme, sizes
+- remove: hint style
