@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
+import 'package:moarch/src/templates/test_templates.dart';
 import 'package:path/path.dart' as p;
 
 import '../templates/feature_templates.dart';
@@ -182,6 +183,19 @@ class _CreateFeatureCommand extends Command<int> {
       progress.fail('Failed: $e');
       return 1;
     }
+    // ── Tests ──────────────────────────────────────────────────────────────────
+    final testProgress = _logger.progress('Generating tests');
+    try {
+      await _writeTests(
+        libPath: argResults?['path'] as String? ?? 'lib',
+        featureName: featureName,
+        className: className,
+        selected: selected,
+      );
+      testProgress.complete('Tests generated');
+    } catch (e) {
+      testProgress.fail('Tests failed: $e');
+    }
 
     _printTree(featureName, className, selected);
     return 0;
@@ -284,6 +298,39 @@ class _CreateFeatureCommand extends Command<int> {
     );
   }
 
+  Future<void> _writeTests({
+    required String libPath,
+    required String featureName,
+    required String className,
+    required Set<String> selected,
+  }) async {
+    // Resolve test/ directory at the same level as lib/
+    final projectRoot = p.dirname(p.absolute(libPath));
+    final testFeaturePath =
+        p.join(projectRoot, 'test', 'features', featureName);
+
+    if (selected.contains(_kStateNotifier) && selected.contains(_kRepository)) {
+      await FileUtils.writeFile(
+        p.join(testFeaturePath, '${featureName}_notifier_test.dart'),
+        TestTemplates.notifierTest(featureName, className),
+      );
+    }
+
+    if (selected.contains(_kRepository)) {
+      await FileUtils.writeFile(
+        p.join(testFeaturePath, '${featureName}_repository_test.dart'),
+        TestTemplates.repositoryTest(featureName, className),
+      );
+    }
+
+    if (selected.contains(_kUseCases)) {
+      await FileUtils.writeFile(
+        p.join(testFeaturePath, '${featureName}_usecase_test.dart'),
+        TestTemplates.usecaseTest(featureName, className),
+      );
+    }
+  }
+
   // ── Tree summary ─────────────────────────────────────────────────────────────
 
   void _printTree(String name, String cls, Set<String> selected) {
@@ -316,10 +363,22 @@ class _CreateFeatureCommand extends Command<int> {
     if (selected.contains(_kView)) {
       line('├── views/${name}_view.dart');
     }
+    line('');
+    line('test/features/$name/');
+    if (selected.contains(_kStateNotifier) && selected.contains(_kRepository)) {
+      line('├── ${name}_notifier_test.dart');
+    }
+    if (selected.contains(_kRepository)) {
+      line('├── ${name}_repository_test.dart');
+    }
+    if (selected.contains(_kUseCases)) {
+      line('└── ${name}_usecase_test.dart');
+    }
+
     _logger.info('');
     _logger.info(
-      '  Run: dart run build_runner build --delete-conflicting-outputs',
-    );
+        '  Remember to update package name in test imports (your_app → actual name).');
+    _logger.info('  Run tests: flutter test test/features/$name/');
     _logger.info('');
   }
 }
