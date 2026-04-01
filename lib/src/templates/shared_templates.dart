@@ -121,7 +121,7 @@ class AppInput extends StatefulWidget {
     this.controller,
     required this.label,
     this.hint,
-    this.maxLines,
+    this.maxLines = 1,
     this.isPassword = false,
     this.initialValue,
     this.keyboardType,
