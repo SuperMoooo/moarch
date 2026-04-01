@@ -196,7 +196,7 @@ class _AppInputState extends State<AppInput> {
             controller: widget.controller,
             style: theme.textTheme.bodyLarge,
             initialValue: widget.controller == null ? widget.initialValue : null,
-            maxLines: widget.maxLines ?? 1,
+            maxLines: widget.maxLines,
             obscureText: widget.isPassword,
             keyboardType: widget.keyboardType,
             textInputAction: widget.textInputAction,
