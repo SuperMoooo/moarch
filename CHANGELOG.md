@@ -1,3 +1,3 @@
-## 1.1.4
+## 1.1.5
 
-- feat: flag for tests, fix: imports on test file
+- fix: not creating the integration test

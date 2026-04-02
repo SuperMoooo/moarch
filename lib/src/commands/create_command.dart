@@ -344,6 +344,13 @@ class _CreateFeatureCommand extends Command<int> {
         TestTemplates.usecaseTest(featureName, className),
       );
     }
+
+    if (selected.contains(_kRemoteDatasource)) {
+      await FileUtils.writeFile(
+        p.join(testFeaturePath, '${featureName}_integration_test.dart'),
+        TestTemplates.integrationTest(featureName, className),
+      );
+    }
   }
 
   Future<void> _ensureTestFeatureDir({
