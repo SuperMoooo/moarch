@@ -1,3 +1,3 @@
-## 1.1.5
+## 1.1.6
 
-- fix: not creating the integration test
+- fix: imports, and create command
