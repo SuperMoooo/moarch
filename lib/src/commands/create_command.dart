@@ -52,6 +52,12 @@ class _CreateFeatureCommand extends Command<int> {
         abbr: 'a',
         negatable: false,
         help: 'Skip checklist and generate all layers.',
+      )
+      ..addFlag(
+        'tests',
+        defaultsTo: true,
+        negatable: true,
+        help: 'Generate tests for this feature.',
       );
   }
 
@@ -183,21 +189,27 @@ class _CreateFeatureCommand extends Command<int> {
       progress.fail('Failed: $e');
       return 1;
     }
-    // ── Tests ──────────────────────────────────────────────────────────────────
-    final testProgress = _logger.progress('Generating tests');
-    try {
-      await _writeTests(
-        libPath: argResults?['path'] as String? ?? 'lib',
-        featureName: featureName,
-        className: className,
-        selected: selected,
-      );
-      testProgress.complete('Tests generated');
-    } catch (e) {
-      testProgress.fail('Tests failed: $e');
+    final includeTests = argResults?['tests'] as bool? ?? true;
+
+    if (includeTests) {
+      // ── Tests ──────────────────────────────────────────────────────────────────
+      final testProgress = _logger.progress('Generating tests');
+      try {
+        await _writeTests(
+          libPath: argResults?['path'] as String? ?? 'lib',
+          featureName: featureName,
+          className: className,
+          selected: selected,
+        );
+        testProgress.complete('Tests generated');
+      } catch (e) {
+        testProgress.fail('Tests failed: $e');
+      }
+    } else {
+      _logger.info('Skipping tests generation (--no-tests).');
     }
 
-    _printTree(featureName, className, selected);
+    _printTree(featureName, className, selected, includeTests: includeTests);
     return 0;
   }
 
@@ -344,7 +356,8 @@ class _CreateFeatureCommand extends Command<int> {
   }
   // ── Tree summary ─────────────────────────────────────────────────────────────
 
-  void _printTree(String name, String cls, Set<String> selected) {
+  void _printTree(String name, String cls, Set<String> selected,
+      {bool includeTests = true}) {
     _logger.success('');
     _logger.success('✅  $cls created at lib/features/$name/');
     _logger.info('');
@@ -375,28 +388,37 @@ class _CreateFeatureCommand extends Command<int> {
       line('├── views/${name}_view.dart');
     }
     line('');
-    line('test/features/$name/');
-    if (selected.contains(_kStateNotifier) && selected.contains(_kRepository)) {
-      line('├── ${name}_notifier_test.dart       ← unit');
-    }
-    if (selected.contains(_kRepository)) {
-      line('├── ${name}_repository_test.dart     ← unit');
-    }
-    if (selected.contains(_kUseCases)) {
-      line('├── ${name}_usecase_test.dart        ← unit');
-    }
-    if (selected.contains(_kRemoteDatasource)) {
-      line(
-          '└── ${name}_integration_test.dart   ← integration (needs live API)');
+    if (includeTests) {
+      line('test/features/$name/');
+      if (selected.contains(_kStateNotifier) &&
+          selected.contains(_kRepository)) {
+        line('├── ${name}_notifier_test.dart       ← unit');
+      }
+      if (selected.contains(_kRepository)) {
+        line('├── ${name}_repository_test.dart     ← unit');
+      }
+      if (selected.contains(_kUseCases)) {
+        line('├── ${name}_usecase_test.dart        ← unit');
+      }
+      if (selected.contains(_kRemoteDatasource)) {
+        line(
+            '└── ${name}_integration_test.dart   ← integration (needs live API)');
+      }
+    } else {
+      line('test/features/$name/ (skipped by --no-tests)');
     }
 
     _logger.info('');
     _logger.info(
         '  Remember: replace "your_app" in test imports with your package name.');
-    _logger.info('  Unit tests:       flutter test test/features/$name/');
-    if (selected.contains(_kRemoteDatasource)) {
-      _logger.info(
-          '  Integration test: flutter test test/features/$name/${name}_integration_test.dart');
+    if (includeTests) {
+      _logger.info('  Unit tests:       flutter test test/features/$name/');
+      if (selected.contains(_kRemoteDatasource)) {
+        _logger.info(
+            '  Integration test: flutter test test/features/$name/${name}_integration_test.dart');
+      }
+    } else {
+      _logger.info('  Tests generation skipped for this feature (--no-tests).');
     }
     _logger.info('');
   }

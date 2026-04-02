@@ -19,9 +19,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../../config/env/app_env.dart';
 
-import 'package:your_app/core/constants/api_constants.dart';
-import 'package:your_app/features/$name/data/datasources/${name}_remote_datasource.dart';
-import 'package:your_app/features/$name/data/models/${name}_model.dart';
+import '../../../lib/core/constants/api_constants.dart';
+import '../../../lib/features/$name/data/datasources/${name}_remote_datasource.dart';
+import '../../../lib/features/$name/data/models/${name}_model.dart';
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
 // Requires a running API. Set BASE_URL in .env before running.
@@ -96,11 +96,11 @@ void main() {
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:your_app/features/$name/data/repositories/${name}_repository_impl.dart';
-import 'package:your_app/features/$name/domain/entities/${name}_entity.dart';
-import 'package:your_app/features/$name/domain/repositories/${name}_repository.dart';
-import 'package:your_app/features/$name/presentation/notifiers/${name}_notifier.dart';
-import 'package:your_app/features/$name/presentation/states/${name}_state.dart';
+import '../../../lib/features/$name/data/repositories/${name}_repository_impl.dart';
+import '../../../lib/features/$name/domain/entities/${name}_entity.dart';
+import '../../../lib/features/$name/domain/repositories/${name}_repository.dart';
+import '../../../lib/features/$name/presentation/notifiers/${name}_notifier.dart';
+import '../../../lib/features/$name/presentation/states/${name}_state.dart';
 
 // ── Fake repository ───────────────────────────────────────────────────────────
 // A simple in-memory fake — no mock package needed.
@@ -191,10 +191,10 @@ void main() {
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:your_app/core/errors/app_exception.dart';
-import 'package:your_app/features/$name/data/datasources/${name}_remote_datasource.dart';
-import 'package:your_app/features/$name/data/models/${name}_model.dart';
-import 'package:your_app/features/$name/data/repositories/${name}_repository_impl.dart';
+import '../../../lib/core/errors/app_exception.dart';
+import '../../../lib/features/$name/data/datasources/${name}_remote_datasource.dart';
+import '../../../lib/features/$name/data/models/${name}_model.dart';
+import '../../../lib/features/$name/data/repositories/${name}_repository_impl.dart';
 
 // ── Fake datasource ───────────────────────────────────────────────────────────
 
@@ -275,9 +275,9 @@ void main() {
   static String usecaseTest(String name, String cls) => '''
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:your_app/features/$name/domain/entities/${name}_entity.dart';
-import 'package:your_app/features/$name/domain/repositories/${name}_repository.dart';
-import 'package:your_app/features/$name/domain/usecases/get_$name.dart';
+import '../../../lib/features/$name/domain/entities/${name}_entity.dart';
+import '../../../lib/features/$name/domain/repositories/${name}_repository.dart';
+import '../../../lib/features/$name/domain/usecases/get_$name.dart';
 
 // ── Fake repository ───────────────────────────────────────────────────────────
 
@@ -311,7 +311,7 @@ void main() {
 
     test('returns the result from the repository', () async {
       // TODO: replace with real entity fields
-      final expected = [const ${cls}Entity()];
+      final expected = [${cls}Entity()];
       final repo = Fake${cls}Repository(items: expected);
       final useCase = Get$cls(repo);
 

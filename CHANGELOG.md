@@ -1,3 +1,3 @@
-## 1.1.3
+## 1.1.4
 
-- feat: unit tests and integration tests (beta)
+- feat: flag for tests, fix: imports on test file
