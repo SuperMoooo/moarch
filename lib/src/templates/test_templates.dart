@@ -17,7 +17,7 @@ class TestTemplates {
 // ignore_for_file: avoid_print
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../../config/env/app_env.dart';
+import '../../../lib/config/env/app_env.dart';
 
 import '../../../lib/core/constants/api_constants.dart';
 import '../../../lib/features/$name/data/datasources/${name}_remote_datasource.dart';
@@ -82,7 +82,7 @@ void main() {
       expect(all, isNotEmpty);
 
       // Verify the full conversion chain: JSON → Model → Entity
-      expect(() => ${cls}Model.fromJson(all.first), returnsNormally);
+      expect(() => all.first.toEntity(), returnsNormally);
     });
   });
 }

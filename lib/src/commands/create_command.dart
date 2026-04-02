@@ -2,10 +2,10 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
-import 'package:moarch/src/templates/test_templates.dart';
 import 'package:path/path.dart' as p;
 
 import '../templates/feature_templates.dart';
+import '../templates/test_templates.dart';
 import '../utils/checklist.dart';
 import '../utils/file_utils.dart';
 import '../utils/string_utils.dart';
@@ -71,15 +71,13 @@ class _CreateFeatureCommand extends Command<int> {
       'Scaffold a new feature with selectable Clean Architecture layers.';
 
   @override
-  String get invocation => 'moarch create feature <n>';
+  String get invocation => 'mo create feature <n>';
 
   @override
   Future<int> run() async {
     final rest = argResults?.rest ?? [];
     if (rest.isEmpty) {
-      _logger.err(
-        'Provide a feature name.\n  Usage: moarch create feature <n>',
-      );
+      _logger.err('Provide a feature name.\n  Usage: mo create feature <n>');
       return 1;
     }
 
@@ -113,12 +111,9 @@ class _CreateFeatureCommand extends Command<int> {
             '  Select layers for "$className" (space = toggle, enter = confirm):',
         items: [
           const ChecklistItem(_kRemoteDatasource, defaultOn: true),
-          const ChecklistItem(
-            _kLocalDatasource,
-            defaultOn: false,
-          ), // off by default
+          const ChecklistItem(_kLocalDatasource, defaultOn: false),
           const ChecklistItem(_kRepository, defaultOn: true),
-          const ChecklistItem(_kUseCases, defaultOn: false), // off by default
+          const ChecklistItem(_kUseCases, defaultOn: false),
           const ChecklistItem(_kStateNotifier, defaultOn: true),
           const ChecklistItem(_kView, defaultOn: true),
         ],
@@ -153,11 +148,7 @@ class _CreateFeatureCommand extends Command<int> {
           hasLocal: selected.contains(_kLocalDatasource),
         );
       }
-      await _writeModel(
-        featurePath,
-        featureName,
-        className,
-      );
+      await _writeModel(featurePath, featureName, className);
 
       // Domain layer
       await _writeEntity(featurePath, featureName, className);
@@ -189,14 +180,15 @@ class _CreateFeatureCommand extends Command<int> {
       progress.fail('Failed: $e');
       return 1;
     }
+
+    // ── Tests ──────────────────────────────────────────────────────────────────
     final includeTests = argResults?['tests'] as bool? ?? true;
 
     if (includeTests) {
-      // ── Tests ──────────────────────────────────────────────────────────────────
       final testProgress = _logger.progress('Generating tests');
       try {
         await _writeTests(
-          libPath: argResults?['path'] as String? ?? 'lib',
+          libPath: libPath,
           featureName: featureName,
           className: className,
           selected: selected,
@@ -241,20 +233,14 @@ class _CreateFeatureCommand extends Command<int> {
     required bool hasRemote,
     required bool hasLocal,
   }) async {
-    // Abstract interface in domain
     await FileUtils.writeFile(
       p.join(fp, 'domain', 'repositories', '${name}_repository.dart'),
       FeatureTemplates.repositoryInterface(name, cls),
     );
-    // Impl in data
     await FileUtils.writeFile(
       p.join(fp, 'data', 'repositories', '${name}_repository_impl.dart'),
-      FeatureTemplates.repositoryImpl(
-        name,
-        cls,
-        hasRemote: hasRemote,
-        hasLocal: hasLocal,
-      ),
+      FeatureTemplates.repositoryImpl(name, cls,
+          hasRemote: hasRemote, hasLocal: hasLocal),
     );
   }
 
@@ -316,13 +302,11 @@ class _CreateFeatureCommand extends Command<int> {
     required String className,
     required Set<String> selected,
   }) async {
-    // Ensure test/features/<feature> exists.
-    await _ensureTestFeatureDir(libPath: libPath, featureName: featureName);
-
-    // Resolve test/ directory at the same level as lib/
     final projectRoot = p.dirname(p.absolute(libPath));
     final testFeaturePath =
         p.join(projectRoot, 'test', 'features', featureName);
+
+    await FileUtils.createDir(testFeaturePath);
 
     if (selected.contains(_kStateNotifier) && selected.contains(_kRepository)) {
       await FileUtils.writeFile(
@@ -353,18 +337,14 @@ class _CreateFeatureCommand extends Command<int> {
     }
   }
 
-  Future<void> _ensureTestFeatureDir({
-    required String libPath,
-    required String featureName,
-  }) async {
-    final projectRoot = p.dirname(p.absolute(libPath));
-    await FileUtils.createDir(
-        p.join(projectRoot, 'test', 'features', featureName));
-  }
   // ── Tree summary ─────────────────────────────────────────────────────────────
 
-  void _printTree(String name, String cls, Set<String> selected,
-      {bool includeTests = true}) {
+  void _printTree(
+    String name,
+    String cls,
+    Set<String> selected, {
+    bool includeTests = true,
+  }) {
     _logger.success('');
     _logger.success('✅  $cls created at lib/features/$name/');
     _logger.info('');
@@ -394,7 +374,9 @@ class _CreateFeatureCommand extends Command<int> {
     if (selected.contains(_kView)) {
       line('├── views/${name}_view.dart');
     }
+
     line('');
+
     if (includeTests) {
       line('test/features/$name/');
       if (selected.contains(_kStateNotifier) &&
@@ -416,8 +398,6 @@ class _CreateFeatureCommand extends Command<int> {
     }
 
     _logger.info('');
-    _logger.info(
-        '  Remember: replace "your_app" in test imports with your package name.');
     if (includeTests) {
       _logger.info('  Unit tests:       flutter test test/features/$name/');
       if (selected.contains(_kRemoteDatasource)) {
