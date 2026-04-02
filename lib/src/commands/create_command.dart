@@ -304,6 +304,9 @@ class _CreateFeatureCommand extends Command<int> {
     required String className,
     required Set<String> selected,
   }) async {
+    // Ensure test/features/<feature> exists.
+    await _ensureTestFeatureDir(libPath: libPath, featureName: featureName);
+
     // Resolve test/ directory at the same level as lib/
     final projectRoot = p.dirname(p.absolute(libPath));
     final testFeaturePath =
@@ -331,6 +334,14 @@ class _CreateFeatureCommand extends Command<int> {
     }
   }
 
+  Future<void> _ensureTestFeatureDir({
+    required String libPath,
+    required String featureName,
+  }) async {
+    final projectRoot = p.dirname(p.absolute(libPath));
+    await FileUtils.createDir(
+        p.join(projectRoot, 'test', 'features', featureName));
+  }
   // ── Tree summary ─────────────────────────────────────────────────────────────
 
   void _printTree(String name, String cls, Set<String> selected) {
@@ -366,19 +377,27 @@ class _CreateFeatureCommand extends Command<int> {
     line('');
     line('test/features/$name/');
     if (selected.contains(_kStateNotifier) && selected.contains(_kRepository)) {
-      line('├── ${name}_notifier_test.dart');
+      line('├── ${name}_notifier_test.dart       ← unit');
     }
     if (selected.contains(_kRepository)) {
-      line('├── ${name}_repository_test.dart');
+      line('├── ${name}_repository_test.dart     ← unit');
     }
     if (selected.contains(_kUseCases)) {
-      line('└── ${name}_usecase_test.dart');
+      line('├── ${name}_usecase_test.dart        ← unit');
+    }
+    if (selected.contains(_kRemoteDatasource)) {
+      line(
+          '└── ${name}_integration_test.dart   ← integration (needs live API)');
     }
 
     _logger.info('');
     _logger.info(
-        '  Remember to update package name in test imports (your_app → actual name).');
-    _logger.info('  Run tests: flutter test test/features/$name/');
+        '  Remember: replace "your_app" in test imports with your package name.');
+    _logger.info('  Unit tests:       flutter test test/features/$name/');
+    if (selected.contains(_kRemoteDatasource)) {
+      _logger.info(
+          '  Integration test: flutter test test/features/$name/${name}_integration_test.dart');
+    }
     _logger.info('');
   }
 }

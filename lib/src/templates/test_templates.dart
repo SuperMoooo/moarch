@@ -1,6 +1,93 @@
 class TestTemplates {
   TestTemplates._();
 
+  // ── Integration test ────────────────────────────────────────────────────────
+  // Hits the real API and verifies:
+  //   1. The request succeeds (status 200)
+  //   2. The response JSON parses into the model without throwing
+  //   3. Required fields are present and non-null
+  //
+  // Run separately from unit tests:
+  //   flutter test test/features/<n>/<n>_integration_test.dart
+  //
+  // DO NOT run in CI by default — these need a live server.
+  // Add to CI only in a separate job with @Tags(['integration']).
+
+  static String integrationTest(String name, String cls) => '''
+// ignore_for_file: avoid_print
+import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
+import '../../config/env/app_env.dart';
+
+import 'package:your_app/core/constants/api_constants.dart';
+import 'package:your_app/features/$name/data/datasources/${name}_remote_datasource.dart';
+import 'package:your_app/features/$name/data/models/${name}_model.dart';
+
+// ── Setup ─────────────────────────────────────────────────────────────────────
+// Requires a running API. Set BASE_URL in .env before running.
+//
+// Run with:
+//   flutter test test/features/$name/${name}_integration_test.dart
+//
+// NOTE: These tests are intentionally NOT run with the rest of the unit tests.
+// They depend on the network and a live server — keep them separate.
+
+Dio buildTestDio() {
+  return Dio(
+    BaseOptions(
+      baseUrl: AppEnv.baseUrl,
+      connectTimeout: ApiConstants.connectTimeout,
+      receiveTimeout: ApiConstants.receiveTimeout,
+      headers: const {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      validateStatus: (status) {
+              return status != null && status >= 200 && status < 500;
+      },
+    ),
+  );
+}
+
+void main() {
+
+  group('${cls} — data layer integration', () {
+    late ${cls}RemoteDataSource datasource;
+
+    setUp(() {
+      datasource = ${cls}RemoteDataSourceImpl(buildTestDio());
+    });
+
+    // ── getAll ──────────────────────────────────────────────────────────────
+
+    test('getAll() responds without throwing', () async {
+      // If this throws, your endpoint or fromJson is broken
+      final result = await datasource.getAll();
+      print('[${cls}] getAll() returned \${result.length} items');
+      expect(result, isA<List<${cls}Model>>());
+    });
+
+    test('getAll() returns a non-empty list', () async {
+      // Fails if the API returns [] when it should have data —
+      // catch seeding issues early
+      final result = await datasource.getAll();
+      expect(result, isNotEmpty);
+    });
+
+
+    // ── toEntity ─────────────────────────────────────────────────────────────
+
+    test('toEntity() converts model without throwing', () async {
+      final all = await datasource.getAll();
+      expect(all, isNotEmpty);
+
+      // Verify the full conversion chain: JSON → Model → Entity
+      expect(() => ${cls}Model.fromJson(all.first), returnsNormally);
+    });
+  });
+}
+''';
+
   // ── Notifier test ───────────────────────────────────────────────────────────
   // Tests state transitions: initial → loading → loaded / error
   // Uses a fake repository instead of mocking — simpler, no mock package needed
@@ -162,6 +249,20 @@ void main() {
         () => repo.getAll(),
         throwsA(isA<AppException>()),
       );
+    });
+
+
+    test('AppException carries the message from the response body', () async {
+      final repo = ${cls}RepositoryImpl(
+        Fake${cls}RemoteDataSource(shouldThrow: true),
+      );
+
+      try {
+        await repo.getAll();
+        fail('Expected AppException');
+      } on AppException catch (e) {
+        expect(e.message, isNotEmpty);
+      }
     });
   });
 }

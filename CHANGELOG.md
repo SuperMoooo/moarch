@@ -1,3 +1,3 @@
-## 1.1.2
+## 1.1.3
 
-- feat: design system for preview, refactor: hint to hintText
+- feat: unit tests and integration tests (beta)

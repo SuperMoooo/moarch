@@ -42,6 +42,8 @@ class InitCommand extends Command<int> {
       await _buildConfig(libPath);
       await _buildShared(libPath);
       await FileUtils.createDir(p.join(libPath, 'features'));
+      await FileUtils.createDir(
+          p.join(p.absolute(targetPath), 'test', 'features'));
       await FileUtils.writeFile(
         p.join(libPath, 'main.dart'),
         CoreTemplates.mainDart(),
