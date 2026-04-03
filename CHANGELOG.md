@@ -1,3 +1,3 @@
-## 1.1.8
+## 1.1.9
 
-- fix: imports on design system, wrong color on app theme. tests adjustments
+- feat: user interaction if want tests or not

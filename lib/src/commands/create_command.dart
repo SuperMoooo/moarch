@@ -57,7 +57,8 @@ class _CreateFeatureCommand extends Command<int> {
         'tests',
         defaultsTo: true,
         negatable: true,
-        help: 'Generate tests for this feature.',
+        help:
+            'Generate tests (--no-tests to skip). Skips the interactive prompt.',
       );
   }
 
@@ -91,7 +92,7 @@ class _CreateFeatureCommand extends Command<int> {
       return 1;
     }
 
-    // ── Checklist ─────────────────────────────────────────────────────────────
+    // ── Layer checklist ───────────────────────────────────────────────────────
     final skipChecklist = argResults?['all'] as bool? ?? false;
 
     late Set<String> selected;
@@ -107,8 +108,7 @@ class _CreateFeatureCommand extends Command<int> {
       };
     } else {
       selected = Checklist.prompt(
-        title:
-            '  Select layers for "$className" (space = toggle, enter = confirm):',
+        title: '  Select layers for "$className":',
         items: [
           const ChecklistItem(_kRemoteDatasource, defaultOn: true),
           const ChecklistItem(_kLocalDatasource, defaultOn: false),
@@ -119,6 +119,14 @@ class _CreateFeatureCommand extends Command<int> {
         ],
       );
     }
+
+    // ── Test prompt ───────────────────────────────────────────────────────────
+    // If --no-tests was explicitly passed, skip the prompt entirely.
+    // Otherwise ask interactively — default is yes.
+    final testsArgExplicit = argResults?.wasParsed('tests') ?? false;
+    final includeTests = testsArgExplicit
+        ? (argResults?['tests'] as bool? ?? true)
+        : _askTests();
 
     _logger.info('');
     _logger.info('🧱 Creating feature: $className');
@@ -182,8 +190,6 @@ class _CreateFeatureCommand extends Command<int> {
     }
 
     // ── Tests ──────────────────────────────────────────────────────────────────
-    final includeTests = argResults?['tests'] as bool? ?? true;
-
     if (includeTests) {
       final testProgress = _logger.progress('Generating tests');
       try {
@@ -198,11 +204,21 @@ class _CreateFeatureCommand extends Command<int> {
         testProgress.fail('Tests failed: $e');
       }
     } else {
-      _logger.info('Skipping tests generation (--no-tests).');
+      _logger.info('Skipping tests (--no-tests).');
     }
 
     _printTree(featureName, className, selected, includeTests: includeTests);
     return 0;
+  }
+
+  // ── Interactive test prompt ───────────────────────────────────────────────────
+  // Simple y/n — no checklist needed, just one question.
+
+  bool _askTests() {
+    stdout.write('\n  Generate tests? (Y/n): ');
+    final input = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+    // Empty input or 'y' = yes (default)
+    return input.isEmpty || input == 'y' || input == 'yes';
   }
 
   // ── Writers ─────────────────────────────────────────────────────────────────
