@@ -303,35 +303,35 @@ class _CreateFeatureCommand extends Command<int> {
     required Set<String> selected,
   }) async {
     final projectRoot = p.dirname(p.absolute(libPath));
-    final testFeaturePath =
-        p.join(projectRoot, 'test', 'features', featureName);
-
-    await FileUtils.createDir(testFeaturePath);
+    final unitPath =
+        p.join(projectRoot, 'test', 'unit', 'features', featureName);
+    final integrationPath =
+        p.join(projectRoot, 'test', 'integration', 'features', featureName);
 
     if (selected.contains(_kStateNotifier) && selected.contains(_kRepository)) {
       await FileUtils.writeFile(
-        p.join(testFeaturePath, '${featureName}_notifier_test.dart'),
+        p.join(unitPath, '${featureName}_notifier_test.dart'),
         TestTemplates.notifierTest(featureName, className),
       );
     }
 
     if (selected.contains(_kRepository)) {
       await FileUtils.writeFile(
-        p.join(testFeaturePath, '${featureName}_repository_test.dart'),
+        p.join(unitPath, '${featureName}_repository_test.dart'),
         TestTemplates.repositoryTest(featureName, className),
       );
     }
 
     if (selected.contains(_kUseCases)) {
       await FileUtils.writeFile(
-        p.join(testFeaturePath, '${featureName}_usecase_test.dart'),
+        p.join(unitPath, '${featureName}_usecase_test.dart'),
         TestTemplates.usecaseTest(featureName, className),
       );
     }
 
     if (selected.contains(_kRemoteDatasource)) {
       await FileUtils.writeFile(
-        p.join(testFeaturePath, '${featureName}_integration_test.dart'),
+        p.join(integrationPath, '${featureName}_integration_test.dart'),
         TestTemplates.integrationTest(featureName, className),
       );
     }
@@ -378,34 +378,41 @@ class _CreateFeatureCommand extends Command<int> {
     line('');
 
     if (includeTests) {
-      line('test/features/$name/');
-      if (selected.contains(_kStateNotifier) &&
-          selected.contains(_kRepository)) {
-        line('├── ${name}_notifier_test.dart       ← unit');
+      final hasUnit = (selected.contains(_kStateNotifier) &&
+              selected.contains(_kRepository)) ||
+          selected.contains(_kRepository) ||
+          selected.contains(_kUseCases);
+      final hasIntegration = selected.contains(_kRemoteDatasource);
+
+      if (hasUnit) {
+        line('test/unit/features/$name/');
+        if (selected.contains(_kStateNotifier) &&
+            selected.contains(_kRepository)) {
+          line('├── ${name}_notifier_test.dart');
+        }
+        if (selected.contains(_kRepository)) {
+          line('├── ${name}_repository_test.dart');
+        }
+        if (selected.contains(_kUseCases)) {
+          line('└── ${name}_usecase_test.dart');
+        }
+        line('');
       }
-      if (selected.contains(_kRepository)) {
-        line('├── ${name}_repository_test.dart     ← unit');
-      }
-      if (selected.contains(_kUseCases)) {
-        line('├── ${name}_usecase_test.dart        ← unit');
-      }
-      if (selected.contains(_kRemoteDatasource)) {
-        line(
-            '└── ${name}_integration_test.dart   ← integration (needs live API)');
+
+      if (hasIntegration) {
+        line('test/integration/features/$name/');
+        line('└── ${name}_integration_test.dart   ← needs live API');
+        line('');
       }
     } else {
-      line('test/features/$name/ (skipped by --no-tests)');
+      line('tests skipped (--no-tests)');
+      line('');
     }
 
     _logger.info('');
     if (includeTests) {
-      _logger.info('  Unit tests:       flutter test test/features/$name/');
-      if (selected.contains(_kRemoteDatasource)) {
-        _logger.info(
-            '  Integration test: flutter test test/features/$name/${name}_integration_test.dart');
-      }
-    } else {
-      _logger.info('  Tests generation skipped for this feature (--no-tests).');
+      _logger.info('  Unit tests:        flutter test test/unit/');
+      _logger.info('  Integration tests: flutter test test/integration/');
     }
     _logger.info('');
   }

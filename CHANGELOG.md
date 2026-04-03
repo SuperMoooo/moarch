@@ -1,3 +1,3 @@
-## 1.1.6
+## 1.1.7
 
-- fix: imports, and create command
+- feat: separate the tests by folder
