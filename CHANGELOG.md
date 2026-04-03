@@ -1,3 +1,3 @@
-## 1.1.7
+## 1.1.8
 
-- feat: separate the tests by folder
+- fix: imports on design system, wrong color on app theme. tests adjustments

@@ -185,7 +185,7 @@ abstract final class AppTheme {
       ),
        hintStyle: TextStyle(
         fontSize: AppConstants.fontSize16,
-        color: AppConstants.lightOnSurface.withValues(alpha: 0.35),
+        color: AppConstants.onSurface.withValues(alpha: 0.35),
       ),
     ),
 

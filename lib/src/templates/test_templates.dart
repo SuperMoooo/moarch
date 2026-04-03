@@ -17,11 +17,11 @@ class TestTemplates {
 // ignore_for_file: avoid_print
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../../../lib/config/env/app_env.dart';
+import '../../../../lib/config/env/app_env.dart';
 
-import '../../../lib/core/constants/api_constants.dart';
-import '../../../lib/features/$name/data/datasources/${name}_remote_datasource.dart';
-import '../../../lib/features/$name/data/models/${name}_model.dart';
+import '../../../../lib/core/constants/api_constants.dart';
+import '../../../../lib/features/$name/data/datasources/${name}_remote_datasource.dart';
+import '../../../../lib/features/$name/data/models/${name}_model.dart';
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
 // Requires a running API. Set BASE_URL in .env before running.
@@ -55,7 +55,7 @@ void main() {
     late ${cls}RemoteDataSource datasource;
 
     setUp(() {
-      datasource = ${cls}RemoteDataSourceImpl(buildTestDio());
+      datasource = ${cls}RemoteDataSource(buildTestDio());
     });
 
     // ── getAll ──────────────────────────────────────────────────────────────
@@ -96,11 +96,11 @@ void main() {
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../../lib/features/$name/data/repositories/${name}_repository_impl.dart';
-import '../../../lib/features/$name/domain/entities/${name}_entity.dart';
-import '../../../lib/features/$name/domain/repositories/${name}_repository.dart';
-import '../../../lib/features/$name/presentation/notifiers/${name}_notifier.dart';
-import '../../../lib/features/$name/presentation/states/${name}_state.dart';
+import '../../../../lib/features/$name/data/repositories/${name}_repository_impl.dart';
+import '../../../../lib/features/$name/domain/entities/${name}_entity.dart';
+import '../../../../lib/features/$name/domain/repositories/${name}_repository.dart';
+import '../../../../lib/features/$name/presentation/notifiers/${name}_notifier.dart';
+import '../../../../lib/features/$name/presentation/states/${name}_state.dart';
 
 // ── Fake repository ───────────────────────────────────────────────────────────
 // A simple in-memory fake — no mock package needed.
@@ -152,7 +152,7 @@ void main() {
 
     test('load() sets isLoading then populates items on success', () async {
       // TODO: replace with real entity fields
-      final fakeItems = [const ${cls}Entity()];
+      final fakeItems = [${cls}Entity()];
       final container = makeContainer(
         repository: Fake${cls}Repository(items: fakeItems),
       );
@@ -191,15 +191,18 @@ void main() {
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../../lib/core/errors/app_exception.dart';
-import '../../../lib/features/$name/data/datasources/${name}_remote_datasource.dart';
-import '../../../lib/features/$name/data/models/${name}_model.dart';
-import '../../../lib/features/$name/data/repositories/${name}_repository_impl.dart';
+import '../../../../lib/core/errors/app_exception.dart';
+import '../../../../lib/features/$name/data/datasources/${name}_remote_datasource.dart';
+import '../../../../lib/features/$name/data/models/${name}_model.dart';
+import '../../../../lib/features/$name/data/repositories/${name}_repository_impl.dart';
 
 // ── Fake datasource ───────────────────────────────────────────────────────────
 
 class Fake${cls}RemoteDataSource implements ${cls}RemoteDataSource {
-  Fake${cls}RemoteDataSource({this.models = const [], this.shouldThrow = false});
+  Fake${cls}RemoteDataSource({this.models = const [], 
+  this.shouldThrow = false,
+    this.throwStatusCode,
+    });
 
   List<${cls}Model> models;
   bool shouldThrow;
@@ -230,7 +233,7 @@ void main() {
   group('${cls}RepositoryImpl', () {
     test('getAll() returns entities on success', () async {
       // TODO: replace with real model fields
-      const fakeModels = [${cls}Model()];
+      final fakeModels = [${cls}Model()];
       final repo = ${cls}RepositoryImpl(
         Fake${cls}RemoteDataSource(models: fakeModels),
       );
@@ -275,9 +278,9 @@ void main() {
   static String usecaseTest(String name, String cls) => '''
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../../lib/features/$name/domain/entities/${name}_entity.dart';
-import '../../../lib/features/$name/domain/repositories/${name}_repository.dart';
-import '../../../lib/features/$name/domain/usecases/get_$name.dart';
+import '../../../../lib/features/$name/domain/entities/${name}_entity.dart';
+import '../../../../lib/features/$name/domain/repositories/${name}_repository.dart';
+import '../../../../lib/features/$name/domain/usecases/get_$name.dart';
 
 // ── Fake repository ───────────────────────────────────────────────────────────
 

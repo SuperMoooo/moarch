@@ -623,10 +623,10 @@ class ErrorView extends StatelessWidget {
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_constants.dart';
-import '../widgets/app_button.dart';
-import '../widgets/app_loading_action.dart';
-import '../widgets/app_loading_data.dart';
+import '../widgets/buttons/app_button.dart';
 import '../widgets/error_view.dart';
+import '../widgets/loadings/app_loading_action.dart';
+import '../widgets/loadings/app_loading_data.dart';
 
 /// Design system preview screen.
 /// Shows all shared widgets rendered with your current theme.
