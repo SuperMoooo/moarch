@@ -1,6 +1,7 @@
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/templates/checklist_templates.dart';
+import 'package:moarch/src/templates/ci_templates.dart';
 import 'package:path/path.dart' as p;
 
 import '../templates/config_templates.dart';
@@ -59,6 +60,11 @@ class InitCommand extends Command<int> {
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), 'CHECKLIST.md'),
         ChecklistTemplates.prodChecklist(),
+      );
+
+      await FileUtils.writeFile(
+        p.join(p.absolute(targetPath), '.github', 'workflows', 'ci.yml'),
+        CiTemplates.ciWorkflow(),
       );
 
       await FileUtils.writeFile(
