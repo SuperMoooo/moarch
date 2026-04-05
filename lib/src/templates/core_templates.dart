@@ -2,14 +2,41 @@ class CoreTemplates {
   CoreTemplates._();
 
   static String mainDart() => r'''
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:traice_flutter_v2/core/utils/logger.dart';
+import 'package:traice_flutter_v2/shared/widgets/error_view.dart';
 
 import 'config/router/app_router.dart';
 import 'config/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  
+  //::::::::::ERROR MANAGEMENT::::::::::
+  PlatformDispatcher.instance.onError = (error, st) {
+    log.e('Uncaught error', error: error, stackTrace: st);
+    if (kDebugMode) return false; // false = let Flutter crash normally in dev
+    return true; // true = swallow in prod, app stays alive
+  };
+
+  FlutterError.onError = (details) {
+    log.e('Flutter error', error: details.exception, stackTrace: details.stack);
+    if (kDebugMode) {
+      // default behaviour — shows red screen in dev
+      FlutterError.presentError(details);
+    }
+    // in prod: logged but no red screen, app continues
+  };
+
+  ErrorWidget.builder = (details) {
+    if (kDebugMode) return ErrorWidget(details.exception); // red screen in dev
+    return const ErrorView(); // your nice screen in prod
+  };
+
+    //::::::::::ERROR MANAGEMENT::::::::::
   runApp(const ProviderScope(child: App()));
 }
 
@@ -43,34 +70,48 @@ class App extends ConsumerWidget {
 
   static String appException() => r'''
 import 'package:dio/dio.dart';
+import 'package:traice_flutter_v2/core/utils/logger.dart';
 
 class AppException implements Exception {
-  const AppException({
-    required this.message,
-    this.statusCode,
-  });
+  const AppException._({required this.message, this.statusCode});
 
   final String message;
   final int? statusCode;
 
   @override
-  String toString() => 'AppException(message: $message, statusCode: $statusCode)';
+  String toString() =>
+      'AppException(message: $message, statusCode: $statusCode)';
 
-   factory AppException.fromDioError(DioException dioError) {
-    return AppException(
-      message: dioError.response?.data['message'] ?? 'Something went wrong',
-      statusCode: dioError.response?.statusCode,
-    );
+  factory AppException.fromDioError(DioException dioError) {
+    final message =
+        dioError.response?.data?['message'] as String? ??
+        dioError.message ??
+        'Unknown error';
+    final statusCode = dioError.response?.statusCode;
+
+    log.e('[AppException] — $message', error: dioError);
+
+    return AppException._(message: message, statusCode: statusCode);
   }
 }
+
 ''';
 
   static String logger() => r'''
 import 'package:flutter/foundation.dart';
+import 'package:logger/logger.dart';
 
-void log(Object? value) {
-  if (kDebugMode) debugPrint(value?.toString());
-}
+final log = Logger(
+  printer: PrettyPrinter(
+    methodCount: 0, // no stack trace on normal logs
+    errorMethodCount: 8, // stack trace on errors
+    colors: true,
+    printEmojis: true,
+  ),
+  // automatically silent in release mode
+  level: kReleaseMode ? Level.off : Level.trace,
+);
+
 ''';
 
   static String extensions() => r'''
@@ -261,7 +302,10 @@ Dio buildDioClient(Ref ref) {
           ),
         )
         ..interceptors.add(
-          LogInterceptor(requestBody: true, responseBody: true, logPrint: log),
+          LogInterceptor(requestBody: true,
+           responseBody: true, 
+          logPrint: (o) => log.d(o.toString()),
+          ),
         );
 
   return dio;

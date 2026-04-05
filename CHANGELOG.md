@@ -1,3 +1,3 @@
-## 1.1.9
+## 1.1.10
 
-- feat: user interaction if want tests or not
+- feat: logs, and error management
