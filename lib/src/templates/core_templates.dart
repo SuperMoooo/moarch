@@ -17,13 +17,13 @@ Future<void> main() async {
   
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
-    log.e('Uncaught error', error: error, stackTrace: st);
+    log.e('[Uncaught error]', error: error, stackTrace: st);
     if (kDebugMode) return false; // false = let Flutter crash normally in dev
     return true; // true = swallow in prod, app stays alive
   };
 
   FlutterError.onError = (details) {
-    log.e('Flutter error', error: details.exception, stackTrace: details.stack);
+    log.e('[Flutter error]', error: details.exception, stackTrace: details.stack);
     if (kDebugMode) {
       // default behaviour — shows red screen in dev
       FlutterError.presentError(details);

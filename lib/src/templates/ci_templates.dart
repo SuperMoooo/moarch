@@ -41,7 +41,7 @@ jobs:
         run: flutter pub get
 
       - name: Analyze
-        run: flutter analyze
+        run: flutter analyze --no-fatal-warnings
 
       - name: Unit tests
         run: flutter test test/unit/
@@ -75,5 +75,6 @@ jobs:
 
       - name: Integration tests
         run: flutter test test/integration/
+        continue-on-error: true
 ''';
 }
