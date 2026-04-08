@@ -557,7 +557,7 @@ class AppLoadingAction extends StatelessWidget {
 
     return Positioned.fill(
       child: ColoredBox(
-        color: Colors.black.withAlpha(100),
+        color: Colors.black.withValues(alpha:0.75),
         child: const Center(child: CircularProgressIndicator.adaptive()),
       ),
     );
