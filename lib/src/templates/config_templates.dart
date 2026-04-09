@@ -120,6 +120,10 @@ abstract final class AppTheme {
  static ThemeData get light => ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
+    textTheme: TextTheme().copyWith().apply(
+      bodyColor: AppConstants.onSurface,
+      displayColor: AppConstants.onSurface,
+    ),
     colorScheme: ColorScheme.light(
       primary: AppConstants.primary,
       onPrimary: AppConstants.surface, 

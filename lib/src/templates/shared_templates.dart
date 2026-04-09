@@ -537,29 +537,26 @@ class AppLoadingData extends StatelessWidget {
   static String appLoadingAction() => r'''
 import 'package:flutter/material.dart';
 
-class AppLoadingAction extends StatelessWidget {
-  const AppLoadingAction({
+class LoadingActionOverlay extends StatelessWidget {
+  const LoadingActionOverlay({
     super.key,
     required this.isLoading,
-    this.onlyLoading = false,
+    required this.child,
   });
 
   final bool isLoading;
-  final bool onlyLoading;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    if (onlyLoading) {
-      return const Center(child: CircularProgressIndicator.adaptive());
-    }
-
-    if (!isLoading) return const SizedBox.shrink();
-
-    return Positioned.fill(
-      child: ColoredBox(
-        color: Colors.black.withValues(alpha:0.75),
-        child: const Center(child: CircularProgressIndicator.adaptive()),
-      ),
+    return Stack(
+      children: [
+        child,
+        if (isLoading) ...[
+          const ModalBarrier(dismissible: false, color: Colors.black54),
+          const Center(child: CircularProgressIndicator()),
+        ],
+      ],
     );
   }
 }
