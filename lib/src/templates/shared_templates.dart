@@ -537,8 +537,8 @@ class AppLoadingData extends StatelessWidget {
   static String appLoadingAction() => r'''
 import 'package:flutter/material.dart';
 
-class LoadingActionOverlay extends StatelessWidget {
-  const LoadingActionOverlay({
+class AppLoadingActionOverlay extends StatelessWidget {
+  const AppLoadingActionOverlay({
     super.key,
     required this.isLoading,
     required this.child,
