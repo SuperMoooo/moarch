@@ -145,7 +145,7 @@ class InitCommand extends Command<int> {
       SharedTemplates.appLoadingData(),
     );
     await FileUtils.writeFile(
-      p.join(s, 'loadings', 'app_loading_action.dart'),
+      p.join(s, 'loadings', 'app_loading_action_overlay.dart'),
       SharedTemplates.appLoadingAction(),
     );
     await FileUtils.writeFile(

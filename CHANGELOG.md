@@ -1,3 +1,3 @@
-## 1.1.12
+## 1.1.13
 
-- feat: text theme and loading action overlay
+- update: readme
