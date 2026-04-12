@@ -1,3 +1,3 @@
-## 1.1.13
+## 1.1.14
 
-- update: readme
+- feat: hint, and icons for dropdown

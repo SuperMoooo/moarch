@@ -451,20 +451,31 @@ class AppDropdownInput<T> extends StatelessWidget {
     required this.labelOf,
     required this.onChanged,
     this.selectedId,
-    this.hint = 'Select an option',
+    this.hint = 'Selecione uma opção',
     this.enabled = true,
     this.required = false,
+    this.prefixIcon,
+    this.suffixIcon,
   });
 
   final String label;
   final List<T> items;
+
+  /// Extract the id from an item — always a String, used as the dropdown value.
   final String Function(T item) idOf;
+
+  /// Extract the display label from an item.
   final String Function(T item) labelOf;
+
+  /// Called with the selected id when the user picks an option.
   final ValueChanged<String> onChanged;
+
   final String? selectedId;
   final String hint;
   final bool enabled;
   final bool required;
+  final Widget? prefixIcon;
+  final Widget? suffixIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -494,8 +505,12 @@ class AppDropdownInput<T> extends StatelessWidget {
         IgnorePointer(
           ignoring: !enabled,
           child: DropdownButtonFormField<String>(
-            value: selectedId,
-            hint: Text(hint),
+            initialValue: selectedId,
+            decoration: InputDecoration(
+              hintText: hint,
+              prefixIcon: prefixIcon,
+              suffixIcon: suffixIcon,
+            ),
             isExpanded: true,
             onChanged: (value) {
               if (value != null) onChanged(value);
@@ -515,6 +530,7 @@ class AppDropdownInput<T> extends StatelessWidget {
     );
   }
 }
+
 ''';
 
   static String appLoadingData() => r'''
