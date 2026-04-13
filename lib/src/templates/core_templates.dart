@@ -62,7 +62,6 @@ class App extends ConsumerWidget {
           child: child!,
         );
       },
-      // TODO: set your initial route/home
     );
   }
 }

@@ -1,3 +1,3 @@
-## 1.1.14
+## 1.1.15
 
-- feat: hint, and icons for dropdown
+- fix: imports, and other errors

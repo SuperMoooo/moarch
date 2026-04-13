@@ -5,6 +5,7 @@ class ConfigTemplates {
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../shared/widgets/design_system_view.dart';
  
 // ── Navigator key ─────────────────────────────────────────────────────────────
 // Use this to navigate from anywhere without BuildContext:
@@ -42,7 +43,7 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: AppRoutes.designView,
-      builder: (_, __) => const DesignSystemView(),
+      builder: (_, _) => const DesignSystemView(),
     )
     
  
@@ -108,7 +109,6 @@ abstract final class AppEnv {
 // fvm flutter pub add --dev build_runner envied_generator
 // dart run build_runner build --delete-conflicting-outputs
 // Access values in app: final baseUrl = AppEnv.baseUrl;
-// envied `obfuscate` is enabled in this setup, matching your requirement.
 
 ''';
 

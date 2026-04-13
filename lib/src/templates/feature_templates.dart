@@ -69,6 +69,9 @@ class ${cls}Model extends ${cls}Entity{
 
   factory ${cls}Model.fromEntity(${cls}Entity entity) => ${cls}Model(
   );
+
+  ${cls}Entity toEntity() =>
+      ${cls}Entity();
 }
 ''';
 

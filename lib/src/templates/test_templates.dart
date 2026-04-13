@@ -58,19 +58,19 @@ void main() {
       datasource = ${cls}RemoteDataSource(buildTestDio());
     });
 
-    // ── getAll ──────────────────────────────────────────────────────────────
+    // ── fetchAll ──────────────────────────────────────────────────────────────
 
-    test('getAll() responds without throwing', () async {
+    test('fetchAll() responds without throwing', () async {
       // If this throws, your endpoint or fromJson is broken
-      final result = await datasource.getAll();
-      print('[${cls}] getAll() returned \${result.length} items');
+      final result = await datasource.fetchAll();
+      print('[${cls}] fetchAll() returned \${result.length} items');
       expect(result, isA<List<${cls}Model>>());
     });
 
-    test('getAll() returns a non-empty list', () async {
+    test('fetchAll() returns a non-empty list', () async {
       // Fails if the API returns [] when it should have data —
       // catch seeding issues early
-      final result = await datasource.getAll();
+      final result = await datasource.fetchAll();
       expect(result, isNotEmpty);
     });
 
@@ -78,7 +78,7 @@ void main() {
     // ── toEntity ─────────────────────────────────────────────────────────────
 
     test('toEntity() converts model without throwing', () async {
-      final all = await datasource.getAll();
+      final all = await datasource.fetchAll();
       expect(all, isNotEmpty);
 
       // Verify the full conversion chain: JSON → Model → Entity
@@ -114,7 +114,7 @@ class Fake${cls}Repository implements ${cls}Repository {
   String errorMessage = 'Something went wrong';
 
   @override
-  Future<List<${cls}Entity>> getAll() async {
+  Future<List<${cls}Entity>> fetchAll() async {
     if (shouldThrow) throw Exception(errorMessage);
     return items;
   }
@@ -209,7 +209,7 @@ class Fake${cls}RemoteDataSource implements ${cls}RemoteDataSource {
   int? throwStatusCode;
 
   @override
-  Future<List<${cls}Model>> getAll() async {
+  Future<List<${cls}Model>> fetchAll() async {
     if (shouldThrow) {
       final response = Response(
         requestOptions: RequestOptions(path: ''),
@@ -231,25 +231,25 @@ class Fake${cls}RemoteDataSource implements ${cls}RemoteDataSource {
 
 void main() {
   group('${cls}RepositoryImpl', () {
-    test('getAll() returns entities on success', () async {
+    test('fetchAll() returns entities on success', () async {
       // TODO: replace with real model fields
       final fakeModels = [${cls}Model()];
       final repo = ${cls}RepositoryImpl(
         Fake${cls}RemoteDataSource(models: fakeModels),
       );
 
-      final result = await repo.getAll();
+      final result = await repo.fetchAll();
 
       expect(result.length, fakeModels.length);
     });
 
-    test('getAll() throws AppException when DioException is thrown', () async {
+    test('fetchAll() throws AppException when DioException is thrown', () async {
       final repo = ${cls}RepositoryImpl(
         Fake${cls}RemoteDataSource(shouldThrow: true, throwStatusCode: 500),
       );
 
       expect(
-        () => repo.getAll(),
+        () => repo.fetchAll(),
         throwsA(isA<AppException>()),
       );
     });
@@ -261,7 +261,7 @@ void main() {
       );
 
       try {
-        await repo.getAll();
+        await repo.fetchAll();
         fail('Expected AppException');
       } on AppException catch (e) {
         expect(e.message, isNotEmpty);
@@ -291,7 +291,7 @@ class Fake${cls}Repository implements ${cls}Repository {
   int callCount = 0;
 
   @override
-  Future<List<${cls}Entity>> getAll() async {
+  Future<List<${cls}Entity>> fetchAll() async {
     callCount++;
     return items;
   }
@@ -303,7 +303,7 @@ class Fake${cls}Repository implements ${cls}Repository {
 
 void main() {
   group('Get$cls', () {
-    test('calls repository.getAll() once', () async {
+    test('calls repository.fetchAll() once', () async {
       final repo = Fake${cls}Repository();
       final useCase = Get$cls(repo);
 
@@ -325,7 +325,7 @@ void main() {
 
     test('propagates exceptions from the repository', () async {
       final repo = Fake${cls}Repository()
-        ..getAll; // override below
+        ..fetchAll; // override below
       final useCase = Get$cls(_ThrowingRepository());
 
       expect(() => useCase.call(), throwsException);
@@ -335,7 +335,7 @@ void main() {
 
 class _ThrowingRepository implements ${cls}Repository {
   @override
-  Future<List<${cls}Entity>> getAll() async => throw Exception('repo error');
+  Future<List<${cls}Entity>> fetchAll() async => throw Exception('repo error');
 
   // TODO: add overrides for any other methods you add to the repository
 }

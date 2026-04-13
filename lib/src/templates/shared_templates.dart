@@ -638,7 +638,6 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
 import '../widgets/buttons/app_button.dart';
 import '../widgets/error_view.dart';
-import '../widgets/loadings/app_loading_action.dart';
 import '../widgets/loadings/app_loading_data.dart';
 
 /// Design system preview screen.
@@ -861,21 +860,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                 ),
               ),
 
-              _Section(
-                title: 'AppLoadingAction (overlay)',
-                child: SizedBox(
-                  height: 80,
-                  child: Stack(
-                    children: [
-                      Container(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        child: const Center(child: Text('Content behind overlay')),
-                      ),
-                      const AppLoadingAction(isLoading: true),
-                    ],
-                  ),
-                ),
-              ),
+             
 
               // ── ErrorView ─────────────────────────────────────────────────
               _Section(
