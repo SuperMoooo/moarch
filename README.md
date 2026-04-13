@@ -1,6 +1,6 @@
 # 🧱 moarch
 
-A Flutter CLI tool to scaffold Clean Architecture projects with Riverpod — your conventions, your structure, no code generation required.
+A Flutter CLI tool to scaffold Clean Architecture projects with Riverpod. Your conventions, your structure.
 
 [![pub version](https://img.shields.io/pub/v/moarch.svg)](https://pub.dev/packages/moarch)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
@@ -16,7 +16,7 @@ A Flutter CLI tool to scaffold Clean Architecture projects with Riverpod — you
 - 🏗️ **Your conventions** — Fully customizable templates, pre-configured with proven patterns
 - 🔒 **Security included** — Secure storage integration with `flutter_secure_storage`
 - 📍 **Router ready** — GoRouter setup out of the box
-- 🎨 **Reusable widgets** — Pre-built button, input, loading, action overlay, and error view components
+- 🎨 **Reusable widgets** — Pre-built buttons, inputs, loading, action overlay, error view, and design system components
 - 🧪 **CI ready** — `moarch init` scaffolds a GitHub Actions CI workflow with unit and integration jobs
 - 🔁 **Flaky integration support** — generated CI integration step is configured to continue on error so merges are not blocked by intermittent network/API issues
 - 📦 **Environment-aware** — `.env` and `.fvmrc` generated at project root
@@ -59,7 +59,7 @@ moarch init
 moarch create feature auth
 
 # 6. optional: skip test scaffolding
-moarch create feature auth --no-tests
+moarch create feature auth --no-unit --no-integration
 ```
 
 ---
@@ -122,38 +122,42 @@ lib/
 ├── main.dart                    ← App with routing & theme setup
 ├── core/
 │   ├── constants/
-│   │   ├── app_constants.dart   ← spacing (4pt), text sizes, touch targets, radii, durations
-│   │   └── api_constants.dart   ← API timeout, BASE_URL from .env
+│   │   ├── app_constants.dart   - spacing (4pt), text sizes, touch targets, radii, durations
+│   │   └── api_constants.dart   - API timeout
 │   ├── errors/
-│   │   └── app_exception.dart   ← unified error handling
+│   │   └── app_exception.dart   - unified error handling
 │   ├── network/
-│   │   └── dio_client.dart      ← HTTP client with interceptors
+│   │   └── dio_client.dart      - HTTP client with interceptors
 │   ├── security/
-│   │   └── secure_storage.dart  ← flutter_secure_storage wrapper
+│   │   └── secure_storage.dart  - flutter_secure_storage wrapper
 │   └── utils/
-│       ├── extensions.dart      ← ContextX, StringX, DateTimeX
-│       └── logger.dart          ← single log() function
+│       ├── extensions.dart      - ContextX, StringX, DateTimeX, TimeOfDayX
+│       └── logger.dart          - single log() function
 ├── config/
 │   ├── env/
-│   │   └── app_env.dart         ← Envied wrapper for secure .env values
+│   │   └── app_env.dart         - Envied wrapper for secure .env values
 │   ├── router/
-│   │   └── app_router.dart      ← GoRouter setup with routes
+│   │   └── app_router.dart      - GoRouter setup with routes
 │   └── theme/
-│       └── app_theme.dart       ← Material 3 theme, light/dark modes
+│       └── app_theme.dart       - Material 3 theme, light/dark modes
 ├── shared/widgets/
 │   ├── buttons/
-│   │   └── app_button.dart      ← filled / outlined / text variants
+│   │   └── app_button.dart      - filled / outlined / text variants
 │   ├── inputs/
-│   │   └── app_input.dart       ← themed input widget
+│   │   ├── app_input.dart       - themed input widget
+│   │   ├── app_date_input.dart  - date picker input
+│   │   ├── app_time_input.dart  - time picker input
+│   │   └── app_dropdown_input.dart - dropdown input widget
 │   ├── loadings/
-│   │   ├── app_loading_data.dart    ← progress indicators for data loading
-│   │   └── app_loading_action.dart  ← indicators for actions (submit, delete)
-│   └── error_view.dart          ← error display component
-└── features/                    ← your features go here
+│   │   ├── app_loading_data.dart    - progress indicators for data loading
+│   │   └── app_loading_action_overlay.dart  - indicators for actions (submit, delete)
+│   ├── error_view.dart          - error display component
+│   └── design_system_view.dart  - design system showcase
+└── features/                    - your features go here
 .github/
 └── workflows/
-    └── ci.yml                  ← GitHub Actions CI scaffold
-CHECKLIST.md                    ← development checklist
+    └── ci.yml                  - GitHub Actions CI scaffold
+CHECKLIST.md                    - development checklist
 ```
 
 ## Note on tests
@@ -180,7 +184,7 @@ test/
 - ✅ Secure storage integration ready
 - ✅ DIO client with error handling
 - ✅ Theme system with Material 3 support
-- ✅ Reusable widgets library (buttons, inputs, loading states, error view)
+- ✅ Reusable widgets library (buttons, inputs, loading states, error view, design system)
 - ✅ Environment variables (.env) support
 - ✅ `Envied` config scaffolding (`lib/config/env/app_env.dart`, `.env` + `.gitignore` entry)
 - ✅ Test scaffolding in `test/features/<feature>` (notifier/repository/usecase as selected)
@@ -195,7 +199,7 @@ moarch create feature auth
 moarch create feature user_profile
 moarch create feature ProductCatalog    # casing doesn't matter
 moarch create feature auth --all        # skip checklist, generate all layers
-moarch create feature auth --no-tests   # skip test generation
+moarch create feature auth --no-unit --no-integration   # skip test generation
 ```
 
 ### Interactive Checklist
@@ -214,7 +218,7 @@ The CLI presents a checklist to select which layers to generate:
 
 This lets you generate only what you need — skip local datasources if your feature is API-only, or skip use cases if your logic fits in the notifier.
 
-> `moarch create feature` also prompts to generate tests by default. Use `--no-tests` to skip test scaffolding or `--tests` to force it.
+> `moarch create feature` also prompts to generate tests by default. Use `--no-unit --no-integration` to skip test scaffolding.
 
 ### Generated Structure
 
@@ -232,7 +236,7 @@ lib/features/auth/
 │   │   ├── auth_remote_datasource.dart
 │   │   └── auth_local_datasource.dart  ← if selected
 │   ├── models/
-│   │   └── auth_model.dart          ← copyWith, fromJson, toJson
+│   │   └── auth_model.dart          - copyWith, fromJson, toJson
 │   └── repositories/
 │       └── auth_repository_impl.dart
 └── presentation/
@@ -242,7 +246,7 @@ lib/features/auth/
     │   └── auth_notifier.dart       ← StateNotifier with error handling
     ├── views/
     │   └── auth_view.dart
-    └── widgets/
+
 ```
 
 ### Generated Test Files
