@@ -5,8 +5,8 @@ class CoreTemplates {
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:traice_flutter_v2/core/utils/logger.dart';
-import 'package:traice_flutter_v2/shared/widgets/error_view.dart';
+import '../../core/utils/logger.dart';
+import '../../shared/widgets/error_view.dart';
 
 import 'config/router/app_router.dart';
 import 'config/theme/app_theme.dart';
@@ -69,7 +69,7 @@ class App extends ConsumerWidget {
 
   static String appException() => r'''
 import 'package:dio/dio.dart';
-import 'package:traice_flutter_v2/core/utils/logger.dart';
+import '../../core/utils/logger.dart';
 
 class AppException implements Exception {
   const AppException._({required this.message, this.statusCode});

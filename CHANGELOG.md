@@ -1,3 +1,3 @@
-## 1.1.17
+## 1.1.18
 
-- fix: dio status code, test throws
+- fix: imports
