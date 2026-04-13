@@ -1,3 +1,3 @@
-## 1.1.15
+## 1.1.16
 
-- fix: imports, and other errors
+- feat: flags for both unit and integration tests

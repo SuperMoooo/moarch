@@ -54,11 +54,16 @@ class _CreateFeatureCommand extends Command<int> {
         help: 'Skip checklist and generate all layers.',
       )
       ..addFlag(
-        'tests',
+        'unit',
         defaultsTo: true,
         negatable: true,
-        help:
-            'Generate tests (--no-tests to skip). Skips the interactive prompt.',
+        help: 'Generate unit tests. Use --no-unit to skip.',
+      )
+      ..addFlag(
+        'integration',
+        defaultsTo: true,
+        negatable: true,
+        help: 'Generate integration tests. Use --no-integration to skip.',
       );
   }
 
@@ -120,13 +125,20 @@ class _CreateFeatureCommand extends Command<int> {
       );
     }
 
-    // ── Test prompt ───────────────────────────────────────────────────────────
-    // If --no-tests was explicitly passed, skip the prompt entirely.
-    // Otherwise ask interactively — default is yes.
-    final testsArgExplicit = argResults?.wasParsed('tests') ?? false;
-    final includeTests = testsArgExplicit
-        ? (argResults?['tests'] as bool? ?? true)
-        : _askTests();
+    // ── Test prompts ──────────────────────────────────────────────────────────
+    // If flag was explicitly passed via CLI, use it directly.
+    // Otherwise ask interactively — both default to yes.
+
+    final unitExplicit = argResults?.wasParsed('unit') ?? false;
+    final integrationExplicit = argResults?.wasParsed('integration') ?? false;
+
+    final includeUnit = unitExplicit
+        ? (argResults?['unit'] as bool? ?? true)
+        : _askYesNo('  Generate unit tests? (Y/n): ');
+
+    final includeIntegration = integrationExplicit
+        ? (argResults?['integration'] as bool? ?? true)
+        : _askYesNo('  Generate integration tests? (Y/n): ');
 
     _logger.info('');
     _logger.info('🧱 Creating feature: $className');
@@ -189,35 +201,61 @@ class _CreateFeatureCommand extends Command<int> {
       return 1;
     }
 
-    // ── Tests ──────────────────────────────────────────────────────────────────
-    if (includeTests) {
-      final testProgress = _logger.progress('Generating tests');
+    // ── Unit tests ─────────────────────────────────────────────────────────────
+    if (includeUnit) {
+      final unitProgress = _logger.progress('Generating unit tests');
       try {
-        await _writeTests(
+        await _writeUnitTests(
           libPath: libPath,
           featureName: featureName,
           className: className,
           selected: selected,
         );
-        testProgress.complete('Tests generated');
+        unitProgress.complete('Unit tests generated');
       } catch (e) {
-        testProgress.fail('Tests failed: $e');
+        unitProgress.fail('Unit tests failed: $e');
       }
     } else {
-      _logger.info('Skipping tests (--no-tests).');
+      _logger.detail('  Unit tests skipped.');
     }
 
-    _printTree(featureName, className, selected, includeTests: includeTests);
+    // ── Integration tests ──────────────────────────────────────────────────────
+    if (includeIntegration && selected.contains(_kRemoteDatasource)) {
+      final integrationProgress =
+          _logger.progress('Generating integration tests');
+      try {
+        await _writeIntegrationTests(
+          libPath: libPath,
+          featureName: featureName,
+          className: className,
+        );
+        integrationProgress.complete('Integration tests generated');
+      } catch (e) {
+        integrationProgress.fail('Integration tests failed: $e');
+      }
+    } else if (includeIntegration && !selected.contains(_kRemoteDatasource)) {
+      _logger.detail(
+          '  Integration tests skipped — no Remote Datasource selected.');
+    } else {
+      _logger.detail('  Integration tests skipped.');
+    }
+
+    _printTree(
+      featureName,
+      className,
+      selected,
+      includeUnit: includeUnit,
+      includeIntegration:
+          includeIntegration && selected.contains(_kRemoteDatasource),
+    );
     return 0;
   }
 
-  // ── Interactive test prompt ───────────────────────────────────────────────────
-  // Simple y/n — no checklist needed, just one question.
+  // ── Interactive prompt ────────────────────────────────────────────────────────
 
-  bool _askTests() {
-    stdout.write('\n  Generate tests? (Y/n): ');
+  bool _askYesNo(String question) {
+    stdout.write(question);
     final input = stdin.readLineSync()?.trim().toLowerCase() ?? '';
-    // Empty input or 'y' = yes (default)
     return input.isEmpty || input == 'y' || input == 'yes';
   }
 
@@ -312,7 +350,7 @@ class _CreateFeatureCommand extends Command<int> {
     );
   }
 
-  Future<void> _writeTests({
+  Future<void> _writeUnitTests({
     required String libPath,
     required String featureName,
     required String className,
@@ -321,8 +359,6 @@ class _CreateFeatureCommand extends Command<int> {
     final projectRoot = p.dirname(p.absolute(libPath));
     final unitPath =
         p.join(projectRoot, 'test', 'unit', 'features', featureName);
-    final integrationPath =
-        p.join(projectRoot, 'test', 'integration', 'features', featureName);
 
     if (selected.contains(_kStateNotifier) && selected.contains(_kRepository)) {
       await FileUtils.writeFile(
@@ -344,13 +380,21 @@ class _CreateFeatureCommand extends Command<int> {
         TestTemplates.usecaseTest(featureName, className),
       );
     }
+  }
 
-    if (selected.contains(_kRemoteDatasource)) {
-      await FileUtils.writeFile(
-        p.join(integrationPath, '${featureName}_integration_test.dart'),
-        TestTemplates.integrationTest(featureName, className),
-      );
-    }
+  Future<void> _writeIntegrationTests({
+    required String libPath,
+    required String featureName,
+    required String className,
+  }) async {
+    final projectRoot = p.dirname(p.absolute(libPath));
+    final integrationPath =
+        p.join(projectRoot, 'test', 'integration', 'features', featureName);
+
+    await FileUtils.writeFile(
+      p.join(integrationPath, '${featureName}_integration_test.dart'),
+      TestTemplates.integrationTest(featureName, className),
+    );
   }
 
   // ── Tree summary ─────────────────────────────────────────────────────────────
@@ -359,7 +403,8 @@ class _CreateFeatureCommand extends Command<int> {
     String name,
     String cls,
     Set<String> selected, {
-    bool includeTests = true,
+    bool includeUnit = true,
+    bool includeIntegration = true,
   }) {
     _logger.success('');
     _logger.success('✅  $cls created at lib/features/$name/');
@@ -388,17 +433,16 @@ class _CreateFeatureCommand extends Command<int> {
       line('├── notifiers/${name}_notifier.dart');
     }
     if (selected.contains(_kView)) {
-      line('├── views/${name}_view.dart');
+      line('└── views/${name}_view.dart');
     }
 
     line('');
 
-    if (includeTests) {
+    if (includeUnit) {
       final hasUnit = (selected.contains(_kStateNotifier) &&
               selected.contains(_kRepository)) ||
           selected.contains(_kRepository) ||
           selected.contains(_kUseCases);
-      final hasIntegration = selected.contains(_kRemoteDatasource);
 
       if (hasUnit) {
         line('test/unit/features/$name/');
@@ -414,22 +458,23 @@ class _CreateFeatureCommand extends Command<int> {
         }
         line('');
       }
+    }
 
-      if (hasIntegration) {
-        line('test/integration/features/$name/');
-        line('└── ${name}_integration_test.dart   ← needs live API');
-        line('');
-      }
-    } else {
-      line('tests skipped (--no-tests)');
+    if (includeIntegration) {
+      line('test/integration/features/$name/');
+      line('└── ${name}_integration_test.dart   ← needs live API');
       line('');
     }
 
     _logger.info('');
-    if (includeTests) {
+    if (includeUnit) {
       _logger.info('  Unit tests:        flutter test test/unit/');
+    }
+    if (includeIntegration) {
       _logger.info('  Integration tests: flutter test test/integration/');
     }
+    _logger
+        .info('  Replace "your_app" in test imports with your package name.');
     _logger.info('');
   }
 }
