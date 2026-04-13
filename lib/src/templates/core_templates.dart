@@ -283,9 +283,9 @@ Dio buildDioClient(Ref ref) {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
-            // Status that pass: 200-399, all the other will be caught in DioException
+            // Status that pass: 200-299, all the other will be caught in DioException
             validateStatus: (status) {
-              return status != null && status >= 200 && status < 500;
+              return status != null && status >= 200 && status < 300;
             },
           ),
         )

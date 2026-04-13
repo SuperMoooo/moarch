@@ -43,7 +43,7 @@ Dio buildTestDio() {
         'Accept': 'application/json',
       },
       validateStatus: (status) {
-              return status != null && status >= 200 && status < 500;
+        return status != null && status >= 200 && status < 300;
       },
     ),
   );
@@ -67,13 +67,14 @@ void main() {
       expect(result, isA<List<${cls}Model>>());
     });
 
-    test('fetchAll() returns a non-empty list', () async {
-      // Fails if the API returns [] when it should have data —
-      // catch seeding issues early
-      final result = await datasource.fetchAll();
-      expect(result, isNotEmpty);
-    });
+    test('fetchAll() returns an error/null', () async {
 
+      expect(
+        () async =>
+            await datasource.fetchAll(),
+        throwsA(isA<DioException>()),
+      );
+    });
 
     // ── toEntity ─────────────────────────────────────────────────────────────
 

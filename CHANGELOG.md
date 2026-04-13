@@ -1,3 +1,3 @@
-## 1.1.16
+## 1.1.17
 
-- feat: flags for both unit and integration tests
+- fix: dio status code, test throws
