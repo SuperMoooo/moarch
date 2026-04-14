@@ -207,13 +207,13 @@ moarch create feature auth --no-unit --no-integration   # skip test generation
 The CLI presents a checklist to select which layers to generate:
 
 ```
-  Select layers for "Auth" (space = toggle, enter = confirm):
-▶ [✓]  Remote Datasource
-  [ ]  Local/Cache Datasource        ← optional, default: off
-  [✓]  Repository (interface + impl)
-  [ ]  Use Cases                     ← optional, default: off
-  [✓]  State + Notifier
-  [✓]  View
+  Select layers for "Auth" (type number, enter = confirm):
+▶ 1 [✓]  Remote Datasource
+  2 [ ]  Local/Cache Datasource        ← optional, default: off
+  3 [✓]  Repository (interface + impl)
+  4 [ ]  Use Cases                     ← optional, default: off
+  5 [✓]  State + Notifier
+  6 [✓]  View
 ```
 
 This lets you generate only what you need — skip local datasources if your feature is API-only, or skip use cases if your logic fits in the notifier.

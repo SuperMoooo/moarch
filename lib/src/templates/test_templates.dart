@@ -1,38 +1,19 @@
 class TestTemplates {
   TestTemplates._();
 
-  // ── Integration test ────────────────────────────────────────────────────────
-  // Hits the real API and verifies:
-  //   1. The request succeeds (status 200)
-  //   2. The response JSON parses into the model without throwing
-  //   3. Required fields are present and non-null
-  //
-  // Run separately from unit tests:
-  //   flutter test test/features/<n>/<n>_integration_test.dart
-  //
-  // DO NOT run in CI by default — these need a live server.
-  // Add to CI only in a separate job with @Tags(['integration']).
+  // ── test_helper.dart ────────────────────────────────────────────────────────
+  // Shared across all integration tests.
+  // Builds a test-ready Dio instance without auth or interceptors.
 
-  static String integrationTest(String name, String cls) => '''
-// ignore_for_file: avoid_print
+  static String testHelper() => r'''
 import 'package:dio/dio.dart';
-import 'package:flutter_test/flutter_test.dart';
-import '../../../../lib/config/env/app_env.dart';
+import '../../config/env/app_env.dart';
 
-import '../../../../lib/core/constants/api_constants.dart';
-import '../../../../lib/features/$name/data/datasources/${name}_remote_datasource.dart';
-import '../../../../lib/features/$name/data/models/${name}_model.dart';
+import '../lib/core/constants/api_constants.dart';
 
-// ── Setup ─────────────────────────────────────────────────────────────────────
-// Requires a running API. Set BASE_URL in .env before running.
-//
-// Run with:
-//   flutter test test/features/$name/${name}_integration_test.dart
-//
-// NOTE: These tests are intentionally NOT run with the rest of the unit tests.
-// They depend on the network and a live server — keep them separate.
-
+/// Builds a clean Dio instance for integration tests.
 Dio buildTestDio() {
+
   return Dio(
     BaseOptions(
       baseUrl: AppEnv.baseUrl,
@@ -42,16 +23,33 @@ Dio buildTestDio() {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      validateStatus: (status) {
-        return status != null && status >= 200 && status < 300;
-      },
+      // Only 2xx passes — anything else throws DioException
+      validateStatus: (status) => status != null && status >= 200 && status < 300,
     ),
   );
 }
+''';
+
+  // ── Integration test ────────────────────────────────────────────────────────
+  // Hits the real API directly via the datasource.
+  // Verifies: HTTP call succeeds + JSON parses into model + toEntity() works.
+  //
+  // Test data: use a permanent test account / seed data your team keeps alive.
+  // Store credentials as GitHub secrets or in .env — never hardcode them here.
+  //
+  // Run: flutter test test/integration/features/<n>/
+
+  static String integrationTest(String name, String cls) => '''
+// ignore_for_file: avoid_print
+import 'package:flutter_test/flutter_test.dart';
+
+import '../../../test_helper.dart';
+import '../../../../lib/features/$name/data/datasources/${name}_remote_datasource.dart';
+import '../../../../lib/features/$name/data/models/${name}_model.dart';
 
 void main() {
 
-  group('${cls} — data layer integration', () {
+  group('$cls — integration', () {
     late ${cls}RemoteDataSource datasource;
 
     setUp(() {
@@ -60,42 +58,49 @@ void main() {
 
     // ── fetchAll ──────────────────────────────────────────────────────────────
 
-    test('fetchAll() responds without throwing', () async {
-      // If this throws, your endpoint or fromJson is broken
+    test('fetchAll() returns a list of \${cls}Model', () async {
       final result = await datasource.fetchAll();
-      print('[${cls}] fetchAll() returned \${result.length} items');
+
+      print('[$cls] fetchAll() returned \${result.length} items');
       expect(result, isA<List<${cls}Model>>());
+      expect(result, isNotEmpty);
     });
 
-    test('fetchAll() returns an error/null', () async {
+    test('fetchAll() parses required fields', () async {
+      final result = await datasource.fetchAll();
+      final first = result.first;
 
-      expect(
-        () async =>
-            await datasource.fetchAll(),
-        throwsA(isA<DioException>()),
-      );
+      // TODO: assert your required fields, e.g:
+      // expect(first.id, isNotNull);
+      // expect(first.name, isNotEmpty);
+      print('[$cls] first: \$first');
     });
 
-    // ── toEntity ─────────────────────────────────────────────────────────────
-
-    test('toEntity() converts model without throwing', () async {
-      final all = await datasource.fetchAll();
-      expect(all, isNotEmpty);
-
-      // Verify the full conversion chain: JSON → Model → Entity
-      expect(() => all.first.toEntity(), returnsNormally);
+    test('fetchAll() toEntity() converts without throwing', () async {
+      final result = await datasource.fetchAll();
+      // Full chain: HTTP → JSON → Model → Entity
+      expect(() => result.first.toEntity(), returnsNormally);
     });
+
+    // TODO: add a test per method — same 3-step pattern:
+    // test('myMethod() returns expected type', () async { ... });
+    // test('myMethod() parses required fields', () async { ... });
+    // test('myMethod() toEntity() works', () async { ... });
   });
 }
 ''';
 
   // ── Notifier test ───────────────────────────────────────────────────────────
-  // Tests state transitions: initial → loading → loaded / error
-  // Uses a fake repository instead of mocking — simpler, no mock package needed
+  // Uses Mocktail to mock the repository — no manual fake classes.
+  // Pattern per method: init check → success → error. That's it.
+  //
+  // Add to pubspec.yaml dev_dependencies:
+  //   mocktail: ^1.0.4
 
   static String notifierTest(String name, String cls) => '''
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 import '../../../../lib/features/$name/data/repositories/${name}_repository_impl.dart';
 import '../../../../lib/features/$name/domain/entities/${name}_entity.dart';
@@ -103,242 +108,166 @@ import '../../../../lib/features/$name/domain/repositories/${name}_repository.da
 import '../../../../lib/features/$name/presentation/notifiers/${name}_notifier.dart';
 import '../../../../lib/features/$name/presentation/states/${name}_state.dart';
 
-// ── Fake repository ───────────────────────────────────────────────────────────
-// A simple in-memory fake — no mock package needed.
-// Return what you want per test by setting [items] or [shouldThrow].
-
-class Fake${cls}Repository implements ${cls}Repository {
-  Fake${cls}Repository({this.items = const [], this.shouldThrow = false});
-
-  List<${cls}Entity> items;
-  bool shouldThrow;
-  String errorMessage = 'Something went wrong';
-
-  @override
-  Future<List<${cls}Entity>> fetchAll() async {
-    if (shouldThrow) throw Exception(errorMessage);
-    return items;
-  }
-
-  // TODO: add overrides for any other methods you add to the repository
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-ProviderContainer makeContainer({required ${cls}Repository repository}) {
-  final container = ProviderContainer(
-    overrides: [
-      ${name}RepositoryProvider.overrideWithValue(repository),
-    ],
-  );
-  addTearDown(container.dispose);
-  return container;
-}
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
+// Mock generated by Mocktail — no manual fake class needed
+class Mock${cls}Repository extends Mock implements ${cls}Repository {}
 
 void main() {
-  group('${cls}Notifier', () {
-    test('initial state is correct', () {
-      final container = makeContainer(
-        repository: Fake${cls}Repository(),
-      );
-      final state = container.read(${name}NotifierProvider);
+  late Mock${cls}Repository mockRepo;
+  late ProviderContainer container;
 
-      expect(state, isA<AsyncData<${cls}State>>());
-      expect(state.value?.isLoadingAction, false);
-      expect(state.value?.error, isNull);
-      expect(state.value?.success, isNull);
+  setUp(() {
+    mockRepo = Mock${cls}Repository();
+    container = ProviderContainer(
+      overrides: [
+        ${name}RepositoryProvider.overrideWithValue(mockRepo),
+      ],
+    );
+  });
+
+  tearDown(() => container.dispose());
+
+  // Helper to read unwrapped state
+  ${cls}State get state => container.read(${name}NotifierProvider).value!;
+  ${cls}Notifier get notifier => container.read(${name}NotifierProvider.notifier);
+
+  group('${cls}Notifier', () {
+
+    // ── initial state ─────────────────────────────────────────────────────────
+
+    test('initial state is correct', () {
+      expect(container.read(${name}NotifierProvider), isA<AsyncData<${cls}State>>());
+      expect(state.isLoadingAction, false);
+      expect(state.error, isNull);
+      expect(state.success, isNull);
     });
 
-    test('load() sets isLoading then populates items on success', () async {
-      // TODO: replace with real entity fields
-      final fakeItems = [${cls}Entity()];
-      final container = makeContainer(
-        repository: Fake${cls}Repository(items: fakeItems),
-      );
+    // ── load() ────────────────────────────────────────────────────────────────
+    // TODO: replace ${cls}Entity() with real fields once your entity is defined
 
-      final notifier = container.read(${name}NotifierProvider.notifier);
+    test('load() succeeds', () async {
+      when(() => mockRepo.fetchAll())
+          .thenAnswer((_) async => [${cls}Entity()]);
+
       await notifier.load();
 
-      final state = container.read(${name}NotifierProvider);
-      expect(state.value?.isLoadingAction, false);
-      expect(state.value?.error, isNull);
-      // TODO: uncomment when entity has fields
-      // expect(state.value?.items, fakeItems);
+      expect(state.error, isNull);
+      expect(state.isLoadingAction, false);
     });
 
     test('load() sets error on failure', () async {
-      final repo = Fake${cls}Repository(shouldThrow: true);
-      repo.errorMessage = 'Network error';
-      final container = makeContainer(repository: repo);
+      when(() => mockRepo.fetchAll())
+          .thenThrow(Exception('network error'));
 
-      final notifier = container.read(${name}NotifierProvider.notifier);
       await notifier.load();
 
-      final state = container.read(${name}NotifierProvider);
-      expect(state.value?.error, isNotNull);
-      expect(state.value?.isLoadingAction, false);
+      expect(state.error, isNotNull);
+      expect(state.isLoadingAction, false);
     });
+
+    // ── TODO: add your methods below — same 2-test pattern ───────────────────
+    //
+    // test('myMethod() succeeds', () async {
+    //   when(() => mockRepo.myMethod(...)).thenAnswer((_) async => ...);
+    //   await notifier.myMethod(...);
+    //   expect(state.success, isNotNull);
+    //   expect(state.isLoadingAction, false);
+    // });
+    //
+    // test('myMethod() sets error on failure', () async {
+    //   when(() => mockRepo.myMethod(...)).thenThrow(Exception('error'));
+    //   await notifier.myMethod(...);
+    //   expect(state.error, isNotNull);
+    //   expect(state.isLoadingAction, false);
+    // });
   });
 }
 ''';
 
-  // ── Repository test ─────────────────────────────────────────────────────────
-  // Tests that DioException is caught and rethrown as AppException.
-  // Uses a fake datasource — no mock package needed.
+  // ── Repository test — kept for reference but not generated by default ───────
+  // Only useful if you want to verify DioException → AppException conversion.
+  // Most teams skip this once they trust the pattern works.
 
   static String repositoryTest(String name, String cls) => '''
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 import '../../../../lib/core/errors/app_exception.dart';
 import '../../../../lib/features/$name/data/datasources/${name}_remote_datasource.dart';
 import '../../../../lib/features/$name/data/models/${name}_model.dart';
 import '../../../../lib/features/$name/data/repositories/${name}_repository_impl.dart';
 
-// ── Fake datasource ───────────────────────────────────────────────────────────
-
-class Fake${cls}RemoteDataSource implements ${cls}RemoteDataSource {
-  Fake${cls}RemoteDataSource({this.models = const [], 
-  this.shouldThrow = false,
-    this.throwStatusCode,
-    });
-
-  List<${cls}Model> models;
-  bool shouldThrow;
-  int? throwStatusCode;
-
-  @override
-  Future<List<${cls}Model>> fetchAll() async {
-    if (shouldThrow) {
-      final response = Response(
-        requestOptions: RequestOptions(path: ''),
-        statusCode: throwStatusCode ?? 500,
-        data: {'message': 'Server error'},
-      );
-      throw DioException(
-        requestOptions: RequestOptions(path: ''),
-        response: response,
-      );
-    }
-    return models;
-  }
-
-  // TODO: add overrides for any other datasource methods
-}
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
+class Mock${cls}RemoteDataSource extends Mock implements ${cls}RemoteDataSource {}
 
 void main() {
+  late Mock${cls}RemoteDataSource mockDatasource;
+  late ${cls}RepositoryImpl repo;
+
+  setUp(() {
+    mockDatasource = Mock${cls}RemoteDataSource();
+    repo = ${cls}RepositoryImpl(mockDatasource);
+  });
+
   group('${cls}RepositoryImpl', () {
+
     test('fetchAll() returns entities on success', () async {
-      // TODO: replace with real model fields
-      final fakeModels = [${cls}Model()];
-      final repo = ${cls}RepositoryImpl(
-        Fake${cls}RemoteDataSource(models: fakeModels),
-      );
+      when(() => mockDatasource.fetchAll())
+          .thenAnswer((_) async => [${cls}Model()]);
 
       final result = await repo.fetchAll();
 
-      expect(result.length, fakeModels.length);
+      expect(result, isNotEmpty);
     });
 
-    test('fetchAll() throws AppException when DioException is thrown', () async {
-      final repo = ${cls}RepositoryImpl(
-        Fake${cls}RemoteDataSource(shouldThrow: true, throwStatusCode: 500),
+    test('fetchAll() throws AppException on DioException', () async {
+      when(() => mockDatasource.fetchAll()).thenThrow(
+        DioException(requestOptions: RequestOptions(path: '')),
       );
 
-      expect(
-        () => repo.fetchAll(),
-        throwsA(isA<AppException>()),
-      );
-    });
-
-
-    test('AppException carries the message from the response body', () async {
-      final repo = ${cls}RepositoryImpl(
-        Fake${cls}RemoteDataSource(shouldThrow: true),
-      );
-
-      try {
-        await repo.fetchAll();
-        fail('Expected AppException');
-      } on AppException catch (e) {
-        expect(e.message, isNotEmpty);
-      }
+      expect(() => repo.fetchAll(), throwsA(isA<AppException>()));
     });
   });
 }
 ''';
 
   // ── Use case test ───────────────────────────────────────────────────────────
-  // Tests that the use case delegates to the repository correctly.
-  // Straightforward — just verifying the call chain.
 
   static String usecaseTest(String name, String cls) => '''
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 import '../../../../lib/features/$name/domain/entities/${name}_entity.dart';
 import '../../../../lib/features/$name/domain/repositories/${name}_repository.dart';
 import '../../../../lib/features/$name/domain/usecases/get_$name.dart';
 
-// ── Fake repository ───────────────────────────────────────────────────────────
-
-class Fake${cls}Repository implements ${cls}Repository {
-  Fake${cls}Repository({this.items = const []});
-
-  List<${cls}Entity> items;
-  int callCount = 0;
-
-  @override
-  Future<List<${cls}Entity>> fetchAll() async {
-    callCount++;
-    return items;
-  }
-
-  // TODO: add overrides for any other methods you add to the repository
-}
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
+class Mock${cls}Repository extends Mock implements ${cls}Repository {}
 
 void main() {
+  late Mock${cls}Repository mockRepo;
+  late Get$cls useCase;
+
+  setUp(() {
+    mockRepo = Mock${cls}Repository();
+    useCase = Get$cls(mockRepo);
+  });
+
   group('Get$cls', () {
-    test('calls repository.fetchAll() once', () async {
-      final repo = Fake${cls}Repository();
-      final useCase = Get$cls(repo);
-
-      await useCase.call();
-
-      expect(repo.callCount, 1);
-    });
-
-    test('returns the result from the repository', () async {
-      // TODO: replace with real entity fields
-      final expected = [${cls}Entity()];
-      final repo = Fake${cls}Repository(items: expected);
-      final useCase = Get$cls(repo);
+    test('calls repository once and returns result', () async {
+      when(() => mockRepo.fetchAll())
+          .thenAnswer((_) async => [${cls}Entity()]);
 
       final result = await useCase.call();
 
-      expect(result, expected);
+      verify(() => mockRepo.fetchAll()).called(1);
+      expect(result, isNotEmpty);
     });
 
-    test('propagates exceptions from the repository', () async {
-      final repo = Fake${cls}Repository()
-        ..fetchAll; // override below
-      final useCase = Get$cls(_ThrowingRepository());
+    test('propagates repository exceptions', () async {
+      when(() => mockRepo.fetchAll()).thenThrow(Exception('error'));
 
       expect(() => useCase.call(), throwsException);
     });
   });
-}
-
-class _ThrowingRepository implements ${cls}Repository {
-  @override
-  Future<List<${cls}Entity>> fetchAll() async => throw Exception('repo error');
-
-  // TODO: add overrides for any other methods you add to the repository
 }
 ''';
 }
