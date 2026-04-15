@@ -131,7 +131,7 @@ void main() {
 
     // ── initial state ─────────────────────────────────────────────────────────
 
-    test('initial state is correct', () {
+    test('initial state is correct', () async{
       await container.read(${name}NotifierProvider.future);
       final state = container.read(${name}NotifierProvider).requireValue;
 
