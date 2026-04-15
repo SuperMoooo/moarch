@@ -12,7 +12,7 @@ A Flutter CLI tool to scaffold Clean Architecture projects with Riverpod. Your c
 - ⚡ **One command setup** — `moarch init` scaffolds your full `lib/` structure with routing, theme, security, and shared widgets
 - 🎯 **Layered feature generation** — `moarch create feature <n>` generates Clean Architecture with an interactive checklist
 - ✨ **Minimal code generation** — build_runner used only for secure `.env` handling; no `freezed` or `riverpod_annotation` boilerplate
-- 🧪 **Test scaffolding** — `moarch create feature` auto-generates notifier/repository/usecase tests in `test/features/<feature>`
+- 🧪 **Test scaffolding** — `moarch create feature` auto-generates notifier/usecase tests in `test/features/<feature>`
 - 🏗️ **Your conventions** — Fully customizable templates, pre-configured with proven patterns
 - 🔒 **Security included** — Secure storage integration with `flutter_secure_storage`
 - 📍 **Router ready** — GoRouter setup out of the box
@@ -83,10 +83,10 @@ dependencies:
 
 ```yaml
 dev_dependencies:
-    lints: ^3.0.0
-    test: ^1.24.0
-    build_runner: ^2.4.0
-    envied_generator: ^1.0.0
+    lints:
+    test:
+    build_runner:
+    envied_generator:
 ```
 
 ## Envied support (added by moarch init)
@@ -166,7 +166,7 @@ CHECKLIST.md                    - development checklist
 
 - `moarch create feature` generates tests in `test/features/<feature>` for selected layers:
     - `${feature}_notifier_test.dart`
-    - `${feature}_repository_test.dart`
+    - `${feature}_repository_test.dart` (disable)
     - `${feature}_usecase_test.dart`
 
 ## Optional test folder for manual setup
@@ -176,7 +176,7 @@ test/
 └── features/
     └── <feature>/
         ├── <feature>_notifier_test.dart
-        ├── <feature>_repository_test.dart
+        ├── <feature>_repository_test.dart (disable)
         └── <feature>_usecase_test.dart
 ```
 
@@ -256,7 +256,7 @@ lib/features/auth/
 `moarch create feature` now also generates tests in `test/features/<feature>`:
 
 - `${feature}_notifier_test.dart` — when `State + Notifier` and `Repository` are selected
-- `${feature}_repository_test.dart` — when `Repository` is selected
+- `${feature}_repository_test.dart` — when `Repository` is selected (disable)
 - `${feature}_usecase_test.dart` — when `Use Cases` is selected
 
 ### State Management Pattern
@@ -318,12 +318,15 @@ moarch templates are generated from production-ready code that matches default F
 
 ### Template files
 
-| File                     | Generates                                                                                 |
-| ------------------------ | ----------------------------------------------------------------------------------------- |
-| `core_templates.dart`    | `main.dart`, `dio_client`, `secure_storage`, constants, errors, utils, extensions, logger |
-| `config_templates.dart`  | `app_theme.dart`, `app_router.dart`                                                       |
-| `shared_templates.dart`  | `app_button`, `app_input`, `app_loading_action`, `app_loading_data`, `error_view`         |
-| `feature_templates.dart` | entity, model, datasources, repository, state, notifier, view                             |
+| File                       | Generates                                                                                 |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| `core_templates.dart`      | `main.dart`, `dio_client`, `secure_storage`, constants, errors, utils, extensions, logger |
+| `config_templates.dart`    | `app_theme.dart`, `app_router.dart`                                                       |
+| `shared_templates.dart`    | `app_button`, `app_input`, `app_loading_action`, `app_loading_data`, `error_view`         |
+| `feature_templates.dart`   | entity, model, datasources, repository, state, notifier, view                             |
+| `test_templates.dart`      | integration and notifier/use case tests                                                   |
+| `checklist_templates.dart` | dev checklist                                                                             |
+| `ci_templates.dart`        | ci workflow                                                                               |
 
 ### Steps to customize
 

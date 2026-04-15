@@ -1,3 +1,3 @@
-## 1.1.20
+## 1.2.0
 
-- fix: readme. feat: simplifing tests using moktail
+- fix: readme. fix: tests

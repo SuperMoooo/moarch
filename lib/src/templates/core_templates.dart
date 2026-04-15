@@ -81,6 +81,10 @@ class AppException implements Exception {
   String toString() =>
       'AppException(message: $message, statusCode: $statusCode)';
 
+  factory AppException.test() {
+    return const AppException._(message: "Test exception", statusCode: 400);
+  }
+
   factory AppException.fromDioError(DioException dioError) {
     final message =
         dioError.response?.data?['message'] as String? ??

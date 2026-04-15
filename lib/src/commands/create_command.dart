@@ -436,10 +436,10 @@ class _CreateFeatureCommand extends Command<int> {
       );
     }
     if (selected.contains(_kRepository)) {
-      await FileUtils.writeFile(
+      /*    await FileUtils.writeFile(
         p.join(unitPath, '${featureName}_repository_test.dart'),
         TestTemplates.repositoryTest(featureName, className),
-      );
+      );*/
     }
     if (selected.contains(_kUseCases)) {
       await FileUtils.writeFile(

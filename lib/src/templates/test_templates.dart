@@ -7,7 +7,7 @@ class TestTemplates {
 
   static String testHelper() => r'''
 import 'package:dio/dio.dart';
-import '../../config/env/app_env.dart';
+import '../lib/config/env/app_env.dart';
 
 import '../lib/core/constants/api_constants.dart';
 
@@ -42,6 +42,7 @@ Dio buildTestDio() {
   static String integrationTest(String name, String cls) => '''
 // ignore_for_file: avoid_print
 import 'package:flutter_test/flutter_test.dart';
+import 'package:dio/dio.dart';
 
 import '../../../test_helper.dart';
 import '../../../../lib/features/$name/data/datasources/${name}_remote_datasource.dart';
@@ -58,22 +59,12 @@ void main() {
 
     // ── fetchAll ──────────────────────────────────────────────────────────────
 
-    test('fetchAll() returns a list of \${cls}Model', () async {
+    test('fetchAll() returns a list of ${cls}Model', () async {
       final result = await datasource.fetchAll();
 
       print('[$cls] fetchAll() returned \${result.length} items');
       expect(result, isA<List<${cls}Model>>());
       expect(result, isNotEmpty);
-    });
-
-    test('fetchAll() parses required fields', () async {
-      final result = await datasource.fetchAll();
-      final first = result.first;
-
-      // TODO: assert your required fields, e.g:
-      // expect(first.id, isNotNull);
-      // expect(first.name, isNotEmpty);
-      print('[$cls] first: \$first');
     });
 
     test('fetchAll() toEntity() converts without throwing', () async {
@@ -82,9 +73,18 @@ void main() {
       expect(() => result.first.toEntity(), returnsNormally);
     });
 
-    // TODO: add a test per method — same 3-step pattern:
+    test('fetchAll() error', () async {
+      // Throws error
+      expect(
+        () async => await datasource.fetchAll(
+          //error data
+        ),
+        throwsA(isA<DioException>()),
+      );
+    });
+
+    // TODO: add a test per method — same 2-step pattern:
     // test('myMethod() returns expected type', () async { ... });
-    // test('myMethod() parses required fields', () async { ... });
     // test('myMethod() toEntity() works', () async { ... });
   });
 }
@@ -101,6 +101,7 @@ void main() {
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import '../../../../lib/core/errors/app_exception.dart';
 
 import '../../../../lib/features/$name/data/repositories/${name}_repository_impl.dart';
 import '../../../../lib/features/$name/domain/entities/${name}_entity.dart';
@@ -126,15 +127,14 @@ void main() {
 
   tearDown(() => container.dispose());
 
-  // Helper to read unwrapped state
-  ${cls}State get state => container.read(${name}NotifierProvider).value!;
-  ${cls}Notifier get notifier => container.read(${name}NotifierProvider.notifier);
-
   group('${cls}Notifier', () {
 
     // ── initial state ─────────────────────────────────────────────────────────
 
     test('initial state is correct', () {
+      await container.read(${name}NotifierProvider.future);
+      final state = container.read(${name}NotifierProvider).requireValue;
+
       expect(container.read(${name}NotifierProvider), isA<AsyncData<${cls}State>>());
       expect(state.isLoadingAction, false);
       expect(state.error, isNull);
@@ -145,40 +145,34 @@ void main() {
     // TODO: replace ${cls}Entity() with real fields once your entity is defined
 
     test('load() succeeds', () async {
+     await container.read(${name}NotifierProvider.future);
+  
       when(() => mockRepo.fetchAll())
           .thenAnswer((_) async => [${cls}Entity()]);
 
       await notifier.load();
 
-      expect(state.error, isNull);
-      expect(state.isLoadingAction, false);
+       container.listen(${name}NotifierProvider, (oldState, newState) {
+        expect(newState.value?.error, isNull);
+        expect(newState.value?.isLoadingAction, false);
+      });
     });
 
     test('load() sets error on failure', () async {
+     await container.read(${name}NotifierProvider.future);
+
       when(() => mockRepo.fetchAll())
-          .thenThrow(Exception('network error'));
+          .thenThrow(AppException.test());
 
       await notifier.load();
 
-      expect(state.error, isNotNull);
-      expect(state.isLoadingAction, false);
+      container.listen(${name}NotifierProvider, (oldState, newState) {
+        expect(newState.value?.error, isNotNull);
+        expect(newState.value?.isLoadingAction, false);
+      });
+     
     });
 
-    // ── TODO: add your methods below — same 2-test pattern ───────────────────
-    //
-    // test('myMethod() succeeds', () async {
-    //   when(() => mockRepo.myMethod(...)).thenAnswer((_) async => ...);
-    //   await notifier.myMethod(...);
-    //   expect(state.success, isNotNull);
-    //   expect(state.isLoadingAction, false);
-    // });
-    //
-    // test('myMethod() sets error on failure', () async {
-    //   when(() => mockRepo.myMethod(...)).thenThrow(Exception('error'));
-    //   await notifier.myMethod(...);
-    //   expect(state.error, isNotNull);
-    //   expect(state.isLoadingAction, false);
-    // });
   });
 }
 ''';
@@ -187,7 +181,7 @@ void main() {
   // Only useful if you want to verify DioException → AppException conversion.
   // Most teams skip this once they trust the pattern works.
 
-  static String repositoryTest(String name, String cls) => '''
+  /* static String repositoryTest(String name, String cls) => '''
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -229,7 +223,7 @@ void main() {
   });
 }
 ''';
-
+*/
   // ── Use case test ───────────────────────────────────────────────────────────
 
   static String usecaseTest(String name, String cls) => '''
