@@ -70,11 +70,13 @@ moarch create feature auth --no-unit --no-integration
 dependencies:
     flutter:
         sdk: flutter
-    flutter_riverpod: ^2.5.1
-    envied: ^1.3.3
-    dio: ^5.4.3
-    go_router: ^14.0.0
-    flutter_secure_storage: ^9.2.2
+    flutter_riverpod:
+    envied:
+    dio:
+    go_router:
+    flutter_secure_storage:
+    logger:
+    mocktail:
 ```
 
 ## Dev dependencies (for build_runner + envied_generator)
