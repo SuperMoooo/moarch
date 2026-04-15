@@ -150,7 +150,7 @@ void main() {
       when(() => mockRepo.fetchAll())
           .thenAnswer((_) async => [${cls}Entity()]);
 
-      await notifier.load();
+     await container.read(${name}NotifierProvider.notifier).load();
 
        container.listen(${name}NotifierProvider, (oldState, newState) {
         expect(newState.value?.error, isNull);
@@ -164,7 +164,7 @@ void main() {
       when(() => mockRepo.fetchAll())
           .thenThrow(AppException.test());
 
-      await notifier.load();
+      await container.read(${name}NotifierProvider.notifier).load();
 
       container.listen(${name}NotifierProvider, (oldState, newState) {
         expect(newState.value?.error, isNotNull);
