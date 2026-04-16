@@ -152,10 +152,10 @@ void main() {
 
      await container.read(${name}NotifierProvider.notifier).load();
 
-       container.listen(${name}NotifierProvider, (oldState, newState) {
-        expect(newState.value?.error, isNull);
-        expect(newState.value?.isLoadingAction, false);
-      });
+       final state = container.read(${name}NotifierProvider).value;
+
+      expect(state?.error, isNull);
+      expect(state?.isLoadingAction, false);
     });
 
     test('load() sets error on failure', () async {
@@ -166,10 +166,12 @@ void main() {
 
       await container.read(${name}NotifierProvider.notifier).load();
 
-      container.listen(${name}NotifierProvider, (oldState, newState) {
-        expect(newState.value?.error, isNotNull);
-        expect(newState.value?.isLoadingAction, false);
-      });
+      final state = container.read(${name}NotifierProvider).value;
+
+      expect(state?.error, isNotNull);
+      expect(state?.isLoadingAction, false);
+
+     
      
     });
 
