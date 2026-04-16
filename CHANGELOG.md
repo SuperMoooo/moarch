@@ -1,3 +1,3 @@
-## 1.2.2
+## 1.2.3
 
-- fix: tests notifier
+- fix: app loading data for view

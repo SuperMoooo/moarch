@@ -250,6 +250,7 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State> {
       '''
 import 'package:flutter/material.dart';
 import '../../../../shared/widgets/error_view.dart';
+import '../../../../shared/widgets/loadings/app_loading_data.dart';
 
 ${hasNotifier ? "import 'package:flutter_riverpod/flutter_riverpod.dart';" : ''}
 
@@ -283,7 +284,7 @@ class _${cls}ViewState extends ConsumerState<${cls}View> {
     });
 
     return ${name}Async.when(
-        loading: () => const CircularProgressIndicator(),
+        loading: () => AppLoadingData(),
         error: (e, _) => ErrorView(message: "Failed to load ${cls}"),
         data: (state) {
           // TODO: build your UI with state
