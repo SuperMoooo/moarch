@@ -127,11 +127,6 @@ extension ContextX on BuildContext {
   ColorScheme get colorScheme => Theme.of(this).colorScheme;
   double get screenWidth => MediaQuery.sizeOf(this).width;
   double get screenHeight => MediaQuery.sizeOf(this).height;
-
-  double get emulatorSize => 375;
-  double responsive(double baseSize) {
-    return baseSize * (screenWidth / emulatorSize);
-  }
 }
 
 extension StringX on String {
