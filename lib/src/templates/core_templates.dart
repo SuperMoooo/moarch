@@ -132,8 +132,20 @@ extension ContextX on BuildContext {
 extension StringX on String {
   bool get isValidEmail =>
       RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(this);
+
   String get capitalize =>
       isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
+
+  dynamic toColor() {
+    var hexColor = replaceAll('#', '');
+    if (hexColor.length == 6) {
+      hexColor = 'FF$hexColor';
+    }
+    if (hexColor.length == 8) {
+      return int.parse('0x$hexColor');
+    }
+    return null;
+  }
 }
 
 extension DateTimeX on DateTime {
@@ -144,6 +156,27 @@ extension DateTimeX on DateTime {
   bool get isToday {
     final now = DateTime.now();
     return day == now.day && month == now.month && year == now.year;
+  }
+
+   String timeAgo() {
+    final now = DateTime.now();
+    final difference = now.difference(this);
+
+    if (difference.inDays > 365) {
+      return '${(difference.inDays / 365).floor()} years ago';
+    } else if (difference.inDays > 30) {
+      return '${(difference.inDays / 30).floor()} months ago';
+    } else if (difference.inDays > 7) {
+      return '${(difference.inDays / 7).floor()} weeks ago';
+    } else if (difference.inDays >= 1) {
+      return '${difference.inDays} days ago';
+    } else if (difference.inHours >= 1) {
+      return '${difference.inHours} hours ago';
+    } else if (difference.inMinutes >= 1) {
+      return '${difference.inMinutes} minutes ago';
+    } else {
+      return 'just now';
+    }
   }
 }
 
