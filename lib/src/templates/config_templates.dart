@@ -85,6 +85,16 @@ final _router = GoRouter(
 ''';
 
   static String firebaseProviders({bool hasAuth = false, bool hasDb = false}) {
+    final authImport = hasAuth
+        ? '''
+  import 'package:firebase_auth/firebase_auth.dart';'''
+        : '';
+
+    final dbImport = hasDb
+        ? '''
+  import 'package:cloud_firestore/cloud_firestore.dart';'''
+        : '';
+
     final authProvider = hasAuth
         ? '''
       final firebaseAuthProvider = Provider((ref) {
@@ -102,8 +112,8 @@ final _router = GoRouter(
         : '';
 
     return '''
-  import 'package:cloud_firestore/cloud_firestore.dart';
-  import 'package:firebase_auth/firebase_auth.dart';
+$authImport
+$dbImport
   import 'package:flutter_riverpod/flutter_riverpod.dart';
 
   $authProvider

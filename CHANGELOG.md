@@ -1,3 +1,3 @@
-## 1.2.3
+## 1.3.0
 
-- fix: app loading data for view
+- feat: media, urllauncher, connectivity service. firebase providers. option list on init command

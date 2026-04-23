@@ -1,19 +1,21 @@
 class CoreTemplates {
   CoreTemplates._();
 
-  static String mainDart() => r'''
+  static String mainDart({bool withRouter = true}) {
+    if (withRouter) {
+      return r'''
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/utils/logger.dart';
-import '../../shared/widgets/error_view.dart';
-
-import 'config/router/app_router.dart';
+ import '../../core/utils/logger.dart';
 import 'config/theme/app_theme.dart';
 
+
+import 'config/router/app_router.dart';
+ 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  
   
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
@@ -38,21 +40,24 @@ Future<void> main() async {
 
     //::::::::::ERROR MANAGEMENT::::::::::
   runApp(const ProviderScope(child: App()));
-}
 
+
+  runApp(const ProviderScope(child: App()));
+}
+ 
 class App extends ConsumerWidget {
   const App({super.key});
-
+ 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-  final router = ref.watch(routerProvider);
-
+    final router = ref.watch(routerProvider);
+ 
     return MaterialApp.router(
       title: 'App',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      debugShowCheckedModeBanner: false,
       routerConfig: router,
+      debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
@@ -66,6 +71,72 @@ class App extends ConsumerWidget {
   }
 }
 ''';
+    }
+
+    return r'''
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/utils/logger.dart';
+import 'config/theme/app_theme.dart';
+
+
+ 
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  //::::::::::ERROR MANAGEMENT::::::::::
+  PlatformDispatcher.instance.onError = (error, st) {
+    log.e('[Uncaught error]', error: error, stackTrace: st);
+    if (kDebugMode) return false; // false = let Flutter crash normally in dev
+    return true; // true = swallow in prod, app stays alive
+  };
+
+  FlutterError.onError = (details) {
+    log.e('[Flutter error]', error: details.exception, stackTrace: details.stack);
+    if (kDebugMode) {
+      // default behaviour — shows red screen in dev
+      FlutterError.presentError(details);
+    }
+    // in prod: logged but no red screen, app continues
+  };
+
+  ErrorWidget.builder = (details) {
+    if (kDebugMode) return ErrorWidget(details.exception); // red screen in dev
+    return const ErrorView(); // your nice screen in prod
+  };
+
+    //::::::::::ERROR MANAGEMENT::::::::::
+  runApp(const ProviderScope(child: App()));
+
+  runApp(const ProviderScope(child: App()));
+}
+ 
+class App extends StatelessWidget {
+  const App({super.key});
+ 
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'App',
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.noScaling,
+            alwaysUse24HourFormat: true,
+          ),
+          child: child!,
+        );
+      },
+      // TODO: set your home widget
+    );
+  }
+}
+''';
+  }
 
   static String appException({bool hasDio = true}) {
     final import = hasDio
@@ -399,7 +470,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../core/errors/app_exception.dart';
-import '../utils/utils.dart';
 
 /// A service to handle media selection (images, videos, files).
 
@@ -542,26 +612,13 @@ class UrlLauncherService {
 
   /// Launch a URL string.
   Future<void> launch(String url, {LaunchMode? mode}) async {
-    final formattedUrl = _formatUrl(url);
-    final uri = Uri.parse(formattedUrl);
+    final uri = Uri.parse(url);
 
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: mode ?? LaunchMode.externalApplication);
     } else {
       throw AppException('Could not launch url: $formattedUrl');
     }
-  }
-
-  String _formatUrl(String url) {
-    if (url.isValidUrl && !url.contains('://')) {
-      return 'https://$url';
-    }
-    if (url.isValidPhoneNumber) {
-      return Platform.isAndroid
-          ? 'whatsapp://send?phone=$url'
-          : 'https://wa.me/$url';
-    }
-    return url;
   }
 }
   ''';

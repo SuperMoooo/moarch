@@ -41,7 +41,6 @@ class InitCommand extends Command<int> {
         negatable: false,
         help: 'Skip checklist and generate everything.',
       );
-    ;
   }
 
   final Logger _logger;
@@ -108,7 +107,7 @@ class InitCommand extends Command<int> {
 
       await FileUtils.writeFile(
         p.join(libPath, 'main.dart'),
-        CoreTemplates.mainDart(),
+        CoreTemplates.mainDart(withRouter: stack.contains(_kRouter)),
       );
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), '.fvmrc'),

@@ -10,6 +10,7 @@ A Flutter CLI tool to scaffold Clean Architecture projects with Riverpod. Your c
 ## Features
 
 - ⚡ **One command setup** — `moarch init` scaffolds your full `lib/` structure with routing, theme, security, and shared widgets
+- 🎯 **Interactive checklist** — `moarch init` prompts you to select your stack (Dio/Firebase) and features (Router, CI, Tests, Media, URL launcher)
 - 🎯 **Layered feature generation** — `moarch create feature <n>` generates Clean Architecture with an interactive checklist
 - ✨ **Minimal code generation** — build_runner used only for secure `.env` handling; no `freezed` or `riverpod_annotation` boilerplate
 - 🧪 **Test scaffolding** — `moarch create feature` auto-generates notifier/usecase tests in `test/features/<feature>`
@@ -20,6 +21,10 @@ A Flutter CLI tool to scaffold Clean Architecture projects with Riverpod. Your c
 - 🧪 **CI ready** — `moarch init` scaffolds a GitHub Actions CI workflow with unit and integration jobs
 - 🔁 **Flaky integration support** — generated CI integration step is configured to continue on error so merges are not blocked by intermittent network/API issues
 - 📦 **Environment-aware** — `.env` and `.fvmrc` generated at project root
+- 📱 **Media Service** — Image picker, file picker, and video picker with permissions handling
+- 🔗 **URL Launcher** — Launch URLs, phone numbers, and WhatsApp links
+- 📶 **Connectivity Service** — Network connectivity monitoring with Riverpod streams
+- 🔥 **Firebase ready** — Optional Firebase Auth and Firestore providers
 
 ---
 
@@ -52,8 +57,11 @@ flutter pub get
 # 3. remove the generated main.dart
 rm lib/main.dart
 
-# 4. scaffold the project structure
+# 4. scaffold the project structure (with interactive checklist)
 moarch init
+
+# 4b. or skip checklist and generate everything
+moarch init --all
 
 # 5. create your first feature
 moarch create feature auth
@@ -77,6 +85,15 @@ dependencies:
     flutter_secure_storage:
     logger:
     mocktail:
+    # Optional (selected via moarch init checklist):
+    # firebase_core:
+    # firebase_auth:
+    # cloud_firestore:
+    # image_picker:
+    # file_picker:
+    # permission_handler:
+    # url_launcher:
+    # connectivity_plus:
 ```
 
 ## Dev dependencies (for build_runner + envied_generator)
@@ -184,13 +201,16 @@ test/
 
 - ✅ Routing configured with GoRouter
 - ✅ Secure storage integration ready
-- ✅ DIO client with error handling
+- ✅ DIO client with error handling (or Firebase Firestore/Auth)
 - ✅ Theme system with Material 3 support
 - ✅ Reusable widgets library (buttons, inputs, loading states, error view, design system)
 - ✅ Environment variables (.env) support
 - ✅ `Envied` config scaffolding (`lib/config/env/app_env.dart`, `.env` + `.gitignore` entry)
 - ✅ Test scaffolding in `test/features/<feature>` (notifier/repository/usecase as selected)
-- ✅ Extension methods for common operations
+- ✅ Extension methods for common operations (ContextX, StringX, DateTimeX, TimeOfDayX + toColor, isYesterday, timeAgo)
+- ✅ Optional: Media Service (image/file/video picker)
+- ✅ Optional: URL Launcher (URLs, phone, WhatsApp)
+- ✅ Optional: Connectivity Service (network monitoring)
 
 ## moarch create feature
 
