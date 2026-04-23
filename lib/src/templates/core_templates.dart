@@ -188,6 +188,11 @@ class AppException implements Exception {
   factory AppException.test() {
     return const AppException._(message: "Test exception", statusCode: 400);
   }
+
+  factory AppException.fromMessage(String message) {
+    return AppException._(message: message);
+  }
+
 $factory
 }
 ''';
@@ -494,13 +499,13 @@ class MediaService {
     if (source == ImageSource.camera) {
       final status = await Permission.camera.request();
       if (!status.isGranted) {
-        throw AppException('Camera permission denied');
+        throw AppException.fromMessage('Camera permission denied');
       }
     } else {
       if (Platform.isAndroid || Platform.isIOS) {
         final status = await Permission.photos.request();
         if (!status.isGranted && !status.isLimited) {
-          throw AppException('Photos permission denied');
+          throw AppException.fromMessage('Photos permission denied');
         }
       }
     }
@@ -524,7 +529,7 @@ class MediaService {
     if (Platform.isAndroid || Platform.isIOS) {
       final status = await Permission.photos.request();
       if (!status.isGranted && !status.isLimited) {
-        throw AppException('Photos permission denied');
+        throw AppException.fromMessage('Photos permission denied');
       }
     }
 
@@ -545,13 +550,13 @@ class MediaService {
     if (source == ImageSource.camera) {
       final status = await Permission.camera.request();
       if (!status.isGranted) {
-        throw AppException('Camera permission denied');
+        throw AppException.fromMessage('Camera permission denied');
       }
     } else {
       if (Platform.isAndroid || Platform.isIOS) {
         final status = await Permission.photos.request();
         if (!status.isGranted && !status.isLimited) {
-          throw AppException('Photos permission denied');
+          throw AppException.fromMessage('Photos permission denied');
         }
       }
     }
@@ -617,7 +622,7 @@ class UrlLauncherService {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: mode ?? LaunchMode.externalApplication);
     } else {
-      throw AppException('Could not launch url: $formattedUrl');
+      throw AppException.fromMessage('Could not launch url');
     }
   }
 }

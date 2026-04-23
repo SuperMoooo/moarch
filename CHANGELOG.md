@@ -1,3 +1,3 @@
-## 1.3.0
+## 1.3.1
 
-- feat: media, urllauncher, connectivity service. firebase providers. option list on init command
+- fix: throw app exception when this is private
