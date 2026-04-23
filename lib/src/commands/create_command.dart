@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
+import 'package:moarch/src/templates/core_templates.dart';
 import 'package:path/path.dart' as p;
 
 import '../templates/feature_templates.dart';
@@ -247,7 +248,8 @@ class _CreateFeatureCommand extends Command<int> {
         );
       }
       if (selected.contains(_kLocalDatasource)) {
-        await _writeLocalDatasource(featurePath, featureName, className);
+        await _writeLocalDatasource(
+            featurePath, featureName, className, libPath);
       }
       if (selected.contains(_kRepository)) {
         await _writeRepository(
@@ -355,10 +357,17 @@ class _CreateFeatureCommand extends Command<int> {
     );
   }
 
-  Future<void> _writeLocalDatasource(String fp, String name, String cls) async {
+  Future<void> _writeLocalDatasource(
+      String fp, String name, String cls, String libPath) async {
     await FileUtils.writeFile(
       p.join(fp, 'data', 'datasources', '${name}_local_datasource.dart'),
       FeatureTemplates.localDatasource(name, cls),
+    );
+    // CONN SERVICE
+    final c = p.join(libPath, 'core');
+    await FileUtils.writeFile(
+      p.join(c, 'services', 'connectivity_service.dart'),
+      CoreTemplates.connectivityService(),
     );
   }
 

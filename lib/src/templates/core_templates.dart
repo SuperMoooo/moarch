@@ -67,38 +67,60 @@ class App extends ConsumerWidget {
 }
 ''';
 
-  static String appException() => r'''
-import 'package:dio/dio.dart';
-import '../../core/utils/logger.dart';
-
-class AppException implements Exception {
-  const AppException._({required this.message, this.statusCode});
-
-  final String message;
-  final int? statusCode;
-
-  @override
-  String toString() =>
-      'AppException(message: $message, statusCode: $statusCode)';
-
-  factory AppException.test() {
-    return const AppException._(message: "Test exception", statusCode: 400);
-  }
-
+  static String appException({bool hasDio = true}) {
+    final import = hasDio
+        ? "import 'package:dio/dio.dart';"
+        : "import 'package:cloud_firestore/cloud_firestore.dart';";
+    final factory = hasDio
+        ? r'''
   factory AppException.fromDioError(DioException dioError) {
     final message =
         dioError.response?.data?['message'] as String? ??
         dioError.message ??
         'Unknown error';
     final statusCode = dioError.response?.statusCode;
-
     log.e('[AppException] — $message', error: dioError);
-
     return AppException._(message: message, statusCode: statusCode);
-  }
-}
+  }'''
+        : r'''
+  factory AppException.fromFirebaseError(FirebaseException error) {
+    log.e('[AppException] — $message', error: error.message);
+    switch (error.code) {
+      case "user-not-found":
+        return const AppException(message: "Usuário não encontrado");
+      case "wrong-password":
+        return const AppException(message: "Senha incorreta");
+      case "invalid-email":
+        return const AppException(message: "Email inválido");
+      case "email-already-in-use":
+        return const AppException(message: "Email já cadastrado");
+      case "weak-password":
+        return const AppException(message: "Senha fraca");
+      default:
+        return AppException(message: error.message ?? "Erro desconhecido");
+    }
+  }''';
 
+    return '''
+$import
+import '../../core/utils/logger.dart';
+
+class AppException implements Exception {
+  const AppException._({required this.message, this.statusCode});
+  final String message;
+  final int? statusCode;
+  
+  @override
+  String toString() =>
+      'AppException(message: \$message, statusCode: \$statusCode)';
+  
+  factory AppException.test() {
+    return const AppException._(message: "Test exception", statusCode: 400);
+  }
+$factory
+}
 ''';
+  }
 
   static String logger() => r'''
 import 'package:flutter/foundation.dart';
@@ -156,6 +178,15 @@ extension DateTimeX on DateTime {
   bool get isToday {
     final now = DateTime.now();
     return day == now.day && month == now.month && year == now.year;
+  }
+
+   bool get isYesterday {
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    return year == yesterday.year && month == yesterday.month && day == yesterday.day;
+  }
+
+  bool isSameDay(DateTime other) {
+    return year == other.year && month == other.month && day == other.day;
   }
 
    String timeAgo() {
@@ -357,6 +388,211 @@ Dio buildDioClient(Ref ref) {
   final secureStorageProvider = Provider<FlutterSecureStorage>((ref) => FlutterSecureStorage());
 
 
+
+''';
+
+  static String mediaService() => r'''
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+import '../../../../core/errors/app_exception.dart';
+import '../utils/utils.dart';
+
+/// A service to handle media selection (images, videos, files).
+
+final mediaServiceProvider = Provider.autoDispose<MediaService>((ref) {
+  return MediaService.instance;
+});
+
+class MediaService {
+  MediaService._();
+  static final MediaService instance = MediaService._();
+
+  final ImagePicker _imagePicker = ImagePicker();
+
+  /// Pick an image from gallery or camera.
+  Future<File?> pickImage({
+    required ImageSource source,
+    double? maxWidth,
+    double? maxHeight,
+    int? imageQuality,
+  }) async {
+    // Check permissions
+    if (source == ImageSource.camera) {
+      final status = await Permission.camera.request();
+      if (!status.isGranted) {
+        throw AppException('Camera permission denied');
+      }
+    } else {
+      if (Platform.isAndroid || Platform.isIOS) {
+        final status = await Permission.photos.request();
+        if (!status.isGranted && !status.isLimited) {
+          throw AppException('Photos permission denied');
+        }
+      }
+    }
+
+    final XFile? file = await _imagePicker.pickImage(
+      source: source,
+      maxWidth: maxWidth,
+      maxHeight: maxHeight,
+      imageQuality: imageQuality,
+    );
+
+    return file != null ? File(file.path) : null;
+  }
+
+  /// Pick multiple images from gallery.
+  Future<List<File>> pickMultiImage({
+    double? maxWidth,
+    double? maxHeight,
+    int? imageQuality,
+  }) async {
+    if (Platform.isAndroid || Platform.isIOS) {
+      final status = await Permission.photos.request();
+      if (!status.isGranted && !status.isLimited) {
+        throw AppException('Photos permission denied');
+      }
+    }
+
+    final List<XFile> files = await _imagePicker.pickMultiImage(
+      maxWidth: maxWidth,
+      maxHeight: maxHeight,
+      imageQuality: imageQuality,
+    );
+
+    return files.map((file) => File(file.path)).toList();
+  }
+
+  /// Pick a video from gallery or camera.
+  Future<File?> pickVideo({
+    required ImageSource source,
+    Duration? maxDuration,
+  }) async {
+    if (source == ImageSource.camera) {
+      final status = await Permission.camera.request();
+      if (!status.isGranted) {
+        throw AppException('Camera permission denied');
+      }
+    } else {
+      if (Platform.isAndroid || Platform.isIOS) {
+        final status = await Permission.photos.request();
+        if (!status.isGranted && !status.isLimited) {
+          throw AppException('Photos permission denied');
+        }
+      }
+    }
+
+    final XFile? file = await _imagePicker.pickVideo(
+      source: source,
+      maxDuration: maxDuration,
+    );
+
+    return file != null ? File(file.path) : null;
+  }
+
+  /// Pick one or more files from the device.
+  Future<List<File>> pickFiles({
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+    bool allowMultiple = false,
+  }) async {
+    if (Platform.isAndroid) {
+      final status = await Permission.storage.request();
+      if (!status.isGranted) {
+        // Note: On Android 13+, storage permission might be handled differently (media-specific)
+        // but permission_handler usually handles the abstraction.
+      }
+    }
+
+    final FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: type,
+      allowedExtensions: allowedExtensions,
+      allowMultiple: allowMultiple,
+    );
+
+    if (result == null || result.files.isEmpty) return [];
+
+    return result.paths
+        .where((path) => path != null)
+        .map((path) => File(path!))
+        .toList();
+  }
+}
+ ''';
+
+  static String launchUrlService() => r'''
+  
+  import 'dart:io';
+import '../../../../core/errors/app_exception.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+/// A service to handle URL launching operations.
+
+final urlLauncherProvider = Provider.autoDispose<UrlLauncherService>((ref) {
+  return UrlLauncherService.instance;
+});
+
+class UrlLauncherService {
+  UrlLauncherService._();
+  static final UrlLauncherService instance = UrlLauncherService._();
+
+  /// Launch a URL string.
+  Future<void> launch(String url, {LaunchMode? mode}) async {
+    final formattedUrl = _formatUrl(url);
+    final uri = Uri.parse(formattedUrl);
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: mode ?? LaunchMode.externalApplication);
+    } else {
+      throw AppException('Could not launch url: $formattedUrl');
+    }
+  }
+
+  String _formatUrl(String url) {
+    if (url.isValidUrl && !url.contains('://')) {
+      return 'https://$url';
+    }
+    if (url.isValidPhoneNumber) {
+      return Platform.isAndroid
+          ? 'whatsapp://send?phone=$url'
+          : 'https://wa.me/$url';
+    }
+    return url;
+  }
+}
+  ''';
+
+  static String connectivityService() => r'''
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/utils/logger.dart';
+
+final connectivityProvider = Provider<ConnectivityService>((ref) {
+  return ConnectivityService();
+});
+
+final hasInternetProvider = StreamProvider<bool>((ref) {
+  final connectivityService = ref.watch(connectivityProvider);
+  return connectivityService.hasInternetStream;
+});
+
+class ConnectivityService {
+  final Connectivity _connectivity = Connectivity();
+
+  Stream<bool> get hasInternetStream =>
+      _connectivity.onConnectivityChanged.map((results) {
+        log(results.toString());
+        return !results.contains(ConnectivityResult.none);
+      });
+  Future<bool> hasInternet() async {
+    final results = await _connectivity.checkConnectivity();
+    return !results.contains(ConnectivityResult.none);
+  }
+}
 
 ''';
 }
