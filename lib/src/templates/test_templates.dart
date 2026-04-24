@@ -141,16 +141,16 @@ void main() {
       expect(state.success, isNull);
     });
 
-    // ── load() ────────────────────────────────────────────────────────────────
+    // ── fetchAll() ────────────────────────────────────────────────────────────────
     // TODO: replace ${cls}Entity() with real fields once your entity is defined
 
-    test('load() succeeds', () async {
+    test('fetchAll() succeeds', () async {
      await container.read(${name}NotifierProvider.future);
   
       when(() => mockRepo.fetchAll())
           .thenAnswer((_) async => [${cls}Entity()]);
 
-     await container.read(${name}NotifierProvider.notifier).load();
+     await container.read(${name}NotifierProvider.notifier).fetchAll();
 
        final state = container.read(${name}NotifierProvider).value;
 
@@ -158,13 +158,13 @@ void main() {
       expect(state?.isLoadingAction, false);
     });
 
-    test('load() sets error on failure', () async {
+    test('fetchAll() sets error on failure', () async {
      await container.read(${name}NotifierProvider.future);
 
       when(() => mockRepo.fetchAll())
           .thenThrow(AppException.test());
 
-      await container.read(${name}NotifierProvider.notifier).load();
+      await container.read(${name}NotifierProvider.notifier).fetchAll();
 
       final state = container.read(${name}NotifierProvider).value;
 
