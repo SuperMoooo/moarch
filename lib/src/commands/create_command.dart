@@ -552,8 +552,7 @@ class _CreateFeatureCommand extends Command<int> {
     if (includeUnit) _logger.info('  Unit:        flutter test test/unit/');
     if (includeIntegration)
       _logger.info('  Integration: flutter test test/integration/');
-    _logger
-        .info('  Replace "your_app" in test imports with your package name.');
+
     _logger.info('');
   }
 }
