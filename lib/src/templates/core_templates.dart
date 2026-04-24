@@ -475,6 +475,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../core/errors/app_exception.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// A service to handle media selection (images, videos, files).
 
@@ -583,7 +584,7 @@ class MediaService {
       }
     }
 
-    final FilePickerResult? result = await FilePicker.platform.pickFiles(
+    final FilePickerResult? result = await FilePicker.pickFiles(
       type: type,
       allowedExtensions: allowedExtensions,
       allowMultiple: allowMultiple,
@@ -604,6 +605,7 @@ class MediaService {
   import 'dart:io';
 import '../../../../core/errors/app_exception.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// A service to handle URL launching operations.
 
