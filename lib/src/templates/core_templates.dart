@@ -601,11 +601,11 @@ class MediaService {
  ''';
 
   static String launchUrlService() => r'''
-  
-  import 'dart:io';
-import '../../../../core/errors/app_exception.dart';
+  import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/errors/app_exception.dart';
+import '../../core/services/validation_service.dart';
 
 /// A service to handle URL launching operations.
 
@@ -619,7 +619,12 @@ class UrlLauncherService {
 
   /// Launch a URL string.
   Future<void> launch(String url, {LaunchMode? mode}) async {
-    final uri = Uri.parse(url);
+    final urlSanitized = ValidationService.validate(
+      url,
+      inputType: InputType.url,
+    ).sanitizedValue;
+
+    final uri = Uri.parse(urlSanitized);
 
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: mode ?? LaunchMode.externalApplication);
@@ -628,6 +633,7 @@ class UrlLauncherService {
     }
   }
 }
+
   ''';
 
   static String connectivityService() => r'''
@@ -661,9 +667,11 @@ class ConnectivityService {
 ''';
 
   static String validationService() => r'''
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/errors/app_exception.dart';
-  
-  /// Enum com tipos de input para validação
+
+/// Enum com tipos de input para validação
 enum InputType {
   email,
   url,
@@ -674,7 +682,6 @@ enum InputType {
   number,
   creditCard,
 }
-
 
 /// Resultado da validação
 class ValidationResult {
@@ -694,36 +701,45 @@ class ValidationResult {
   factory ValidationResult.invalid(String error, String original) {
     throw AppException.fromMessage(error);
   }
-      
 }
 
 /// Validador principal
+final validationServiceProvider = Provider<ValidationService>((ref) {
+  return ValidationService();
+});
+
 class ValidationService {
   // Regex patterns
   static final _emailRegex = RegExp(
-    r'^[a-zA-Z0-9.!#$%&\'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$',
+    r'^[a-zA-Z0-9.!#$%&*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$',
   );
 
   static final _urlRegex = RegExp(
     r'^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$',
   );
 
-  static final _phoneRegex = RegExp(r'^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$');
+  static final _phoneRegex = RegExp(
+    r'^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$',
+  );
   static final _usernameRegex = RegExp(r'^[a-zA-Z0-9_-]{3,20}$');
   static final _numberRegex = RegExp(r'^-?\d+\.?\d*$');
 
   // SQL Injection Patterns
   static final _sqlInjectionPatterns = [
-    RegExp(r"('|(\\x27))+|(--)|;|(\*|union|select|insert|update|delete|drop|create|alter)", caseSensitive: false),
+    RegExp(
+      r"('|(\x27))+|(--)|;|(\*|union|select|insert|update|delete|drop|create|alter)",
+      caseSensitive: false,
+    ),
   ];
 
   static final _xssPatterns = [
-    RegExp(r'<script|javascript:|onerror=|onload=|onclick=|<iframe', caseSensitive: false),
+    RegExp(
+      r'<script|javascript:|onerror=|onload=|onclick=|<iframe',
+      caseSensitive: false,
+    ),
   ];
 
-  static final _pathTraversalPatterns = [
-    RegExp(r'\.\./|\.\.\\|%2e%2e'),
-  ];
+  static final _pathTraversalPatterns = [RegExp(r'\.\./|\.\.\\|%2e%2e')];
 
   static ValidationResult validate(
     String value, {
@@ -733,14 +749,14 @@ class ValidationService {
     bool trimWhitespace = true,
     bool toLowerCase = false,
   }) {
-    // Trim 
+    // Trim
     var processed = trimWhitespace ? value.trim() : value;
 
     if (toLowerCase) {
       processed = processed.toLowerCase();
     }
 
-    // length
+    // Length validation
     if (processed.isEmpty && minLength > 0) {
       return ValidationResult.invalid(
         '${inputType.name} não pode estar vazio',
@@ -762,7 +778,7 @@ class ValidationService {
       );
     }
 
-    // type validation
+    // Type validation
     if (inputType != InputType.text) {
       final typeValidation = _validateByType(processed, inputType);
       if (!typeValidation.isValid) {
@@ -770,13 +786,13 @@ class ValidationService {
       }
     }
 
-    // security validation. all types
+    // Security validation for all types
     final securityCheck = _validateSecurity(processed, inputType);
     if (!securityCheck.isValid) {
       return securityCheck;
     }
 
-    // final sanitization
+    // Final sanitization
     final sanitized = _sanitize(processed, inputType);
 
     return ValidationResult.valid(sanitized);
@@ -787,27 +803,27 @@ class ValidationService {
     switch (type) {
       case InputType.email:
         if (!_emailRegex.hasMatch(value)) {
-          return ValidationResult.invalid('Invalid email', value);
+          return ValidationResult.invalid('Email inválido', value);
         }
         break;
 
       case InputType.url:
         if (!_urlRegex.hasMatch(value)) {
-          return ValidationResult.invalid('Invalid URL', value);
+          return ValidationResult.invalid('URL inválida', value);
         }
         break;
 
       case InputType.phone:
         final cleaned = value.replaceAll(RegExp(r'[^\d+]'), '');
         if (!_phoneRegex.hasMatch(cleaned)) {
-          return ValidationResult.invalid('Invalid phone number', value);
+          return ValidationResult.invalid('Número de telefone inválido', value);
         }
         break;
 
       case InputType.username:
         if (!_usernameRegex.hasMatch(value)) {
           return ValidationResult.invalid(
-            'Invalid username (3-20 characters, only letters, numbers, -, _)',
+            'Nome de utilizador inválido (3-20 caracteres, apenas letras, números, -, _)',
             value,
           );
         }
@@ -815,21 +831,30 @@ class ValidationService {
 
       case InputType.password:
         if (value.length < 6) {
-          return ValidationResult.invalid('Password must have at least 6 characters', value);
+          return ValidationResult.invalid(
+            'Palavra-passe deve ter no mínimo 6 caracteres',
+            value,
+          );
         }
-        // Força da password
-        bool hasUppercase = value.contains(RegExp(r'[A-Z]'));
-        bool hasLowercase = value.contains(RegExp(r'[a-z]'));
-        bool hasNumbers = value.contains(RegExp(r'[0-9]'));
-        bool hasSpecial = value.contains(RegExp(r'[!@#$%^&*()_+\-=\[\]{};:\'",.<>?]'));
 
-        int strength = [hasUppercase, hasLowercase, hasNumbers, hasSpecial]
-            .where((e) => e)
-            .length;
+        // Password strength
+        final hasUppercase = value.contains(RegExp(r'[A-Z]'));
+        final hasLowercase = value.contains(RegExp(r'[a-z]'));
+        final hasNumbers = value.contains(RegExp(r'[0-9]'));
+        final hasSpecial = value.contains(
+          RegExp(r'[!@#$%^&*()_+\-=\[\]{};:\x27",.<>?]'),
+        );
+
+        final strength = [
+          hasUppercase,
+          hasLowercase,
+          hasNumbers,
+          hasSpecial,
+        ].where((e) => e).length;
 
         if (strength < 3) {
           return ValidationResult.invalid(
-            'Password too weak: needs uppercase, lowercase, numbers and special characters',
+            'Palavra-passe demasiado fraca: precisa de maiúsculas, minúsculas, números e caracteres especiais',
             value,
           );
         }
@@ -837,23 +862,26 @@ class ValidationService {
 
       case InputType.number:
         if (!_numberRegex.hasMatch(value)) {
-          return ValidationResult.invalid('Invalid number', value);
+          return ValidationResult.invalid('Número inválido', value);
         }
         break;
 
       case InputType.creditCard:
         final cleaned = value.replaceAll(RegExp(r'\s'), '');
         if (!RegExp(r'^\d{13,19}$').hasMatch(cleaned)) {
-          return ValidationResult.invalid('Invalid credit card number', value);
+          return ValidationResult.invalid('Número de cartão inválido', value);
         }
         // Luhn algorithm
         if (!_luhnCheck(cleaned)) {
-          return ValidationResult.invalid('Invalid credit card number (Luhn)', value);
+          return ValidationResult.invalid(
+            'Número de cartão inválido (Luhn)',
+            value,
+          );
         }
         break;
 
       case InputType.text:
-        // no validation
+        // No validation needed
         break;
     }
 
@@ -862,20 +890,26 @@ class ValidationService {
 
   /// Security validation (XSS, SQL Injection, Path Traversal)
   static ValidationResult _validateSecurity(String value, InputType type) {
-    // SQL Injection 
+    // SQL Injection
     if (type == InputType.text || type == InputType.username) {
       for (var pattern in _sqlInjectionPatterns) {
         if (pattern.hasMatch(value)) {
-          return ValidationResult.invalid('Input contains suspicious characters (SQL)', value);
+          return ValidationResult.invalid(
+            'Entrada contém caracteres suspeitos (SQL)',
+            value,
+          );
         }
       }
     }
 
-    // XSS 
+    // XSS
     if (type == InputType.text) {
       for (var pattern in _xssPatterns) {
         if (pattern.hasMatch(value)) {
-          return ValidationResult.invalid('Input contains suspicious scripts (XSS)', value);
+          return ValidationResult.invalid(
+            'Entrada contém scripts suspeitos (XSS)',
+            value,
+          );
         }
       }
     }
@@ -883,13 +917,16 @@ class ValidationService {
     // Path Traversal (paths/filenames)
     for (var pattern in _pathTraversalPatterns) {
       if (pattern.hasMatch(value)) {
-        return ValidationResult.invalid('Input contains suspicious path traversal', value);
+        return ValidationResult.invalid(
+          'Entrada contém percurso de travessia suspeito',
+          value,
+        );
       }
     }
 
-    // null chars
+    // Null characters
     if (value.contains('\x00')) {
-      return ValidationResult.invalid('Input contains null characters', value);
+      return ValidationResult.invalid('Entrada contém caracteres nulos', value);
     }
 
     return ValidationResult.valid(value);
@@ -900,7 +937,10 @@ class ValidationService {
     var sanitized = value;
 
     // Remove dangerous control characters
-    sanitized = sanitized.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
+    sanitized = sanitized.replaceAll(
+      RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'),
+      '',
+    );
 
     // For email and URL, remove extra whitespace
     if (type == InputType.email || type == InputType.url) {
@@ -952,14 +992,14 @@ class ValidationService {
     return sum % 10 == 0;
   }
 
-  /// Basic HTML encoding
+  /// Basic HTML encoding - escapes special characters to prevent XSS
   static String _htmlEncode(String text) {
     return text
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#x27;');
+        .replaceAll("'", '&#39;');
   }
 
   /// Validate multiple inputs at once
@@ -977,7 +1017,10 @@ class ValidationService {
       final type = types[key];
 
       if (type == null) {
-        results[key] = ValidationResult.invalid('Tipo de validação não definido', value);
+        results[key] = ValidationResult.invalid(
+          'Tipo de validação não definido',
+          value,
+        );
         continue;
       }
 
@@ -991,5 +1034,7 @@ class ValidationService {
 
     return results;
   }
-}''';
+}
+
+''';
 }

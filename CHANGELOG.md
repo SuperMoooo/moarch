@@ -1,3 +1,3 @@
-## 1.3.2
+## 1.3.3
 
-- feat: validation service (security)
+- fix: validation service
