@@ -181,6 +181,11 @@ class InitCommand extends Command<int> {
       p.join(c, 'security', 'secure_storage.dart'),
       CoreTemplates.secureStorage(),
     );
+    await FileUtils.writeFile(
+      p.join(c, 'security', 'validation_service.dart'),
+      CoreTemplates.validationService(),
+    );
+
     if (stack.contains(_kMediaService)) {
       await FileUtils.writeFile(
         p.join(c, 'services', 'media_service.dart'),
@@ -193,11 +198,6 @@ class InitCommand extends Command<int> {
         CoreTemplates.launchUrlService(),
       );
     }
-
-    await FileUtils.writeFile(
-      p.join(c, 'services', 'validation_service.dart'),
-      CoreTemplates.validationService(),
-    );
   }
 
   Future<void> _buildConfig(String libPath, Set<String> stack) async {

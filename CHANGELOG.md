@@ -1,3 +1,3 @@
-## 1.3.3
+## 1.3.4
 
-- fix: validation service
+- fix: input, validation and dio adjustments

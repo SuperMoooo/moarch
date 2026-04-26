@@ -428,10 +428,6 @@ Dio buildDioClient(Ref ref) {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
-            // Status that pass: 200-299, all the other will be caught in DioException
-            validateStatus: (status) {
-              return status != null && status >= 200 && status < 300;
-            },
           ),
         )
         ..interceptors.add(
@@ -605,7 +601,7 @@ class MediaService {
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/errors/app_exception.dart';
-import '../../core/services/validation_service.dart';
+import '../../core/security/validation_service.dart';
 
 /// A service to handle URL launching operations.
 
@@ -759,21 +755,21 @@ class ValidationService {
     // Length validation
     if (processed.isEmpty && minLength > 0) {
       return ValidationResult.invalid(
-        '${inputType.name} não pode estar vazio',
+        '${inputType.name} cannot be empty',
         value,
       );
     }
 
     if (processed.length < minLength) {
       return ValidationResult.invalid(
-        '${inputType.name} deve ter no mínimo $minLength caracteres',
+        '${inputType.name} must have at least $minLength characters',
         value,
       );
     }
 
     if (processed.length > maxLength) {
       return ValidationResult.invalid(
-        '${inputType.name} pode ter no máximo $maxLength caracteres',
+        '${inputType.name} must have at most $maxLength characters',
         value,
       );
     }
@@ -803,27 +799,27 @@ class ValidationService {
     switch (type) {
       case InputType.email:
         if (!_emailRegex.hasMatch(value)) {
-          return ValidationResult.invalid('Email inválido', value);
+          return ValidationResult.invalid('Invalid email', value);
         }
         break;
 
       case InputType.url:
         if (!_urlRegex.hasMatch(value)) {
-          return ValidationResult.invalid('URL inválida', value);
+          return ValidationResult.invalid('Invalid URL', value);
         }
         break;
 
       case InputType.phone:
         final cleaned = value.replaceAll(RegExp(r'[^\d+]'), '');
         if (!_phoneRegex.hasMatch(cleaned)) {
-          return ValidationResult.invalid('Número de telefone inválido', value);
+          return ValidationResult.invalid('Invalid phone number', value);
         }
         break;
 
       case InputType.username:
         if (!_usernameRegex.hasMatch(value)) {
           return ValidationResult.invalid(
-            'Nome de utilizador inválido (3-20 caracteres, apenas letras, números, -, _)',
+            'Invalid username (3-20 characters, only letters, numbers, -, _)',
             value,
           );
         }
@@ -832,7 +828,7 @@ class ValidationService {
       case InputType.password:
         if (value.length < 6) {
           return ValidationResult.invalid(
-            'Palavra-passe deve ter no mínimo 6 caracteres',
+            'Password must have at least 6 characters',
             value,
           );
         }
@@ -854,7 +850,7 @@ class ValidationService {
 
         if (strength < 3) {
           return ValidationResult.invalid(
-            'Palavra-passe demasiado fraca: precisa de maiúsculas, minúsculas, números e caracteres especiais',
+            'Password too weak: needs uppercase, lowercase, numbers and special characters',
             value,
           );
         }
@@ -862,19 +858,19 @@ class ValidationService {
 
       case InputType.number:
         if (!_numberRegex.hasMatch(value)) {
-          return ValidationResult.invalid('Número inválido', value);
+          return ValidationResult.invalid('Invalid number', value);
         }
         break;
 
       case InputType.creditCard:
         final cleaned = value.replaceAll(RegExp(r'\s'), '');
         if (!RegExp(r'^\d{13,19}$').hasMatch(cleaned)) {
-          return ValidationResult.invalid('Número de cartão inválido', value);
+          return ValidationResult.invalid('Invalid credit card number', value);
         }
         // Luhn algorithm
         if (!_luhnCheck(cleaned)) {
           return ValidationResult.invalid(
-            'Número de cartão inválido (Luhn)',
+            'Invalid credit card number (Luhn)',
             value,
           );
         }
@@ -895,7 +891,7 @@ class ValidationService {
       for (var pattern in _sqlInjectionPatterns) {
         if (pattern.hasMatch(value)) {
           return ValidationResult.invalid(
-            'Entrada contém caracteres suspeitos (SQL)',
+            'Input contains suspicious characters (SQL)',
             value,
           );
         }
@@ -907,7 +903,7 @@ class ValidationService {
       for (var pattern in _xssPatterns) {
         if (pattern.hasMatch(value)) {
           return ValidationResult.invalid(
-            'Entrada contém scripts suspeitos (XSS)',
+            'Input contains suspicious scripts (XSS)',
             value,
           );
         }
@@ -918,7 +914,7 @@ class ValidationService {
     for (var pattern in _pathTraversalPatterns) {
       if (pattern.hasMatch(value)) {
         return ValidationResult.invalid(
-          'Entrada contém percurso de travessia suspeito',
+          'Input contains suspicious path traversal characters',
           value,
         );
       }
@@ -926,7 +922,7 @@ class ValidationService {
 
     // Null characters
     if (value.contains('\x00')) {
-      return ValidationResult.invalid('Entrada contém caracteres nulos', value);
+      return ValidationResult.invalid('Input contains null characters', value);
     }
 
     return ValidationResult.valid(value);
@@ -1018,7 +1014,7 @@ class ValidationService {
 
       if (type == null) {
         results[key] = ValidationResult.invalid(
-          'Tipo de validação não definido',
+          'Validation type not defined',
           value,
         );
         continue;

@@ -114,6 +114,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
+import '../../../core/security/validation_service.dart';
 
 class AppInput extends StatefulWidget {
   const AppInput({
@@ -151,6 +152,27 @@ class AppInput extends StatefulWidget {
 
   @override
   State<AppInput> createState() => _AppInputState();
+
+  InputType _getInputType() {
+    if (keyboardType != null) {
+      switch (keyboardType) {
+        case TextInputType.emailAddress:
+          return InputType.email;
+        case TextInputType.number:
+          return InputType.number;
+        case TextInputType.phone:
+          return InputType.phone;
+        case TextInputType.url:
+          return InputType.url;
+        default:
+          return InputType.text;
+      }
+    }
+     if (isPassword) {
+      return InputType.password;
+    }
+    return InputType.text;
+  }
 }
 
 class _AppInputState extends State<AppInput> {
@@ -190,6 +212,19 @@ class _AppInputState extends State<AppInput> {
         IgnorePointer(
           ignoring: widget.readOnly,
           child: TextFormField(
+           validator: (value) {
+              if (widget.required && (value == null || value.isEmpty)) {
+                return 'This field is required';
+              }
+              final result = ValidationService.validate(
+                value ?? '',
+                inputType: widget._getInputType(),
+              );
+              if (!result.isValid) {
+                return result.error;
+              }
+              return null;
+            },
             focusNode: widget.focusNode,
             autofocus: widget.autoFocus,
             readOnly: widget.readOnly,
