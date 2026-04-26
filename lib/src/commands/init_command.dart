@@ -193,6 +193,11 @@ class InitCommand extends Command<int> {
         CoreTemplates.launchUrlService(),
       );
     }
+
+    await FileUtils.writeFile(
+      p.join(c, 'services', 'validation_service.dart'),
+      CoreTemplates.validationService(),
+    );
   }
 
   Future<void> _buildConfig(String libPath, Set<String> stack) async {

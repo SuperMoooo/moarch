@@ -1,3 +1,3 @@
-## 1.3.1
+## 1.3.2
 
-- fix: throw app exception when this is private
+- feat: validation service (security)
