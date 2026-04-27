@@ -119,8 +119,13 @@ class InitCommand extends Command<int> {
       );
 
       await FileUtils.writeFile(
-        p.join(p.absolute(targetPath), 'CHECKLIST.md'),
+        p.join(p.absolute(targetPath), 'CHECKLIST_BEFORE_DEPLOYMENT.md'),
         ChecklistTemplates.prodChecklist(),
+      );
+
+      await FileUtils.writeFile(
+        p.join(p.absolute(targetPath), 'SECURITY_BEFORE_DEPLOYMENT.md'),
+        ChecklistTemplates.securityChecklist(),
       );
 
       if (stack.contains(_kCi)) {

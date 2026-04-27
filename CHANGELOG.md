@@ -1,3 +1,3 @@
-## 1.3.5
+## 1.3.6
 
-- feat: retry for dio
+- feat: security checklist, loading action with messages

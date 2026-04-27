@@ -586,9 +586,18 @@ class AppLoadingData extends StatelessWidget {
 ''';
 
   static String appLoadingAction() => r'''
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-class AppLoadingActionOverlay extends StatelessWidget {
+const _kWaitingMessages = [
+  'We are processing your request...',
+  'Still processing...',
+  'Almost done...',
+  'Thank you for your patience...',
+];
+
+class AppLoadingActionOverlay extends StatefulWidget {
   const AppLoadingActionOverlay({
     super.key,
     required this.isLoading,
@@ -599,18 +608,91 @@ class AppLoadingActionOverlay extends StatelessWidget {
   final Widget child;
 
   @override
+  State<AppLoadingActionOverlay> createState() =>
+      _AppLoadingActionOverlayState();
+}
+
+class _AppLoadingActionOverlayState extends State<AppLoadingActionOverlay> {
+  Timer? _initialTimer;
+  Timer? _cycleTimer;
+  String? _currentMessage;
+  int _messageIndex = 0;
+
+  @override
+  void didUpdateWidget(AppLoadingActionOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.isLoading && !oldWidget.isLoading) {
+      _startTimers();
+    } else if (!widget.isLoading && oldWidget.isLoading) {
+      _clearTimers();
+    }
+  }
+
+  @override
+  void dispose() {
+    _clearTimers();
+    super.dispose();
+  }
+
+  void _startTimers() {
+    _messageIndex = 0;
+    _currentMessage = null;
+
+    _initialTimer = Timer(const Duration(seconds: 4), () {
+      if (!mounted) return;
+      setState(() => _currentMessage = _kWaitingMessages[_messageIndex]);
+
+      _cycleTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+        if (!mounted) return;
+        _messageIndex = (_messageIndex + 1) % _kWaitingMessages.length;
+        setState(() => _currentMessage = _kWaitingMessages[_messageIndex]);
+      });
+    });
+  }
+
+  void _clearTimers() {
+    _initialTimer?.cancel();
+    _cycleTimer?.cancel();
+    _initialTimer = null;
+    _cycleTimer = null;
+    _currentMessage = null;
+    _messageIndex = 0;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        child,
-        if (isLoading) ...[
+        widget.child,
+        if (widget.isLoading) ...[
           const ModalBarrier(dismissible: false, color: Colors.black54),
-          const Center(child: CircularProgressIndicator()),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 16,
+              children: [
+                const CircularProgressIndicator(),
+                if (_currentMessage != null)
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 400),
+                    child: Text(
+                      _currentMessage!,
+                      key: ValueKey(_currentMessage),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ],
       ],
     );
   }
 }
+
 ''';
 
   static String errorView() => r'''
