@@ -404,6 +404,8 @@ abstract final class ApiConstants {
 
   static String dioClient() => r'''
 import 'package:dio/dio.dart';
+import 'package:dio_smart_retry/dio_smart_retry.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../config/env/app_env.dart';
@@ -421,7 +423,9 @@ Dio buildDioClient(Ref ref) {
   final dio =
       Dio(
           BaseOptions(
-            baseUrl: AppEnv.baseUrl,
+            baseUrl: appFlavor == "prod"
+                ? AppEnv.prodBaseUrl
+                : AppEnv.devBaseUrl,
             connectTimeout: ApiConstants.connectTimeout,
             receiveTimeout: ApiConstants.receiveTimeout,
             headers: const {
@@ -440,16 +444,23 @@ Dio buildDioClient(Ref ref) {
               handler.next(options);
             },
           ),
-        )
-        ..interceptors.add(
-          LogInterceptor(requestBody: true,
-           responseBody: true, 
-          logPrint: (o) => log.d(o.toString()),
-          ),
         );
+
+  dio
+    ..interceptors.add(
+      RetryInterceptor(dio: dio, logPrint: (msg) => log.d(msg)),
+    )
+    ..interceptors.add(
+      LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+        logPrint: (msg) => log.d(msg.toString()),
+      ),
+    );
 
   return dio;
 }
+
 
 ''';
 

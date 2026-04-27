@@ -81,6 +81,7 @@ dependencies:
     flutter_riverpod:
     envied:
     dio:
+    dio_smart_retry:
     go_router:
     flutter_secure_storage:
     logger:

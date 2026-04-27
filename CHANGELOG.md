@@ -1,3 +1,3 @@
-## 1.3.4
+## 1.3.5
 
-- fix: input, validation and dio adjustments
+- feat: retry for dio
