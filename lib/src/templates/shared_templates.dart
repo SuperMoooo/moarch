@@ -49,7 +49,7 @@ class AppButton extends StatelessWidget {
       AppConstants.touchTarget + 8,
       18,
       26,
-      EdgeInsets.all(AppConstants.space16 + 2),
+      AppConstants.padding16,
     ),
   };
 
@@ -60,11 +60,23 @@ class AppButton extends StatelessWidget {
     final (height, fontSize, iconSize, padding) = _getSizeConfig();
 
     final (backgroundColor, foregroundColor) = switch (type) {
-      AppButtonType.primary     => (theme.colorScheme.primary, theme.colorScheme.onPrimary),
-      AppButtonType.secondary   => (theme.colorScheme.secondary, theme.colorScheme.onSecondary),
-      AppButtonType.tertiary    => (theme.colorScheme.tertiary, theme.colorScheme.onTertiary),
-      AppButtonType.transparent => (Colors.transparent, theme.colorScheme.onSurface),
-      AppButtonType.danger      => (theme.colorScheme.error, theme.colorScheme.onError),
+      AppButtonType.primary => (
+        theme.colorScheme.primary,
+        theme.colorScheme.onPrimary,
+      ),
+      AppButtonType.secondary => (
+        theme.colorScheme.secondary,
+        theme.colorScheme.onSecondary,
+      ),
+      AppButtonType.tertiary => (Colors.transparent, theme.colorScheme.primary),
+      AppButtonType.transparent => (
+        Colors.transparent,
+        theme.colorScheme.onSurface,
+      ),
+      AppButtonType.danger => (
+        theme.colorScheme.error,
+        theme.colorScheme.onError,
+      ),
     };
 
     return SizedBox(
@@ -75,12 +87,13 @@ class AppButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           elevation: 0,
           padding: padding,
-          backgroundColor: type == AppButtonType.tertiary
-              ? Colors.transparent
-              : backgroundColor,
+          backgroundColor: backgroundColor,
           foregroundColor: foregroundColor,
           shape: RoundedRectangleBorder(
             borderRadius: AppConstants.borderRadius12,
+            side: type == AppButtonType.tertiary
+                ? BorderSide(color: foregroundColor, width: 2)
+                : BorderSide.none,
           ),
         ),
         child: Row(
