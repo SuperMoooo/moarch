@@ -226,7 +226,12 @@ class _AppInputState extends State<AppInput> {
           ignoring: widget.readOnly,
           child: TextFormField(
            validator: (value) {
-              if (widget.required && (value == null || value.isEmpty)) {
+               if (widget.required && (value == null || value.isEmpty)) {
+                return 'This field is required';
+              }
+              if ((widget.keyboardType == TextInputType.emailAddress ||
+                      widget.isPassword) &&
+                  (value == null || value.isEmpty)) {
                 return 'This field is required';
               }
               final result = ValidationService.validate(

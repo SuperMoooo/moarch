@@ -181,7 +181,7 @@ abstract final class AppTheme {
       surfaceContainerLowest: AppConstants.surfaceContainerLowest,
       surfaceContainerHigh: AppConstants.surfaceContainerHighest,
       surfaceContainerHighest: AppConstants.surfaceContainerHighest,
-      error: Colors.red,
+       error: AppConstants.error,
       onError: AppConstants.surface,
 
       outline: AppConstants.outline.withValues(alpha: 0.3), // ~15% of 255
@@ -201,7 +201,7 @@ abstract final class AppTheme {
       color: AppConstants.surfaceContainerLowest,
       shape: RoundedRectangleBorder(
         borderRadius: AppConstants.borderRadius12,
-        side: BorderSide(width: 0.5, color: AppConstants.outline),
+        side: BorderSide(width: 0.35, color: AppConstants.outline),
       ),
     ),
 
@@ -219,6 +219,10 @@ abstract final class AppTheme {
       focusedBorder: OutlineInputBorder(
         borderRadius: AppConstants.borderRadius12,
         borderSide: BorderSide(color: AppConstants.outline, width: 0.5),
+      ),
+       errorBorder: OutlineInputBorder(
+        borderRadius: AppConstants.borderRadius12,
+        borderSide: BorderSide(color: AppConstants.error, width: 0.5),
       ),
       prefixIconColor: AppConstants.primary,
       suffixIconColor: AppConstants.primary,

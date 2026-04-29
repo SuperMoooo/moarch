@@ -327,11 +327,13 @@ static const Color tertiary  = Color(0xFF000000);
 static const Color surface   = Color(0xFF000000);
 static const Color onSurface = Color(0xFF000000);
 static const Color outline   = Color(0xFF000000);
+static const Color error = Color(0xFFba1a1a);
 
 // ── Accent tokens ────────────────────────────────────────────
 static const Color accentActive      = Color(0xFF000000);
 static const Color accentRestorative = Color(0xFF000000);
 static const Color accentEnergetic   = Color(0xFF000000);
+
 
 // ── Surface layers (tonal depth — no borders) ───────────────
 static const Color surfaceContainerLowest  = Color(0xFF000000);
@@ -774,6 +776,10 @@ class ValidationService {
     bool trimWhitespace = true,
     bool toLowerCase = false,
   }) {
+
+  if (value.isEmpty) {
+      return ValidationResult.valid(value);
+    }
     // Trim
     var processed = trimWhitespace ? value.trim() : value;
 
