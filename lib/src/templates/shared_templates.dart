@@ -126,8 +126,8 @@ class AppButton extends StatelessWidget {
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_constants.dart';
-import '../../../core/utils/extensions.dart';
 import '../../../core/security/validation_service.dart';
+import '../../../core/utils/extensions.dart';
 
 class AppInput extends StatefulWidget {
   const AppInput({
@@ -136,7 +136,8 @@ class AppInput extends StatefulWidget {
     required this.label,
     this.hint,
     this.maxLines = 1,
-    this.isPassword = false,
+    this.hidePassword = false,
+    this.typePassword = false,
     this.initialValue,
     this.keyboardType,
     this.textInputAction,
@@ -146,13 +147,15 @@ class AppInput extends StatefulWidget {
     this.focusNode,
     this.autoFocus = false,
     this.required = false,
+    this.onChanged,
   });
 
   final TextEditingController? controller;
   final String label;
   final String? hint;
   final int? maxLines;
-  final bool isPassword;
+  final bool hidePassword;
+  final bool typePassword;
   final String? initialValue;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
@@ -162,6 +165,7 @@ class AppInput extends StatefulWidget {
   final FocusNode? focusNode;
   final bool autoFocus;
   final bool required;
+  final Function(String c)? onChanged;
 
   @override
   State<AppInput> createState() => _AppInputState();
@@ -181,7 +185,7 @@ class AppInput extends StatefulWidget {
           return InputType.text;
       }
     }
-     if (isPassword) {
+    if (typePassword) {
       return InputType.password;
     }
     return InputType.text;
@@ -225,12 +229,12 @@ class _AppInputState extends State<AppInput> {
         IgnorePointer(
           ignoring: widget.readOnly,
           child: TextFormField(
-           validator: (value) {
-               if (widget.required && (value == null || value.isEmpty)) {
+            validator: (value) {
+              if (widget.required && (value == null || value.isEmpty)) {
                 return 'This field is required';
               }
               if ((widget.keyboardType == TextInputType.emailAddress ||
-                      widget.isPassword) &&
+                      widget.typePassword) &&
                   (value == null || value.isEmpty)) {
                 return 'This field is required';
               }
@@ -243,14 +247,17 @@ class _AppInputState extends State<AppInput> {
               }
               return null;
             },
+            onChanged: widget.onChanged,
             focusNode: widget.focusNode,
             autofocus: widget.autoFocus,
             readOnly: widget.readOnly,
             controller: widget.controller,
             style: theme.textTheme.bodyLarge,
-            initialValue: widget.controller == null ? widget.initialValue : null,
+            initialValue: widget.controller == null
+                ? widget.initialValue
+                : null,
             maxLines: widget.maxLines,
-            obscureText: widget.isPassword,
+            obscureText: widget.hidePassword,
             keyboardType: widget.keyboardType,
             textInputAction: widget.textInputAction,
             cursorColor: theme.colorScheme.primary,
@@ -265,6 +272,7 @@ class _AppInputState extends State<AppInput> {
     );
   }
 }
+
 ''';
 
   static String dateInput() => r'''

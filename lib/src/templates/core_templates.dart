@@ -633,6 +633,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../core/security/validation_service.dart';
+import '../../core/utils/toasts.dart';
 
 /// A service to handle URL launching operations.
 
@@ -648,15 +649,20 @@ class UrlLauncherService {
   Future<void> launch(String url, {LaunchMode? mode}) async {
     final urlSanitized = ValidationService.validate(
       url,
-      inputType: InputType.url,
+      inputType: InputType.text,
     ).sanitizedValue;
 
     final uri = Uri.parse(urlSanitized);
-
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: mode ?? LaunchMode.externalApplication);
-    } else {
-      throw AppException.fromMessage('Could not launch url');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: mode ?? LaunchMode.externalApplication);
+      } else {
+        // Fallback: try opening with a web view inside the app
+        await launchUrl(uri, mode: LaunchMode.inAppWebView);
+      }
+    } catch (e) {
+      Toasts.error(message: "Could not launch at this moment");
+      //throw AppException.fromMessage('Could not launch url: $e');
     }
   }
 }
