@@ -423,8 +423,12 @@ abstract final class ApiConstants {
 ''';
 
   static String dioClient() => r'''
+import 'dart:io';
+
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:dio_smart_retry/dio_smart_retry.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -433,40 +437,40 @@ import '../constants/api_constants.dart';
 import '../security/secure_storage.dart';
 import '../utils/logger.dart';
 
-final dioClientProvider = Provider<Dio>((ref) => buildDioClient(ref));
+final dioClientProvider = Provider<Dio>((ref) => _buildDioClient(ref));
 
 // ─────────────────────────────────────────────────────────────────────────────
-
-Dio buildDioClient(Ref ref) {
+Dio _buildDioClient(Ref ref) {
   final storage = ref.watch(secureStorageProvider);
 
-  final dio =
-      Dio(
-          BaseOptions(
-            baseUrl: appFlavor == "prod"
-                ? AppEnv.prodBaseUrl
-                : AppEnv.devBaseUrl,
-            connectTimeout: ApiConstants.connectTimeout,
-            receiveTimeout: ApiConstants.receiveTimeout,
-            headers: const {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-          ),
-        )
-        ..interceptors.add(
-          InterceptorsWrapper(
-            onRequest: (options, handler) async {
-              final token = await storage.read(key: 'token');
-              if (token != null) {
-                options.headers['Authorization'] = 'Bearer $token';
-              }
-              handler.next(options);
-            },
-          ),
-        );
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: appFlavor == "prod" ? AppEnv.prodBaseUrl : AppEnv.devBaseUrl,
+      connectTimeout: ApiConstants.connectTimeout,
+      receiveTimeout: ApiConstants.receiveTimeout,
+      headers: const {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      validateStatus: (status) => status != null && status < 500,
+    ),
+  );
+
+  // Configure certificate verification
+  _configureHttpClient(dio);
 
   dio
+    ..interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          final token = await storage.read(key: 'token');
+          if (token != null) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+          handler.next(options);
+        },
+      ),
+    )
     ..interceptors.add(
       RetryInterceptor(dio: dio, logPrint: (msg) => log.d(msg)),
     )
@@ -481,6 +485,32 @@ Dio buildDioClient(Ref ref) {
   return dio;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+void _configureHttpClient(Dio dio) {
+  dio.httpClientAdapter = IOHttpClientAdapter(
+    createHttpClient: () {
+      final client = HttpClient();
+
+      if (kDebugMode) {
+        // Skip certificate verification in debug mode
+        client.badCertificateCallback =
+            (X509Certificate cert, String host, int port) {
+              log.w('Certificate verification skipped for $host (debug mode)');
+              return true;
+            };
+      } else {
+        // Enforce strict verification in release mode
+        client.badCertificateCallback =
+            (X509Certificate cert, String host, int port) {
+              log.e('Certificate verification failed for $host');
+              return false;
+            };
+      }
+
+      return client;
+    },
+  );
+}
 
 ''';
 
