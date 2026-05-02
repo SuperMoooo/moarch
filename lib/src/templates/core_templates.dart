@@ -19,13 +19,13 @@ Future<void> main() async {
   
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
-    log.e('[Uncaught error]', error: error, stackTrace: st);
+    appLogger.e('[Uncaught error]', error: error, stackTrace: st);
     if (kDebugMode) return false; // false = let Flutter crash normally in dev
     return true; // true = swallow in prod, app stays alive
   };
 
   FlutterError.onError = (details) {
-    log.e('[Flutter error]', error: details.exception, stackTrace: details.stack);
+    appLogger.e('[Flutter error]', error: details.exception, stackTrace: details.stack);
     if (kDebugMode) {
       // default behaviour — shows red screen in dev
       FlutterError.presentError(details);
@@ -87,13 +87,13 @@ Future<void> main() async {
   
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
-    log.e('[Uncaught error]', error: error, stackTrace: st);
+    appLogger.e('[Uncaught error]', error: error, stackTrace: st);
     if (kDebugMode) return false; // false = let Flutter crash normally in dev
     return true; // true = swallow in prod, app stays alive
   };
 
   FlutterError.onError = (details) {
-    log.e('[Flutter error]', error: details.exception, stackTrace: details.stack);
+    appLogger.e('[Flutter error]', error: details.exception, stackTrace: details.stack);
     if (kDebugMode) {
       // default behaviour — shows red screen in dev
       FlutterError.presentError(details);
@@ -150,12 +150,12 @@ class App extends StatelessWidget {
         dioError.message ??
         'Unknown error';
     final statusCode = dioError.response?.statusCode;
-    log.e('[AppException] — $message', error: dioError);
+    appLogger.e('[AppException] — $message', error: dioError);
     return AppException._(message: message, statusCode: statusCode);
   }'''
         : r'''
   factory AppException.fromFirebaseError(FirebaseException error) {
-    log.e('[AppException] — $message', error: error.message);
+    appLogger.e('[AppException] — $message', error: error.message);
     switch (error.code) {
       case "user-not-found":
         return const AppException(message: "Usuário não encontrado");
@@ -198,11 +198,11 @@ $factory
 ''';
   }
 
-  static String logger() => r'''
+  static String appLogger() => r'''
 import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
 
-final log = Logger(
+final appLogger = Logger(
   printer: PrettyPrinter(
     methodCount: 0, // no stack trace on normal logs
     errorMethodCount: 8, // stack trace on errors
@@ -472,13 +472,13 @@ Dio _buildDioClient(Ref ref) {
       ),
     )
     ..interceptors.add(
-      RetryInterceptor(dio: dio, logPrint: (msg) => log.d(msg)),
+      RetryInterceptor(dio: dio, logPrint: (msg) => appLogger.d(msg)),
     )
     ..interceptors.add(
       LogInterceptor(
         requestBody: true,
         responseBody: true,
-        logPrint: (msg) => log.d(msg.toString()),
+        logPrint: (msg) => appLogger.d(msg.toString()),
       ),
     );
 
@@ -495,14 +495,14 @@ void _configureHttpClient(Dio dio) {
         // Skip certificate verification in debug mode
         client.badCertificateCallback =
             (X509Certificate cert, String host, int port) {
-              log.w('Certificate verification skipped for $host (debug mode)');
+              appLogger.w('Certificate verification skipped for $host (debug mode)');
               return true;
             };
       } else {
         // Enforce strict verification in release mode
         client.badCertificateCallback =
             (X509Certificate cert, String host, int port) {
-              log.e('Certificate verification failed for $host');
+              appLogger.e('Certificate verification failed for $host');
               return false;
             };
       }

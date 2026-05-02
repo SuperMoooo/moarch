@@ -1,7 +1,7 @@
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/templates/checklist_templates.dart';
-import 'package:moarch/src/templates/ci_templates.dart';
+import 'package:moarch/src/templates/workflow_templates.dart';
 import 'package:moarch/src/utils/checklist.dart';
 import 'package:path/path.dart' as p;
 
@@ -22,6 +22,7 @@ const _kFirebaseAuth = 'Firebase Auth';
 
 const _kRouter = 'Router (GoRouter)';
 const _kCi = 'CI workflow (.github/workflows/ci.yml)';
+const _kSecurityWorkflows = 'Secrets Scans and SAST Scan (.github/workflows/)';
 const _kTests = 'Test folder';
 const _kMediaService = 'Media Service (Image Picker and File Picker)';
 const _kLaunchUrlService = 'Url launcher for links';
@@ -85,6 +86,7 @@ class InitCommand extends Command<int> {
         items: [
           const ChecklistItem(_kRouter, defaultOn: true),
           const ChecklistItem(_kCi, defaultOn: true),
+          const ChecklistItem(_kSecurityWorkflows, defaultOn: true),
           const ChecklistItem(_kTests, defaultOn: false),
           const ChecklistItem(_kMediaService, defaultOn: false),
           const ChecklistItem(_kLaunchUrlService, defaultOn: false)
@@ -131,7 +133,20 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kCi)) {
         await FileUtils.writeFile(
           p.join(p.absolute(targetPath), '.github', 'workflows', 'ci.yml'),
-          CiTemplates.ciWorkflow(),
+          WorkflowTemplates.ciWorkflow(),
+        );
+      }
+
+      if (stack.contains(_kSecurityWorkflows)) {
+        await FileUtils.writeFile(
+          p.join(
+              p.absolute(targetPath), '.github', 'workflows', 'sast_scan.yml'),
+          WorkflowTemplates.sastWorkflow(),
+        );
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), '.github', 'workflows',
+              'secrets_scan.yml'),
+          WorkflowTemplates.secretsScanWorkflow(),
         );
       }
 
@@ -165,8 +180,8 @@ class InitCommand extends Command<int> {
       CoreTemplates.extensions(),
     );
     await FileUtils.writeFile(
-      p.join(c, 'utils', 'logger.dart'),
-      CoreTemplates.logger(),
+      p.join(c, 'utils', 'app_logger.dart'),
+      CoreTemplates.appLogger(),
     );
     await FileUtils.writeFile(
       p.join(c, 'constants', 'app_constants.dart'),
