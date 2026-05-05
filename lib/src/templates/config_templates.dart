@@ -197,13 +197,25 @@ abstract final class AppTheme {
       scrolledUnderElevation: 0,
     ),
 
-    cardTheme: CardThemeData(
+   cardTheme: CardThemeData(
       color: AppConstants.surfaceContainerLowest,
-      shape: RoundedRectangleBorder(
-        borderRadius: AppConstants.borderRadius12,
-        side: BorderSide(width: 0.35, color: AppConstants.outline),
+      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
+    ),
+
+     tabBarTheme: TabBarThemeData(
+      indicatorColor: AppConstants.accentActive,
+      tabAlignment: TabAlignment.fill,
+      indicatorSize: TabBarIndicatorSize.tab,
+      indicatorAnimation: TabIndicatorAnimation.elastic,
+      labelStyle: TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.bold,
+      ),
+      unselectedLabelStyle: TextStyle(
+        color: Colors.blueGrey,
       ),
     ),
+
 
     inputDecorationTheme: InputDecorationTheme(
       filled: true,

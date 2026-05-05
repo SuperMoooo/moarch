@@ -217,7 +217,7 @@ class _AppInputState extends State<AppInput> {
                 ? [
                     TextSpan(
                       text: ' *',
-                      style: TextStyle(
+                      style: theme.textTheme.bodyLarge?.copyWith(
                         color: theme.colorScheme.error,
                         fontWeight: FontWeight.bold,
                       ),
@@ -252,7 +252,7 @@ class _AppInputState extends State<AppInput> {
             autofocus: widget.autoFocus,
             readOnly: widget.readOnly,
             controller: widget.controller,
-            style: theme.textTheme.bodyLarge,
+            style: theme.textTheme.bodyMedium,
             initialValue: widget.controller == null
                 ? widget.initialValue
                 : null,
@@ -350,7 +350,7 @@ class _DateAppInputState extends State<DateAppInput> {
                 ? [
                     TextSpan(
                       text: ' *',
-                      style: TextStyle(
+                      style: theme.textTheme.bodyLarge?.copyWith(
                         color: theme.colorScheme.error,
                         fontWeight: FontWeight.bold,
                       ),
@@ -367,7 +367,7 @@ class _DateAppInputState extends State<DateAppInput> {
             autofocus: widget.autoFocus,
             readOnly: true,
             controller: widget.controller,
-            style: theme.textTheme.bodyLarge,
+            style: theme.textTheme.bodyMedium,
             cursorColor: theme.colorScheme.primary,
             decoration: InputDecoration(
               hintText: widget.hint,
@@ -455,7 +455,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
                 ? [
                     TextSpan(
                       text: ' *',
-                      style: TextStyle(
+                      style: theme.textTheme.bodyLarge?.copyWith(
                         color: theme.colorScheme.error,
                         fontWeight: FontWeight.bold,
                       ),
@@ -472,7 +472,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
             autofocus: widget.autoFocus,
             readOnly: true,
             controller: widget.controller,
-            style: theme.textTheme.bodyLarge,
+            style: theme.textTheme.bodyMedium,
             cursorColor: theme.colorScheme.primary,
             decoration: InputDecoration(
               hintText: widget.hint,
@@ -554,7 +554,7 @@ class AppDropdownInput<T> extends StatelessWidget {
                 ? [
                     TextSpan(
                       text: ' *',
-                      style: TextStyle(
+                      style: theme.textTheme.bodyLarge?.copyWith(
                         color: theme.colorScheme.error,
                         fontWeight: FontWeight.bold,
                       ),
@@ -567,6 +567,7 @@ class AppDropdownInput<T> extends StatelessWidget {
           ignoring: !enabled,
           child: DropdownButtonFormField<String>(
             initialValue: selectedId,
+            style: theme.textTheme.bodyMedium,
             decoration: InputDecoration(
               hintText: hint,
               prefixIcon: prefixIcon,
