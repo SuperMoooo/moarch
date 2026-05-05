@@ -280,7 +280,12 @@ class _${cls}ViewState extends ConsumerState<${cls}View> {
     ref.listen(${name}NotifierProvider, (_, next) {
       final value = next.value;
       if (value == null) return;
-      // TODO: handle value.error and value.success
+        if (value.error != null) {
+        // SHOW UI ERROR
+      }
+      if (value.success != null) {
+        // SHOW UI SUCCESS
+      }
     });
 
     return ${name}Async.when(
