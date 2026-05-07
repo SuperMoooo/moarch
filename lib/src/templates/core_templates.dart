@@ -490,28 +490,18 @@ void _configureHttpClient(Dio dio) {
   dio.httpClientAdapter = IOHttpClientAdapter(
     createHttpClient: () {
       final client = HttpClient();
-
       if (kDebugMode) {
-        // Skip certificate verification in debug mode
-        client.badCertificateCallback =
-            (X509Certificate cert, String host, int port) {
-              appLogger.w('Certificate verification skipped for $host (debug mode)');
-              return true;
-            };
-      } else {
-        // Enforce strict verification in release mode
-        client.badCertificateCallback =
-            (X509Certificate cert, String host, int port) {
-              appLogger.e('Certificate verification failed for $host');
-              return false;
-            };
+        client.badCertificateCallback = (cert, host, port) {
+          appLogger.w(
+            'Certificate verification skipped for $host (debug mode)',
+          );
+          return true;
+        };
       }
-
       return client;
     },
   );
 }
-
 ''';
 
   static String secureStorage() => r'''
