@@ -217,7 +217,8 @@ final appLogger = Logger(
 
   static String extensions() => r'''
 import 'package:flutter/material.dart';
-
+import 'package:intl/intl.dart';
+import '../../../core/errors/app_exception.dart';
 
 extension ContextX on BuildContext {
   ThemeData get theme => Theme.of(this);
@@ -244,12 +245,54 @@ extension StringX on String {
     }
     return null;
   }
+
+ DateTime formatToDateTime(String dateStr) {
+    // Try standard formats first
+    final formats = [
+      'yyyy-MM-dd',
+      'dd/MM/yyyy',
+      'MM/dd/yyyy',
+      'd/M/yyyy',
+      'M/d/yyyy',
+      'dd-MM-yyyy',
+      'MM-dd-yyyy',
+    ];
+
+    for (final fmt in formats) {
+      try {
+        return DateFormat(fmt).parseStrict(dateStr);
+      } catch (_) {}
+    }
+
+    // Fallback: manual split for d/M/yyyy or M/d/yyyy ambiguous cases
+    final parts = dateStr.split(RegExp(r'[/\-]'));
+    if (parts.length == 3) {
+      final a = int.tryParse(parts[0]);
+      final b = int.tryParse(parts[1]);
+      final c = int.tryParse(parts[2]);
+
+      if (a != null && b != null && c != null) {
+        // c is year if > 31, assume d/M/yyyy
+        if (c > 31) return DateTime(c, b, a);
+        // a is year if > 31, assume yyyy/M/d
+        if (a > 31) return DateTime(a, b, c);
+      }
+    }
+
+    throw AppException.fromMessage('Unable to parse date: $dateStr');
+  }
+
+
 }
 
 extension DateTimeX on DateTime {
   String get formattedDate => '$day/$month/$year';
   String get formattedTime => '$hour:$minute';
   String get formattedDateTime => '$formattedDate $formattedTime';
+  // yyyy-MM-ddTHH:mm:ss.mmmuuuZ
+  String get formatedDateToDatabase =>
+      '${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}T${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}:${second.toString().padLeft(2, '0')}.${millisecond.toString().padLeft(3, '0')}Z';
+
 
   bool get isToday {
     final now = DateTime.now();
