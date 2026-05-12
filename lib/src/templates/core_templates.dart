@@ -145,13 +145,20 @@ class App extends StatelessWidget {
     final factory = hasDio
         ? r'''
   factory AppException.fromDioError(DioException dioError) {
-    final message =
-        dioError.response?.data?['message'] as String? ??
-        dioError.message ??
-        'Unknown error';
-    final statusCode = dioError.response?.statusCode;
-    appLogger.e('[AppException] — $message', error: dioError);
-    return AppException._(message: message, statusCode: statusCode);
+    try {
+      final message =
+          dioError.response?.data?['message'] as String? ??
+          dioError.message ??
+          'Unknown error';
+      final statusCode = dioError.response?.statusCode;
+
+      appLogger.e('[AppException] — $message', error: dioError);
+
+      return AppException._(message: message, statusCode: statusCode);
+    } catch (e) {
+      appLogger.e('[AppException] — $e');
+      return const AppException._(message: 'Unknown error');
+    }
   }'''
         : r'''
   factory AppException.fromFirebaseError(FirebaseException error) {
