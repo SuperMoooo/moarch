@@ -296,10 +296,15 @@ extension DateTimeX on DateTime {
   String get formattedDate => '$day/$month/$year';
   String get formattedTime => '$hour:$minute';
   String get formattedDateTime => '$formattedDate $formattedTime';
-  // yyyy-MM-ddTHH:mm:ss.mmmuuuZ
-  String get formatedDateToDatabase =>
+
+  
+   // yyyy-MM-ddTHH:mm:ss.mmmuuuZ
+  String get formatedDateTimeToDatabase =>
       '${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}T${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}:${second.toString().padLeft(2, '0')}.${millisecond.toString().padLeft(3, '0')}Z';
 
+  // yyyy-MM-dd
+  String get formattedDateToDatabase =>
+      "${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}";
 
   bool get isToday {
     final now = DateTime.now();
