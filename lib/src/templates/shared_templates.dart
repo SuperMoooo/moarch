@@ -122,9 +122,46 @@ class AppButton extends StatelessWidget {
 }
 ''';
 
+  static String inputTitle() => r'''
+import 'package:flutter/material.dart';
+import 'package:traiceapp/core/constants/app_constants.dart';
+import 'package:traiceapp/core/utils/extensions.dart';
+
+class InputTitle extends StatelessWidget {
+  const InputTitle({super.key, required this.label, required this.required});
+
+  final String label;
+  final bool required;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = context.textTheme;
+    return Text.rich(
+      TextSpan(
+        text: label,
+        style: textTheme.bodyLarge?.copyWith(letterSpacing: 1.25),
+        children: required
+            ? [
+                TextSpan(
+                  text: ' *',
+                  style: textTheme.bodyLarge?.copyWith(
+                    color: AppConstants.error,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ]
+            : [],
+      ),
+    );
+  }
+}
+
+
+''';
+
   static String appInput() => r'''
 import 'package:flutter/material.dart';
-
+import '/shared/widgets/inputs/input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/security/validation_service.dart';
 import '../../../core/utils/extensions.dart';
@@ -209,23 +246,7 @@ class _AppInputState extends State<AppInput> {
       spacing: AppConstants.space8,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text.rich(
-          TextSpan(
-            text: widget.label,
-            style: theme.textTheme.bodyLarge?.copyWith(letterSpacing: 1.25),
-            children: widget.required
-                ? [
-                    TextSpan(
-                      text: ' *',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.error,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ]
-                : [],
-          ),
-        ),
+        InputTitle(label: widget.label, required: widget.required),
         IgnorePointer(
           ignoring: widget.readOnly,
           child: TextFormField(
@@ -277,7 +298,7 @@ class _AppInputState extends State<AppInput> {
 
   static String dateInput() => r'''
 import 'package:flutter/material.dart';
-
+import '/shared/widgets/inputs/input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
@@ -342,23 +363,7 @@ class _DateAppInputState extends State<DateAppInput> {
       spacing: AppConstants.space8,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text.rich(
-          TextSpan(
-            text: widget.label,
-            style: theme.textTheme.bodyLarge?.copyWith(letterSpacing: 1.25),
-            children: widget.required
-                ? [
-                    TextSpan(
-                      text: ' *',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.error,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ]
-                : [],
-          ),
-        ),
+        InputTitle(label: widget.label, required: widget.required),
         IgnorePointer(
           ignoring: widget.readOnly,
           child: TextFormField(
@@ -384,7 +389,7 @@ class _DateAppInputState extends State<DateAppInput> {
 
   static String timeInput() => r'''
 import 'package:flutter/material.dart';
-
+import '/shared/widgets/inputs/input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
@@ -447,23 +452,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
       spacing: AppConstants.space8,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text.rich(
-          TextSpan(
-            text: widget.label,
-            style: theme.textTheme.bodyLarge?.copyWith(letterSpacing: 1.25),
-            children: widget.required
-                ? [
-                    TextSpan(
-                      text: ' *',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.error,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ]
-                : [],
-          ),
-        ),
+        InputTitle(label: widget.label, required: widget.required),
         IgnorePointer(
           ignoring: widget.readOnly,
           child: TextFormField(
@@ -489,7 +478,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
 
   static String appDropdown() => r'''
 import 'package:flutter/material.dart';
-
+import '/shared/widgets/inputs/input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
@@ -546,23 +535,7 @@ class AppDropdownInput<T> extends StatelessWidget {
       spacing: AppConstants.space8,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text.rich(
-          TextSpan(
-            text: label,
-            style: theme.textTheme.bodyLarge?.copyWith(letterSpacing: 1.25),
-            children: required
-                ? [
-                    TextSpan(
-                      text: ' *',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.error,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ]
-                : [],
-          ),
-        ),
+        InputTitle(label: widget.label, required: widget.required),
         IgnorePointer(
           ignoring: !enabled,
           child: DropdownButtonFormField<String>(
