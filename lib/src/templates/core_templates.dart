@@ -423,6 +423,12 @@ static const Color surfaceContainerHighest = Color(0xFF000000);
     vertical: space16,
   );
 
+  // ── Icons Sizes ───────────────────────────────────────────────────
+
+  static const double iconSmall = 16;
+  static const double iconMedium = 24;
+  static const double iconLarge = 32;
+
   // ── Text sizes — Material type scale / iOS HIG ────────────────────────────
   // iOS: largeTitle 34, title1 28, title2 22, title3 20, headline 17,
   //      body 17, callout 16, subheadline 15, footnote 13, caption1/2 12/11

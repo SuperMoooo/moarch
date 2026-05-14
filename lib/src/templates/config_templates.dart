@@ -190,6 +190,11 @@ abstract final class AppTheme {
 
     scaffoldBackgroundColor: AppConstants.surface,
 
+    iconTheme: IconThemeData(
+      color: AppConstants.outline,
+      size: AppConstants.iconSmall,
+    ),
+
     appBarTheme: AppBarTheme(
       backgroundColor: AppConstants.primary,
       foregroundColor: AppConstants.surface,
