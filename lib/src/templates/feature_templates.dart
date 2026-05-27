@@ -1,8 +1,10 @@
+/// Generates feature scaffold templates.
 class FeatureTemplates {
   FeatureTemplates._();
 
   // ── Domain — Entity ─────────────────────────────────────────────────────────
 
+  /// Returns the generated entity template.
   static String entity(String name, String cls) => '''
 class ${cls}Entity {
 
@@ -13,6 +15,7 @@ class ${cls}Entity {
 
   // ── Domain — Repository interface ───────────────────────────────────────────
 
+  /// Returns the generated repositoryInterface template.
   static String repositoryInterface(String name, String cls) => '''
 import '../entities/${name}_entity.dart';
 
@@ -23,6 +26,7 @@ abstract interface class ${cls}Repository {
 
   // ── Domain — Use case ───────────────────────────────────────────────────────
 
+  /// Returns the generated usecase template.
   static String usecase(String name, String cls) => '''
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -49,6 +53,7 @@ class Get$cls implements NoParamsUseCase<List<${cls}Entity>> {
 
   // ── Data — Model ────────────────────────────────────────────────────────────
 
+  /// Returns the generated model template.
   static String model(String name, String cls) => '''
 import '../../domain/entities/${name}_entity.dart';
 
@@ -77,6 +82,7 @@ class ${cls}Model extends ${cls}Entity{
 
   // ── Data — Remote datasource ────────────────────────────────────────────────
 
+  /// Returns the generated remoteDatasource template.
   static String remoteDatasource(String name, String cls) => '''
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -102,6 +108,7 @@ class ${cls}RemoteDataSource {
 
   // ── Data — Local/cache datasource ───────────────────────────────────────────
 
+  /// Returns the generated localDatasource template.
   static String localDatasource(String name, String cls) => '''
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -123,6 +130,7 @@ class ${cls}LocalDataSource {
 
   // ── Data — Repository impl ───────────────────────────────────────────────────
 
+  /// Returns the generated repositoryImpl template.
   static String repositoryImpl(
     String name,
     String cls, {
@@ -177,6 +185,7 @@ $fields
 
   // ── Presentation — State ────────────────────────────────────────────────────
 
+  /// Returns the generated state template.
   static String state(String name, String cls) => '''
 class ${cls}State {
   const ${cls}State({
@@ -205,6 +214,7 @@ class ${cls}State {
 
   // ── Presentation — Notifier ─────────────────────────────────────────────────
 
+  /// Returns the generated notifier template.
   static String notifier(String name, String cls, {required bool hasUseCase}) =>
       '''
 import 'dart:async';
@@ -246,6 +256,7 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State> {
 
   // ── Presentation — View ─────────────────────────────────────────────────────
 
+  /// Returns the generated view template.
   static String view(String name, String cls, {required bool hasNotifier}) =>
       '''
 import 'package:flutter/material.dart';

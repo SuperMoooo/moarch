@@ -19,7 +19,9 @@ const _kUseCases = 'Use Cases';
 const _kStateNotifier = 'State + Notifier';
 const _kView = 'View';
 
+/// Creates the feature-scaffolding CLI command.
 class CreateCommand extends Command<int> {
+  /// Creates the top-level feature generator command.
   CreateCommand({required Logger logger}) : _logger = logger {
     addSubcommand(_CreateFeatureCommand(logger: logger));
   }
@@ -39,6 +41,7 @@ class CreateCommand extends Command<int> {
   }
 }
 
+/// Creates the feature subcommand for scaffolding.
 class _CreateFeatureCommand extends Command<int> {
   _CreateFeatureCommand({required Logger logger}) : _logger = logger {
     argParser

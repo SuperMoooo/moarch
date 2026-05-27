@@ -1,6 +1,8 @@
+/// Generates CI and security workflow templates.
 class WorkflowTemplates {
   WorkflowTemplates._();
 
+  /// Returns the generated ciWorkflow template.
   static String ciWorkflow() => r'''
 # ── CI Pipeline ───────────────────────────────────────────────────────────────
 # Runs on every push to main/develop and on pull requests to main.
@@ -78,6 +80,7 @@ jobs:
         continue-on-error: true
 ''';
 
+  /// Returns the generated sastWorkflow template.
   static String sastWorkflow() => r'''
 
 name: SAST - Static Code Analysis
@@ -132,6 +135,7 @@ jobs:
 
 ''';
 
+  /// Returns the generated secretsScanWorkflow template.
   static String secretsScanWorkflow() => r'''
 name: Secrets Scan
 on:

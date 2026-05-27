@@ -6,6 +6,7 @@ import 'dart:io';
 class Checklist {
   Checklist._();
 
+  /// Returns the generated prompt template.
   static Set<String> prompt({
     required String title,
     required List<ChecklistItem> items,
@@ -62,8 +63,14 @@ class Checklist {
   }
 }
 
+/// Represents a single checklist item option.
 class ChecklistItem {
+  /// Creates a checklist item with its default selected state.
   const ChecklistItem(this.label, {this.defaultOn = true});
+
+  /// The user-facing label shown in the checklist.
   final String label;
+
+  /// Whether the item should be selected by default.
   final bool defaultOn;
 }

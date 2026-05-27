@@ -4,13 +4,15 @@ import 'package:mason_logger/mason_logger.dart';
 import 'commands/create_command.dart';
 import 'commands/init_command.dart';
 
+/// Runs the CLI entry point and command parsing.
 class MoarchRunner {
+  /// Creates the CLI runner used to parse and execute subcommands.
   MoarchRunner()
-    : _logger = Logger(),
-      _runner = CommandRunner<int>(
-        'moarch',
-        '🧱 moarch — Flutter scaffold CLI with Clean Architecture & Riverpod',
-      ) {
+      : _logger = Logger(),
+        _runner = CommandRunner<int>(
+          'moarch',
+          '🧱 moarch — Flutter scaffold CLI with Clean Architecture & Riverpod',
+        ) {
     _runner
       ..addCommand(InitCommand(logger: _logger))
       ..addCommand(CreateCommand(logger: _logger));
@@ -26,6 +28,7 @@ class MoarchRunner {
   final Logger _logger;
   final CommandRunner<int> _runner;
 
+  /// Executes the CLI command for the provided arguments.
   Future<int> run(List<String> args) async {
     try {
       final argResults = _runner.parse(args);

@@ -1,3 +1,4 @@
+/// Generates test scaffold templates.
 class TestTemplates {
   TestTemplates._();
 
@@ -5,6 +6,7 @@ class TestTemplates {
   // Shared across all integration tests.
   // Builds a test-ready Dio instance without auth or interceptors.
 
+  /// Returns the generated testHelper template.
   static String testHelper() => r'''
 import 'package:dio/dio.dart';
 import '../lib/config/env/app_env.dart';
@@ -39,6 +41,7 @@ Dio buildTestDio() {
   //
   // Run: flutter test test/integration/features/<n>/
 
+  /// Returns the generated integrationTest template.
   static String integrationTest(String name, String cls) => '''
 // ignore_for_file: avoid_print
 import 'package:flutter_test/flutter_test.dart';
@@ -97,6 +100,7 @@ void main() {
   // Add to pubspec.yaml dev_dependencies:
   //   mocktail: ^1.0.4
 
+  /// Returns the generated notifierTest template.
   static String notifierTest(String name, String cls) => '''
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -228,6 +232,7 @@ void main() {
 */
   // ── Use case test ───────────────────────────────────────────────────────────
 
+  /// Returns the generated usecaseTest template.
   static String usecaseTest(String name, String cls) => '''
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';

@@ -1,6 +1,8 @@
+/// Utility helpers for naming and casing conversions.
 class StringUtils {
   StringUtils._();
 
+  /// Returns the generated toSnakeCase template.
   static String toSnakeCase(String input) {
     return input
         .replaceAllMapped(
@@ -11,6 +13,7 @@ class StringUtils {
         .toLowerCase();
   }
 
+  /// Returns the generated toPascalCase template.
   static String toPascalCase(String input) {
     final snake = toSnakeCase(input);
     return snake
@@ -19,6 +22,7 @@ class StringUtils {
         .join();
   }
 
+  /// Returns the generated toCamelCase template.
   static String toCamelCase(String input) {
     final pascal = toPascalCase(input);
     if (pascal.isEmpty) return pascal;

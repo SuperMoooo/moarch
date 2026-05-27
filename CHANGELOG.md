@@ -1,3 +1,3 @@
-## 1.3.7
+## 1.3.8
 
-- fix: some ui adjustments. feat: 2 new security workflows. refactor: logger name for easy import
+- added: public api

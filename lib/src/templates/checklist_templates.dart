@@ -1,6 +1,8 @@
+/// Generates release-checklist markdown templates.
 class ChecklistTemplates {
   ChecklistTemplates._();
 
+  /// Returns the generated prodChecklist template.
   static String prodChecklist() => r'''
 # Production Checklist
 
@@ -67,6 +69,7 @@ Check off each item as you complete it.
 - [ ] Analytics / crash reporting configured (e.g. Firebase Crashlytics)
 ''';
 
+  /// Returns the generated securityChecklist template.
   static String securityChecklist() => r'''
 
 # Flutter App Store Security Checklist

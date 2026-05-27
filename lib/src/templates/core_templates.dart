@@ -1,6 +1,8 @@
+/// Generates core scaffold file templates.
 class CoreTemplates {
   CoreTemplates._();
 
+  /// Returns the generated mainDart template.
   static String mainDart({bool withRouter = true}) {
     if (withRouter) {
       return r'''
@@ -138,6 +140,7 @@ class App extends StatelessWidget {
 ''';
   }
 
+  /// Returns the generated appException template.
   static String appException({bool hasDio = true}) {
     final import = hasDio
         ? "import 'package:dio/dio.dart';"
@@ -198,6 +201,7 @@ $factory
 ''';
   }
 
+  /// Returns the generated appLogger template.
   static String appLogger() => r'''
 import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
@@ -215,6 +219,7 @@ final appLogger = Logger(
 
 ''';
 
+  /// Returns the generated extensions template.
   static String extensions() => r'''
 import 'package:flutter/material.dart';
 
@@ -298,6 +303,7 @@ extension TimeOfDayX on TimeOfDay {
   // Text: iOS SF / Material type scale — body 17, callout 16, subhead 15, footnote 13, caption 12
   // Touch targets: min 44pt (iOS HIG) / 48dp (Material)
   // Border radius: iOS uses 10-13 for cards, Material uses 12 (medium)
+  /// Returns the generated appConstants template.
   static String appConstants() => r'''
 import 'package:flutter/material.dart';
 
@@ -414,6 +420,7 @@ static const Color surfaceContainerHighest = Color(0xFF000000);
 }
 ''';
 
+  /// Returns the generated apiConstants template.
   static String apiConstants() => r'''
 abstract final class ApiConstants {
   // BASE_URL comes from envied
@@ -422,6 +429,7 @@ abstract final class ApiConstants {
 }
 ''';
 
+  /// Returns the generated dioClient template.
   static String dioClient() => r'''
 import 'dart:io';
 
@@ -514,6 +522,7 @@ void _configureHttpClient(Dio dio) {
 
 ''';
 
+  /// Returns the generated secureStorage template.
   static String secureStorage() => r'''
   import 'package:flutter_secure_storage/flutter_secure_storage.dart';
   import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -524,6 +533,7 @@ void _configureHttpClient(Dio dio) {
 
 ''';
 
+  /// Returns the generated mediaService template.
   static String mediaService() => r'''
 import 'dart:io';
 
@@ -657,6 +667,7 @@ class MediaService {
 }
  ''';
 
+  /// Returns the generated launchUrlService template.
   static String launchUrlService() => r'''
   import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -699,6 +710,7 @@ class UrlLauncherService {
 
   ''';
 
+  /// Returns the generated connectivityService template.
   static String connectivityService() => r'''
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -729,6 +741,7 @@ class ConnectivityService {
 
 ''';
 
+  /// Returns the generated validationService template.
   static String validationService() => r'''
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

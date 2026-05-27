@@ -1,6 +1,8 @@
+/// Generates reusable shared widget templates.
 class SharedTemplates {
   SharedTemplates._();
 
+  /// Returns the generated appButton template.
   static String appButton() => r'''
 import 'package:flutter/material.dart';
 
@@ -122,6 +124,7 @@ class AppButton extends StatelessWidget {
 }
 ''';
 
+  /// Returns the generated appInput template.
   static String appInput() => r'''
 import 'package:flutter/material.dart';
 
@@ -275,6 +278,7 @@ class _AppInputState extends State<AppInput> {
 
 ''';
 
+  /// Returns the generated dateInput template.
   static String dateInput() => r'''
 import 'package:flutter/material.dart';
 
@@ -382,6 +386,7 @@ class _DateAppInputState extends State<DateAppInput> {
 }
 ''';
 
+  /// Returns the generated timeInput template.
   static String timeInput() => r'''
 import 'package:flutter/material.dart';
 
@@ -487,6 +492,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
 }
 ''';
 
+  /// Returns the generated appDropdown template.
   static String appDropdown() => r'''
 import 'package:flutter/material.dart';
 
@@ -594,6 +600,7 @@ class AppDropdownInput<T> extends StatelessWidget {
 
 ''';
 
+  /// Returns the generated appLoadingData template.
   static String appLoadingData() => r'''
 import 'package:flutter/material.dart';
 
@@ -611,6 +618,7 @@ class AppLoadingData extends StatelessWidget {
 }
 ''';
 
+  /// Returns the generated appLoadingAction template.
   static String appLoadingAction() => r'''
 import 'dart:async';
 
@@ -721,6 +729,7 @@ class _AppLoadingActionOverlayState extends State<AppLoadingActionOverlay> {
 
 ''';
 
+  /// Returns the generated errorView template.
   static String errorView() => r'''
 import 'package:flutter/material.dart';
 
@@ -780,6 +789,7 @@ class ErrorView extends StatelessWidget {
 
 ''';
 
+  /// Returns the generated designSystemView template.
   static String designSystemView() => r'''
 import 'package:flutter/material.dart';
 

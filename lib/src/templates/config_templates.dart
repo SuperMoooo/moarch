@@ -1,6 +1,8 @@
+/// Generates project configuration file templates.
 class ConfigTemplates {
   ConfigTemplates._();
 
+  /// Returns the generated appRouter template.
   static String appRouter() => r'''
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -84,6 +86,7 @@ final _router = GoRouter(
 );
 ''';
 
+  /// Returns the generated firebaseProviders template.
   static String firebaseProviders({bool hasAuth = false, bool hasDb = false}) {
     final authImport = hasAuth
         ? '''
@@ -123,6 +126,7 @@ $dbImport
   ''';
   }
 
+  /// Returns the generated appEnv template.
   static String appEnv() => r'''
 import 'package:envied/envied.dart';
 
@@ -151,6 +155,7 @@ abstract final class AppEnv {
 
 ''';
 
+  /// Returns the generated appTheme template.
   static String appTheme() => r'''
 import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';

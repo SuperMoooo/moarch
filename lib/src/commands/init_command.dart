@@ -27,7 +27,9 @@ const _kTests = 'Test folder';
 const _kMediaService = 'Media Service (Image Picker and File Picker)';
 const _kLaunchUrlService = 'Url launcher for links';
 
+/// Creates the project-initialization CLI command.
 class InitCommand extends Command<int> {
+  /// Creates the project initialization command.
   InitCommand({required Logger logger}) : _logger = logger {
     argParser
       ..addOption(

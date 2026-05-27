@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 
+/// Utility helpers for creating and writing scaffold files.
 class FileUtils {
   FileUtils._();
 
+  /// Returns the generated createDir template.
   static Future<void> createDir(String dirPath) async {
     final dir = Directory(dirPath);
     if (!dir.existsSync()) {
@@ -11,6 +13,7 @@ class FileUtils {
     }
   }
 
+  /// Returns the generated writeFile template.
   static Future<void> writeFile(String filePath, String content) async {
     await createDir(p.dirname(filePath));
     final file = File(filePath);
