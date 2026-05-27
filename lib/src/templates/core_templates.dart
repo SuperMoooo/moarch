@@ -148,13 +148,20 @@ class App extends StatelessWidget {
     final factory = hasDio
         ? r'''
   factory AppException.fromDioError(DioException dioError) {
-    final message =
-        dioError.response?.data?['message'] as String? ??
-        dioError.message ??
-        'Unknown error';
-    final statusCode = dioError.response?.statusCode;
-    appLogger.e('[AppException] — $message', error: dioError);
-    return AppException._(message: message, statusCode: statusCode);
+    try {
+      final message =
+          dioError.response?.data?['message'] as String? ??
+          dioError.message ??
+          'Unknown error';
+      final statusCode = dioError.response?.statusCode;
+
+      appLogger.e('[AppException] — $message', error: dioError);
+
+      return AppException._(message: message, statusCode: statusCode);
+    } catch (e) {
+      appLogger.e('[AppException] — $e');
+      return const AppException._(message: 'Unknown error');
+    }
   }'''
         : r'''
   factory AppException.fromFirebaseError(FirebaseException error) {
@@ -222,7 +229,8 @@ final appLogger = Logger(
   /// Returns the generated extensions template.
   static String extensions() => r'''
 import 'package:flutter/material.dart';
-
+import 'package:intl/intl.dart';
+import '../../../core/errors/app_exception.dart';
 
 extension ContextX on BuildContext {
   ThemeData get theme => Theme.of(this);
@@ -249,12 +257,59 @@ extension StringX on String {
     }
     return null;
   }
+
+ DateTime formatToDateTime(String dateStr) {
+    // Try standard formats first
+    final formats = [
+      'yyyy-MM-dd',
+      'dd/MM/yyyy',
+      'MM/dd/yyyy',
+      'd/M/yyyy',
+      'M/d/yyyy',
+      'dd-MM-yyyy',
+      'MM-dd-yyyy',
+    ];
+
+    for (final fmt in formats) {
+      try {
+        return DateFormat(fmt).parseStrict(dateStr);
+      } catch (_) {}
+    }
+
+    // Fallback: manual split for d/M/yyyy or M/d/yyyy ambiguous cases
+    final parts = dateStr.split(RegExp(r'[/\-]'));
+    if (parts.length == 3) {
+      final a = int.tryParse(parts[0]);
+      final b = int.tryParse(parts[1]);
+      final c = int.tryParse(parts[2]);
+
+      if (a != null && b != null && c != null) {
+        // c is year if > 31, assume d/M/yyyy
+        if (c > 31) return DateTime(c, b, a);
+        // a is year if > 31, assume yyyy/M/d
+        if (a > 31) return DateTime(a, b, c);
+      }
+    }
+
+    throw AppException.fromMessage('Unable to parse date: $dateStr');
+  }
+
+
 }
 
 extension DateTimeX on DateTime {
   String get formattedDate => '$day/$month/$year';
   String get formattedTime => '$hour:$minute';
   String get formattedDateTime => '$formattedDate $formattedTime';
+
+  
+   // yyyy-MM-ddTHH:mm:ss.mmmuuuZ
+  String get formatedDateTimeToDatabase =>
+      '${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}T${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}:${second.toString().padLeft(2, '0')}.${millisecond.toString().padLeft(3, '0')}Z';
+
+  // yyyy-MM-dd
+  String get formattedDateToDatabase =>
+      "${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}";
 
   bool get isToday {
     final now = DateTime.now();
@@ -373,6 +428,12 @@ static const Color surfaceContainerHighest = Color(0xFF000000);
     horizontal: space16,
     vertical: space16,
   );
+
+  // ── Icons Sizes ───────────────────────────────────────────────────
+
+  static const double iconSmall = 16;
+  static const double iconMedium = 24;
+  static const double iconLarge = 32;
 
   // ── Text sizes — Material type scale / iOS HIG ────────────────────────────
   // iOS: largeTitle 34, title1 28, title2 22, title3 20, headline 17,
@@ -498,28 +559,18 @@ void _configureHttpClient(Dio dio) {
   dio.httpClientAdapter = IOHttpClientAdapter(
     createHttpClient: () {
       final client = HttpClient();
-
       if (kDebugMode) {
-        // Skip certificate verification in debug mode
-        client.badCertificateCallback =
-            (X509Certificate cert, String host, int port) {
-              appLogger.w('Certificate verification skipped for $host (debug mode)');
-              return true;
-            };
-      } else {
-        // Enforce strict verification in release mode
-        client.badCertificateCallback =
-            (X509Certificate cert, String host, int port) {
-              appLogger.e('Certificate verification failed for $host');
-              return false;
-            };
+        client.badCertificateCallback = (cert, host, port) {
+          appLogger.w(
+            'Certificate verification skipped for $host (debug mode)',
+          );
+          return true;
+        };
       }
-
       return client;
     },
   );
 }
-
 ''';
 
   /// Returns the generated secureStorage template.

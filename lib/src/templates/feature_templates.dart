@@ -219,6 +219,7 @@ class ${cls}State {
       '''
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:traiceapp/core/utils/app_logger.dart';
 
 ${hasUseCase ? "import '../../domain/usecases/get_$name.dart';" : "import '../../data/repositories/${name}_repository_impl.dart';"}
 import '../../domain/repositories/${name}_repository.dart';
@@ -235,7 +236,15 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State> {
 
   @override
   FutureOr<${cls}State> build() async {
-    return const ${cls}State();
+  try {
+     return const ${cls}State();
+    } on AppException catch (_) {
+      return const ${cls}State();
+    } catch (e) {
+      appLogger.e(e);
+      return const ${cls}State();
+    }
+    
   }
 
   // TODO: add your methods
@@ -291,7 +300,12 @@ class _${cls}ViewState extends ConsumerState<${cls}View> {
     ref.listen(${name}NotifierProvider, (_, next) {
       final value = next.value;
       if (value == null) return;
-      // TODO: handle value.error and value.success
+        if (value.error != null) {
+        // SHOW UI ERROR
+      }
+      if (value.success != null) {
+        // SHOW UI SUCCESS
+      }
     });
 
     return ${name}Async.when(
