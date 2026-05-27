@@ -1,3 +1,3 @@
 ## 1.3.8
 
-- added: public api
+- added: documentation - public api
