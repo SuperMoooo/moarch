@@ -1,0 +1,58 @@
+import 'dart:io';
+
+import 'package:mason_logger/mason_logger.dart';
+import 'package:moarch/moarch.dart';
+
+const _projectInitCommand = ['init', '--all'];
+const _featureCreateCommand = ['create', 'feature', 'auth', '--all'];
+
+void main(List<String> args) async {
+  final logger = Logger();
+
+  logger.info('moarch example: supported scaffold options');
+  logger.info('');
+  logger.info('1) Project initialization (full scaffold)');
+  logger.info('   dart run example/main.dart --show');
+  logger.info('   moarch init --all');
+  logger.info('');
+  logger.info('   Optional interactive init selections include:');
+  logger.info(
+      '     - Backend / networking: Dio, Firebase Firestore, Firebase Auth');
+  logger.info('     - Router (GoRouter)');
+  logger.info('     - CI workflow (.github/workflows/ci.yml)');
+  logger.info('     - Security workflows (sast_scan + secrets_scan)');
+  logger.info('     - Test folder');
+  logger.info('     - Media Service (image/file picker)');
+  logger.info('     - Launch URL service');
+  logger.info('');
+  logger.info('2) Feature generation (Clean Architecture layers)');
+  logger.info('   moarch create feature auth --all');
+  logger.info('   moarch create feature auth --all --no-unit --no-integration');
+  logger.info('');
+  logger.info('   Optional feature layers include:');
+  logger.info('     - Remote Datasource');
+  logger.info('     - Local/Cache Datasource');
+  logger.info('     - Repository interface + implementation');
+  logger.info('     - Use Cases');
+  logger.info('     - State + Notifier');
+  logger.info('     - View');
+  logger.info('');
+  logger.info(
+      '3) Existing feature support: generate tests only when feature already exists');
+  logger.info('   moarch create feature auth');
+  logger.info('');
+  logger.info(
+      'Run with --execute to actually scaffold the sample commands into the current directory.');
+  logger.info('');
+
+  if (args.contains('--execute')) {
+    final runner = MoarchRunner();
+    final workingDir = Directory.current.path;
+
+    final progress = logger.progress('Executing sample scaffold commands');
+    progress.update('Working directory: $workingDir');
+    await runner.run(_projectInitCommand);
+    await runner.run(_featureCreateCommand);
+    progress.complete('Sample generation commands completed.');
+  }
+}

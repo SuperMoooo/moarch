@@ -1,3 +1,9 @@
-## 1.3.9
+## 1.3.10
 
-- added: documentation - public api
+### Fix
+
+- STATIC ANALYSIS
+
+### Added
+
+- Example file

@@ -501,25 +501,33 @@ class _CreateFeatureCommand extends Command<int> {
     if (!testsOnly) {
       line('domain/');
       line('├── entities/${name}_entity.dart');
-      if (selected.contains(_kRepository))
+      if (selected.contains(_kRepository)) {
         line('├── repositories/${name}_repository.dart');
-      if (selected.contains(_kUseCases)) line('└── usecases/get_$name.dart');
+      }
+      if (selected.contains(_kUseCases)) {
+        line('└── usecases/get_$name.dart');
+      }
 
       line('data/');
-      if (selected.contains(_kRemoteDatasource))
+      if (selected.contains(_kRemoteDatasource)) {
         line('├── datasources/${name}_remote_datasource.dart');
-      if (selected.contains(_kLocalDatasource))
+      }
+      if (selected.contains(_kLocalDatasource)) {
         line('├── datasources/${name}_local_datasource.dart');
+      }
       line('├── models/${name}_model.dart');
-      if (selected.contains(_kRepository))
+      if (selected.contains(_kRepository)) {
         line('└── repositories/${name}_repository_impl.dart');
+      }
 
       line('presentation/');
       if (selected.contains(_kStateNotifier)) {
         line('├── states/${name}_state.dart');
         line('├── notifiers/${name}_notifier.dart');
       }
-      if (selected.contains(_kView)) line('└── views/${name}_view.dart');
+      if (selected.contains(_kView)) {
+        line('└── views/${name}_view.dart');
+      }
       line('');
     }
 
