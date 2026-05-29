@@ -560,9 +560,12 @@ class _CreateFeatureCommand extends Command<int> {
     }
 
     _logger.info('');
-    if (includeUnit) _logger.info('  Unit:        flutter test test/unit/');
-    if (includeIntegration)
+    if (includeUnit) {
+      _logger.info('  Unit:        flutter test test/unit/');
+    }
+    if (includeIntegration) {
       _logger.info('  Integration: flutter test test/integration/');
+    }
 
     _logger.info('');
   }

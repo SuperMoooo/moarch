@@ -1,9 +1,5 @@
-## 1.3.10
+## 1.3.11
 
 ### Fix
 
 - STATIC ANALYSIS
-
-### Added
-
-- Example file
