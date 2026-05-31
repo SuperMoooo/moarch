@@ -155,14 +155,18 @@ class App extends StatelessWidget {
           'Unknown error';
       final statusCode = dioError.response?.statusCode;
 
-      appLogger.e('[AppException] — $message', error: dioError);
+      appLogger.e(
+        '[AppException in [${dioError.stackTrace}]] — $message',
+        error: dioError,
+      );
 
       return AppException._(message: message, statusCode: statusCode);
     } catch (e) {
-      appLogger.e('[AppException] — $e');
+      appLogger.e('[AppException in [${dioError.stackTrace}]] — $e');
       return const AppException._(message: 'Unknown error');
     }
-  }'''
+  }
+  '''
         : r'''
   factory AppException.fromFirebaseError(FirebaseException error) {
     appLogger.e('[AppException] — $message', error: error.message);
@@ -504,7 +508,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/env/app_env.dart';
 import '../constants/api_constants.dart';
 import '../security/secure_storage.dart';
-import '../utils/logger.dart';
+import '../utils/app_logger.dart';
+
+final _kPublicEndpoints = [
+  // Add public routes here
+];
 
 final dioClientProvider = Provider<Dio>((ref) => _buildDioClient(ref));
 
@@ -521,7 +529,6 @@ Dio _buildDioClient(Ref ref) {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      validateStatus: (status) => status != null && status < 500,
     ),
   );
 
@@ -532,9 +539,14 @@ Dio _buildDioClient(Ref ref) {
     ..interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final token = await storage.read(key: 'token');
-          if (token != null) {
-            options.headers['Authorization'] = 'Bearer $token';
+          final isPublicEndpoint = _kPublicEndpoints.any(
+            (endpoint) => options.path.contains(endpoint),
+          );
+          if (!isPublicEndpoint) {
+            final token = await storage.read(key: 'token');
+            if (token != null) {
+              options.headers['Authorization'] = 'Bearer $token';
+            }
           }
           handler.next(options);
         },
@@ -571,6 +583,7 @@ void _configureHttpClient(Dio dio) {
     },
   );
 }
+
 ''';
 
   /// Returns the generated secureStorage template.
@@ -602,9 +615,9 @@ final mediaServiceProvider = Provider.autoDispose<MediaService>((ref) {
 });
 
 class MediaService {
-  MediaService._();
-  static final MediaService instance = MediaService._();
+  MediaService(this._ref);
 
+  final Ref _ref;
   final ImagePicker _imagePicker = ImagePicker();
 
   /// Pick an image from gallery or camera.
@@ -618,13 +631,19 @@ class MediaService {
     if (source == ImageSource.camera) {
       final status = await Permission.camera.request();
       if (!status.isGranted) {
-        throw AppException.fromMessage('Camera permission denied');
+       // error feedback
+        return null;
       }
     } else {
       if (Platform.isAndroid || Platform.isIOS) {
         final status = await Permission.photos.request();
         if (!status.isGranted && !status.isLimited) {
-          throw AppException.fromMessage('Photos permission denied');
+          final status2 = await Permission.mediaLibrary.request();
+
+          if (!status2.isGranted && !status2.isLimited) {
+          // error feedback
+            return null;
+          }
         }
       }
     }
@@ -640,7 +659,7 @@ class MediaService {
   }
 
   /// Pick multiple images from gallery.
-  Future<List<File>> pickMultiImage({
+  Future<List<File>?> pickMultiImage({
     double? maxWidth,
     double? maxHeight,
     int? imageQuality,
@@ -648,7 +667,8 @@ class MediaService {
     if (Platform.isAndroid || Platform.isIOS) {
       final status = await Permission.photos.request();
       if (!status.isGranted && !status.isLimited) {
-        throw AppException.fromMessage('Photos permission denied');
+       // error feedback
+        return null;
       }
     }
 
@@ -669,13 +689,15 @@ class MediaService {
     if (source == ImageSource.camera) {
       final status = await Permission.camera.request();
       if (!status.isGranted) {
-        throw AppException.fromMessage('Camera permission denied');
+        // error feedback
+        return null;
       }
     } else {
       if (Platform.isAndroid || Platform.isIOS) {
         final status = await Permission.photos.request();
         if (!status.isGranted && !status.isLimited) {
-          throw AppException.fromMessage('Photos permission denied');
+          // error feedback
+          return null;
         }
       }
     }
@@ -689,16 +711,21 @@ class MediaService {
   }
 
   /// Pick one or more files from the device.
-  Future<List<File>> pickFiles({
+  Future<List<File>?> pickFiles({
     FileType type = FileType.any,
     List<String>? allowedExtensions,
     bool allowMultiple = false,
   }) async {
     if (Platform.isAndroid) {
-      final status = await Permission.storage.request();
+      final status = await Permission.photos.request();
       if (!status.isGranted) {
-        // Note: On Android 13+, storage permission might be handled differently (media-specific)
-        // but permission_handler usually handles the abstraction.
+        final status2 = await Permission.manageExternalStorage.request();
+        if (!status2.isGranted) {
+          // Note: On Android 13+, storage permission might be handled differently (media-specific)
+          // but permission_handler usually handles the abstraction.
+          // error feedback
+          return null;
+        }
       }
     }
 
@@ -715,7 +742,6 @@ class MediaService {
         .map((path) => File(path!))
         .toList();
   }
-}
  ''';
 
   /// Returns the generated launchUrlService template.
@@ -725,7 +751,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../core/security/validation_service.dart';
-import '../../core/utils/toasts.dart';
 
 /// A service to handle URL launching operations.
 
@@ -753,8 +778,7 @@ class UrlLauncherService {
         await launchUrl(uri, mode: LaunchMode.inAppWebView);
       }
     } catch (e) {
-      Toasts.error(message: "Could not launch at this moment");
-      //throw AppException.fromMessage('Could not launch url: $e');
+     // error feedback
     }
   }
 }

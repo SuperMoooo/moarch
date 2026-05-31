@@ -41,7 +41,6 @@ moarch init             # scaffold a complete Flutter app structure
 moarch init --all       # generate the default app without prompts
 moarch create feature auth
 moarch create feature auth --all
-moarch create feature auth --no-unit --no-integration
 ```
 
 ---
@@ -55,7 +54,7 @@ moarch create feature auth --no-unit --no-integration
 - GitHub Actions CI workflow scaffold
 - reusable UI widgets, loading states, and error handling
 - feature scaffolding with Clean Architecture layers
-- optional test scaffolding for notifiers, repositories, and use cases
+- Test scaffolding is not included; use the `mogen_unit_tests` package on pub.dev to generate tests for features
 
 ---
 
@@ -79,7 +78,6 @@ Templates are defined in `lib/src/templates/`:
 - `config_templates.dart`
 - `feature_templates.dart`
 - `shared_templates.dart`
-- `test_templates.dart`
 - `checklist_templates.dart`
 - `workflow_templates.dart`
 

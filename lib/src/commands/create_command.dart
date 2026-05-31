@@ -6,7 +6,6 @@ import 'package:moarch/src/templates/core_templates.dart';
 import 'package:path/path.dart' as p;
 
 import '../templates/feature_templates.dart';
-import '../templates/test_templates.dart';
 import '../utils/checklist.dart';
 import '../utils/file_utils.dart';
 import '../utils/string_utils.dart';
@@ -56,18 +55,6 @@ class _CreateFeatureCommand extends Command<int> {
         abbr: 'a',
         negatable: false,
         help: 'Skip checklist and generate all layers.',
-      )
-      ..addFlag(
-        'unit',
-        defaultsTo: true,
-        negatable: true,
-        help: 'Generate unit tests. Use --no-unit to skip.',
-      )
-      ..addFlag(
-        'integration',
-        defaultsTo: true,
-        negatable: true,
-        help: 'Generate integration tests. Use --no-integration to skip.',
       );
   }
 
@@ -101,15 +88,6 @@ class _CreateFeatureCommand extends Command<int> {
     if (featureExists) {
       _logger.warn('Feature "$featureName" already exists at $featurePath');
       _logger.info('');
-
-      final generateTests = _askYesNo(
-        '  Generate tests for existing feature "$className"? (Y/n): ',
-      );
-
-      if (!generateTests) {
-        _logger.info('  Nothing generated.');
-        return 0;
-      }
 
       // For existing features we need to know which layers exist
       // to generate the right tests — use the checklist for test selection
@@ -145,49 +123,16 @@ class _CreateFeatureCommand extends Command<int> {
         if (hasUseCase) _kUseCases,
       };
 
-      final includeUnit = _askYesNo('  Generate unit tests? (Y/n): ');
-      final includeIntegration = hasRemote
-          ? _askYesNo('  Generate integration tests? (Y/n): ')
-          : false;
-
-      if (includeUnit) {
-        final unitProgress = _logger.progress('Generating unit tests');
-        try {
-          await _writeUnitTests(
-            libPath: libPath,
-            featureName: featureName,
-            className: className,
-            selected: selected,
-          );
-          unitProgress.complete('Unit tests generated');
-        } catch (e) {
-          unitProgress.fail('Unit tests failed: $e');
-        }
-      }
-
-      if (includeIntegration) {
-        final integrationProgress =
-            _logger.progress('Generating integration tests');
-        try {
-          await _writeIntegrationTests(
-            libPath: libPath,
-            featureName: featureName,
-            className: className,
-          );
-          integrationProgress.complete('Integration tests generated');
-        } catch (e) {
-          integrationProgress.fail('Integration tests failed: $e');
-        }
-      }
-
       _printTree(
         featureName,
         className,
         selected,
-        includeUnit: includeUnit,
-        includeIntegration: includeIntegration,
+        includeUnit: false,
+        includeIntegration: false,
         testsOnly: true,
       );
+      _logger.info(
+          'If you want tests, use the mogen_unit_tests and mogen_integration_tests package on pub.dev.');
       return 0;
     }
 
@@ -220,20 +165,6 @@ class _CreateFeatureCommand extends Command<int> {
         ],
       );
     }
-
-    // Test prompts
-    final unitExplicit = argResults?.wasParsed('unit') ?? false;
-    final integrationExplicit = argResults?.wasParsed('integration') ?? false;
-
-    final includeUnit = unitExplicit
-        ? (argResults?['unit'] as bool? ?? true)
-        : _askYesNo('  Generate unit tests? (Y/n): ');
-
-    final includeIntegration = integrationExplicit
-        ? (argResults?['integration'] as bool? ?? true)
-        : selected.contains(_kRemoteDatasource)
-            ? _askYesNo('  Generate integration tests? (Y/n): ')
-            : false;
 
     _logger.info('');
     _logger.info('🧱 Creating feature: $className');
@@ -292,64 +223,26 @@ class _CreateFeatureCommand extends Command<int> {
       return 1;
     }
 
-    // Unit tests
-    if (includeUnit) {
-      final unitProgress = _logger.progress('Generating unit tests');
-      try {
-        await _writeUnitTests(
-          libPath: libPath,
-          featureName: featureName,
-          className: className,
-          selected: selected,
-        );
-        unitProgress.complete('Unit tests generated');
-      } catch (e) {
-        unitProgress.fail('Unit tests failed: $e');
-      }
-    } else {
-      _logger.detail('  Unit tests skipped.');
-    }
-
-    // Integration tests
-    if (includeIntegration && selected.contains(_kRemoteDatasource)) {
-      final integrationProgress =
-          _logger.progress('Generating integration tests');
-      try {
-        await _writeIntegrationTests(
-          libPath: libPath,
-          featureName: featureName,
-          className: className,
-        );
-        integrationProgress.complete('Integration tests generated');
-      } catch (e) {
-        integrationProgress.fail('Integration tests failed: $e');
-      }
-    } else if (!selected.contains(_kRemoteDatasource)) {
-      _logger.detail(
-          '  Integration tests skipped — no Remote Datasource selected.');
-    } else {
-      _logger.detail('  Integration tests skipped.');
-    }
-
     _printTree(
       featureName,
       className,
       selected,
-      includeUnit: includeUnit,
-      includeIntegration:
-          includeIntegration && selected.contains(_kRemoteDatasource),
+      includeUnit: false,
+      includeIntegration: false,
     );
+    _logger.info(
+        'If you want tests, use the mogen_unit_tests and mogen_integration_tests package on pub.dev.');
     return 0;
   }
 
   // ── Interactive prompt ────────────────────────────────────────────────────────
 
-  bool _askYesNo(String question) {
+  /* bool _askYesNo(String question) {
     stdout.write(question);
     final input = stdin.readLineSync()?.trim().toLowerCase() ?? '';
     return input.isEmpty || input == 'y' || input == 'yes';
   }
-
+*/
   // ── Writers ─────────────────────────────────────────────────────────────────
 
   Future<void> _writeRemoteDatasource(String fp, String name, String cls,
@@ -431,55 +324,6 @@ class _CreateFeatureCommand extends Command<int> {
     );
   }
 
-  Future<void> _writeUnitTests({
-    required String libPath,
-    required String featureName,
-    required String className,
-    required Set<String> selected,
-  }) async {
-    final projectRoot = p.dirname(p.absolute(libPath));
-    final unitPath =
-        p.join(projectRoot, 'test', 'unit', 'features', featureName);
-
-    if (selected.contains(_kStateNotifier) && selected.contains(_kRepository)) {
-      await FileUtils.writeFile(
-        p.join(unitPath, '${featureName}_notifier_test.dart'),
-        TestTemplates.notifierTest(featureName, className),
-      );
-    }
-    if (selected.contains(_kRepository)) {
-      /*    await FileUtils.writeFile(
-        p.join(unitPath, '${featureName}_repository_test.dart'),
-        TestTemplates.repositoryTest(featureName, className),
-      );*/
-    }
-    if (selected.contains(_kUseCases)) {
-      await FileUtils.writeFile(
-        p.join(unitPath, '${featureName}_usecase_test.dart'),
-        TestTemplates.usecaseTest(featureName, className),
-      );
-    }
-  }
-
-  Future<void> _writeIntegrationTests({
-    required String libPath,
-    required String featureName,
-    required String className,
-  }) async {
-    final projectRoot = p.dirname(p.absolute(libPath));
-    final integrationPath =
-        p.join(projectRoot, 'test', 'integration', 'features', featureName);
-
-    await FileUtils.writeFile(
-      p.join(projectRoot, 'test', 'test_helper.dart'),
-      TestTemplates.testHelper(),
-    );
-    await FileUtils.writeFile(
-      p.join(integrationPath, '${featureName}_integration_test.dart'),
-      TestTemplates.integrationTest(featureName, className),
-    );
-  }
-
   // ── Tree summary ─────────────────────────────────────────────────────────────
 
   void _printTree(
@@ -491,10 +335,10 @@ class _CreateFeatureCommand extends Command<int> {
     bool testsOnly = false,
   }) {
     _logger.success('');
-    _logger.success(testsOnly
+    /* _logger.success(testsOnly
         ? '✅  Tests generated for $cls'
         : '✅  $cls created at lib/features/$name/');
-    _logger.info('');
+    _logger.info('');*/
 
     void line(String s) => _logger.info('  $s');
 
@@ -529,42 +373,6 @@ class _CreateFeatureCommand extends Command<int> {
         line('└── views/${name}_view.dart');
       }
       line('');
-    }
-
-    if (includeUnit) {
-      final hasUnit = (selected.contains(_kStateNotifier) &&
-              selected.contains(_kRepository)) ||
-          selected.contains(_kRepository) ||
-          selected.contains(_kUseCases);
-
-      if (hasUnit) {
-        line('test/unit/features/$name/');
-        if (selected.contains(_kStateNotifier) &&
-            selected.contains(_kRepository)) {
-          line('├── ${name}_notifier_test.dart');
-        }
-        if (selected.contains(_kRepository)) {
-          line('├── ${name}_repository_test.dart');
-        }
-        if (selected.contains(_kUseCases)) {
-          line('└── ${name}_usecase_test.dart');
-        }
-        line('');
-      }
-    }
-
-    if (includeIntegration) {
-      line('test/integration/features/$name/');
-      line('└── ${name}_integration_test.dart   ← needs live API');
-      line('');
-    }
-
-    _logger.info('');
-    if (includeUnit) {
-      _logger.info('  Unit:        flutter test test/unit/');
-    }
-    if (includeIntegration) {
-      _logger.info('  Integration: flutter test test/integration/');
     }
 
     _logger.info('');
