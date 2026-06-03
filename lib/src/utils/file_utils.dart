@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:path/path.dart' as p;
 
 /// Utility helpers for creating and writing scaffold files.
@@ -18,6 +19,8 @@ class FileUtils {
     await createDir(p.dirname(filePath));
     final file = File(filePath);
     if (!file.existsSync()) {
+      await file.writeAsString(content);
+    } else if (file.path.contains("analysis_options")) {
       await file.writeAsString(content);
     }
   }
