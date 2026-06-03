@@ -1,6 +1,7 @@
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/templates/checklist_templates.dart';
+import 'package:moarch/src/templates/dev_template.dart';
 import 'package:moarch/src/templates/workflow_templates.dart';
 import 'package:moarch/src/utils/checklist.dart';
 import 'package:path/path.dart' as p;
@@ -121,6 +122,10 @@ class InitCommand extends Command<int> {
         p.join(p.absolute(targetPath), '.env'),
         'BASE_URL=',
       );
+
+      await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'analysis_options.yaml'),
+          DevTemplate.analysisOptions());
 
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), 'CHECKLIST_BEFORE_DEPLOYMENT.md'),
