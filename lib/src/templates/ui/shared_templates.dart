@@ -3,8 +3,7 @@ class SharedTemplates {
   SharedTemplates._();
 
   /// Returns the generated appImage template.
-  static String appImage() => r'''
-// app_avatar.dart
+  static String appAvatar() => r'''
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
@@ -67,7 +66,95 @@ class AppAvatar extends StatelessWidget {
   );
 
   Widget _fallback() =>
-      Image.asset('assets/images/defaultPFP.jpg', fit: BoxFit.cover);
+      Image.asset('assets/images/placeholder_avatar.jpg', fit: BoxFit.cover);
+}
+
+''';
+
+  /// Returns the generated appImage template.
+  static String appImage() => r'''
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import '../../../core/constants/app_constants.dart';
+
+enum AppImageSize {
+  banner(320),
+  large(240),
+  medium(160),
+  small(80),
+  thumbnail(48);
+
+  const AppImageSize(this.size);
+  final double size;
+}
+
+enum AppImageShape {
+  rectangle,
+  roundedRectangle,
+  circle,
+}
+
+class AppImage extends StatelessWidget {
+  const AppImage({
+    super.key,
+    this.imageUrl,
+    this.width,
+    this.height,
+    this.size = AppImageSize.medium,
+    this.shape = AppImageShape.roundedRectangle,
+    this.fit = BoxFit.cover,
+    this.placeholderAsset = 'assets/images/placeholder_image.jpg',
+  });
+
+  final String? imageUrl;
+  final double? width;
+  final double? height;
+  final AppImageSize size;
+  final AppImageShape shape;
+  final BoxFit fit;
+  final String placeholderAsset;
+
+  static bool _isValidUrl(String? url) {
+    if (url == null || url.isEmpty) return false;
+    final uri = Uri.tryParse(url);
+    return uri != null && uri.hasScheme && uri.host.isNotEmpty;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double resolvedWidth = width ?? size.size;
+    final double resolvedHeight = height ?? size.size;
+
+    final Widget image = SizedBox(
+      width: resolvedWidth,
+      height: resolvedHeight,
+      child: _isValidUrl(imageUrl)
+          ? CachedNetworkImage(
+              imageUrl: imageUrl!,
+              fit: fit,
+              placeholder: (_, _) => _placeholder(),
+              errorWidget: (_, _, _) => _fallback(),
+            )
+          : _fallback(),
+    );
+
+    return switch (shape) {
+      AppImageShape.circle => ClipOval(child: image),
+      AppImageShape.roundedRectangle => ClipRRect(
+          borderRadius: AppConstants.borderRadius12,
+          child: image,
+        ),
+      AppImageShape.rectangle => image,
+    };
+  }
+
+  Widget _placeholder() => Container(
+        color: Colors.grey[300],
+        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+
+  Widget _fallback() =>
+      Image.asset(placeholderAsset, fit: fit);
 }
 
 ''';
@@ -197,8 +284,8 @@ class AppButton extends StatelessWidget {
   /// Returns the generated inputTitle template.
   static String inputTitle() => r'''
 import 'package:flutter/material.dart';
-import 'package:traiceapp/core/constants/app_constants.dart';
-import 'package:traiceapp/core/utils/extensions.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
 
 class InputTitle extends StatelessWidget {
   const InputTitle({super.key, required this.label, required this.required});

@@ -219,7 +219,7 @@ class ${cls}State {
       '''
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:traiceapp/core/utils/app_logger.dart';
+import '../../../../core/utils/app_logger.dart';
 
 ${hasUseCase ? "import '../../domain/usecases/get_$name.dart';" : "import '../../data/repositories/${name}_repository_impl.dart';"}
 import '../../domain/repositories/${name}_repository.dart';

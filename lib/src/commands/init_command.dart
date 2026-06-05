@@ -323,5 +323,11 @@ class InitCommand extends Command<int> {
     );
     await FileUtils.writeFile(p.join(s, 'design_system_view.dart'),
         SharedTemplates.designSystemView());
+
+    await FileUtils.writeFile(
+        p.join(s, 'media', 'app_avatar.dart'), SharedTemplates.appAvatar());
+
+    await FileUtils.writeFile(
+        p.join(s, 'media', 'app_image.dart'), SharedTemplates.appImage());
   }
 }
