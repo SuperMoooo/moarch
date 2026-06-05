@@ -219,12 +219,11 @@ import 'package:logger/logger.dart';
 
 final appLogger = Logger(
   printer: PrettyPrinter(
-    methodCount: 0, // no stack trace on normal logs
-    errorMethodCount: 8, // stack trace on errors
+    methodCount: 0,
+    errorMethodCount: 12,
     colors: true,
     printEmojis: true,
   ),
-  // automatically silent in release mode
   level: kReleaseMode ? Level.off : Level.trace,
 );
 
