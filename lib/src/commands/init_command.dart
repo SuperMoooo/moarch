@@ -1,14 +1,17 @@
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
-import 'package:moarch/src/templates/checklist_templates.dart';
-import 'package:moarch/src/templates/dev_template.dart';
-import 'package:moarch/src/templates/workflow_templates.dart';
+import 'package:moarch/src/templates/core/security_templates.dart';
+import 'package:moarch/src/templates/core/services_templates.dart';
+import 'package:moarch/src/templates/helpers/helper_templates.dart';
+import 'package:moarch/src/templates/misc/checklist_templates.dart';
+import 'package:moarch/src/templates/misc/dev_templates.dart';
+import 'package:moarch/src/templates/misc/workflow_templates.dart';
 import 'package:moarch/src/utils/checklist.dart';
 import 'package:path/path.dart' as p;
 
-import '../templates/config_templates.dart';
-import '../templates/core_templates.dart';
-import '../templates/shared_templates.dart';
+import '../templates/config/config_templates.dart';
+import '../templates/core/core_templates.dart';
+import '../templates/ui/shared_templates.dart';
 import '../utils/file_utils.dart';
 
 // ── Stack options ─────────────────────────────────────────────────────────────
@@ -24,9 +27,10 @@ const _kFirebaseAuth = 'Firebase Auth';
 const _kRouter = 'Router (GoRouter)';
 const _kCi = 'CI workflow (.github/workflows/ci.yml)';
 const _kSecurityWorkflows = 'Secrets Scans and SAST Scan (.github/workflows/)';
-const _kTests = 'Test folder';
 const _kMediaService = 'Media Service (Image Picker and File Picker)';
 const _kLaunchUrlService = 'Url launcher for links';
+const _kDebouncerService = 'Debouncer for actions';
+const _kHelpers = 'Helper folder (dialog and bottom modal)';
 
 /// Creates the project-initialization CLI command.
 class InitCommand extends Command<int> {
@@ -90,9 +94,10 @@ class InitCommand extends Command<int> {
           const ChecklistItem(_kRouter, defaultOn: true),
           const ChecklistItem(_kCi, defaultOn: true),
           const ChecklistItem(_kSecurityWorkflows, defaultOn: true),
-          const ChecklistItem(_kTests, defaultOn: false),
+          const ChecklistItem(_kHelpers, defaultOn: true),
           const ChecklistItem(_kMediaService, defaultOn: false),
-          const ChecklistItem(_kLaunchUrlService, defaultOn: false)
+          const ChecklistItem(_kLaunchUrlService, defaultOn: false),
+          const ChecklistItem(_kDebouncerService, defaultOn: false)
         ],
       );
 
@@ -104,11 +109,13 @@ class InitCommand extends Command<int> {
     try {
       await _buildCore(libPath, stack);
       await _buildConfig(libPath, stack);
+      await _buildHelper(libPath);
       await _buildShared(libPath);
       await FileUtils.createDir(p.join(libPath, 'features'));
-      if (stack.contains(_kTests)) {
-        await FileUtils.createDir(p.join(p.absolute(targetPath), 'test'));
-      }
+      final testPath = p.join(p.absolute(targetPath), 'test');
+      await FileUtils.createDir(testPath);
+      await FileUtils.createDir(p.join(testPath, 'unit'));
+      await FileUtils.createDir(p.join(testPath, 'integration'));
 
       await FileUtils.writeFile(
         p.join(libPath, 'main.dart'),
@@ -125,7 +132,7 @@ class InitCommand extends Command<int> {
 
       await FileUtils.writeFile(
           p.join(p.absolute(targetPath), 'analysis_options.yaml'),
-          DevTemplate.analysisOptions());
+          DevTemplates.analysisOptions());
 
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), 'CHECKLIST_BEFORE_DEPLOYMENT.md'),
@@ -206,25 +213,36 @@ class InitCommand extends Command<int> {
     }
     await FileUtils.writeFile(
       p.join(c, 'security', 'secure_storage.dart'),
-      CoreTemplates.secureStorage(),
+      SecurityTemplates.secureStorage(),
     );
     await FileUtils.writeFile(
       p.join(c, 'security', 'validation_service.dart'),
-      CoreTemplates.validationService(),
+      SecurityTemplates.validationService(),
     );
 
     if (stack.contains(_kMediaService)) {
       await FileUtils.writeFile(
         p.join(c, 'services', 'media_service.dart'),
-        CoreTemplates.mediaService(),
+        ServicesTemplates.mediaService(),
       );
     }
     if (stack.contains(_kLaunchUrlService)) {
       await FileUtils.writeFile(
         p.join(c, 'services', 'url_launcher_service.dart'),
-        CoreTemplates.launchUrlService(),
+        ServicesTemplates.launchUrlService(),
       );
     }
+    if (stack.contains(_kDebouncerService)) {
+      await FileUtils.writeFile(
+        p.join(c, 'services', 'debouncer_service.dart'),
+        ServicesTemplates.debouncerService(),
+      );
+    }
+
+    await FileUtils.writeFile(
+      p.join(c, 'services', 'permission_service.dart'),
+      ServicesTemplates.permissionService(),
+    );
   }
 
   Future<void> _buildConfig(String libPath, Set<String> stack) async {
@@ -242,6 +260,10 @@ class InitCommand extends Command<int> {
         p.join(c, 'router', 'app_router.dart'),
         ConfigTemplates.appRouter(),
       );
+      await FileUtils.writeFile(
+        p.join(c, 'router', 'app_routes.dart'),
+        ConfigTemplates.appRoutes(),
+      );
     }
     if (stack.contains(_kFirestore) || stack.contains(_kFirebaseAuth)) {
       await FileUtils.writeFile(
@@ -251,6 +273,18 @@ class InitCommand extends Command<int> {
             hasDb: stack.contains(_kFirestore)),
       );
     }
+  }
+
+  Future<void> _buildHelper(String libPath) async {
+    final s = p.join(libPath, 'helpers');
+    await FileUtils.writeFile(
+      p.join(s, 'app_dialog.dart'),
+      HelperTemplates.appDialog(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'app_bottom_modal.dart'),
+      HelperTemplates.appBottomModal(),
+    );
   }
 
   Future<void> _buildShared(String libPath) async {

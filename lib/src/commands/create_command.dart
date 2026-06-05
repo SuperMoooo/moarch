@@ -2,10 +2,10 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
-import 'package:moarch/src/templates/core_templates.dart';
+import 'package:moarch/src/templates/core/services_templates.dart';
 import 'package:path/path.dart' as p;
 
-import '../templates/feature_templates.dart';
+import '../templates/ui/feature_templates.dart';
 import '../utils/checklist.dart';
 import '../utils/file_utils.dart';
 import '../utils/string_utils.dart';
@@ -263,7 +263,7 @@ class _CreateFeatureCommand extends Command<int> {
     final c = p.join(libPath, 'core');
     await FileUtils.writeFile(
       p.join(c, 'services', 'connectivity_service.dart'),
-      CoreTemplates.connectivityService(),
+      ServicesTemplates.connectivityService(),
     );
   }
 

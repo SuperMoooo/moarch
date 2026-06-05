@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/widgets/design_system_view.dart';
+import '../app_routes.dart';
  
 // ── Navigator key ─────────────────────────────────────────────────────────────
 // Use this to navigate from anywhere without BuildContext:
@@ -18,17 +19,6 @@ final routerProvider = Provider<GoRouter>((ref) => _router);
  
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
  
-// ── Routes ────────────────────────────────────────────────────────────────────
- 
-abstract final class AppRoutes {
-  static const home   = '/';
-  // static const login  = '/login';
-  // static const detail = '/detail/:id';
-
-  //-----Test------//
-  static const designView   = '/design-system';
-  //---------------//
-}
  
 // ── Router ────────────────────────────────────────────────────────────────────
  
@@ -84,6 +74,24 @@ final _router = GoRouter(
     // ),
   ],
 );
+''';
+
+  /// App routes
+  static String appRoutes() => r'''
+import 'package:flutter/material.dart';
+ 
+// ── Routes ────────────────────────────────────────────────────────────────────
+ 
+abstract final class AppRoutes {
+  static const home   = '/';
+  // static const login  = '/login';
+  // static const detail = '/detail/:id';
+
+  //-----Test------//
+  static const designView   = '/design-system';
+  //---------------//
+}
+ 
 ''';
 
   /// Returns the generated firebaseProviders template.

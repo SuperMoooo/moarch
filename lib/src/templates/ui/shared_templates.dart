@@ -2,6 +2,76 @@
 class SharedTemplates {
   SharedTemplates._();
 
+  /// Returns the generated appImage template.
+  static String appImage() => r'''
+// app_avatar.dart
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import '../../../core/constants/app_constants.dart';
+
+enum AppAvatarSize {
+  profile(160),
+  call(180),
+  detail(80),
+  card(38),
+  chat(36);
+
+  const AppAvatarSize(this.diameter);
+  final double diameter;
+}
+
+class AppAvatar extends StatelessWidget {
+  const AppAvatar({
+    super.key,
+    this.avatar,
+    this.size = AppAvatarSize.card,
+    this.roundedSquare = false,
+  });
+
+  final String? avatar;
+  final AppAvatarSize size;
+  final bool roundedSquare;
+
+  static bool _isValidUrl(String? url) {
+    if (url == null || url.isEmpty) return false;
+    final uri = Uri.tryParse(url);
+    return uri != null && uri.hasScheme && uri.host.isNotEmpty;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double dimension = size.diameter;
+
+    final Widget image = SizedBox.square(
+      dimension: dimension,
+      child: _isValidUrl(avatar)
+          ? CachedNetworkImage(
+              imageUrl: avatar!,
+              fit: BoxFit.cover,
+              placeholder: (_, _) => _placeholder(),
+              errorWidget: (_, _, _) => _fallback(),
+            )
+          : _fallback(),
+    );
+
+    if (roundedSquare) {
+      return ClipRRect(borderRadius: AppConstants.borderRadius12, child: image);
+    }
+
+    return ClipOval(child: image);
+  }
+
+  Widget _placeholder() => Container(
+    color: Colors.grey[300],
+    child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+  );
+
+  Widget _fallback() =>
+      Image.asset('assets/images/defaultPFP.jpg', fit: BoxFit.cover);
+}
+
+''';
+
   /// Returns the generated appButton template.
   static String appButton() => r'''
 import 'package:flutter/material.dart';
