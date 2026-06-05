@@ -109,7 +109,6 @@ class InitCommand extends Command<int> {
     try {
       await _buildCore(libPath, stack);
       await _buildConfig(libPath, stack);
-      await _buildHelper(libPath);
       await _buildShared(libPath);
       await FileUtils.createDir(p.join(libPath, 'features'));
       final testPath = p.join(p.absolute(targetPath), 'test');
@@ -185,6 +184,15 @@ class InitCommand extends Command<int> {
 
   Future<void> _buildCore(String libPath, Set<String> stack) async {
     final c = p.join(libPath, 'core');
+
+    await FileUtils.writeFile(
+      p.join(c, 'helpers', 'app_dialog.dart'),
+      HelperTemplates.appDialog(),
+    );
+    await FileUtils.writeFile(
+      p.join(c, 'helpers', 'app_bottom_modal.dart'),
+      HelperTemplates.appBottomModal(),
+    );
     await FileUtils.writeFile(
       p.join(c, 'errors', 'app_exception.dart'),
       CoreTemplates.appException(hasDio: stack.contains(_kDio)),
@@ -273,18 +281,6 @@ class InitCommand extends Command<int> {
             hasDb: stack.contains(_kFirestore)),
       );
     }
-  }
-
-  Future<void> _buildHelper(String libPath) async {
-    final s = p.join(libPath, 'helpers');
-    await FileUtils.writeFile(
-      p.join(s, 'app_dialog.dart'),
-      HelperTemplates.appDialog(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'app_bottom_modal.dart'),
-      HelperTemplates.appBottomModal(),
-    );
   }
 
   Future<void> _buildShared(String libPath) async {
