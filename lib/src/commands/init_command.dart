@@ -25,8 +25,7 @@ const _kFirebaseAuth = 'Firebase Auth';
 // What gets generated into lib/ beyond the bare minimum.
 
 const _kRouter = 'Router (GoRouter)';
-const _kCi = 'CI workflow (.github/workflows/ci.yml)';
-const _kSecurityWorkflows = 'Secrets Scans and SAST Scan (.github/workflows/)';
+const _kWorkflows = 'Workflows (security, tests, build)';
 const _kMediaService = 'Media Service (Image Picker and File Picker)';
 const _kLaunchUrlService = 'Url launcher for links';
 const _kDebouncerService = 'Debouncer for actions';
@@ -75,7 +74,7 @@ class InitCommand extends Command<int> {
     late Set<String> stack;
 
     if (skipChecklist) {
-      stack = {_kDio, _kRouter, _kCi};
+      stack = {_kDio, _kRouter, _kWorkflows};
     } else {
       stack = Checklist.prompt(
         title: '  Backend / networking:',
@@ -92,8 +91,7 @@ class InitCommand extends Command<int> {
         title: '  What to generate:',
         items: [
           const ChecklistItem(_kRouter, defaultOn: true),
-          const ChecklistItem(_kCi, defaultOn: true),
-          const ChecklistItem(_kSecurityWorkflows, defaultOn: true),
+          const ChecklistItem(_kWorkflows, defaultOn: true),
           const ChecklistItem(_kHelpers, defaultOn: true),
           const ChecklistItem(_kMediaService, defaultOn: false),
           const ChecklistItem(_kLaunchUrlService, defaultOn: false),
@@ -143,23 +141,11 @@ class InitCommand extends Command<int> {
         ChecklistTemplates.securityChecklist(),
       );
 
-      if (stack.contains(_kCi)) {
-        await FileUtils.writeFile(
-          p.join(p.absolute(targetPath), '.github', 'workflows', 'ci.yml'),
-          WorkflowTemplates.ciWorkflow(),
-        );
-      }
-
-      if (stack.contains(_kSecurityWorkflows)) {
-        await FileUtils.writeFile(
-          p.join(
-              p.absolute(targetPath), '.github', 'workflows', 'sast_scan.yml'),
-          WorkflowTemplates.sastWorkflow(),
-        );
+      if (stack.contains(_kWorkflows)) {
         await FileUtils.writeFile(
           p.join(p.absolute(targetPath), '.github', 'workflows',
-              'secrets_scan.yml'),
-          WorkflowTemplates.secretsScanWorkflow(),
+              'unified_workflow.yml'),
+          WorkflowTemplates.unifiedWorkflow(),
         );
       }
 
