@@ -270,7 +270,7 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State> {
       '''
 import 'package:flutter/material.dart';
 import '../../../../shared/widgets/error_view.dart';
-import '../../../../shared/widgets/loadings/app_loading_data.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 ${hasNotifier ? "import 'package:flutter_riverpod/flutter_riverpod.dart';" : ''}
 
@@ -293,10 +293,6 @@ class _${cls}ViewState extends ConsumerState<${cls}View> {
   @override
   Widget build(BuildContext context) {
     final ${name}Async = ref.watch(${name}NotifierProvider);
-
-    // Listen for error/success from state (not AsyncValue)
-    // Note: use state.value?.error — not the AsyncValue error —
-    // so you get the ApiException message from your repository
     ref.listen(${name}NotifierProvider, (_, next) {
       final value = next.value;
       if (value == null) return;
@@ -308,13 +304,18 @@ class _${cls}ViewState extends ConsumerState<${cls}View> {
       }
     });
 
+    Widget _mainWidget(${cls}State? state){
+      return const SizedBox.shrink();
+    }
     return ${name}Async.when(
-        loading: () => AppLoadingData(),
-        error: (e, _) => ErrorView(message: "Failed to load ${cls}"),
-        data: (state) {
-          // TODO: build your UI with state
-          return const SizedBox.shrink();
-        },
+        data: (state) => _mainWidget(state),
+
+        loading: () => Skeletonizer(
+          enabled: true,
+          child: _mainWidget(),
+        ),
+        error: (_, _) => ErrorView(message: "Failed to load ${cls}"),
+        
     );
   }
 }''' : '''  @override

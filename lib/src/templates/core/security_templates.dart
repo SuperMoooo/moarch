@@ -17,19 +17,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/app_exception.dart';
 
-/// Enum com tipos de input para validação
+// Enum with input validation types
 enum InputType {
   email,
   url,
   phone,
   password,
   username,
-  text, // generic text
+  text, 
   number,
   creditCard,
 }
 
-/// Resultado da validação
+// Validation Result
 class ValidationResult {
   final bool isValid;
   final String? error;
@@ -49,7 +49,7 @@ class ValidationResult {
   }
 }
 
-/// Validador principal
+
 final validationServiceProvider = Provider<ValidationService>((ref) {
   return ValidationService();
 });
