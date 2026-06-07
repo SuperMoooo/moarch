@@ -68,13 +68,14 @@ class _CreateFeatureCommand extends Command<int> {
       'Scaffold a new feature with selectable Clean Architecture layers.';
 
   @override
-  String get invocation => 'mo create feature <n>';
+  String get invocation => 'moarch create feature <name>';
 
   @override
   Future<int> run() async {
     final rest = argResults?.rest ?? [];
     if (rest.isEmpty) {
-      _logger.err('Provide a feature name.\n  Usage: mo create feature <n>');
+      _logger.err(
+          'Provide a feature name.\n  Usage: moarch create feature <name>');
       return 1;
     }
 

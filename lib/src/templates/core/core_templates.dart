@@ -3,22 +3,34 @@ class CoreTemplates {
   CoreTemplates._();
 
   /// Returns the generated mainDart template.
-  static String mainDart({bool withRouter = true}) {
+  static String mainDart(
+      {bool withRouter = true, bool withLocalization = false}) {
+    final localizationImports = withLocalization
+        ? "\nimport 'package:flutter_localizations/flutter_localizations.dart';"
+        : '';
+    final localizationInit = withLocalization
+        ? "\n  await FlutterLocalization.instance.ensureInitialized();"
+        : '';
+    final localizationConfig = withLocalization
+        ? '''
+      locale: FlutterLocalization.instance.locale,
+      supportedLocales: FlutterLocalization.instance.supportedLocales,
+      localizationsDelegates: FlutterLocalization.instance.localizationsDelegates,
+'''
+        : '';
+
     if (withRouter) {
-      return r'''
+      return '''
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
- import '../../core/utils/logger.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports
+import '../../core/utils/logger.dart';
 import 'config/theme/app_theme.dart';
-
-
 import 'config/router/app_router.dart';
- 
+
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  
+  WidgetsFlutterBinding.ensureInitialized();$localizationInit
+
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
     appLogger.e('[Uncaught error]', error: error, stackTrace: st);
@@ -42,9 +54,6 @@ Future<void> main() async {
 
     //::::::::::ERROR MANAGEMENT::::::::::
   runApp(const ProviderScope(child: App()));
-
-
-  runApp(const ProviderScope(child: App()));
 }
  
 class App extends ConsumerWidget {
@@ -58,7 +67,7 @@ class App extends ConsumerWidget {
       title: 'App',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      routerConfig: router,
+$localizationConfig      routerConfig: router,
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return MediaQuery(
@@ -75,18 +84,16 @@ class App extends ConsumerWidget {
 ''';
     }
 
-    return r'''
+    return '''
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports
 import '../../core/utils/logger.dart';
 import 'config/theme/app_theme.dart';
 
-
- 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
+  WidgetsFlutterBinding.ensureInitialized();$localizationInit
+
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
     appLogger.e('[Uncaught error]', error: error, stackTrace: st);
@@ -110,8 +117,6 @@ Future<void> main() async {
 
     //::::::::::ERROR MANAGEMENT::::::::::
   runApp(const ProviderScope(child: App()));
-
-  runApp(const ProviderScope(child: App()));
 }
  
 class App extends StatelessWidget {
@@ -123,7 +128,7 @@ class App extends StatelessWidget {
       title: 'App',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      debugShowCheckedModeBanner: false,
+$localizationConfig      debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(

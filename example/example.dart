@@ -12,15 +12,17 @@ void main(List<String> args) async {
   logger.info('moarch example: supported scaffold options');
   logger.info('');
   logger.info('1) Project initialization (full scaffold)');
-  logger.info('   dart run example/main.dart --show');
+  logger.info('   dart run example/example.dart --show');
   logger.info('   moarch init --all');
   logger.info('');
   logger.info('   Optional interactive init selections include:');
   logger.info(
       '     - Backend / networking: Dio, Firebase Firestore, Firebase Auth');
   logger.info('     - Router (GoRouter)');
-  logger.info('     - CI workflow (.github/workflows/ci.yml)');
-  logger.info('     - Security workflows (sast_scan + secrets_scan)');
+  logger.info(
+      '     - CI + security pipeline (.github/workflows/unified_workflow.yml)');
+  logger.info(
+      '     - Default scaffold dependencies for Riverpod, GoRouter, Dio, Envied, and helpers');
   logger.info('     - Test folder');
   logger.info('     - Media Service (image/file picker)');
   logger.info('     - Launch URL service');

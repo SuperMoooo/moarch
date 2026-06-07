@@ -2,6 +2,46 @@
 class ServicesTemplates {
   ServicesTemplates._();
 
+  /// Returns a simple notification service scaffold.
+  static String notificationsService() => r'''
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+final notificationsServiceProvider = Provider<NotificationsService>((ref) {
+  return NotificationsService();
+});
+
+class NotificationsService {
+  final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
+
+  Future<void> initialize() async {
+    const settings = InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(),
+    );
+
+    await _plugin.initialize(settings);
+  }
+
+  Future<void> showSimpleNotification({
+    required String title,
+    required String body,
+  }) async {
+    const details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        'moarch_default_channel',
+        'Moarch Notifications',
+        importance: Importance.defaultImportance,
+      ),
+      iOS: DarwinNotificationDetails(),
+    );
+
+    await _plugin.show(0, title, body, details);
+  }
+}
+''';
+
   /// Returns the generated mediaService template.
   static String mediaService() => r'''
 import 'dart:io';

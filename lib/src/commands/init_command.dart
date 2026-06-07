@@ -13,6 +13,7 @@ import '../templates/config/config_templates.dart';
 import '../templates/core/core_templates.dart';
 import '../templates/ui/shared_templates.dart';
 import '../utils/file_utils.dart';
+import '../utils/pubspec_utils.dart';
 
 // ── Stack options ─────────────────────────────────────────────────────────────
 // Add a new const + ChecklistItem + if block to support a new option.
@@ -30,6 +31,8 @@ const _kMediaService = 'Media Service (Image Picker and File Picker)';
 const _kLaunchUrlService = 'Url launcher for links';
 const _kDebouncerService = 'Debouncer for actions';
 const _kHelpers = 'Helper folder (dialog and bottom modal)';
+const _kNotificationsService = 'Notifications service';
+const _kLocalizations = 'Localization (l10n)';
 
 /// Creates the project-initialization CLI command.
 class InitCommand extends Command<int> {
@@ -74,7 +77,17 @@ class InitCommand extends Command<int> {
     late Set<String> stack;
 
     if (skipChecklist) {
-      stack = {_kDio, _kRouter, _kWorkflows};
+      stack = {
+        _kDio,
+        _kRouter,
+        _kWorkflows,
+        _kHelpers,
+        _kMediaService,
+        _kLaunchUrlService,
+        _kDebouncerService,
+        _kNotificationsService,
+        _kLocalizations,
+      };
     } else {
       stack = Checklist.prompt(
         title: '  Backend / networking:',
@@ -95,7 +108,9 @@ class InitCommand extends Command<int> {
           const ChecklistItem(_kHelpers, defaultOn: true),
           const ChecklistItem(_kMediaService, defaultOn: false),
           const ChecklistItem(_kLaunchUrlService, defaultOn: false),
-          const ChecklistItem(_kDebouncerService, defaultOn: false)
+          const ChecklistItem(_kDebouncerService, defaultOn: false),
+          const ChecklistItem(_kNotificationsService, defaultOn: false),
+          const ChecklistItem(_kLocalizations, defaultOn: false)
         ],
       );
 
@@ -103,6 +118,38 @@ class InitCommand extends Command<int> {
     }
 
     final progress = _logger.progress('Creating structure');
+
+    final defaultDependencies = <String>[
+      'flutter_riverpod:',
+      'envied:',
+      'skeletonizer:',
+      'cached_network_image:',
+      'intl:',
+      'logger:',
+      'connectivity_plus:',
+      if (stack.contains(_kRouter)) 'go_router:',
+      if (stack.contains(_kDio)) 'dio:',
+      if (stack.contains(_kDio)) 'dio_smart_retry:',
+      'flutter_secure_storage:',
+      if (stack.contains(_kFirebaseAuth) || stack.contains(_kFirestore))
+        'firebase_core:',
+      if (stack.contains(_kFirebaseAuth)) 'firebase_auth:',
+      if (stack.contains(_kFirestore)) 'cloud_firestore',
+      if (stack.contains(_kMediaService)) 'file_picker:',
+      if (stack.contains(_kMediaService)) 'image_picker:',
+      'permission_handler:',
+      if (stack.contains(_kLaunchUrlService)) 'url_launcher:',
+      if (stack.contains(_kNotificationsService))
+        'flutter_local_notifications:',
+      if (stack.contains(_kLocalizations)) 'flutter_localizations:',
+    ];
+
+    final devDependencies = <String>[
+      'build_runner:',
+      'envied_generator:',
+      'mogen_unit_tests:',
+      'mogen_integration_tests:'
+    ];
 
     try {
       await _buildCore(libPath, stack);
@@ -116,7 +163,10 @@ class InitCommand extends Command<int> {
 
       await FileUtils.writeFile(
         p.join(libPath, 'main.dart'),
-        CoreTemplates.mainDart(withRouter: stack.contains(_kRouter)),
+        CoreTemplates.mainDart(
+          withRouter: stack.contains(_kRouter),
+          withLocalization: stack.contains(_kLocalizations),
+        ),
       );
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), '.fvmrc'),
@@ -154,6 +204,29 @@ class InitCommand extends Command<int> {
         '.env\n',
       );
 
+      await PubspecUtils.ensureDependencies(
+        p.absolute(targetPath),
+        dependencies: defaultDependencies,
+        devDependencies: devDependencies,
+      );
+
+      if (stack.contains(_kLocalizations)) {
+        await FileUtils.createDir(
+            p.join(p.absolute(targetPath), 'assets', 'i18n'));
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'assets', 'i18n', 'en.json'),
+          '{\n  "appTitle": "Moarch App",\n  "welcome": "Welcome"\n}\n',
+        );
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'assets', 'i18n', 'pt.json'),
+          '{\n  "appTitle": "App Moarch",\n  "welcome": "Bem-vindo"\n}\n',
+        );
+        await PubspecUtils.ensureAssets(
+          p.absolute(targetPath),
+          assets: ['assets/i18n/'],
+        );
+      }
+
       progress.complete('Done');
     } catch (e) {
       progress.fail('Failed: $e');
@@ -162,6 +235,10 @@ class InitCommand extends Command<int> {
 
     _logger.success('');
     _logger.success('✅  Project scaffolded!');
+    _logger.info('');
+    _logger.info(
+        '  The selected scaffold dependencies were added to pubspec.yaml.');
+    _logger.info('  Run: flutter pub get');
     _logger.info('');
     _logger.info('  moarch create feature <name>   → generate a feature');
     _logger.info('');
@@ -226,6 +303,13 @@ class InitCommand extends Command<int> {
         ServicesTemplates.launchUrlService(),
       );
     }
+    if (stack.contains(_kNotificationsService)) {
+      await FileUtils.writeFile(
+        p.join(c, 'services', 'notifications_service.dart'),
+        ServicesTemplates.notificationsService(),
+      );
+    }
+
     if (stack.contains(_kDebouncerService)) {
       await FileUtils.writeFile(
         p.join(c, 'services', 'debouncer_service.dart'),
