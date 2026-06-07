@@ -30,8 +30,8 @@ class NotificationsService {
   }) async {
     const details = NotificationDetails(
       android: AndroidNotificationDetails(
-        'moarch_default_channel',
-        'Moarch Notifications',
+        'default_channel',
+        'Notifications',
         importance: Importance.defaultImportance,
       ),
       iOS: DarwinNotificationDetails(),
@@ -47,22 +47,23 @@ class NotificationsService {
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import '../../../../core/errors/app_exception.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'permission_service.dart';
 
 /// A service to handle media selection (images, videos, files).
 
 final mediaServiceProvider = Provider.autoDispose<MediaService>((ref) {
-  return MediaService.instance;
+  final permissionService = ref.watch(permissionProvider);
+  return MediaService(permissionService);
 });
 
 class MediaService {
-  MediaService(this._ref);
+  MediaService(this._permissionService);
 
-  final Ref _ref;
+  final PermissionService _permissionService;
   final ImagePicker _imagePicker = ImagePicker();
 
   /// Pick an image from gallery or camera.
@@ -72,24 +73,19 @@ class MediaService {
     double? maxHeight,
     int? imageQuality,
   }) async {
-    // Check permissions
     if (source == ImageSource.camera) {
-      final status = await Permission.camera.request();
-      if (!status.isGranted) {
-       // error feedback
+      final granted = await _permissionService.request(
+        permission: Permission.camera,
+      );
+      if (!granted) {
         return null;
       }
-    } else {
-      if (Platform.isAndroid || Platform.isIOS) {
-        final status = await Permission.photos.request();
-        if (!status.isGranted && !status.isLimited) {
-          final status2 = await Permission.mediaLibrary.request();
-
-          if (!status2.isGranted && !status2.isLimited) {
-          // error feedback
-            return null;
-          }
-        }
+    } else if (Platform.isAndroid || Platform.isIOS) {
+      final granted = await _permissionService.request(
+        permission: Permission.photos,
+      );
+      if (!granted) {
+        return null;
       }
     }
 
@@ -110,9 +106,10 @@ class MediaService {
     int? imageQuality,
   }) async {
     if (Platform.isAndroid || Platform.isIOS) {
-      final status = await Permission.photos.request();
-      if (!status.isGranted && !status.isLimited) {
-       // error feedback
+      final granted = await _permissionService.request(
+        permission: Permission.photos,
+      );
+      if (!granted) {
         return null;
       }
     }
@@ -132,18 +129,18 @@ class MediaService {
     Duration? maxDuration,
   }) async {
     if (source == ImageSource.camera) {
-      final status = await Permission.camera.request();
-      if (!status.isGranted) {
-        // error feedback
+      final granted = await _permissionService.request(
+        permission: Permission.camera,
+      );
+      if (!granted) {
         return null;
       }
-    } else {
-      if (Platform.isAndroid || Platform.isIOS) {
-        final status = await Permission.photos.request();
-        if (!status.isGranted && !status.isLimited) {
-          // error feedback
-          return null;
-        }
+    } else if (Platform.isAndroid || Platform.isIOS) {
+      final granted = await _permissionService.request(
+        permission: Permission.photos,
+      );
+      if (!granted) {
+        return null;
       }
     }
 
@@ -162,15 +159,11 @@ class MediaService {
     bool allowMultiple = false,
   }) async {
     if (Platform.isAndroid) {
-      final status = await Permission.photos.request();
-      if (!status.isGranted) {
-        final status2 = await Permission.manageExternalStorage.request();
-        if (!status2.isGranted) {
-          // Note: On Android 13+, storage permission might be handled differently (media-specific)
-          // but permission_handler usually handles the abstraction.
-          // error feedback
-          return null;
-        }
+      final granted = await _permissionService.request(
+        permission: Permission.photos,
+      );
+      if (!granted) {
+        return null;
       }
     }
 
@@ -187,11 +180,12 @@ class MediaService {
         .map((path) => File(path!))
         .toList();
   }
- ''';
+}
+''';
 
   /// Returns the generated launchUrlService template.
   static String launchUrlService() => r'''
-  import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/errors/app_exception.dart';
@@ -200,12 +194,11 @@ import '../../core/security/validation_service.dart';
 /// A service to handle URL launching operations.
 
 final urlLauncherProvider = Provider.autoDispose<UrlLauncherService>((ref) {
-  return UrlLauncherService.instance;
+  return UrlLauncherService();
 });
 
 class UrlLauncherService {
-  UrlLauncherService._();
-  static final UrlLauncherService instance = UrlLauncherService._();
+  UrlLauncherService();
 
   /// Launch a URL string.
   Future<void> launch(String url, {LaunchMode? mode}) async {
@@ -223,7 +216,7 @@ class UrlLauncherService {
         await launchUrl(uri, mode: LaunchMode.inAppWebView);
       }
     } catch (e) {
-     // error feedback
+      // error feedback
     }
   }
 }
@@ -274,7 +267,7 @@ class DebouncerService {
   final Duration delay;
   Timer? _timer;
 
-  Debouncer({this.delay = const Duration(milliseconds: 500)});
+  DebouncerService({this.delay = const Duration(milliseconds: 500)});
 
   void run(void Function() action) {
     _timer?.cancel();

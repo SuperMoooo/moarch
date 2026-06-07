@@ -24,7 +24,7 @@ Future<T?> showAppDialog<T>({
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: duration,
     useRootNavigator: useRootNavigator,
-    pageBuilder: (_, __, ___) => child,
+    pageBuilder: (_, _, _) => child,
     transitionBuilder: (context, animation, _, child) {
       final curved = CurvedAnimation(parent: animation, curve: Curves.easeInOut);
       return FadeTransition(
@@ -43,6 +43,7 @@ Future<T?> showAppDialog<T>({
   static String appBottomModal() => '''
 import 'package:flutter/material.dart';
 import '../../config/router/app_router.dart';
+import '../constants/app_constants.dart';
 
 Future<T?> showAppBottomModal<T>({
   required Widget child,
@@ -59,21 +60,21 @@ Future<T?> showAppBottomModal<T>({
     context: context,
     isScrollControlled: isScrollControlled,
     backgroundColor: Colors.transparent,
-    barrierColor: context.theme.colorScheme.scrim.withValues(alpha: barrierOpacity),
     elevation: 0,
     useSafeArea: useSafeArea,
     enableDrag: enableDrag,
     isDismissible: isDismissible,
-     builder: (_) {
-        return ClipRRect(
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(AppConstants.radius16),
-            topRight: Radius.circular(AppConstants.radius16),
-          ),
-          child: child,
-        );
-      },
+    builder: (_) {
+      return ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(AppConstants.radius16),
+          topRight: Radius.circular(AppConstants.radius16),
+        ),
+        child: child,
+      );
+    },
   );
 }
+
 ''';
 }

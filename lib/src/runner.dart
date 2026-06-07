@@ -34,7 +34,7 @@ class MoarchRunner {
       final argResults = _runner.parse(args);
 
       if (argResults['version'] == true) {
-        _logger.info('moarch v1.4.7');
+        _logger.info('moarch v1.4.8');
         return 0;
       }
 

@@ -322,7 +322,7 @@ class InputTitle extends StatelessWidget {
   /// Returns the generated appInput template.
   static String appInput() => r'''
 import 'package:flutter/material.dart';
-import '/shared/widgets/inputs/input_title.dart';
+import './shared/widgets/inputs/input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/security/validation_service.dart';
 import '../../../core/utils/extensions.dart';
@@ -460,7 +460,7 @@ class _AppInputState extends State<AppInput> {
   /// Returns the generated dateInput template.
   static String dateInput() => r'''
 import 'package:flutter/material.dart';
-import '/shared/widgets/inputs/input_title.dart';
+import './shared/widgets/inputs/input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
@@ -552,7 +552,7 @@ class _DateAppInputState extends State<DateAppInput> {
   /// Returns the generated timeInput template.
   static String timeInput() => r'''
 import 'package:flutter/material.dart';
-import '/shared/widgets/inputs/input_title.dart';
+import './shared/widgets/inputs/input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
@@ -642,7 +642,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
   /// Returns the generated appDropdown template.
   static String appDropdown() => r'''
 import 'package:flutter/material.dart';
-import '/shared/widgets/inputs/input_title.dart';
+import './shared/widgets/inputs/input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 

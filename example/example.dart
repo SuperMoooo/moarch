@@ -19,13 +19,14 @@ void main(List<String> args) async {
   logger.info(
       '     - Backend / networking: Dio, Firebase Firestore, Firebase Auth');
   logger.info('     - Router (GoRouter)');
-  logger.info(
-      '     - CI + security pipeline (.github/workflows/unified_workflow.yml)');
-  logger.info(
-      '     - Default scaffold dependencies for Riverpod, GoRouter, Dio, Envied, and helpers');
-  logger.info('     - Test folder');
-  logger.info('     - Media Service (image/file picker)');
+  logger.info('     - Workflows (security, tests, build)');
+  logger.info('     - Helper folder (dialog and bottom modal)');
+  logger.info('     - Media Service (image/file picker + PermissionService)');
   logger.info('     - Launch URL service');
+  logger.info('     - Debouncer service');
+  logger.info('     - Notifications service');
+  logger.info('     - Localization (l10n)');
+  logger.info('     - Test folder and deployment checklists');
   logger.info('');
   logger.info('2) Feature generation (Clean Architecture layers)');
   logger.info('   moarch create feature auth --all');

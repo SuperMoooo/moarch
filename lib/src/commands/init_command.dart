@@ -372,6 +372,10 @@ class InitCommand extends Command<int> {
       SharedTemplates.errorView(),
     );
     await FileUtils.writeFile(
+      p.join(s, 'misc', 'input_title.dart'),
+      SharedTemplates.inputTitle(),
+    );
+    await FileUtils.writeFile(
       p.join(s, 'inputs', 'app_input.dart'),
       SharedTemplates.appInput(),
     );

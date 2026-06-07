@@ -17,13 +17,13 @@ import '../app_routes.dart';
  
 final routerProvider = Provider<GoRouter>((ref) => _router);
  
-final _rootNavigatorKey = GlobalKey<NavigatorState>();
+final rootNavigatorKey = GlobalKey<NavigatorState>();
  
  
 // ── Router ────────────────────────────────────────────────────────────────────
  
 final _router = GoRouter(
-  navigatorKey: _rootNavigatorKey,
+  navigatorKey: rootNavigatorKey,
   initialLocation: AppRoutes.home,
   debugLogDiagnostics: true,
   routes: [
@@ -78,7 +78,6 @@ final _router = GoRouter(
 
   /// App routes
   static String appRoutes() => r'''
-import 'package:flutter/material.dart';
  
 // ── Routes ────────────────────────────────────────────────────────────────────
  
@@ -226,13 +225,13 @@ abstract final class AppTheme {
         ),
       ),
       textStyle: WidgetStatePropertyAll(
-        GoogleFonts.interTextTheme().labelSmall?.copyWith(
+        TextStyle(
           fontSize: AppConstants.fontSize16,
           color: AppConstants.onSurface,
         ),
       ),
       hintStyle: WidgetStatePropertyAll(
-        GoogleFonts.interTextTheme().labelSmall?.copyWith(
+        TextStyle(
           fontSize: AppConstants.fontSize16,
           color: AppConstants.onSurface.withValues(alpha: 0.35),
         ),
@@ -259,12 +258,12 @@ abstract final class AppTheme {
       tabAlignment: TabAlignment.fill,
       indicatorSize: TabBarIndicatorSize.tab,
       indicatorAnimation: TabIndicatorAnimation.elastic,
-      labelStyle: GoogleFonts.interTextTheme().bodyMedium?.copyWith(
+      labelStyle: TextStyle(
         color: Colors.white,
         fontWeight: FontWeight.bold,
       ),
       unselectedLabelColor: Colors.grey,
-      unselectedLabelStyle: GoogleFonts.interTextTheme().bodyMedium?.copyWith(
+      unselectedLabelStyle: TextStyle(
         color: Colors.blueGrey,
       ),
     ),
@@ -295,7 +294,7 @@ abstract final class AppTheme {
         horizontal: AppConstants.space12,
       ),
 
-      hintStyle: GoogleFonts.interTextTheme().labelSmall?.copyWith(
+      hintStyle: TextStyle(
         fontSize: AppConstants.fontSize16,
         color: AppConstants.onSurface.withValues(alpha: 0.35),
       ),
