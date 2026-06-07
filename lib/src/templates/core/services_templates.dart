@@ -4,42 +4,474 @@ class ServicesTemplates {
 
   /// Returns a simple notification service scaffold.
   static String notificationsService() => r'''
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
+import '../../core/utils/logger.dart';
+import 'dart:io';
 
-final notificationsServiceProvider = Provider<NotificationsService>((ref) {
-  return NotificationsService();
-});
+/// Android: add to android/app/src/main/AndroidManifest.xml inside <manifest>:
+///   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+///   <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+///   <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+///   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+///
 
-class NotificationsService {
+
+/// iOS: add to ios/Runner/AppDelegate.swift:
+///   UNUserNotificationCenter.current().delegate = self
+
+
+
+// ─── Background handler (must be top-level) ──────────────────────────────────
+@pragma('vm:entry-point')
+void _backgroundHandler(NotificationResponse response) {
+  appLogger.i(
+    '[Notification] Background tap | id: ${response.id} | payload: ${response.payload}',
+  );
+}
+ 
+// ─── Priority enum ────────────────────────────────────────────────────────────
+enum NotificationPriority { defaultPriority, high }
+
+
+class NotificationService {
+  NotificationService._();
+
+  static final NotificationService instance = NotificationService._();
+
+  bool _initialized = false;
+
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
-  Future<void> initialize() async {
-    const settings = InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      iOS: DarwinInitializationSettings(),
-    );
+        // ─── Notification Channel IDs ────────────────────────────────────────────
+  static const String _defaultChannelId = 'default_channel';
+  static const String _defaultChannelName = 'Default Notifications';
+  static const String _defaultChannelDesc = 'General app notifications';
+ 
+  static const String _scheduledChannelId = 'scheduled_channel';
+  static const String _scheduledChannelName = 'Scheduled Notifications';
+  static const String _scheduledChannelDesc = 'Reminders and scheduled alerts';
+ 
+  static const String _highPriorityChannelId = 'high_priority_channel';
+  static const String _highPriorityChannelName = 'High Priority';
+  static const String _highPriorityChannelDesc = 'Urgent notifications';
+ 
+  // ─── Notification IDs ────────────────────────────────────────────────────
+  static const int defaultId = 0;
+  static const int scheduledId = 1;
+  static const int periodicId = 2;
+ 
 
-    await _plugin.initialize(settings);
+
+  Future<void> init() async {
+      if (_initialized) return;
+ 
+ 
+    // Initialize timezone data
+    tz.initializeTimeZones();
+ 
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher', // Make sure this icon exists
+    );
+ 
+    const iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: false, // Request manually via requestPermissions()
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
+ 
+    const initSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+    );
+ 
+    await _plugin.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (response) {
+        appLogger.i(
+          '[Notification] Tapped | id: ${response.id} | payload: ${response.payload}',
+        );
+        // onTap
+      },
+      onDidReceiveBackgroundNotificationResponse: _backgroundHandler,
+    );
+ 
+    await _createNotificationChannels();
+ 
+    _initialized = true;
+    appLogger.i('[NotificationService] Initialized');
+
+    await requestPermissions();
   }
 
-  Future<void> showSimpleNotification({
+    /// Creates Android notification channels.
+  Future<void> _createNotificationChannels() async {
+    if (!Platform.isAndroid) return;
+ 
+    final androidPlugin =
+        _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+ 
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _defaultChannelId,
+        _defaultChannelName,
+        description: _defaultChannelDesc,
+        importance: Importance.defaultImportance,
+        playSound: true,
+      ),
+    );
+ 
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _scheduledChannelId,
+        _scheduledChannelName,
+        description: _scheduledChannelDesc,
+        importance: Importance.high,
+        playSound: true,
+      ),
+    );
+ 
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _highPriorityChannelId,
+        _highPriorityChannelName,
+        description: _highPriorityChannelDesc,
+        importance: Importance.max,
+        playSound: true,
+        enableLights: true,
+        enableVibration: true,
+      ),
+    );
+  }
+
+    /// Request notification permissions from the user.
+  /// Returns true if granted, false otherwise.
+  /// Call this at an appropriate moment (e.g. after onboarding).
+  Future<bool> requestPermissions() async {
+    if (Platform.isIOS) {
+      final ios = _plugin.resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin>();
+      return await ios?.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          ) ??
+          false;
+    }
+ 
+    if (Platform.isAndroid) {
+      final android = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      return await android?.requestNotificationsPermission() ?? false;
+    }
+ 
+    return false;
+  }
+
+     /// Show a notification right now.
+  Future<void> show({
+    int id = defaultId,
     required String title,
     required String body,
+    String? payload,
+    NotificationPriority priority = NotificationPriority.defaultPriority,
   }) async {
-    const details = NotificationDetails(
-      android: AndroidNotificationDetails(
-        'default_channel',
-        'Notifications',
-        importance: Importance.defaultImportance,
-      ),
-      iOS: DarwinNotificationDetails(),
+    _ensureInit();
+    await _plugin.show(id, title, body, _buildDetails(priority), payload: payload);
+    _log('[NotificationService] Shown (id: $id)');
+  }
+ 
+  // ===========================================================================
+  // SCHEDULE
+  // ===========================================================================
+ 
+  /// Schedule a notification at an exact [scheduledDate].
+  ///
+  /// [timeZoneName] — IANA timezone name, e.g. 'Europe/Lisbon'.
+  /// Defaults to the device's local timezone.
+  Future<void> scheduleAt({
+    int id = scheduledId,
+    required String title,
+    required String body,
+    required DateTime scheduledDate,
+    String? payload,
+    String? timeZoneName,
+  }) async {
+    _ensureInit();
+ 
+    final location =
+        timeZoneName != null ? tz.getLocation(timeZoneName) : tz.local;
+    final tzDate = tz.TZDateTime.from(scheduledDate, location);
+ 
+    await _plugin.zonedSchedule(
+      id,
+      title,
+      body,
+      tzDate,
+      _buildScheduledDetails(),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      payload: payload,
     );
-
-    await _plugin.show(0, title, body, details);
+ 
+    _log('[NotificationService] Scheduled at $tzDate (id: $id)');
+  }
+ 
+  /// Schedule a notification [delay] from now.
+  Future<void> scheduleAfter({
+    int id = scheduledId,
+    required String title,
+    required String body,
+    Duration delay = const Duration(seconds: 5),
+    String? payload,
+  }) async {
+    await scheduleAt(
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: DateTime.now().add(delay),
+      payload: payload,
+    );
+  }
+ 
+  /// Schedule a daily notification at a fixed [time].
+  ///
+  /// Example: `Time(9, 0, 0)` fires every day at 09:00.
+  Future<void> scheduleDailyAt({
+    int id = scheduledId,
+    required String title,
+    required String body,
+    required Time time,
+    String? payload,
+  }) async {
+    _ensureInit();
+ 
+    await _plugin.zonedSchedule(
+      id,
+      title,
+      body,
+      _nextInstanceOfTime(time),
+      _buildScheduledDetails(),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.time,
+      payload: payload,
+    );
+ 
+    _log('[NotificationService] Daily scheduled at $time (id: $id)');
+  }
+ 
+  /// Schedule a weekly notification on a specific [day] and [time].
+  ///
+  /// Example: `day: Day.monday, time: Time(8, 30)` fires every Monday at 08:30.
+  Future<void> scheduleWeeklyOn({
+    int id = scheduledId,
+    required String title,
+    required String body,
+    required Day day,
+    required Time time,
+    String? payload,
+  }) async {
+    _ensureInit();
+ 
+    await _plugin.zonedSchedule(
+      id,
+      title,
+      body,
+      _nextInstanceOfDayAndTime(day, time),
+      _buildScheduledDetails(),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+      payload: payload,
+    );
+ 
+    _log('[NotificationService] Weekly scheduled on $day at $time (id: $id)');
+  }
+ 
+  // ===========================================================================
+  // PERIODIC
+  // ===========================================================================
+ 
+  /// Show a repeating notification at a fixed [interval].
+  Future<void> showPeriodic({
+    int id = periodicId,
+    required String title,
+    required String body,
+    RepeatInterval interval = RepeatInterval.hourly,
+    String? payload,
+  }) async {
+    _ensureInit();
+ 
+    await _plugin.periodicallyShow(
+      id,
+      title,
+      body,
+      interval,
+      _buildDetails(NotificationPriority.defaultPriority),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      payload: payload,
+    );
+ 
+    _log('[NotificationService] Periodic ($interval) started (id: $id)');
+  }
+ 
+  // ===========================================================================
+  // CANCEL
+  // ===========================================================================
+ 
+  /// Cancel a specific notification by [id].
+  Future<void> cancel(int id) async {
+    await _plugin.cancel(id);
+    _log('[NotificationService] Cancelled (id: $id)');
+  }
+ 
+  /// Cancel all pending and shown notifications.
+  Future<void> cancelAll() async {
+    await _plugin.cancelAll();
+    _log('[NotificationService] Cancelled all');
+  }
+ 
+  // ===========================================================================
+  // QUERY
+  // ===========================================================================
+ 
+  /// Returns all notifications that are pending (scheduled but not yet shown).
+  Future<List<PendingNotificationRequest>> getPending() =>
+      _plugin.pendingNotificationRequests();
+ 
+  // ===========================================================================
+  // PRIVATE HELPERS
+  // ===========================================================================
+ 
+  Future<void> _createNotificationChannels() async {
+    if (!Platform.isAndroid) return;
+ 
+    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+ 
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _defaultChannelId,
+        _defaultChannelName,
+        description: _defaultChannelDesc,
+        importance: Importance.defaultImportance,
+        playSound: true,
+      ),
+    );
+ 
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _scheduledChannelId,
+        _scheduledChannelName,
+        description: _scheduledChannelDesc,
+        importance: Importance.high,
+        playSound: true,
+      ),
+    );
+ 
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _highPriorityChannelId,
+        _highPriorityChannelName,
+        description: _highPriorityChannelDesc,
+        importance: Importance.max,
+        playSound: true,
+        enableLights: true,
+        enableVibration: true,
+      ),
+    );
+  }
+ 
+  NotificationDetails _buildDetails(NotificationPriority priority) {
+    final isHigh = priority == NotificationPriority.high;
+ 
+    return NotificationDetails(
+      android: AndroidNotificationDetails(
+        isHigh ? _highPriorityChannelId : _defaultChannelId,
+        isHigh ? _highPriorityChannelName : _defaultChannelName,
+        channelDescription: isHigh ? _highPriorityChannelDesc : _defaultChannelDesc,
+        importance: isHigh ? Importance.max : Importance.defaultImportance,
+        priority: isHigh ? Priority.high : Priority.defaultPriority,
+        ticker: 'ticker',
+      ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: isHigh,
+        interruptionLevel: isHigh
+            ? InterruptionLevel.timeSensitive
+            : InterruptionLevel.active,
+      ),
+    );
+  }
+ 
+  NotificationDetails _buildScheduledDetails() {
+    return const NotificationDetails(
+      android: AndroidNotificationDetails(
+        _scheduledChannelId,
+        _scheduledChannelName,
+        channelDescription: _scheduledChannelDesc,
+        importance: Importance.high,
+        priority: Priority.high,
+      ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    );
+  }
+ 
+  tz.TZDateTime _nextInstanceOfTime(Time time) {
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduled = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      time.hour,
+      time.minute,
+      time.second,
+    );
+    if (scheduled.isBefore(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+    return scheduled;
+  }
+ 
+  tz.TZDateTime _nextInstanceOfDayAndTime(Day day, Time time) {
+    var scheduled = _nextInstanceOfTime(time);
+    while (scheduled.weekday != _dayToWeekday(day)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+    return scheduled;
+  }
+ 
+  int _dayToWeekday(Day day) {
+    switch (day) {
+      case Day.monday:    return DateTime.monday;
+      case Day.tuesday:   return DateTime.tuesday;
+      case Day.wednesday: return DateTime.wednesday;
+      case Day.thursday:  return DateTime.thursday;
+      case Day.friday:    return DateTime.friday;
+      case Day.saturday:  return DateTime.saturday;
+      case Day.sunday:    return DateTime.sunday;
+    }
+  }
+ 
+  void _ensureInit() {
+    if (!_initialized) {
+      throw StateError(
+        'NotificationService not initialized. '
+        'Call NotificationService.instance.init() first.',
+      );
+    }
   }
 }
+
 ''';
 
   /// Returns the generated mediaService template.

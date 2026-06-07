@@ -3,13 +3,23 @@ class CoreTemplates {
   CoreTemplates._();
 
   /// Returns the generated mainDart template.
-  static String mainDart(
-      {bool withRouter = true, bool withLocalization = false}) {
+  static String mainDart({
+    bool withRouter = true,
+    bool withLocalization = false,
+    bool withNotificationsService = false,
+  }) {
     final localizationImports = withLocalization
         ? "\nimport 'package:flutter_localizations/flutter_localizations.dart';"
         : '';
+    final notificationImport = withNotificationsService
+        ? "\nimport 'core/services/notifications_service.dart';"
+        : '';
+
+    final notificationInit = withNotificationsService
+        ? "\n await NotificationService.instance.init();"
+        : '';
     final localizationInit = withLocalization
-        ? "\n  await FlutterLocalization.instance.ensureInitialized();"
+        ? "\n await FlutterLocalization.instance.ensureInitialized();"
         : '';
     final localizationConfig = withLocalization
         ? '''
@@ -23,13 +33,13 @@ class CoreTemplates {
       return '''
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports
+import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport
 import '../../core/utils/logger.dart';
 import 'config/theme/app_theme.dart';
 import 'config/router/app_router.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();$localizationInit
+  WidgetsFlutterBinding.ensureInitialized();$localizationInit$notificationInit
 
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
@@ -87,12 +97,12 @@ $localizationConfig      routerConfig: router,
     return '''
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports
+import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport
 import '../../core/utils/logger.dart';
 import 'config/theme/app_theme.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();$localizationInit
+  WidgetsFlutterBinding.ensureInitialized();$localizationInit$notificationInit
 
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
