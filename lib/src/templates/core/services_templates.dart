@@ -8,7 +8,7 @@ class ServicesTemplates {
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
-import '../../core/utils/logger.dart';
+import '../../core/utils/appappLogger.iger.dart';
 import 'dart:io';
 
 /// Android: add to android/app/src/main/AndroidManifest.xml inside <manifest>:
@@ -89,7 +89,7 @@ class NotificationService {
     );
  
     await _plugin.initialize(
-      initSettings,
+      settings: initSettings,
       onDidReceiveNotificationResponse: (response) {
         appLogger.i(
           '[Notification] Tapped | id: ${response.id} | payload: ${response.payload}',
@@ -182,8 +182,14 @@ class NotificationService {
     NotificationPriority priority = NotificationPriority.defaultPriority,
   }) async {
     _ensureInit();
-    await _plugin.show(id, title, body, _buildDetails(priority), payload: payload);
-    _log('[NotificationService] Shown (id: $id)');
+    await _plugin.show(
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: _buildDetails(priority),
+      payload: payload,
+    );
+    appLogger.i('[NotificationService] Shown (id: $id)');
   }
  
   // ===========================================================================
@@ -208,17 +214,17 @@ class NotificationService {
         timeZoneName != null ? tz.getLocation(timeZoneName) : tz.local;
     final tzDate = tz.TZDateTime.from(scheduledDate, location);
  
-    await _plugin.zonedSchedule(
-      id,
-      title,
-      body,
-      tzDate,
-      _buildScheduledDetails(),
+  await _plugin.zonedSchedule(
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: tzDate,
+      notificationDetails: _buildScheduledDetails(),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       payload: payload,
     );
- 
-    _log('[NotificationService] Scheduled at $tzDate (id: $id)');
+
+    appLogger.i('[NotificationService] Scheduled at $tzDate (id: $id)');
   }
  
   /// Schedule a notification [delay] from now.
@@ -239,34 +245,32 @@ class NotificationService {
   }
  
   /// Schedule a daily notification at a fixed [time].
-  ///
-  /// Example: `Time(9, 0, 0)` fires every day at 09:00.
-  Future<void> scheduleDailyAt({
-    int id = scheduledId,
-    required String title,
-    required String body,
-    required Time time,
-    String? payload,
-  }) async {
-    _ensureInit();
  
-    await _plugin.zonedSchedule(
-      id,
-      title,
-      body,
-      _nextInstanceOfTime(time),
-      _buildScheduledDetails(),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      matchDateTimeComponents: DateTimeComponents.time,
-      payload: payload,
-    );
- 
-    _log('[NotificationService] Daily scheduled at $time (id: $id)');
-  }
+ Future<void> scheduleDailyAt({
+  int id = scheduledId,
+  required String title,
+  required String body,
+  required int hour,
+  required int minute,
+  String? payload,
+}) async {
+  _ensureInit();
+  await _plugin.zonedSchedule(
+    id: id,
+    title: title,
+    body: body,
+    scheduledDate: _nextInstanceOfTime(hour, minute),
+    notificationDetails: _buildScheduledDetails(),
+    androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+    matchDateTimeComponents: DateTimeComponents.time,
+    payload: payload,
+  );
+  appLogger.i('[NotificationService] Daily scheduled at $hour:$minute (id: $id)');
+}
  
   /// Schedule a weekly notification on a specific [day] and [time].
   ///
-  /// Example: `day: Day.monday, time: Time(8, 30)` fires every Monday at 08:30.
+
   Future<void> scheduleWeeklyOn({
     int id = scheduledId,
     required String title,
@@ -278,17 +282,19 @@ class NotificationService {
     _ensureInit();
  
     await _plugin.zonedSchedule(
-      id,
-      title,
-      body,
-      _nextInstanceOfDayAndTime(day, time),
-      _buildScheduledDetails(),
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: _nextInstanceOfDayAndTime(day, time),
+      notificationDetails: _buildScheduledDetails(),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
       payload: payload,
     );
- 
-    _log('[NotificationService] Weekly scheduled on $day at $time (id: $id)');
+
+    appLogger.i(
+      '[NotificationService] Weekly scheduled on $day at $hour:$minute (id: $id)',
+    );
   }
  
   // ===========================================================================
@@ -306,16 +312,16 @@ class NotificationService {
     _ensureInit();
  
     await _plugin.periodicallyShow(
-      id,
-      title,
-      body,
-      interval,
-      _buildDetails(NotificationPriority.defaultPriority),
+      id: id,
+      title: title,
+      body: body,
+      repeatInterval: interval,
+      notificationDetails: _buildDetails(NotificationPriority.defaultPriority),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       payload: payload,
     );
- 
-    _log('[NotificationService] Periodic ($interval) started (id: $id)');
+
+    appLogger.i('[NotificationService] Periodic ($interval) started (id: $id)');
   }
  
   // ===========================================================================
@@ -324,14 +330,14 @@ class NotificationService {
  
   /// Cancel a specific notification by [id].
   Future<void> cancel(int id) async {
-    await _plugin.cancel(id);
-    _log('[NotificationService] Cancelled (id: $id)');
+    await _plugin.cancel(id: id);
+    appLogger.i('[NotificationService] Cancelled (id: $id)');
   }
  
   /// Cancel all pending and shown notifications.
   Future<void> cancelAll() async {
     await _plugin.cancelAll();
-    _log('[NotificationService] Cancelled all');
+    appLogger.i('[NotificationService] Cancelled all');
   }
  
   // ===========================================================================
@@ -346,44 +352,7 @@ class NotificationService {
   // PRIVATE HELPERS
   // ===========================================================================
  
-  Future<void> _createNotificationChannels() async {
-    if (!Platform.isAndroid) return;
- 
-    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
- 
-    await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
-        _defaultChannelId,
-        _defaultChannelName,
-        description: _defaultChannelDesc,
-        importance: Importance.defaultImportance,
-        playSound: true,
-      ),
-    );
- 
-    await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
-        _scheduledChannelId,
-        _scheduledChannelName,
-        description: _scheduledChannelDesc,
-        importance: Importance.high,
-        playSound: true,
-      ),
-    );
- 
-    await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
-        _highPriorityChannelId,
-        _highPriorityChannelName,
-        description: _highPriorityChannelDesc,
-        importance: Importance.max,
-        playSound: true,
-        enableLights: true,
-        enableVibration: true,
-      ),
-    );
-  }
+
  
   NotificationDetails _buildDetails(NotificationPriority priority) {
     final isHigh = priority == NotificationPriority.high;
@@ -425,30 +394,21 @@ class NotificationService {
     );
   }
  
-  tz.TZDateTime _nextInstanceOfTime(Time time) {
-    final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(
+  tz.TZDateTime _nextInstanceOfTime(int hour, int minute) {
+    final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
+    tz.TZDateTime scheduledDate = tz.TZDateTime(
       tz.local,
       now.year,
       now.month,
       now.day,
-      time.hour,
-      time.minute,
-      time.second,
+      hour,
+      minute,
     );
-    if (scheduled.isBefore(now)) {
-      scheduled = scheduled.add(const Duration(days: 1));
+    if (scheduledDate.isBefore(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
-    return scheduled;
-  }
- 
-  tz.TZDateTime _nextInstanceOfDayAndTime(Day day, Time time) {
-    var scheduled = _nextInstanceOfTime(time);
-    while (scheduled.weekday != _dayToWeekday(day)) {
-      scheduled = scheduled.add(const Duration(days: 1));
-    }
-    return scheduled;
-  }
+    return scheduledDate;
+}
  
   int _dayToWeekday(Day day) {
     switch (day) {
@@ -599,7 +559,7 @@ class MediaService {
       }
     }
 
-    final FilePickerResult? result = await FilePicker.pickFiles(
+    final FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: type,
       allowedExtensions: allowedExtensions,
       allowMultiple: allowMultiple,
@@ -620,7 +580,6 @@ class MediaService {
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/errors/app_exception.dart';
 import '../../core/security/validation_service.dart';
 
 /// A service to handle URL launching operations.
@@ -659,7 +618,7 @@ class UrlLauncherService {
   static String connectivityService() => r'''
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/utils/logger.dart';
+import '../../core/utils/appappLogger.iger.dart';
 
 final connectivityProvider = Provider<ConnectivityService>((ref) {
   return ConnectivityService();

@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/widgets/design_system_view.dart';
-import '../app_routes.dart';
+import './app_routes.dart';
  
 // ── Navigator key ─────────────────────────────────────────────────────────────
 // Use this to navigate from anywhere without BuildContext:

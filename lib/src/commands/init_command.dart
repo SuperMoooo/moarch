@@ -142,7 +142,7 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kNotificationsService))
         'flutter_local_notifications:',
       if (stack.contains(_kNotificationsService)) "timezone:",
-      if (stack.contains(_kLocalizations)) 'flutter_localizations:',
+      if (stack.contains(_kLocalizations)) 'flutter_localization:',
     ];
 
     final devDependencies = <String>[

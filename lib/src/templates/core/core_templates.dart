@@ -9,7 +9,7 @@ class CoreTemplates {
     bool withNotificationsService = false,
   }) {
     final localizationImports = withLocalization
-        ? "\nimport 'package:flutter_localizations/flutter_localizations.dart';"
+        ? "\nimport 'package:flutter_localization/flutter_localization.dart';"
         : '';
     final notificationImport = withNotificationsService
         ? "\nimport 'core/services/notifications_service.dart';"
@@ -23,7 +23,7 @@ class CoreTemplates {
         : '';
     final localizationConfig = withLocalization
         ? '''
-      locale: FlutterLocalization.instance.locale,
+      locale: FlutterLocalization.instance.currentLocale,
       supportedLocales: FlutterLocalization.instance.supportedLocales,
       localizationsDelegates: FlutterLocalization.instance.localizationsDelegates,
 '''
@@ -34,7 +34,8 @@ class CoreTemplates {
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport
-import '../../core/utils/logger.dart';
+import 'core/utils/app_logger.dart';
+import '../shared/widgets/error_view.dart';
 import 'config/theme/app_theme.dart';
 import 'config/router/app_router.dart';
 
@@ -98,7 +99,7 @@ $localizationConfig      routerConfig: router,
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport
-import '../../core/utils/logger.dart';
+import '../../core/utils/app_logger.dart';
 import 'config/theme/app_theme.dart';
 
 Future<void> main() async {
@@ -203,7 +204,7 @@ $localizationConfig      debugShowCheckedModeBanner: false,
 
     return '''
 $import
-import '../../core/utils/logger.dart';
+import '../../core/utils/app_logger.dart';
 
 class AppException implements Exception {
   const AppException._({required this.message, this.statusCode});
