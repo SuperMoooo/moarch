@@ -142,7 +142,8 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kNotificationsService))
         'flutter_local_notifications:',
       if (stack.contains(_kNotificationsService)) "timezone:",
-      if (stack.contains(_kLocalizations)) 'flutter_localization:',
+      if (stack.contains(_kLocalizations))
+        'flutter_localizations:\n    sdk: flutter',
     ];
 
     final devDependencies = <String>[
@@ -212,19 +213,30 @@ class InitCommand extends Command<int> {
       );
 
       if (stack.contains(_kLocalizations)) {
+        // ARB files (flutter_localizations uses .arb, not .json)
         await FileUtils.createDir(
-            p.join(p.absolute(targetPath), 'assets', 'i18n'));
+            p.join(p.absolute(targetPath), 'lib', 'l10n'));
         await FileUtils.writeFile(
-          p.join(p.absolute(targetPath), 'assets', 'i18n', 'en.json'),
-          '{\n  "appTitle": "Moarch App",\n  "welcome": "Welcome"\n}\n',
+          p.join(p.absolute(targetPath), 'lib', 'l10n', 'app_en.arb'),
+          '{\n  "@@locale": "en",\n  "appTitle": "Moarch App",\n  "welcome": "Welcome"\n}\n',
         );
         await FileUtils.writeFile(
-          p.join(p.absolute(targetPath), 'assets', 'i18n', 'pt.json'),
-          '{\n  "appTitle": "App Moarch",\n  "welcome": "Bem-vindo"\n}\n',
+          p.join(p.absolute(targetPath), 'lib', 'l10n', 'app_pt.arb'),
+          '{\n  "@@locale": "pt",\n  "appTitle": "App Moarch",\n  "welcome": "Bem-vindo"\n}\n',
         );
-        await PubspecUtils.ensureAssets(
+
+        // l10n.yaml config file at project root
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'l10n.yaml'),
+          'arb-dir: lib/l10n\n'
+          'template-arb-file: app_en.arb\n'
+          'output-localization-file: app_localizations.dart\n',
+        );
+
+        // generate: true under flutter: section
+        await PubspecUtils.ensureFlutterFlags(
           p.absolute(targetPath),
-          assets: ['assets/i18n/'],
+          flags: ['generate: true'],
         );
       }
 
