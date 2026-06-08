@@ -35,7 +35,7 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: AppRoutes.designView,
-      builder: (_, _) => const DesignSystemView(),
+      builder: (_, __) => const DesignSystemView(),
     )
     
  

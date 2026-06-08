@@ -224,13 +224,30 @@ class InitCommand extends Command<int> {
           p.join(p.absolute(targetPath), 'lib', 'l10n', 'app_pt.arb'),
           '{\n  "@@locale": "pt",\n  "appTitle": "App Moarch",\n  "welcome": "Bem-vindo"\n}\n',
         );
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'lib', 'l10n', 'l10n.dart'),
+          '''
+            import 'dart:ui';
+
+            import 'package:app/config/router/app_router.dart';
+            import 'package:app/l10n/app_localizations.dart';
+            import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+            final languageProvider =
+              Provider((ref) => AppLocalizations.of(rootNavigatorKey.currentContext!));
+
+            class L10n {
+              static final all = [const Locale('en'), const Locale('pt')];
+            }''',
+        );
 
         // l10n.yaml config file at project root
         await FileUtils.writeFile(
           p.join(p.absolute(targetPath), 'l10n.yaml'),
           'arb-dir: lib/l10n\n'
           'template-arb-file: app_en.arb\n'
-          'output-localization-file: app_localizations.dart\n',
+          'output-localization-file: app_localizations.dart\n\n'
+          '# flutter gen-l10n',
         );
 
         // generate: true under flutter: section

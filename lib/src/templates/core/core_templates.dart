@@ -9,7 +9,7 @@ class CoreTemplates {
     bool withNotificationsService = false,
   }) {
     final localizationImports = withLocalization
-        ? "\nimport 'package:flutter_localization/flutter_localization.dart';"
+        ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\n"
         : '';
     final notificationImport = withNotificationsService
         ? "\nimport 'core/services/notifications_service.dart';"
@@ -18,14 +18,17 @@ class CoreTemplates {
     final notificationInit = withNotificationsService
         ? "\n await NotificationService.instance.init();"
         : '';
-    final localizationInit = withLocalization
-        ? "\n await FlutterLocalization.instance.ensureInitialized();"
-        : '';
+
     final localizationConfig = withLocalization
         ? '''
-      locale: FlutterLocalization.instance.currentLocale,
-      supportedLocales: FlutterLocalization.instance.supportedLocales,
-      localizationsDelegates: FlutterLocalization.instance.localizationsDelegates,
+      locale: const Locale('en'),
+      supportedLocales: L10n.all,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate
+      ],
 '''
         : '';
 
@@ -33,14 +36,14 @@ class CoreTemplates {
       return '''
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport
+import 'package:flutter_riverpod/flutter_riverpod.dart';$notificationImport
 import 'core/utils/app_logger.dart';
 import '../shared/widgets/error_view.dart';
 import 'config/theme/app_theme.dart';
 import 'config/router/app_router.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();$localizationInit$notificationInit
+  WidgetsFlutterBinding.ensureInitialized();$notificationInit
 
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
@@ -103,7 +106,7 @@ import '../../core/utils/app_logger.dart';
 import 'config/theme/app_theme.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();$localizationInit$notificationInit
+  WidgetsFlutterBinding.ensureInitialized();$notificationInit
 
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
