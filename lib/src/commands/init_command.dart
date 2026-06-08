@@ -228,14 +228,6 @@ class InitCommand extends Command<int> {
           p.join(p.absolute(targetPath), 'lib', 'l10n', 'l10n.dart'),
           '''
             import 'dart:ui';
-
-            import 'package:app/config/router/app_router.dart';
-            import 'package:app/l10n/app_localizations.dart';
-            import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-            final languageProvider =
-              Provider((ref) => AppLocalizations.of(rootNavigatorKey.currentContext!));
-
             class L10n {
               static final all = [const Locale('en'), const Locale('pt')];
             }''',
@@ -254,6 +246,12 @@ class InitCommand extends Command<int> {
         await PubspecUtils.ensureFlutterFlags(
           p.absolute(targetPath),
           flags: ['generate: true'],
+        );
+
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'lib', 'core', 'services',
+              'language_service.dart'),
+          ServicesTemplates.languageService(),
         );
       }
 

@@ -2,7 +2,34 @@
 class ServicesTemplates {
   ServicesTemplates._();
 
-  /// Returns a simple notification service scaffold.
+  /// Returns a language service scaffold.
+  static String languageService() => '''
+import '../../config/router/app_router.dart';
+import '../../l10n/app_localizations.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+  final languageProvider =
+    StateNotifierProvider<LanguageService, LanguageState>(
+  (ref) => LanguageService(),
+);
+
+class LanguageService extends StateNotifier<LanguageState> {
+
+  LanguageService() : super(const LanguageState(locale: Locale('en'))) {
+    _loadSavedLocale();
+  }
+
+  Future<void> _loadSavedLocale() async {
+   
+  }
+
+  Future<void> changeLanguage(String languageCode) async {
+    state = LanguageState(locale: Locale(languageCode));
+  }
+}
+  ''';
+
+  /// Returns a notification service scaffold.
   static String notificationsService() => r'''
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';

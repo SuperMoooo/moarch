@@ -9,7 +9,7 @@ class CoreTemplates {
     bool withNotificationsService = false,
   }) {
     final localizationImports = withLocalization
-        ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\n"
+        ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\nimport  'core/services/language_service.dart';\n"
         : '';
     final notificationImport = withNotificationsService
         ? "\nimport 'core/services/notifications_service.dart';"
@@ -21,7 +21,7 @@ class CoreTemplates {
 
     final localizationConfig = withLocalization
         ? '''
-      locale: const Locale('en'),
+      locale: locale,
       supportedLocales: L10n.all,
       localizationsDelegates: const [
         AppLocalizations.delegate,
@@ -29,6 +29,12 @@ class CoreTemplates {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate
       ],
+'''
+        : '';
+
+    final localizationWatch = withLocalization
+        ? '''
+final locale = ref.watch(languageProvider).locale;
 '''
         : '';
 
@@ -76,6 +82,7 @@ class App extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    $localizationWatch
  
     return MaterialApp.router(
       title: 'App',
@@ -138,6 +145,7 @@ class App extends StatelessWidget {
  
   @override
   Widget build(BuildContext context) {
+  $localizationWatch
     return MaterialApp(
       title: 'App',
       theme: AppTheme.light,
