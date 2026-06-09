@@ -120,6 +120,7 @@ class InitCommand extends Command<int> {
     final progress = _logger.progress('Creating structure');
 
     final defaultDependencies = <String>[
+      'flutter:\n    sdk: flutter',
       'flutter_riverpod:',
       'envied:',
       'skeletonizer:',
@@ -150,7 +151,8 @@ class InitCommand extends Command<int> {
       'build_runner:',
       'envied_generator:',
       'mogen_unit_tests:',
-      'mogen_integration_tests:'
+      'mogen_integration_tests:',
+      'flutter_lints:'
     ];
 
     try {

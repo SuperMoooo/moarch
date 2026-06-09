@@ -9,7 +9,7 @@ class CoreTemplates {
     bool withNotificationsService = false,
   }) {
     final localizationImports = withLocalization
-        ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\nimport  'core/services/language_service.dart';\n"
+        ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\nimport  'core/services/language_service.dart';\nimport 'package:flutter_localizations/flutter_localizations.dart';\n"
         : '';
     final notificationImport = withNotificationsService
         ? "\nimport 'core/services/notifications_service.dart';"
@@ -42,7 +42,7 @@ final locale = ref.watch(languageProvider).locale;
       return '''
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';$notificationImport
+import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport
 import 'core/utils/app_logger.dart';
 import '../shared/widgets/error_view.dart';
 import 'config/theme/app_theme.dart';

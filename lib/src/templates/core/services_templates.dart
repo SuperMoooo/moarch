@@ -4,29 +4,31 @@ class ServicesTemplates {
 
   /// Returns a language service scaffold.
   static String languageService() => '''
-import '../../config/router/app_router.dart';
-import '../../l10n/app_localizations.dart';
+import 'dart:ui';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-  final languageProvider =
-    StateNotifierProvider<LanguageService, LanguageState>(
-  (ref) => LanguageService(),
+final languageProvider = StateNotifierProvider<LanguageService, LanguageState>(
+  (ref) => LanguageService(const LanguageState(locale: Locale('en'))),
 );
 
-class LanguageService extends StateNotifier<LanguageState> {
+class LanguageState {
+  final Locale locale;
+  const LanguageState({required this.locale});
+}
 
-  LanguageService() : super(const LanguageState(locale: Locale('en'))) {
+class LanguageService extends StateNotifier<LanguageState> {
+  LanguageService(super._state) {
     _loadSavedLocale();
   }
 
-  Future<void> _loadSavedLocale() async {
-   
-  }
+  Future<void> _loadSavedLocale() async {}
 
   Future<void> changeLanguage(String languageCode) async {
     state = LanguageState(locale: Locale(languageCode));
   }
 }
+
   ''';
 
   /// Returns a notification service scaffold.
@@ -298,31 +300,7 @@ class NotificationService {
   /// Schedule a weekly notification on a specific [day] and [time].
   ///
 
-  Future<void> scheduleWeeklyOn({
-    int id = scheduledId,
-    required String title,
-    required String body,
-    required Day day,
-    required Time time,
-    String? payload,
-  }) async {
-    _ensureInit();
  
-    await _plugin.zonedSchedule(
-      id: id,
-      title: title,
-      body: body,
-      scheduledDate: _nextInstanceOfDayAndTime(day, time),
-      notificationDetails: _buildScheduledDetails(),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
-      payload: payload,
-    );
-
-    appLogger.i(
-      '[NotificationService] Weekly scheduled on $day at $hour:$minute (id: $id)',
-    );
-  }
  
   // ===========================================================================
   // PERIODIC
@@ -437,17 +415,7 @@ class NotificationService {
     return scheduledDate;
 }
  
-  int _dayToWeekday(Day day) {
-    switch (day) {
-      case Day.monday:    return DateTime.monday;
-      case Day.tuesday:   return DateTime.tuesday;
-      case Day.wednesday: return DateTime.wednesday;
-      case Day.thursday:  return DateTime.thursday;
-      case Day.friday:    return DateTime.friday;
-      case Day.saturday:  return DateTime.saturday;
-      case Day.sunday:    return DateTime.sunday;
-    }
-  }
+ 
  
   void _ensureInit() {
     if (!_initialized) {
