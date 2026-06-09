@@ -35,6 +35,7 @@ class CoreTemplates {
     final localizationWatch = withLocalization
         ? '''
 final locale = ref.watch(languageProvider).locale;
+//final l10n = AppLocalizations.of(context);
 '''
         : '';
 
