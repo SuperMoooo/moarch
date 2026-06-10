@@ -15,7 +15,6 @@ class DevTemplates {
               strong-mode:
                   implicit-dynamic: false
               language:
-                  strict-inference: true
                   strict-raw-types: true
           linter:
               rules:

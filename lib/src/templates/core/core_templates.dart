@@ -43,6 +43,7 @@ final locale = ref.watch(languageProvider).locale;
       return '''
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport
 import 'core/utils/app_logger.dart';
 import '../shared/widgets/error_view.dart';
@@ -115,6 +116,7 @@ class App extends ConsumerWidget {
 
     return '''
 import 'package:flutter/foundation.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport
 import '../../core/utils/app_logger.dart';
