@@ -50,7 +50,11 @@ import 'config/theme/app_theme.dart';
 import 'config/router/app_router.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();$notificationInit
+  // Preserve the splash BEFORE anything else runs
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  
+  $notificationInit
 
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
@@ -73,7 +77,9 @@ Future<void> main() async {
     return const ErrorView(); // your nice screen in prod
   };
 
-    //::::::::::ERROR MANAGEMENT::::::::::
+  // OR REMOVE AFTER SOME ASYNC INIT IN A ROOT WIDGET
+  FlutterNativeSplash.remove();
+
   runApp(const ProviderScope(child: App()));
 }
  
@@ -89,7 +95,8 @@ class App extends ConsumerWidget {
       title: 'App',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-$localizationConfig      routerConfig: router,
+      $localizationConfig      
+      routerConfig: router,
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return MediaQuery(

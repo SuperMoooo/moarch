@@ -122,6 +122,7 @@ class InitCommand extends Command<int> {
     final defaultDependencies = <String>[
       'flutter:\n    sdk: flutter',
       'flutter_riverpod:',
+      'flutter_native_splash:',
       'envied:',
       'skeletonizer:',
       'cached_network_image:',
@@ -180,6 +181,19 @@ class InitCommand extends Command<int> {
         p.join(p.absolute(targetPath), '.env'),
         'BASE_URL=',
       );
+
+      await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'flutter_native_splash.yaml'), '''
+        # dart run flutter_native_splash:create --path=flutter_native_splash.yaml
+        # No icon because it will use the app icon files in each platform folder
+        flutter_native_splash:
+          color: '#FFFFFF' # BG COLOR
+          color_dark: '#FFFFFF' # BG COLOR
+
+          android_12:
+              color: '#FFFFFF' # BG COLOR
+              color_dark: '#FFFFFF' # BG COLOR
+    ''');
 
       await FileUtils.writeFile(
           p.join(p.absolute(targetPath), 'analysis_options.yaml'),
