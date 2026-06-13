@@ -579,4 +579,63 @@ final decrypted = encrypter.decrypt(encrypted, iv: iv);
 - [Google Play Data Safety](https://support.google.com/googleplay/android-developer/answer/10787469)
 
 ''';
+
+  /// code to generate jks file
+  static String generateJKS() => r'''
+  
+  keytool -genkeypair -v -keystore my-release-key.jks -alias my-key-alias -keyalg RSA -keysize 2048 -validity 10000
+
+
+  android/key.properties file:
+    storePassword=
+    keyPassword=
+    keyAlias=
+    storeFile=
+
+
+  android/app/build.gradle.kts file:
+
+    plugins {
+      id("com.android.application")
+      id("com.google.gms.google-services")
+      id("kotlin-android")
+      id("dev.flutter.flutter-gradle-plugin")
+  }
+  # new section after plugins
+    val keystoreProperties = Properties()
+    val keystorePropertiesFile = rootProject.file("key.properties")
+    if (keystorePropertiesFile.exists()) {
+        keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+    }
+
+
+    and
+
+        signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties["keyAlias"] as? String
+            keyPassword = keystoreProperties["keyPassword"] as? String
+            storeFile = (keystoreProperties["storeFile"] as? String)?.let { file(it) }
+            storePassword = keystoreProperties["storePassword"] as? String
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+}
+
+
+GETTING SHA's
+
+keytool -list -v -keystore my-release-key.jks -alias my-key-alias
+
+  ''';
 }

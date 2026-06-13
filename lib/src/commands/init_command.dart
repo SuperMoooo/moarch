@@ -209,6 +209,11 @@ class InitCommand extends Command<int> {
         ChecklistTemplates.securityChecklist(),
       );
 
+      await FileUtils.writeFile(
+        p.join(p.absolute(targetPath), 'GENERATE_JKS_FILE.md'),
+        ChecklistTemplates.generateJKS(),
+      );
+
       if (stack.contains(_kWorkflows)) {
         await FileUtils.writeFile(
           p.join(p.absolute(targetPath), '.github', 'workflows',
@@ -216,8 +221,7 @@ class InitCommand extends Command<int> {
           WorkflowTemplates.unifiedWorkflow(),
         );
         await FileUtils.writeFile(
-          p.join(p.absolute(targetPath), '.github', 'workflows',
-              'supply_chain_analysis.yml'),
+          p.join(p.absolute(targetPath), '.github', 'workflows', 'csa.yml'),
           WorkflowTemplates.csaWorkflow(),
         );
       }
@@ -266,7 +270,7 @@ class InitCommand extends Command<int> {
         // generate: true under flutter: section
         await PubspecUtils.ensureFlutterFlags(
           p.absolute(targetPath),
-          flags: ['generate: true'],
+          flags: ['generate: true', 'uses-material-design: true'],
         );
 
         await FileUtils.writeFile(
