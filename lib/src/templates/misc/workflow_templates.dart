@@ -15,10 +15,16 @@ class WorkflowTemplates {
 #   3. sast              — static analysis + formatting check
 #   4. secrets           — scans for leaked secrets
 #   5. dependency-review — CVE + license check (PRs only)
-#   6. build             — builds release APK if all above pass
+#   6. osv-scan          — CVE check against pubspec.lock (all pushes/PRs)
+#   7. build             — builds release APK if all above pass
 #
 # Required GitHub secrets (Settings → Secrets and variables → Actions):
 #   BASE_URL — your API base URL e.g. https://api.yourapp.com
+#
+# Note on CVE gating: dependency-review-action only runs on PRs (it diffs
+# base vs head). osv-scan runs on every push too, so it's the source of
+# truth for CVE gating on main/develop. dependency-review-action stays as
+# an early PR-only signal plus license-deny enforcement.
 
 name: CI
 
@@ -171,6 +177,8 @@ jobs:
 
   # ── 5. Dependency review ─────────────────────────────────────────────────────
   # Only runs on pull requests — requires a base and head to compare.
+  # PR-only early signal + license-deny enforcement. CVE gating on
+  # push/main is handled by osv-scan below.
   dependency-review:
     runs-on: ubuntu-latest
     needs: unit
@@ -186,12 +194,39 @@ jobs:
           # Uncomment to block specific licenses:
           # deny-licenses: GPL-2.0, GPL-3.0
 
-  # ── 6. Build ─────────────────────────────────────────────────────────────────
-  # Only runs if ALL previous jobs pass.
-  # dependency-review is skipped on push — excluded from needs on push events.
+  # ── 6. OSV vulnerability scan ────────────────────────────────────────────────
+  # Real CVE gate against pubspec.lock — runs on every push, PR, and the
+  # weekly schedule (so newly-disclosed CVEs fail main even with no new commits).
+  osv-scan:
+    runs-on: ubuntu-latest
+    needs: unit
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run OSV-Scanner
+        uses: google/osv-scanner-action/osv-scanner-action@v1
+        with:
+          scan-args: |-
+            --lockfile=pubspec.lock
+            --format=json
+            --output=osv-results.json
+
+      - name: Upload OSV results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osv-scan-results
+          path: osv-results.json
+          retention-days: 30
+
+  # ── 7. Build ─────────────────────────────────────────────────────────────────
+  # Only runs if ALL previous required jobs pass.
+  # dependency-review is skipped on push — excluded from needs there,
+  # but still required to pass on PR runs via the on: pull_request trigger.
   build:
     runs-on: ubuntu-latest
-    needs: [integration, sast, secrets]
+    needs: [integration, sast, secrets, osv-scan]
 
     steps:
       - uses: actions/checkout@v4
@@ -213,5 +248,103 @@ jobs:
           name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
+''';
+
+  /// Returns the supply chain analysis (reporting) workflow.
+  /// Non-blocking: SBOM + license report, scheduled weekly and on release tags.
+  static String csaWorkflow() => r'''
+# ── Supply Chain Analysis (Reporting) ─────────────────────────────────────────
+# Non-blocking compliance artifacts: SBOM + license report.
+# Runs weekly and on release tags — does not gate merges or builds.
+# CVE gating lives in ci.yml (dependency-review-action + OSV-Scanner job).
+
+name: CSA
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: {}
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: .fvmrc
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Install CycloneDX for Dart
+        run: dart pub global activate cyclonedx_flutter
+
+      - name: Generate SBOM (CycloneDX JSON)
+        run: |
+          export PATH="$PATH":"$HOME/.pub-cache/bin"
+          dart pub global run cyclonedx_flutter:generate \
+            --output-format=json \
+            --output-file=sbom.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: sbom.json
+          retention-days: 90
+
+  license-compliance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: .fvmrc
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run pana license/health report
+        run: |
+          dart pub global activate pana
+          export PATH="$PATH":"$HOME/.pub-cache/bin"
+          pana --json . > pana-report.json || true
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-report
+          path: pana-report.json
+          retention-days: 90
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: [sbom, license-compliance]
+    if: always()
+
+    steps:
+      - name: Download all reports
+        uses: actions/download-artifact@v4
+        with:
+          path: reports
+
+      - name: Write summary
+        run: |
+          echo "## Supply Chain Analysis — $(date -u +%Y-%m-%d)" >> $GITHUB_STEP_SUMMARY
+          echo "- SBOM (CycloneDX) and license/health report generated." >> $GITHUB_STEP_SUMMARY
+          echo "- CVE gating is handled separately in ci.yml (OSV-Scanner + dependency-review)." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+          find reports -type f >> $GITHUB_STEP_SUMMARY
 ''';
 }

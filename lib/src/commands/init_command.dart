@@ -215,6 +215,11 @@ class InitCommand extends Command<int> {
               'unified_workflow.yml'),
           WorkflowTemplates.unifiedWorkflow(),
         );
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), '.github', 'workflows',
+              'supply_chain_analysis.yml'),
+          WorkflowTemplates.csaWorkflow(),
+        );
       }
 
       await FileUtils.writeFile(
