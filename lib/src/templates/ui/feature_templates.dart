@@ -274,6 +274,7 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State> {
 import 'package:flutter/material.dart';
 import '../../../../shared/widgets/error_view.dart';
 import 'package:skeletonizer/skeletonizer.dart';
+import '../states/${name}_state.dart';
 
 ${hasNotifier ? "import 'package:flutter_riverpod/flutter_riverpod.dart';" : ''}
 
