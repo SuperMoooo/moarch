@@ -27,7 +27,7 @@ abstract interface class ${cls}Repository {
   // ── Domain — Use case ───────────────────────────────────────────────────────
 
   /// Returns the generated usecase template.
-  static String usecase(String name, String cls) => '''
+  static String usecase(String name, String cls, String varName) => '''
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/repositories/${name}_repository_impl.dart';
@@ -35,8 +35,8 @@ import '../../../../core/usecases/usecase.dart';
 import '../entities/${name}_entity.dart';
 import '../repositories/${name}_repository.dart';
 
-final get${cls}Provider = Provider<Get$cls>(
-  (ref) => Get$cls(ref.watch(${name}RepositoryProvider)),
+final get${varName}Provider = Provider<Get$cls>(
+  (ref) => Get$cls(ref.watch(${varName}RepositoryProvider)),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -83,14 +83,14 @@ class ${cls}Model extends ${cls}Entity{
   // ── Data — Remote datasource ────────────────────────────────────────────────
 
   /// Returns the generated remoteDatasource template.
-  static String remoteDatasource(String name, String cls) => '''
+  static String remoteDatasource(String name, String cls, String varName) => '''
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/network/dio_client.dart';
 import '../models/${name}_model.dart';
 
-final ${name}RemoteDataSourceProvider = Provider<${cls}RemoteDataSource>(
+final ${varName}RemoteDataSourceProvider = Provider<${cls}RemoteDataSource>(
   (ref) => ${cls}RemoteDataSource(ref.watch(dioClientProvider)),
 );
 
@@ -109,12 +109,12 @@ class ${cls}RemoteDataSource {
   // ── Data — Local/cache datasource ───────────────────────────────────────────
 
   /// Returns the generated localDatasource template.
-  static String localDatasource(String name, String cls) => '''
+  static String localDatasource(String name, String cls, String varName) => '''
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/${name}_model.dart';
 
-final ${name}LocalDataSourceProvider = Provider<${cls}LocalDataSource>(
+final ${varName}LocalDataSourceProvider = Provider<${cls}LocalDataSource>(
   (ref) => ${cls}LocalDataSource(),
 );
 
@@ -133,13 +133,14 @@ class ${cls}LocalDataSource {
   /// Returns the generated repositoryImpl template.
   static String repositoryImpl(
     String name,
-    String cls, {
+    String cls,
+    String varName, {
     required bool hasRemote,
     required bool hasLocal,
   }) {
     final providerArgs = [
-      if (hasRemote) '      ref.watch(${name}RemoteDataSourceProvider),',
-      if (hasLocal) '      ref.watch(${name}LocalDataSourceProvider),',
+      if (hasRemote) '      ref.watch(${varName}RemoteDataSourceProvider),',
+      if (hasLocal) '      ref.watch(${varName}LocalDataSourceProvider),',
     ].join('\n');
 
     final ctorParams = [
@@ -160,7 +161,7 @@ ${hasRemote ? "import '../datasources/${name}_remote_datasource.dart';" : ''}
 ${hasLocal ? "import '../datasources/${name}_local_datasource.dart';" : ''}
 import '../../domain/repositories/${name}_repository.dart';
 
-final ${name}RepositoryProvider = Provider<${cls}Repository>(
+final ${varName}RepositoryProvider = Provider<${cls}Repository>(
   (ref) => ${cls}RepositoryImpl(
 $providerArgs
   ),
@@ -215,7 +216,8 @@ class ${cls}State {
   // ── Presentation — Notifier ─────────────────────────────────────────────────
 
   /// Returns the generated notifier template.
-  static String notifier(String name, String cls, {required bool hasUseCase}) =>
+  static String notifier(String name, String cls, String varName,
+          {required bool hasUseCase}) =>
       '''
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -225,14 +227,14 @@ ${hasUseCase ? "import '../../domain/usecases/get_$name.dart';" : "import '../..
 import '../../domain/repositories/${name}_repository.dart';
 import '../states/${name}_state.dart';
 
-final ${name}NotifierProvider =
+final ${varName}NotifierProvider =
     AsyncNotifierProvider<${cls}Notifier, ${cls}State>(${cls}Notifier.new);
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ${cls}Notifier extends AsyncNotifier<${cls}State> {
 
-  ${cls}Repository get _repo => ref.watch(${name}RepositoryProvider);
+  ${cls}Repository get _repo => ref.watch(${varName}RepositoryProvider);
 
   @override
   FutureOr<${cls}State> build() async {
@@ -254,7 +256,7 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State> {
   //   if (current == null) return;
   //   state = AsyncData(current.copyWith(isLoadingAction: true));
   //   try {
-  //     // await ref.read(${name}RepositoryProvider).doSomething();
+  //     // await ref.read(${varName}RepositoryProvider).doSomething();
   //     state = AsyncData(current.copyWith(success: 'Done!'));
   //   } on AppException catch (e) {
   //     state = AsyncData(current.copyWith(error: e.message));
@@ -266,7 +268,8 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State> {
   // ── Presentation — View ─────────────────────────────────────────────────────
 
   /// Returns the generated view template.
-  static String view(String name, String cls, {required bool hasNotifier}) =>
+  static String view(String name, String cls, String varName,
+          {required bool hasNotifier}) =>
       '''
 import 'package:flutter/material.dart';
 import '../../../../shared/widgets/error_view.dart';
@@ -292,8 +295,8 @@ class _${cls}ViewState extends ConsumerState<${cls}View> {
 
   @override
   Widget build(BuildContext context) {
-    final ${name}Async = ref.watch(${name}NotifierProvider);
-    ref.listen(${name}NotifierProvider, (_, next) {
+    final ${varName}Async = ref.watch(${varName}NotifierProvider);
+    ref.listen(${varName}NotifierProvider, (_, next) {
       final value = next.value;
       if (value == null) return;
         if (value.error != null) {
@@ -307,12 +310,12 @@ class _${cls}ViewState extends ConsumerState<${cls}View> {
     Widget _mainWidget(${cls}State? state){
       return const SizedBox.shrink();
     }
-    return ${name}Async.when(
+    return ${varName}Async.when(
         data: (state) => _mainWidget(state),
 
         loading: () => Skeletonizer(
           enabled: true,
-          child: _mainWidget(),
+          child: _mainWidget(null),
         ),
         error: (_, __) => ErrorView(message: "Failed to load ${cls}"),
         

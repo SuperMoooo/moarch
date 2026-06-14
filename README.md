@@ -20,6 +20,7 @@ flutter create my_app
 cd my_app
 moarch init
 moarch create feature auth
+moarch create model auth login_response
 ```
 
 ## Commands
@@ -27,7 +28,8 @@ moarch create feature auth
 ```bash
 moarch init          # interactive scaffold
 moarch init --all    # generate the default structure without prompts
-moarch create feature auth
+moarch create feature <featureName>
+moarch create model <featureName> <modelName> # generate the model and entity
 ```
 
 ## What it generates
