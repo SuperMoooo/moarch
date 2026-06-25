@@ -103,6 +103,15 @@ class ${cls}RemoteDataSource {
   final Dio _dio;
 
   // TODO: implement methods
+  // safeApiCall(
+  // apiCall: () async {
+  //    await Future.delayed(Duration(seconds: 1)); // Simulating network lag
+  //    return "User Data from Server";
+  //   },
+  // This runs if offline
+  //   onNoInternet: () {
+  //    return "Cached Local User Data";
+  //  },)
 }
 ''';
 

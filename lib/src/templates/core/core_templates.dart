@@ -553,6 +553,8 @@ import 'package:dio_smart_retry/dio_smart_retry.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
 
 import '../../config/env/app_env.dart';
 import '../constants/api_constants.dart';
@@ -631,6 +633,31 @@ void _configureHttpClient(Dio dio) {
       return client;
     },
   );
+}
+
+
+
+Future<T?> safeApiCall<T>({
+    required Future<T> Function() apiCall,
+    required FutureOr<T?> Function() onNoInternet,
+  }) async {
+  // 1. Check current connectivity status
+  final List<ConnectivityResult> connectivityResult = await (Connectivity().checkConnectivity());
+  
+  // connectivity_plus returns a list. If it contains 'none', there is no internet.
+  if (connectivityResult.contains(ConnectivityResult.none)) {
+    print("No internet connection detected.");
+    return await onNoInternet();
+  }
+
+  try {
+    // 2. Internet is available, execute the API call
+    return await apiCall();
+  } catch (e) {
+    // 3. Handle other potential errors (timeout, 404, etc.)
+    print("API Call failed with error: $e");
+    rethrow; // Or handle it gracefully depending on your architecture
+  }
 }
 
 ''';
