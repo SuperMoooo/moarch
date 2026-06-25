@@ -1,5 +1,5 @@
-## 1.5.3
+## 1.5.4
 
 ### UPDATE
 
-- STATE IMPORT IN VIEW
+- SAFE API CALL
