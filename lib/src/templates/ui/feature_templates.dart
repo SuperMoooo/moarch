@@ -183,12 +183,7 @@ class ${cls}RepositoryImpl implements ${cls}Repository {
 
 $fields
 
-  // TODO: implement methods
-  // Catch DioException and throw AppException:
-  //
-  // } on DioException catch (e) {
-  //    AppException.fromDioError(e);
-  // }
+  
 }
 ''';
   }
@@ -230,7 +225,7 @@ class ${cls}State {
       '''
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/utils/app_logger.dart';
+import '../../core/errors/app_exception.dart';
 
 ${hasUseCase ? "import '../../domain/usecases/get_$name.dart';" : "import '../../data/repositories/${name}_repository_impl.dart';"}
 import '../../domain/repositories/${name}_repository.dart';
@@ -249,10 +244,8 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State> {
   FutureOr<${cls}State> build() async {
   try {
      return const ${cls}State();
-    } on AppException catch (_) {
-      return const ${cls}State();
-    } catch (e) {
-      appLogger.e(e);
+    } catch (e, s) {
+      AppException.fromError(e, s);
       return const ${cls}State();
     }
     
@@ -265,12 +258,14 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State> {
   //   if (current == null) return;
   //   state = AsyncData(current.copyWith(isLoadingAction: true));
   //   try {
-  //     // await ref.read(${varName}RepositoryProvider).doSomething();
-  //     state = AsyncData(current.copyWith(success: 'Done!'));
-  //   } on AppException catch (e) {
-  //     state = AsyncData(current.copyWith(error: e.message));
+  //    // await ref.read(${varName}RepositoryProvider).doSomething();
+  //    state = AsyncData(current.copyWith(success: 'Done!'));
+  //   } catch (e, s) {
+  //    AppException.fromError(e, s);
   //   }
   // }
+
+
 }
 ''';
 

@@ -179,6 +179,13 @@ $localizationConfig      debugShowCheckedModeBanner: false,
 
   /// Returns the generated appException template.
   static String appException({bool hasDio = true}) {
+    const catchError = r'''
+    appLogger.e(
+    '[AppException] — $message',
+    error: error,
+    stackTrace: stackTrace,
+    );
+    ''';
     final import = hasDio
         ? "import 'package:dio/dio.dart';"
         : "import 'package:cloud_firestore/cloud_firestore.dart';";
@@ -193,20 +200,32 @@ $localizationConfig      debugShowCheckedModeBanner: false,
       final statusCode = dioError.response?.statusCode;
 
       appLogger.e(
-        '[AppException in [${dioError.stackTrace}]] — $message',
+        '[AppException] — $message',
         error: dioError,
+        stackTrace: dioError.stackTrace,
       );
 
       return AppException._(message: message, statusCode: statusCode);
     } catch (e) {
-      appLogger.e('[AppException in [${dioError.stackTrace}]] — $e');
+      appLogger.e(
+        '[AppException] — $message',
+        error: e,
+        stackTrace: dioError.stackTrace,
+      );
       return const AppException._(message: 'Unknown error');
     }
   }
   '''
         : r'''
   factory AppException.fromFirebaseError(FirebaseException error) {
-    appLogger.e('[AppException] — $message', error: error.message);
+    final message = error.message ?? 'Unknown error';
+
+    appLogger.e(
+      '[AppException] — $message',
+      error: error,
+      stackTrace: error.stackTrace,
+    );
+
     switch (error.code) {
       case "user-not-found":
         return const AppException(message: "Usuário não encontrado");
@@ -240,9 +259,13 @@ class AppException implements Exception {
     return const AppException._(message: "Test exception", statusCode: 400);
   }
 
-  factory AppException.fromMessage(String message) {
-    return AppException._(message: message);
-  }
+  factory AppException.fromError(Object error, StackTrace stackTrace) {
+  final message = error.toString();
+
+  $catchError
+
+  return AppException(message: message, statusCode: null);
+}
 
 $factory
 }
@@ -555,6 +578,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:async';
+import '../../core/errors/app_exception.dart';
 
 import '../../config/env/app_env.dart';
 import '../constants/api_constants.dart';
@@ -646,17 +670,22 @@ Future<T?> safeApiCall<T>({
   
   // connectivity_plus returns a list. If it contains 'none', there is no internet.
   if (connectivityResult.contains(ConnectivityResult.none)) {
-    print("No internet connection detected.");
+    // UI FEEDBACK
     return await onNoInternet();
   }
 
   try {
     // 2. Internet is available, execute the API call
     return await apiCall();
-  } catch (e) {
-    // 3. Handle other potential errors (timeout, 404, etc.)
-    print("API Call failed with error: $e");
-    rethrow; // Or handle it gracefully depending on your architecture
+  } on DioException catch (e) {
+   // 3. Handle Dio errors
+    final exception = AppException.fromDioError(e);
+    // UI FEEDBACK
+    return null;
+   } catch (e, s) {
+    final exception = AppException.fromError(e, s);
+     // UI FEEDBACK
+    return null;
   }
 }
 
