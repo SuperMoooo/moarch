@@ -44,9 +44,9 @@ class ValidationResult {
   factory ValidationResult.valid(String sanitized) =>
       ValidationResult(isValid: true, sanitizedValue: sanitized);
 
-  factory ValidationResult.invalid(String error, String original) {
-    throw AppException.fromMessage(error);
-  }
+   factory ValidationResult.invalid(String error, String original) =>
+      ValidationResult(isValid: false, error: error, sanitizedValue: "");
+}
 }
 
 

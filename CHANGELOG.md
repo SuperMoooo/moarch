@@ -1,5 +1,5 @@
-## 1.5.5
+## 1.5.6
 
 ### UPDATE
 
-- SAFE API CALL
+- FIXES

@@ -206,10 +206,11 @@ $localizationConfig      debugShowCheckedModeBanner: false,
       );
 
       return AppException._(message: message, statusCode: statusCode);
-    } catch (e) {
+    } catch (error) {
+      final message = error.toString();
       appLogger.e(
         '[AppException] — $message',
-        error: e,
+        error: error,
         stackTrace: dioError.stackTrace,
       );
       return const AppException._(message: 'Unknown error');
@@ -238,7 +239,7 @@ $localizationConfig      debugShowCheckedModeBanner: false,
       case "weak-password":
         return const AppException(message: "Senha fraca");
       default:
-        return AppException(message: error.message ?? "Erro desconhecido");
+        return AppException._(message: error.message ?? "Erro desconhecido");
     }
   }''';
 
@@ -343,6 +344,8 @@ extension StringX on String {
       } catch (_) {}
     }
 
+    DateTime date = DateTime.now();
+
     // Fallback: manual split for d/M/yyyy or M/d/yyyy ambiguous cases
     final parts = dateStr.split(RegExp(r'[/\-]'));
     if (parts.length == 3) {
@@ -352,17 +355,15 @@ extension StringX on String {
 
       if (a != null && b != null && c != null) {
         // c is year if > 31, assume d/M/yyyy
-        if (c > 31) return DateTime(c, b, a);
+        if (c > 31) date = DateTime(c, b, a);
         // a is year if > 31, assume yyyy/M/d
-        if (a > 31) return DateTime(a, b, c);
+        if (a > 31) date = DateTime(a, b, c);
       }
     }
-
-    throw AppException.fromMessage('Unable to parse date: $dateStr');
+    return date;
   }
-
-
 }
+
 
 extension DateTimeX on DateTime {
   String get formattedDate => '$day/$month/$year';

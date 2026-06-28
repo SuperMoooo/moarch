@@ -225,7 +225,7 @@ class ${cls}State {
       '''
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/errors/app_exception.dart';
+import '../../../../core/errors/app_exception.dart';
 
 ${hasUseCase ? "import '../../domain/usecases/get_$name.dart';" : "import '../../data/repositories/${name}_repository_impl.dart';"}
 import '../../domain/repositories/${name}_repository.dart';
