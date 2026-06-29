@@ -13,8 +13,9 @@ class ModelFieldParser {
     // Look for: [Type] [name];
     // Exclude things like 'factory' or keywords
     final fieldPattern = RegExp(
-        r'^\s+(?:final|late)?\s*(?<type>[A-Z][\w<>?]+)\s+(?<name>\w+);',
-        multiLine: true);
+      r'^\s+(?:final|late)?\s*(?<type>[a-zA-Z][\w<>?]+)\s+(?<name>\w+);',
+      multiLine: true,
+    );
 
     for (final match in fieldPattern.allMatches(source)) {
       final type = match.namedGroup('type');
@@ -47,29 +48,25 @@ $args
   static String _defaultFor(_Field f) {
     final t = (f.type ?? '').replaceAll(' ', '');
 
-    // Nullable — always null
+    if (t == 'dynamic') return 'null';
     if (t.endsWith('?')) return 'null';
 
-    // Common scalar types
     const defaults = <String, String>{
       'String': "''",
       'int': '0',
       'double': '0.0',
       'num': '0',
       'bool': 'false',
-      'DateTime': 'DateTime(0)',
+      'DateTime': 'DateTime.now()',
     };
-    if (defaults.containsKey(t)) return defaults[t]!;
 
-    // List / Set / Map literals
+    if (defaults.containsKey(t)) return defaults[t]!;
     if (t.startsWith('List')) return 'const []';
     if (t.startsWith('Set')) return 'const {}';
     if (t.startsWith('Map')) return 'const {}';
 
-    // Unknown / custom type — call its own .empty() by convention
-    if (t.isNotEmpty) return '$t.empty()';
-
-    return 'null';
+    // Fallback for custom objects
+    return '$t.empty()';
   }
 }
 
