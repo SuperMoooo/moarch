@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
+import 'package:moarch/src/utils/model_field_parser.dart';
 import 'package:path/path.dart' as p;
 
 import '../../templates/ui/feature_templates.dart';
@@ -17,6 +18,12 @@ class CreateModelCommand extends Command<int> {
       abbr: 'p',
       defaultsTo: 'lib',
       help: 'Path to lib/ directory.',
+    );
+    argParser.addFlag(
+      'empty',
+      abbr: 'e',
+      negatable: false,
+      help: 'Inject a .empty() factory into an existing model.',
     );
   }
 
@@ -65,10 +72,23 @@ class CreateModelCommand extends Command<int> {
     final entityFile =
         p.join(featurePath, 'domain', 'entities', '${modelName}_entity.dart');
 
-    if (File(modelFile).existsSync() || File(entityFile).existsSync()) {
-      _logger
-          .warn('Model "$modelName" already exists in feature "$featureName".');
-      return 0;
+    final addEmpty = argResults?['empty'] as bool? ?? false;
+
+    if (!addEmpty) {
+      if (File(modelFile).existsSync() || File(entityFile).existsSync()) {
+        _logger.warn(
+            'Model "$modelName" already exists in feature "$featureName".');
+        return 0;
+      }
+    }
+
+    if (addEmpty) {
+      return _injectEmptyFactory(
+        featurePath: featurePath,
+        modelName: modelName,
+        modelClass: modelClass,
+        modelFile: modelFile,
+      );
     }
 
     _logger.info('');
@@ -107,5 +127,67 @@ class CreateModelCommand extends Command<int> {
     line('    └── entities/${modelName}_entity.dart');
     line('');
     _logger.info('');
+  }
+
+  Future<int> _injectEmptyFactory({
+    required String featurePath,
+    required String modelName,
+    required String modelClass,
+    required String modelFile,
+  }) async {
+    if (!File(modelFile).existsSync()) {
+      _logger.err(
+        'Model file not found at $modelFile.\n'
+        '  Scaffold it first with: moarch create model <feature> $modelName',
+      );
+      return 1;
+    }
+
+    final source = await File(modelFile).readAsString();
+
+    // Guard — already has .empty()
+    if (source.contains('factory $modelClass.empty(')) {
+      _logger.warn('$modelClass already has an .empty() factory.');
+      return 0;
+    }
+
+    final fields = ModelFieldParser.parse(source, modelClass);
+    if (fields.isEmpty) {
+      _logger.warn(
+        'No fields found in $modelClass. '
+        'Make sure the class has a const constructor with named parameters.',
+      );
+    }
+
+    final factory = ModelFieldParser.buildEmptyFactory(modelClass, fields);
+
+    // Inject just before the last closing brace of the class
+    final lastBrace = source.lastIndexOf('}');
+    if (lastBrace == -1) {
+      _logger.err('Could not locate closing brace in $modelFile.');
+      return 1;
+    }
+
+    final updated =
+        source.substring(0, lastBrace) + factory + source.substring(lastBrace);
+
+    _logger.info('');
+    _logger.info('🏭 Injecting .empty() into $modelClass');
+    _logger.info('');
+
+    final progress = _logger.progress('Patching');
+    try {
+      await File(modelFile).writeAsString(updated);
+      progress.complete('Done');
+    } catch (e) {
+      progress.fail('Failed: $e');
+      return 1;
+    }
+
+    _logger.success('');
+    _logger.info('  ✓ $modelClass.empty() added to');
+    _logger.info('    ${modelFile.replaceAll(RegExp(r'^.*/lib/'), 'lib/')}');
+    _logger.info('');
+    return 0;
   }
 }

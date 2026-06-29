@@ -1,5 +1,5 @@
-## 1.5.6
+## 1.5.7
 
 ### UPDATE
 
-- FIXES
+- GENERATE model.EMPTY()
