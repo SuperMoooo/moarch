@@ -1,5 +1,5 @@
-## 1.5.9
+## 1.5.10
 
 ### UPDATE
 
-- Readme
+- FIXED EMPTY GENERATION

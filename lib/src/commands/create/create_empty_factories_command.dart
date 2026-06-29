@@ -130,38 +130,37 @@ class CreateEmptyFactoriesCommand extends Command<int> {
     final relativePath = file.path.replaceAll(RegExp(r'^.*/lib/'), 'lib/');
 
     try {
-      final source = await file.readAsString();
-
-      // Derive class name from filename: user_profile_entity.dart → UserProfileEntity
-      final fileName =
-          p.basenameWithoutExtension(file.path); // user_profile_entity
-      final className = StringUtils.toPascalCase(fileName); // UserProfileEntity
-
-      if (source.contains('factory $className.empty(')) {
-        _logger.info('  ⏭  $relativePath (already has .empty())');
-        return _Result.skipped;
-      }
+      String source = await file.readAsString();
+      final fileName = p.basenameWithoutExtension(file.path);
+      final className = StringUtils.toPascalCase(fileName);
 
       final fields = ModelFieldParser.parse(source, className);
-      final factory = ModelFieldParser.buildEmptyFactory(className, fields);
+      final newFactory = ModelFieldParser.buildEmptyFactory(className, fields);
 
-      if (dryRun) {
-        _logger.info('  ✓  $relativePath → would inject $className.empty()');
-        return _Result.patched;
+      // Regex to find an existing factory .empty()
+      final factoryPattern = RegExp(
+        r'factory\s+' + RegExp.escape(className) + r'\.empty\(\)\s*=>\s*.*?;',
+        dotAll: true,
+      );
+
+      String updated;
+      if (source.contains('factory $className.empty(')) {
+        // Replace existing
+        updated = source.replaceFirst(factoryPattern, newFactory.trim());
+        _logger.info('  🔄  $relativePath (replaced existing .empty())');
+      } else {
+        // Append new
+        final lastBrace = source.lastIndexOf('}');
+        if (lastBrace == -1) throw Exception('Could not find closing brace');
+        updated = source.substring(0, lastBrace) +
+            newFactory +
+            source.substring(lastBrace);
+        _logger.info('  ✨  $relativePath (injected new .empty())');
       }
 
-      final lastBrace = source.lastIndexOf('}');
-      if (lastBrace == -1) {
-        _logger.warn('  ✗  $relativePath — could not find closing brace');
-        return _Result.failed;
-      }
+      if (dryRun) return _Result.patched;
 
-      final updated = source.substring(0, lastBrace) +
-          factory +
-          source.substring(lastBrace);
       await file.writeAsString(updated);
-
-      _logger.info('  ✓  $relativePath');
       return _Result.patched;
     } catch (e) {
       _logger.err('  ✗  $relativePath — $e');

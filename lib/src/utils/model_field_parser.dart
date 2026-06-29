@@ -10,27 +10,21 @@ class ModelFieldParser {
   static List<_Field> parse(String source, String className) {
     final fields = <_Field>[];
 
-    // Find the primary constructor: `ClassName({...})`
-    final ctorPattern = RegExp(
-      r'(?:const\s+)?' + RegExp.escape(className) + r'\s*\(\s*\{([^}]*)\}',
-      dotAll: true,
-    );
-    final ctorMatch = ctorPattern.firstMatch(source);
-    if (ctorMatch == null) return fields;
+    // Look for: [Type] [name];
+    // Exclude things like 'factory' or keywords
+    final fieldPattern = RegExp(
+        r'^\s+(?:final|late)?\s*(?<type>[A-Z][\w<>?]+)\s+(?<name>\w+);',
+        multiLine: true);
 
-    final body = ctorMatch.group(1)!;
+    for (final match in fieldPattern.allMatches(source)) {
+      final type = match.namedGroup('type');
+      final name = match.namedGroup('name');
 
-    // Match each `[required] [Type] this.fieldName` param
-    final paramPattern = RegExp(
-      r'(?:required\s+)?(?:([\w?<>\[\], ]+?)\s+)?this\.(\w+)',
-    );
-
-    for (final m in paramPattern.allMatches(body)) {
-      final type = m.group(1)?.trim();
-      final name = m.group(2)!.trim();
-      fields.add(_Field(name: name, type: type));
+      // Ignore internal or static members if necessary
+      if (name != null && type != null && !name.contains('factory')) {
+        fields.add(_Field(name: name, type: type));
+      }
     }
-
     return fields;
   }
 

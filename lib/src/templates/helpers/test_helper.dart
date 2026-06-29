@@ -11,36 +11,40 @@ import 'dart:io';
 import 'package:mocktail/mocktail.dart';
 
 // ── File System ──────────────────────────────────────────────────────────────
-class MockFile extends Mock implements File {}
+class FakeFile extends Fake implements File {}
 
-class MockDirectory extends Mock implements Directory {}
+class FakeDirectory extends Fake implements Directory {}
 
-class MockFileStat extends Mock implements FileStat {}
+class FakeFileStat extends Fake implements FileStat {}
 
-class MockIOSink extends Mock implements IOSink {}
+class FakeIOSink extends Fake implements IOSink {}
 
-class MockRandomAccessFile extends Mock implements RandomAccessFile {}
+class FakeRandomAccessFile extends Fake implements RandomAccessFile {}
 
 // ── HTTP / Networking ────────────────────────────────────────────────────────
-class MockHttpClient extends Mock implements HttpClient {}
+class FakeHttpClient extends Fake implements HttpClient {}
 
-class MockHttpClientRequest extends Mock implements HttpClientRequest {}
+class FakeHttpClientRequest extends Fake implements HttpClientRequest {}
 
-class MockHttpClientResponse extends Mock implements HttpClientResponse {}
+class FakeHttpClientResponse extends Fake implements HttpClientResponse {}
 
-class MockHttpHeaders extends Mock implements HttpHeaders {}
+class FakeHttpHeaders extends Fake implements HttpHeaders {}
 
 // ── Streams & Sinks ──────────────────────────────────────────────────────────
-class MockStream<T> extends Mock implements Stream<T> {}
+class FakeStream<T> extends Fake implements Stream<T> {}
 
-class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
+class FakeStreamSubscription<T> extends Fake implements StreamSubscription<T> {}
 
-class MockStreamController<T> extends Mock implements StreamController<T> {}
+class FakeStreamController<T> extends Fake implements StreamController<T> {}
 
-class MockEventSink<T> extends Mock implements EventSink<T> {}
+class FakeEventSink<T> extends Fake implements EventSink<T> {}
 
 // ── Futures ──────────────────────────────────────────────────────────────────
-class MockCompleter<T> extends Mock implements Completer<T> {}
+class FakeCompleter<T> extends Fake implements Completer<T> {}
+
+// ── Others ──────────────────────────────────────────────────────────────────
+
+class FakePageController extends Fake implements PageController {}
 
 // ── Fallback values (register once, reuse everywhere) ───────────────────────
 // Call this in your test main() or setUpAll()
