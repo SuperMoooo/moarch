@@ -9,6 +9,7 @@ import '../../utils/string_utils.dart';
 
 /// Injects `.empty()` factories into every entity file in a feature (or all features).
 class CreateEmptyFactoriesCommand extends Command<int> {
+  ///  Injects `.empty()` factories into every entity file in a feature (or all features).
   CreateEmptyFactoriesCommand({required Logger logger}) : _logger = logger {
     argParser.addOption(
       'path',
