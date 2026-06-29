@@ -2,4 +2,4 @@
 
 ### UPDATE
 
-- GENERATE model.EMPTY()
+- GENERATE model.EMPTY() for the whole project
