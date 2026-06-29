@@ -209,7 +209,7 @@ jobs:
     # but still required to pass on PR runs via the on: pull_request trigger.
     build:
         runs-on: ubuntu-latest
-        needs: [integration, sast, secrets, osv-scan]
+        needs: [integration, sast, secrets]
 
         steps:
             - uses: actions/checkout@v4
