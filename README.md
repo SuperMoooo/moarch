@@ -30,6 +30,8 @@ moarch init          # interactive scaffold
 moarch init --all    # generate the default structure without prompts
 moarch create feature <featureName>
 moarch create model <featureName> <modelName> # generate the model and entity
+moarch create model --empty <featureName> <modelName> # Inject a .empty() factory into an existing entity.
+moarch create empty-factories # generate .empty() in all entities
 ```
 
 ## What it generates

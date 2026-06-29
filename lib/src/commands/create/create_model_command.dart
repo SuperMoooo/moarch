@@ -87,7 +87,7 @@ class CreateModelCommand extends Command<int> {
         featurePath: featurePath,
         modelName: modelName,
         modelClass: modelClass,
-        modelFile: modelFile,
+        modelFile: entityFile,
       );
     }
 
@@ -137,7 +137,7 @@ class CreateModelCommand extends Command<int> {
   }) async {
     if (!File(modelFile).existsSync()) {
       _logger.err(
-        'Model file not found at $modelFile.\n'
+        'Entity file not found at $modelFile.\n'
         '  Scaffold it first with: moarch create model <feature> $modelName',
       );
       return 1;
