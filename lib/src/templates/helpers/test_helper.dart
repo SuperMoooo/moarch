@@ -42,9 +42,6 @@ class FakeEventSink<T> extends Fake implements EventSink<T> {}
 // ── Futures ──────────────────────────────────────────────────────────────────
 class FakeCompleter<T> extends Fake implements Completer<T> {}
 
-// ── Others ──────────────────────────────────────────────────────────────────
-
-class FakePageController extends Fake implements PageController {}
 
 // ── Fallback values (register once, reuse everywhere) ───────────────────────
 // Call this in your test main() or setUpAll()
