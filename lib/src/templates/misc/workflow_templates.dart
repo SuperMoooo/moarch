@@ -15,10 +15,18 @@ class WorkflowTemplates {
 #   3. sast              — static analysis + formatting check
 #   4. secrets           — scans for leaked secrets
 #   5. dependency-review — CVE + license check (PRs only)
-#   6. build             — builds release APK if all above pass
+#   6. build-android             — builds release APK if all above pass
+#   7. check-ios-secrets             — check for Apple credentials
+#   8. build-ios             — builds release IPA
 #
 # Required GitHub secrets (Settings → Secrets and variables → Actions):
 #   BASE_URL — your API base URL e.g. https://api.yourapp.com
+
+Secret          
+IOS_P12_BASE64   - base64 of your .p12 (cert + key)
+IOS_P12_PASSWORD   - password you set above
+IOS_PROVISIONING_PROFILE_BASE64  - base64 of your .mobileprovision file
+IOS_TEAM_ID    - Apple Developer Team ID
 #
 # Note on CVE gating: dependency-review-action only runs on PRs (it diffs
 # base vs head). osv-scan runs on every push too, so it's the source of
@@ -207,7 +215,7 @@ jobs:
     # Only runs if ALL previous required jobs pass.
     # dependency-review is skipped on push — excluded from needs there,
     # but still required to pass on PR runs via the on: pull_request trigger.
-    build:
+    build-android:
         runs-on: ubuntu-latest
         needs: [integration, sast, secrets]
 
@@ -233,6 +241,114 @@ jobs:
               with:
                   name: release-apk
                   path: build/app/outputs/flutter-apk/app-release.apk
+                  retention-days: 30
+
+
+
+    # ── 7. Check for Apple credentials ──────────────────────────────────────────
+    # Determines whether iOS secrets are present so the build job can skip
+    # cleanly instead of failing when they're not configured.
+    check-ios-secrets:
+        runs-on: ubuntu-latest
+        needs: unit
+        outputs:
+            has_secrets: ${{ steps.check.outputs.has_secrets }}
+        steps:
+            - name: Check required secrets
+              id: check
+              run: |
+                  if [ -n "${{ secrets.IOS_P12_BASE64 }}" ] && \
+                     [ -n "${{ secrets.IOS_P12_PASSWORD }}" ] && \
+                     [ -n "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" ] && \
+                     [ -n "${{ secrets.IOS_TEAM_ID }}" ]; then
+                    echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+                    echo "⚠️ iOS signing secrets not fully configured — iOS build will be skipped."
+                  fi
+ 
+    # ── 8. Build iOS ─────────────────────────────────────────────────────────────
+    # Only runs if unit/integration/sast/secrets pass AND Apple secrets exist.
+    # macOS runner is required — this is the only place a "Mac" is involved,
+    # and GitHub provides it for you, so you don't need your own.
+    build-ios:
+        runs-on: macos-latest
+        needs: [integration, sast, secrets, check-ios-secrets]
+        if: needs.check-ios-secrets.outputs.has_secrets == 'true'
+ 
+        steps:
+            - uses: actions/checkout@v4
+ 
+            - uses: subosito/flutter-action@v2
+              with:
+                  flutter-version-file: .fvmrc
+                  cache: true
+ 
+            - name: Install dependencies
+              run: flutter pub get
+ 
+            - name: Import signing certificate
+              env:
+                  P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
+                  P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+                  KEYCHAIN_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+              run: |
+                  echo "$P12_BASE64" | base64 --decode > certificate.p12
+ 
+                  security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+                  security default-keychain -s build.keychain
+                  security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+                  security set-keychain-settings -t 3600 -u build.keychain
+ 
+                  security import certificate.p12 -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
+                  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+ 
+            - name: Install provisioning profile
+              env:
+                  PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+              run: |
+                  mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+                  echo "$PROFILE_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+ 
+            - name: Build iOS (no codesign step, just compile)
+              run: flutter build ios --release --no-codesign
+ 
+            - name: Archive and export IPA
+              env:
+                  TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+              run: |
+                  cd ios
+                  xcodebuild -workspace Runner.xcworkspace \
+                    -scheme Runner \
+                    -sdk iphoneos \
+                    -configuration Release \
+                    -archivePath build/Runner.xcarchive \
+                    archive \
+                    DEVELOPMENT_TEAM="$TEAM_ID"
+ 
+                  cat > ExportOptions.plist << EOF
+                  <?xml version="1.0" encoding="UTF-8"?>
+                  <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+                  <plist version="1.0">
+                  <dict>
+                      <key>method</key>
+                      <string>app-store</string>
+                      <key>teamID</key>
+                      <string>$TEAM_ID</string>
+                  </dict>
+                  </plist>
+                  EOF
+ 
+                  xcodebuild -exportArchive \
+                    -archivePath build/Runner.xcarchive \
+                    -exportPath build/ipa \
+                    -exportOptionsPlist ExportOptions.plist
+ 
+            - name: Upload IPA artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: release-ipa
+                  path: ios/build/ipa/*.ipa
                   retention-days: 30
 
 ''';
