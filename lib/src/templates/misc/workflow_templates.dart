@@ -211,6 +211,9 @@ jobs:
         runs-on: ubuntu-latest
         needs: [integration, sast, secrets]
 
+        env:
+            GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -Dorg.gradle.daemon=false"
+
         steps:
             - uses: actions/checkout@v4
 
@@ -223,7 +226,7 @@ jobs:
               run: flutter pub get
 
             - name: Build APK
-              run: flutter build apk --release --obfuscate --split-debug-info=build/debug-info/android
+              run: flutter build apk --release --obfuscate --split-debug-info=build/debug-info/android --verbose
 
             - name: Upload APK artifact
               uses: actions/upload-artifact@v4
