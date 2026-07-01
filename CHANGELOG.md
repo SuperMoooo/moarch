@@ -1,5 +1,5 @@
-## 1.5.13
+## 1.5.14
 
 ### UPDATE
 
-- NEW FEATURES
+- REDIRECT IN GO ROUTER
