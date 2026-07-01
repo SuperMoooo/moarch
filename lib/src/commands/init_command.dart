@@ -231,6 +231,21 @@ class InitCommand extends Command<int> {
           p.join(p.absolute(targetPath), '.github', 'workflows', 'csa.yml'),
           WorkflowTemplates.csaWorkflow(),
         );
+        await FileUtils.writeFile(
+          p.join(
+              p.absolute(targetPath), '.github', 'workflows', 'build_ipa.yml'),
+          WorkflowTemplates.buildIOS(),
+        );
+        await FileUtils.writeFile(
+          p.join(
+              p.absolute(targetPath), '.github', 'workflows', 'build_apk.yml'),
+          WorkflowTemplates.buildANDROID(),
+        );
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), '.github', 'workflows',
+              'deploy_stores.yml'),
+          WorkflowTemplates.deployWorkflow(),
+        );
       }
 
       await FileUtils.writeFile(

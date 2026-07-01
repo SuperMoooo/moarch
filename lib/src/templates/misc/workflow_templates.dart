@@ -15,18 +15,10 @@ class WorkflowTemplates {
 #   3. sast              — static analysis + formatting check
 #   4. secrets           — scans for leaked secrets
 #   5. dependency-review — CVE + license check (PRs only)
-#   6. build-android             — builds release APK if all above pass
-#   7. check-ios-secrets             — check for Apple credentials
-#   8. build-ios             — builds release IPA
 #
 # Required GitHub secrets (Settings → Secrets and variables → Actions):
 #   BASE_URL — your API base URL e.g. https://api.yourapp.com
 
-# Secret
-# IOS_P12_BASE64   - base64 of your .p12 (cert + key)
-# IOS_P12_PASSWORD   - password you set above
-# IOS_PROVISIONING_PROFILE_BASE64  - base64 of your .mobileprovision file
-# IOS_TEAM_ID    - Apple Developer Team ID
 #
 # Note on CVE gating: dependency-review-action only runs on PRs (it diffs
 # base vs head). osv-scan runs on every push too, so it's the source of
@@ -212,19 +204,184 @@ jobs:
                   # Uncomment to block specific licenses:
                   # deny-licenses: GPL-2.0, GPL-3.0
 
-    # ── 6. Build ─────────────────────────────────────────────────────────────────
-    # Only runs if ALL previous required jobs pass.
-    # dependency-review is skipped on push — excluded from needs there,
-    # but still required to pass on PR runs via the on: pull_request trigger.
+''';
+
+  /// BUILD IOS WORKFLOW
+  static String buildIOS() => r'''
+
+# Secret
+# IOS_P12_BASE64   - base64 of your .p12 (cert + key)
+# IOS_P12_PASSWORD   - password you set above
+# IOS_PROVISIONING_PROFILE_BASE64  - base64 of your .mobileprovision file
+# IOS_TEAM_ID    - Apple Developer Team ID
+#
+
+name: Build IOS IPA
+
+on:
+    workflow_dispatch: {}
+
+jobs:
+    # ── 1. Check for Apple credentials ──────────────────────────────────────────
+    # Determines whether iOS secrets are present so the build job can skip
+    # cleanly instead of failing when they're not configured.
+    check-ios-secrets:
+        runs-on: ubuntu-latest
+        outputs:
+            has_secrets: ${{ steps.check.outputs.has_secrets }}
+        steps:
+            - name: Check required secrets
+              id: check
+              run: |
+                  if [ -n "${{ secrets.IOS_P12_BASE64 }}" ] && \
+                     [ -n "${{ secrets.IOS_P12_PASSWORD }}" ] && \
+                     [ -n "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" ] && \
+                     [ -n "${{ secrets.IOS_TEAM_ID }}" ]; then
+                    echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+                    echo "⚠️ iOS signing secrets not fully configured — iOS build will be skipped."
+                  fi
+# ── 2. Build iOS ─────────────────────────────────────────────────────────────
+    # Only runs if unit/integration/sast/secrets pass AND Apple secrets exist.
+    # macOS runner is required — this is the only place a "Mac" is involved,
+    # and GitHub provides it for you, so you don't need your own.
+    build-ios:
+        runs-on: macos-latest
+        needs: [check-ios-secrets]
+        if: needs.check-ios-secrets.outputs.has_secrets == 'true'
+        steps:
+            - uses: actions/checkout@v4
+            - uses: subosito/flutter-action@v2
+              with:
+                  flutter-version-file: .fvmrc
+                  cache: true
+            - name: Install dependencies
+              run: flutter pub get
+
+            - name: Import signing certificate
+              env:
+                  P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
+                  P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+                  KEYCHAIN_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+              run: |
+                  echo "$P12_BASE64" | base64 --decode > certificate.p12
+                  security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+                  security default-keychain -s build.keychain
+                  security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+                  security set-keychain-settings -t 3600 -u build.keychain
+                  security list-keychains -d user -s build.keychain login.keychain
+                  security import certificate.p12 -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+                  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+            - name: Install provisioning profile
+              env:
+                  PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+              run: |
+                  mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+                  echo "$PROFILE_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+
+            - name: Extract provisioning profile info
+              id: profile_info
+              run: |
+                  PROFILE_PATH="$HOME/Library/MobileDevice/Provisioning Profiles/profile.mobileprovision"
+                  PROFILE_NAME=$(security cms -D -i "$PROFILE_PATH" | plutil -extract Name xml1 -o - - | sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p')
+                  BUNDLE_ID=$(security cms -D -i "$PROFILE_PATH" | plutil -extract Entitlements.application-identifier xml1 -o - - | sed -n 's/.*<string>[A-Z0-9]*\.\(.*\)<\/string>.*/\1/p')
+                  echo "profile_name=$PROFILE_NAME" >> "$GITHUB_OUTPUT"
+                  echo "bundle_id=$BUNDLE_ID" >> "$GITHUB_OUTPUT"
+                  echo "Profile name: $PROFILE_NAME"
+                  echo "Bundle ID: $BUNDLE_ID"
+
+            - name: Build iOS (no codesign step, just compile)
+              run: flutter build ios --release --no-codesign
+
+            - name: Archive and export IPA
+              env:
+                  TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+                  PROFILE_NAME: ${{ steps.profile_info.outputs.profile_name }}
+                  BUNDLE_ID: ${{ steps.profile_info.outputs.bundle_id }}
+              run: |
+                  cd ios
+                  xcodebuild -workspace Runner.xcworkspace \
+                    -scheme Runner \
+                    -sdk iphoneos \
+                    -configuration Release \
+                    -archivePath build/Runner.xcarchive \
+                    archive \
+                    CODE_SIGN_STYLE=Manual \
+                    DEVELOPMENT_TEAM="$TEAM_ID" \
+                    PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+                    CODE_SIGN_IDENTITY="Apple Development"
+
+                  cat > ExportOptions.plist << EOF
+                  <?xml version="1.0" encoding="UTF-8"?>
+                  <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+                  <plist version="1.0">
+                  <dict>
+                      <key>method</key>
+                      <string>development</string>
+                      <key>teamID</key>
+                      <string>$TEAM_ID</string>
+                      <key>signingStyle</key>
+                      <string>manual</string>
+                      <key>provisioningProfiles</key>
+                      <dict>
+                          <key>$BUNDLE_ID</key>
+                          <string>$PROFILE_NAME</string>
+                      </dict>
+                  </dict>
+                  </plist>
+                  EOF
+
+                  xcodebuild -exportArchive \
+                    -archivePath build/Runner.xcarchive \
+                    -exportPath build/ipa \
+                    -exportOptionsPlist ExportOptions.plist
+
+            - name: Upload IPA artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: release-ipa
+                  path: ios/build/ipa/*.ipa
+                  retention-days: 30
+
+            - name: Cleanup keychain
+              if: always()
+              run: |
+                  rm -f certificate.p12
+                  security delete-keychain build.keychain || true
+''';
+
+  /// BUILD ANDROID APK
+  static String buildANDROID() => r'''
+
+name: Build ANDROID APK
+
+on:
+    workflow_dispatch: {}
+
+jobs:
     build-android:
         runs-on: ubuntu-latest
-        needs: [integration, sast, secrets]
 
         env:
             GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -Dorg.gradle.daemon=false"
 
         steps:
             - uses: actions/checkout@v4
+
+            - name: Decode Keystore
+              run: |
+                  echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-key.jks
+
+            - name: Create key.properties
+              run: |
+                  cat <<EOF > android/key.properties
+                  storePassword=${{ secrets.KEYSTORE_STORE_PASSWORD }}
+                  keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
+                  keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
+                  storeFile=release-key.jks
+                  EOF
 
             - uses: subosito/flutter-action@v2
               with:
@@ -243,115 +400,6 @@ jobs:
                   name: release-apk
                   path: build/app/outputs/flutter-apk/app-release.apk
                   retention-days: 30
-
-
-
-    # ── 7. Check for Apple credentials ──────────────────────────────────────────
-    # Determines whether iOS secrets are present so the build job can skip
-    # cleanly instead of failing when they're not configured.
-    check-ios-secrets:
-        runs-on: ubuntu-latest
-        needs: unit
-        outputs:
-            has_secrets: ${{ steps.check.outputs.has_secrets }}
-        steps:
-            - name: Check required secrets
-              id: check
-              run: |
-                  if [ -n "${{ secrets.IOS_P12_BASE64 }}" ] && \
-                     [ -n "${{ secrets.IOS_P12_PASSWORD }}" ] && \
-                     [ -n "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" ] && \
-                     [ -n "${{ secrets.IOS_TEAM_ID }}" ]; then
-                    echo "has_secrets=true" >> "$GITHUB_OUTPUT"
-                  else
-                    echo "has_secrets=false" >> "$GITHUB_OUTPUT"
-                    echo "⚠️ iOS signing secrets not fully configured — iOS build will be skipped."
-                  fi
- 
-    # ── 8. Build iOS ─────────────────────────────────────────────────────────────
-    # Only runs if unit/integration/sast/secrets pass AND Apple secrets exist.
-    # macOS runner is required — this is the only place a "Mac" is involved,
-    # and GitHub provides it for you, so you don't need your own.
-    build-ios:
-        runs-on: macos-latest
-        needs: [integration, sast, secrets, check-ios-secrets]
-        if: needs.check-ios-secrets.outputs.has_secrets == 'true'
- 
-        steps:
-            - uses: actions/checkout@v4
- 
-            - uses: subosito/flutter-action@v2
-              with:
-                  flutter-version-file: .fvmrc
-                  cache: true
- 
-            - name: Install dependencies
-              run: flutter pub get
- 
-            - name: Import signing certificate
-              env:
-                  P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
-                  P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
-                  KEYCHAIN_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
-              run: |
-                  echo "$P12_BASE64" | base64 --decode > certificate.p12
- 
-                  security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-                  security default-keychain -s build.keychain
-                  security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-                  security set-keychain-settings -t 3600 -u build.keychain
- 
-                  security import certificate.p12 -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
-                  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
- 
-            - name: Install provisioning profile
-              env:
-                  PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
-              run: |
-                  mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-                  echo "$PROFILE_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
- 
-            - name: Build iOS (no codesign step, just compile)
-              run: flutter build ios --release --no-codesign
- 
-            - name: Archive and export IPA
-              env:
-                  TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
-              run: |
-                  cd ios
-                  xcodebuild -workspace Runner.xcworkspace \
-                    -scheme Runner \
-                    -sdk iphoneos \
-                    -configuration Release \
-                    -archivePath build/Runner.xcarchive \
-                    archive \
-                    DEVELOPMENT_TEAM="$TEAM_ID"
- 
-                  cat > ExportOptions.plist << EOF
-                  <?xml version="1.0" encoding="UTF-8"?>
-                  <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-                  <plist version="1.0">
-                  <dict>
-                      <key>method</key>
-                      <string>app-store</string>
-                      <key>teamID</key>
-                      <string>$TEAM_ID</string>
-                  </dict>
-                  </plist>
-                  EOF
- 
-                  xcodebuild -exportArchive \
-                    -archivePath build/Runner.xcarchive \
-                    -exportPath build/ipa \
-                    -exportOptionsPlist ExportOptions.plist
- 
-            - name: Upload IPA artifact
-              uses: actions/upload-artifact@v4
-              with:
-                  name: release-ipa
-                  path: ios/build/ipa/*.ipa
-                  retention-days: 30
-
 ''';
 
   /// Returns the supply chain analysis (reporting) workflow.

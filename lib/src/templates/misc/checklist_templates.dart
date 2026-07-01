@@ -636,9 +636,61 @@ final decrypted = encrypter.decrypt(encrypted, iv: iv);
 }
 
 
+ADD TO GIT IGNORE THE JKS FILE
+
 GETTING SHA's
 
 keytool -list -v -keystore my-release-key.jks -alias my-key-alias
 
+  ''';
+
+  /// code to generate jks file
+  static String stepsForWorkflow() => r'''
+  IOS
+
+  cd C:\openssl\<temp folder to store the output>
+
+  openssl genrsa -out <name_key>.key 2048
+
+  openssl req -new -key <name_key>.key -out <name_app>.certSigningRequest -subj "/emailAddress=YOUR_EMAIL/CN=YOUR_NAME/C=YOUR_COUNTRY_CODE" -config C:\openssl\openssl.cnf
+
+
+  check CERT:
+  openssl req -in <name_app>.certSigningRequest -noout -subject
+
+
+  openssl x509 -in <name>.cer -inform DER -out <name>.pem -outform PEM
+
+  openssl pkcs12 -export -inkey <key_name>.key -in <name>.pem -out <name>.p12 -password pass:YOUR_CHOSEN_PASSWORD
+
+  or if needed legacy:
+  openssl pkcs12 -export -inkey <key_name>.key -in <name>.pem -out <name>.p12 -password pass:YOUR_CHOSEN_PASSWORD -legacy
+
+  [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\path\path\path\<name>.p12")) | Out-File p12_base64.txt -NoNewline
+
+  [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\path\path\path\YourProfile.mobileprovision")) | Out-File profile_base64.txt -NoNewline
+
+
+  IOS_P12_BASE64   - base64 of your .p12 (cert + key)
+  IOS_P12_PASSWORD   - password you set above
+  IOS_PROVISIONING_PROFILE_BASE64  - base64 of your .mobileprovision file
+  IOS_TEAM_ID    - Apple Developer Team ID
+
+
+  CONFIRM P12:
+  openssl pkcs12 -info -in <p12file>.p12 -noout -password pass:YourExactPassword
+
+
+  ANDROID
+  generate jks file
+  POWERSHELL:
+  [Convert]::ToBase64String([IO.File]::ReadAllBytes("<name>.jks")) | Out-File release-key-base64.txt
+
+  GITHUB:
+  ANDROID_KEYSTORE_BASE64   the base64 string
+  
+  KEYSTORE_STORE_PASSWORD     your keystore's store password
+  KEYSTORE_KEY_PASSWORD     your key's password
+  KEYSTORE_KEY_ALIAS        your key alias (e.g. my-key-alias)
   ''';
 }

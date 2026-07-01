@@ -1,5 +1,5 @@
-## 1.5.14
+## 1.6.0
 
 ### UPDATE
 
-- REDIRECT IN GO ROUTER
+- NEW WORKFLOWS
