@@ -22,11 +22,11 @@ class WorkflowTemplates {
 # Required GitHub secrets (Settings → Secrets and variables → Actions):
 #   BASE_URL — your API base URL e.g. https://api.yourapp.com
 
-Secret          
-IOS_P12_BASE64   - base64 of your .p12 (cert + key)
-IOS_P12_PASSWORD   - password you set above
-IOS_PROVISIONING_PROFILE_BASE64  - base64 of your .mobileprovision file
-IOS_TEAM_ID    - Apple Developer Team ID
+# Secret
+# IOS_P12_BASE64   - base64 of your .p12 (cert + key)
+# IOS_P12_PASSWORD   - password you set above
+# IOS_PROVISIONING_PROFILE_BASE64  - base64 of your .mobileprovision file
+# IOS_TEAM_ID    - Apple Developer Team ID
 #
 # Note on CVE gating: dependency-review-action only runs on PRs (it diffs
 # base vs head). osv-scan runs on every push too, so it's the source of
@@ -40,6 +40,7 @@ on:
         branches: [main, develop]
     pull_request:
         branches: [main]
+    workflow_dispatch: {}
     schedule:
         - cron: '0 0 * * 0'
 
@@ -450,4 +451,146 @@ jobs:
                   find reports -type f >> $GITHUB_STEP_SUMMARY
 
 ''';
+
+  /// FASTLANE DEPLOY WORKFLOW
+  static String deployWorkflow() => r'''
+  name: Fastlane Deploy
+
+# Fastlane deployment workflow for Android and iOS.
+# gem install fastlane or brew install fastlane
+# Setup instructions (copy these into your repo or use them as a checklist):
+# 1. Initialize Fastlane in each platform folder:
+#    - cd android && bundle init && bundle add fastlane
+#    - cd ios && bundle init && bundle add fastlane
+# 2. Run the Fastlane setup wizard for each platform:
+#    - cd android && bundle exec fastlane init
+#    - cd ios && bundle exec fastlane init
+# 3. Define your deployment lanes in each Fastfile, for example:
+#    - android: lane :beta do ... end
+#    - ios: lane :beta do ... end
+# 4. For iOS signing, set up Match (recommended):
+#    - fastlane match appstore --readonly
+#    - fastlane match init
+#    - store the Match repo URL in MATCH_GIT_URL
+# 5. Add the required secrets in GitHub:
+#    Settings → Secrets and variables → Actions
+#
+# Required GitHub secrets:
+# - BASE_URL                        # used by the app at runtime (optional if not needed in deployment)
+# - FASTLANE_USER                   # Apple ID used by Fastlane for App Store Connect
+# - FASTLANE_PASSWORD               # App-specific password or app-specific password for Apple ID
+# - FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD  # if needed by your lane
+# - APP_STORE_CONNECT_API_KEY_ID   # App Store Connect API key ID
+# - APP_STORE_CONNECT_ISSUER_ID    # App Store Connect issuer ID
+# - APP_STORE_CONNECT_API_KEY_CONTENT  # base64-encoded App Store Connect API key (.p8)
+# - MATCH_PASSWORD                 # password for the Match repository certificates
+# - MATCH_GIT_URL                  # HTTPS URL to your Match repository
+# - MATCH_GIT_BASIC_AUTHORIZATION  # Basic auth token for the Match repository (optional if using SSH/other auth)
+# - PLAY_STORE_JSON_KEY_BASE64     # base64 of the Google Play service account JSON
+# - GOOGLE_PLAY_JSON_KEY           # optional if your lane expects a plain JSON path instead of base64
+#
+# Optional secrets depending on your lane implementation:
+# - SENTRY_AUTH_TOKEN
+# - SLACK_WEBHOOK_URL
+#
+# Typical manual usage:
+# - Go to Actions → Fastlane Deploy → Run workflow
+# - Choose the platform and lane you want to deploy
+#
+# Typical tag-based deployment:
+# - Create a tag like v1.2.3 and push it to trigger deployment for Android and iOS.
+
+on:
+    workflow_dispatch:
+        inputs:
+            platform:
+                description: Platform to deploy
+                required: true
+                default: all
+                type: choice
+                options:
+                    - all
+                    - android
+                    - ios
+            lane:
+                description: Fastlane lane to execute
+                required: true
+                default: beta
+                type: string
+    push:
+        tags:
+            - 'v*'
+
+jobs:
+    deploy:
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - platform: android
+                      os: ubuntu-latest
+                      working_directory: android
+                    - platform: ios
+                      os: macos-latest
+                      working_directory: ios
+
+        if: >-
+            github.event_name == 'push' ||
+            github.event.inputs.platform == 'all' ||
+            github.event.inputs.platform == matrix.platform
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version-file: .fvmrc
+                  cache: true
+
+            - name: Set up Ruby
+              uses: ruby/setup-ruby@v1
+              with:
+                  ruby-version: '3.2'
+                  bundler-cache: true
+                  working-directory: ${{ matrix.working_directory }}
+
+            - name: Install Flutter dependencies
+              run: flutter pub get
+
+            - name: Create runtime env file
+              run: |
+                  if [ -f .env ]; then
+                    echo ".env already exists, using the existing file."
+                  else
+                    echo "BASE_URL=${{ secrets.BASE_URL }}" > .env
+                  fi
+
+            - name: Install Fastlane dependencies
+              working-directory: ${{ matrix.working_directory }}
+              run: bundle install
+
+            - name: Deploy with Fastlane
+              working-directory: ${{ matrix.working_directory }}
+              env:
+                  FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
+                  FASTLANE_PASSWORD: ${{ secrets.FASTLANE_PASSWORD }}
+                  FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD }}
+                  APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+                  APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+                  APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+                  MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+                  MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+                  MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+                  PLAY_STORE_JSON_KEY_BASE64: ${{ secrets.PLAY_STORE_JSON_KEY_BASE64 }}
+                  GOOGLE_PLAY_JSON_KEY: ${{ secrets.GOOGLE_PLAY_JSON_KEY }}
+                  BASE_URL: ${{ secrets.BASE_URL }}
+              run: |
+                  echo "Deploying ${{ matrix.platform }} with lane ${{ github.event.inputs.lane || 'beta' }}"
+                  bundle exec fastlane ${{ github.event.inputs.lane || 'beta' }}
+
+  
+  ''';
 }

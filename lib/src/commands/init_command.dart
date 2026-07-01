@@ -2,11 +2,12 @@ import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/templates/core/security_templates.dart';
 import 'package:moarch/src/templates/core/services_templates.dart';
-import 'package:moarch/src/templates/helpers/helper_templates.dart';
 import 'package:moarch/src/templates/helpers/test_helper.dart';
 import 'package:moarch/src/templates/misc/checklist_templates.dart';
 import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/templates/misc/workflow_templates.dart';
+import 'package:moarch/src/templates/ui/dialogs_templates.dart';
+import 'package:moarch/src/templates/ui/modals_templates.dart';
 import 'package:moarch/src/utils/checklist.dart';
 import 'package:path/path.dart' as p;
 
@@ -178,6 +179,7 @@ class InitCommand extends Command<int> {
           withLocalization: stack.contains(_kLocalizations),
         ),
       );
+
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), '.fvmrc'),
         '{\n  "flutter": "stable"\n}\n',
@@ -307,14 +309,6 @@ class InitCommand extends Command<int> {
     final c = p.join(libPath, 'core');
 
     await FileUtils.writeFile(
-      p.join(c, 'helpers', 'app_dialog.dart'),
-      HelperTemplates.appDialog(),
-    );
-    await FileUtils.writeFile(
-      p.join(c, 'helpers', 'app_bottom_modal.dart'),
-      HelperTemplates.appBottomModal(),
-    );
-    await FileUtils.writeFile(
       p.join(c, 'errors', 'app_exception.dart'),
       CoreTemplates.appException(hasDio: stack.contains(_kDio)),
     );
@@ -413,6 +407,25 @@ class InitCommand extends Command<int> {
 
   Future<void> _buildShared(String libPath) async {
     final s = p.join(libPath, 'shared', 'widgets');
+
+    await FileUtils.writeFile(
+      p.join(s, 'overlays', 'app_dialogs.dart'),
+      DialogsTemplates.appDialog(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'overlays', 'app_bottom_modals.dart'),
+      ModalsTemplates.appBottomModals(),
+    );
+
+    await FileUtils.writeFile(
+      p.join(s, 'error_view.dart'),
+      SharedTemplates.errorView(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'empty_view.dart'),
+      SharedTemplates.emptyView(),
+    );
+
     await FileUtils.writeFile(
       p.join(s, 'buttons', 'app_button.dart'),
       SharedTemplates.appButton(),
@@ -425,12 +438,9 @@ class InitCommand extends Command<int> {
       p.join(s, 'loadings', 'app_loading_action_overlay.dart'),
       SharedTemplates.appLoadingAction(),
     );
+
     await FileUtils.writeFile(
-      p.join(s, 'error_view.dart'),
-      SharedTemplates.errorView(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'misc', 'input_title.dart'),
+      p.join(s, 'inputs', 'input_title.dart'),
       SharedTemplates.inputTitle(),
     );
     await FileUtils.writeFile(

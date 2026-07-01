@@ -7,6 +7,7 @@ class SharedTemplates {
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/url_utils.dart';
 
 enum AppAvatarSize {
   profile(160),
@@ -23,31 +24,39 @@ class AppAvatar extends StatelessWidget {
   const AppAvatar({
     super.key,
     this.avatar,
+    this.name,
     this.size = AppAvatarSize.card,
     this.roundedSquare = false,
   });
 
   final String? avatar;
+  final String? name;
   final AppAvatarSize size;
   final bool roundedSquare;
 
-  static bool _isValidUrl(String? url) {
-    if (url == null || url.isEmpty) return false;
-    final uri = Uri.tryParse(url);
-    return uri != null && uri.hasScheme && uri.host.isNotEmpty;
+  String _initial() {
+    final trimmed = name?.trim() ?? '';
+    if (trimmed.isEmpty) return '?';
+    return trimmed[0].toUpperCase();
+  }
+
+  Color _backgroundColor() {
+    final trimmed = name?.trim() ?? '';
+    if (trimmed.isEmpty) return AppConstants.avatarPalette.last;
+    final index = trimmed.codeUnitAt(0) % AppConstants.avatarPalette.length;
+    return AppConstants.avatarPalette[index];
   }
 
   @override
   Widget build(BuildContext context) {
     final double dimension = size.diameter;
-
     final Widget image = SizedBox.square(
       dimension: dimension,
-      child: _isValidUrl(avatar)
+      child: UrlUtils.isValid(avatar)
           ? CachedNetworkImage(
               imageUrl: avatar!,
               fit: BoxFit.cover,
-             placeholder: (_, __) => _placeholder(),
+              placeholder: (_, __) => _placeholder(),
               errorWidget: (_, __, ___) => _fallback(),
             )
           : _fallback(),
@@ -56,19 +65,27 @@ class AppAvatar extends StatelessWidget {
     if (roundedSquare) {
       return ClipRRect(borderRadius: AppConstants.borderRadius12, child: image);
     }
-
     return ClipOval(child: image);
   }
 
   Widget _placeholder() => Container(
-    color: Colors.grey[300],
-    child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-  );
+        color: Colors.grey[300],
+        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
 
-  Widget _fallback() =>
-      Image.asset('assets/images/placeholder_avatar.jpg', fit: BoxFit.cover);
+  Widget _fallback() => Container(
+        color: _backgroundColor(),
+        alignment: Alignment.center,
+        child: Text(
+          _initial(),
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: size.diameter * 0.4,
+          ),
+        ),
+      );
 }
-
 ''';
 
   /// Returns the generated appImage template.
@@ -76,6 +93,7 @@ class AppAvatar extends StatelessWidget {
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/url_utils.dart';
 
 enum AppImageSize {
   banner(320),
@@ -114,12 +132,6 @@ class AppImage extends StatelessWidget {
   final BoxFit fit;
   final String placeholderAsset;
 
-  static bool _isValidUrl(String? url) {
-    if (url == null || url.isEmpty) return false;
-    final uri = Uri.tryParse(url);
-    return uri != null && uri.hasScheme && uri.host.isNotEmpty;
-  }
-
   @override
   Widget build(BuildContext context) {
     final double resolvedWidth = width ?? size.size;
@@ -128,7 +140,7 @@ class AppImage extends StatelessWidget {
     final Widget image = SizedBox(
       width: resolvedWidth,
       height: resolvedHeight,
-      child: _isValidUrl(imageUrl)
+      child: UrlUtils.isValid(imageUrl)
           ? CachedNetworkImage(
               imageUrl: imageUrl!,
               fit: fit,
@@ -153,10 +165,8 @@ class AppImage extends StatelessWidget {
         child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
 
-  Widget _fallback() =>
-      Image.asset(placeholderAsset, fit: fit);
+  Widget _fallback() => Image.asset(placeholderAsset, fit: fit);
 }
-
 ''';
 
   /// Returns the generated appButton template.
@@ -166,14 +176,29 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
-enum AppButtonType { primary, secondary, tertiary, transparent, danger }
+/// Visual style of [AppButton].
+///
+/// - [primary] / [secondary]: filled, theme-colored backgrounds.
+/// - [outlined]: transparent background, colored border + text
+///   (previously named `tertiary`).
+/// - [ghost]: transparent background, no border, onSurface text
+///   (previously named `transparent`).
+/// - [danger]: filled, error-colored background, for destructive actions.
+enum AppButtonVariant { primary, secondary, outlined, ghost, danger }
 
 enum AppButtonSize { large, medium, small }
+
+typedef _ButtonSizeConfig = ({
+  double height,
+  double fontSize,
+  double iconSize,
+  EdgeInsets padding,
+});
 
 class AppButton extends StatelessWidget {
   const AppButton({
     super.key,
-    required this.type,
+    required this.variant,
     required this.label,
     required this.onPressed,
     this.prefixIcon,
@@ -182,7 +207,7 @@ class AppButton extends StatelessWidget {
     this.size = AppButtonSize.medium,
   });
 
-  final AppButtonType type;
+  final AppButtonVariant variant;
   final String label;
   final VoidCallback onPressed;
   final IconData? prefixIcon;
@@ -190,67 +215,68 @@ class AppButton extends StatelessWidget {
   final double? width;
   final AppButtonSize size;
 
-  (double height, double fontSize, double iconSize, EdgeInsets padding)
-  _getSizeConfig() => switch (size) {
-    AppButtonSize.small => (
-      AppConstants.touchTarget,
-      14,
-      18,
-      AppConstants.padding12,
-    ),
-    AppButtonSize.medium => (
-      AppConstants.touchTarget + 4,
-      16,
-      22,
-      AppConstants.padding16,
-    ),
-    AppButtonSize.large => (
-      AppConstants.touchTarget + 8,
-      18,
-      26,
-      AppConstants.padding16,
-    ),
-  };
+  _ButtonSizeConfig _getSizeConfig() => switch (size) {
+        AppButtonSize.small => (
+            height: AppConstants.touchTarget,
+            fontSize: 14,
+            iconSize: 18,
+            padding: AppConstants.padding12,
+          ),
+        AppButtonSize.medium => (
+            height: AppConstants.touchTarget + 4,
+            fontSize: 16,
+            iconSize: 22,
+            padding: AppConstants.padding16,
+          ),
+        AppButtonSize.large => (
+            height: AppConstants.touchTarget + 8,
+            fontSize: 18,
+            iconSize: 26,
+            padding: AppConstants.padding16,
+          ),
+      };
 
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
+    final sizeConfig = _getSizeConfig();
 
-    final (height, fontSize, iconSize, padding) = _getSizeConfig();
-
-    final (backgroundColor, foregroundColor) = switch (type) {
-      AppButtonType.primary => (
-        theme.colorScheme.primary,
-        theme.colorScheme.onPrimary,
-      ),
-      AppButtonType.secondary => (
-        theme.colorScheme.secondary,
-        theme.colorScheme.onSecondary,
-      ),
-      AppButtonType.tertiary => (Colors.transparent, theme.colorScheme.primary),
-      AppButtonType.transparent => (
-        Colors.transparent,
-        theme.colorScheme.onSurface,
-      ),
-      AppButtonType.danger => (
-        theme.colorScheme.error,
-        theme.colorScheme.onError,
-      ),
+    final (backgroundColor, foregroundColor) = switch (variant) {
+      AppButtonVariant.primary => (
+          theme.colorScheme.primary,
+          theme.colorScheme.onPrimary,
+        ),
+      AppButtonVariant.secondary => (
+          theme.colorScheme.secondary,
+          theme.colorScheme.onSecondary,
+        ),
+      AppButtonVariant.outlined => (
+          Colors.transparent,
+          theme.colorScheme.primary,
+        ),
+      AppButtonVariant.ghost => (
+          Colors.transparent,
+          theme.colorScheme.onSurface,
+        ),
+      AppButtonVariant.danger => (
+          theme.colorScheme.error,
+          theme.colorScheme.onError,
+        ),
     };
 
     return SizedBox(
       width: width ?? double.infinity,
-      height: height,
+      height: sizeConfig.height,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           elevation: 0,
-          padding: padding,
+          padding: sizeConfig.padding,
           backgroundColor: backgroundColor,
           foregroundColor: foregroundColor,
           shape: RoundedRectangleBorder(
             borderRadius: AppConstants.borderRadius12,
-            side: type == AppButtonType.tertiary
+            side: variant == AppButtonVariant.outlined
                 ? BorderSide(color: foregroundColor, width: 2)
                 : BorderSide.none,
           ),
@@ -259,19 +285,19 @@ class AppButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (prefixIcon != null) ...[
-              Icon(prefixIcon, size: iconSize, color: foregroundColor),
+              Icon(prefixIcon, size: sizeConfig.iconSize, color: foregroundColor),
               const SizedBox(width: AppConstants.space4),
             ],
             Text(
               label,
               style: theme.textTheme.titleLarge?.copyWith(
                 color: foregroundColor,
-                fontSize: fontSize,
+                fontSize: sizeConfig.fontSize,
               ),
             ),
             if (suffixIcon != null) ...[
               const SizedBox(width: AppConstants.space4),
-              Icon(suffixIcon, size: iconSize, color: foregroundColor),
+              Icon(suffixIcon, size: sizeConfig.iconSize, color: foregroundColor),
             ],
           ],
         ),
@@ -464,8 +490,8 @@ import '../misc/input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
-class DateAppInput extends StatefulWidget {
-  const DateAppInput({
+class AppDateInput extends StatefulWidget {
+  const AppDateInput({
     super.key,
     this.controller,
     required this.label,
@@ -491,10 +517,10 @@ class DateAppInput extends StatefulWidget {
   final bool required;
 
   @override
-  State<DateAppInput> createState() => _DateAppInputState();
+  State<AppDateInput> createState() => _AppDateInputState();
 }
 
-class _DateAppInputState extends State<DateAppInput> {
+class _AppDateInputState extends State<AppDateInput> {
   @override
   void initState() {
     super.initState();
@@ -655,7 +681,6 @@ import '../../../core/utils/extensions.dart';
 //     labelOf: (item) => item.name,
 //     onChanged: (id) => setState(() => _selectedCategoryId = id),
 //  )
-
 class AppDropdownInput<T> extends StatelessWidget {
   const AppDropdownInput({
     super.key,
@@ -665,7 +690,7 @@ class AppDropdownInput<T> extends StatelessWidget {
     required this.labelOf,
     required this.onChanged,
     this.selectedId,
-    this.hint = 'Selecione uma opção',
+    this.hint = 'Select an option',
     this.enabled = true,
     this.required = false,
     this.prefixIcon,
@@ -729,7 +754,6 @@ class AppDropdownInput<T> extends StatelessWidget {
     );
   }
 }
-
 ''';
 
   /// Returns the generated appLoadingData template.
@@ -855,6 +879,67 @@ class _AppLoadingActionOverlayState extends State<AppLoadingActionOverlay> {
           ),
         ],
       ],
+    );
+  }
+}
+
+''';
+
+  /// Returns the generated emptyView template.
+  static String emptyView() => r'''
+import 'package:flutter/material.dart';
+
+import '../../../core/constants/app_constants.dart';
+
+class EmptyView extends StatelessWidget {
+  const EmptyView({
+    super.key,
+    this.title = 'Nothing here yet',
+    this.message = 'No items are available right now.',
+    this.icon = Icons.inbox_outlined,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String title;
+  final String message;
+  final IconData icon;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Center(
+      child: Padding(
+        padding: AppConstants.padding24,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 72, color: theme.colorScheme.primary),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 24),
+              FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1074,27 +1159,27 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    AppButton(type: AppButtonType.primary,   label: 'Primary',   onPressed: () {}),
+                    AppButton(variant: AppButtonVariant.primary,   label: 'Primary',   onPressed: () {}),
                     const SizedBox(height: AppConstants.space8),
-                    AppButton(type: AppButtonType.secondary, label: 'Secondary', onPressed: () {}),
+                    AppButton(variant: AppButtonVariant.secondary, label: 'Secondary', onPressed: () {}),
                     const SizedBox(height: AppConstants.space8),
-                    AppButton(type: AppButtonType.tertiary,  label: 'Tertiary',  onPressed: () {}),
+                    AppButton(variant: AppButtonVariant.outlined,  label: 'Outlined',  onPressed: () {}),
                     const SizedBox(height: AppConstants.space8),
-                    AppButton(type: AppButtonType.transparent, label: 'Transparent', onPressed: () {}),
+                    AppButton(variant: AppButtonVariant.ghost, label: 'Ghost', onPressed: () {}),
                     const SizedBox(height: AppConstants.space8),
-                    AppButton(type: AppButtonType.danger,    label: 'Danger',    onPressed: () {}),
+                    AppButton(variant: AppButtonVariant.danger,    label: 'Danger',    onPressed: () {}),
                     const SizedBox(height: AppConstants.space8),
-                    AppButton(type: AppButtonType.primary,   label: 'With prefix icon', onPressed: () {}, prefixIcon: Icons.add),
+                    AppButton(variant: AppButtonVariant.primary,   label: 'With prefix icon', onPressed: () {}, prefixIcon: Icons.add),
                     const SizedBox(height: AppConstants.space8),
-                    AppButton(type: AppButtonType.primary,   label: 'With suffix icon', onPressed: () {}, suffixIcon: Icons.arrow_forward),
+                    AppButton(variant: AppButtonVariant.primary,   label: 'With suffix icon', onPressed: () {}, suffixIcon: Icons.arrow_forward),
                     const SizedBox(height: AppConstants.space16),
                     const Text('Sizes:'),
                     const SizedBox(height: AppConstants.space8),
-                    AppButton(type: AppButtonType.primary, label: 'Small',  onPressed: () {}, size: AppButtonSize.small),
+                    AppButton(variant: AppButtonVariant.primary, label: 'Small',  onPressed: () {}, size: AppButtonSize.small),
                     const SizedBox(height: AppConstants.space8),
-                    AppButton(type: AppButtonType.primary, label: 'Medium', onPressed: () {}, size: AppButtonSize.medium),
+                    AppButton(variant: AppButtonVariant.primary, label: 'Medium', onPressed: () {}, size: AppButtonSize.medium),
                     const SizedBox(height: AppConstants.space8),
-                    AppButton(type: AppButtonType.primary, label: 'Large',  onPressed: () {}, size: AppButtonSize.large),
+                    AppButton(variant: AppButtonVariant.primary, label: 'Large',  onPressed: () {}, size: AppButtonSize.large),
                   ],
                 ),
               ),
@@ -1149,8 +1234,6 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                   child: AppLoadingData(),
                 ),
               ),
-
-             
 
               // ── ErrorView ─────────────────────────────────────────────────
               _Section(
@@ -1275,7 +1358,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                           Text('Content goes here.', style: Theme.of(context).textTheme.bodyMedium),
                           const SizedBox(height: AppConstants.space24),
                           AppButton(
-                            type: AppButtonType.secondary,
+                            variant: AppButtonVariant.secondary,
                             label: 'Close',
                             onPressed: () => Navigator.pop(context),
                           ),

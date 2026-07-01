@@ -87,6 +87,7 @@ class ${cls}Model extends ${cls}Entity{
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/errors/app_exception.dart';
 import '../../../../core/network/dio_client.dart';
 import '../models/${name}_model.dart';
 
@@ -103,15 +104,20 @@ class ${cls}RemoteDataSource {
   final Dio _dio;
 
   // TODO: implement methods
-  // safeApiCall(
-  // apiCall: () async {
-  //    await Future.delayed(Duration(seconds: 1)); // Simulating network lag
-  //    return "User Data from Server";
-  //   },
-  // This runs if offline
-  //   onNoInternet: () {
-  //    return "Cached Local User Data";
-  //  },)
+  Future<${cls}Model?> fetchOne() async {
+    return safeApiCall<${cls}Model>(
+      apiCall: () async {
+        final response = await _dio.get('/${name}');
+        return ${cls}Model.fromJson(response.data);
+      },
+      onNoInternet: () async {
+        return null;
+      },
+      onError: (exception) {
+        // TODO: show UI feedback here (snackbar/dialog)
+      },
+    );
+  }
 }
 ''';
 
@@ -242,13 +248,7 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State> {
 
   @override
   FutureOr<${cls}State> build() async {
-  try {
-     return const ${cls}State();
-    } catch (e, s) {
-      AppException.fromError(e, s);
-      return const ${cls}State();
-    }
-    
+    return const ${cls}State();
   }
 
   // TODO: add your methods

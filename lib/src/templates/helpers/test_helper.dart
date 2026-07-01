@@ -10,47 +10,48 @@ import 'dart:io';
 
 import 'package:mocktail/mocktail.dart';
 
-// ── File System ──────────────────────────────────────────────────────────────
+
+// ── Fakes ───────────────────────
 class FakeFile extends Fake implements File {}
 
-class FakeDirectory extends Fake implements Directory {}
 
-class FakeFileStat extends Fake implements FileStat {}
-
-class FakeIOSink extends Fake implements IOSink {}
-
-class FakeRandomAccessFile extends Fake implements RandomAccessFile {}
-
-// ── HTTP / Networking ────────────────────────────────────────────────────────
-class FakeHttpClient extends Fake implements HttpClient {}
-
-class FakeHttpClientRequest extends Fake implements HttpClientRequest {}
-
-class FakeHttpClientResponse extends Fake implements HttpClientResponse {}
-
-class FakeHttpHeaders extends Fake implements HttpHeaders {}
-
-// ── Streams & Sinks ──────────────────────────────────────────────────────────
-class FakeStream<T> extends Fake implements Stream<T> {}
-
-class FakeStreamSubscription<T> extends Fake implements StreamSubscription<T> {}
-
-class FakeStreamController<T> extends Fake implements StreamController<T> {}
-
-class FakeEventSink<T> extends Fake implements EventSink<T> {}
-
-// ── Futures ──────────────────────────────────────────────────────────────────
-class FakeCompleter<T> extends Fake implements Completer<T> {}
-
+// ── Mocks ───────────────────────
+class MockGoRouter extends Mock implements GoRouter {}
+class MockFlutterSecureStorage extends Mock implements FlutterSecureStorage {}
 
 // ── Fallback values (register once, reuse everywhere) ───────────────────────
 // Call this in your test main() or setUpAll()
 void registerFallbacks() {
   registerFallbackValue(File(''));
-  registerFallbackValue(Directory(''));
-  registerFallbackValue(Uri());
-  registerFallbackValue(<int>[]);
-  registerFallbackValue(FileMode.read);
+  registerFallbackValue(Uri.parse('/'));
+}
+
+// ── Common Stubs/Whens ───────────────────────
+// Use these extensions to keep your test files readable
+extension SecureStorageStubs on MockFlutterSecureStorage {
+  void mockRead({String? key, String? value}) {
+    when(() => read(key: key ?? any(named: 'key')))
+        .thenAnswer((_) async => value);
+  }
+
+  void mockWrite({String? key, String? value}) {
+    when(() => write(key: key ?? any(named: 'key'), value: value ?? any(named: 'value')))
+        .thenAnswer((_) async => {});
+  }
+}
+
+extension GoRouterStubs on MockGoRouter {
+  void mockGo(String location) {
+    when(() => go(location)).thenReturn(null);
+  }
+
+  void mockPush(String location) {
+    when(() => push(location)).thenReturn(null);
+  }
+
+  void mockPop() {
+    when(() => pop()).thenReturn(null);
+  }
 }
 
  ''';

@@ -308,6 +308,13 @@ extension StringX on String {
   bool get isValidEmail =>
       RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(this);
 
+  bool isValid(String? url) {
+    if (url == null || url.isEmpty) return false;
+    final uri = Uri.tryParse(url);
+    return uri != null && uri.hasScheme && uri.host.isNotEmpty;
+  }
+
+
   String get capitalize =>
       isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
 
@@ -477,6 +484,14 @@ static const Color accentEnergetic   = Color(0xFF000000);
 static const Color surfaceContainerLowest  = Color(0xFF000000);
 static const Color surfaceContainerLow     = Color(0xFF000000);
 static const Color surfaceContainerHighest = Color(0xFF000000);
+
+// ── Flat colors for avatar bg fallback ───────────────
+static const List<Color> avatarPalette = [
+  Color(0xFFEF5350), Color(0xFFAB47BC), Color(0xFF5C6BC0),
+  Color(0xFF29B6F6), Color(0xFF26A69A), Color(0xFF9CCC65),
+  Color(0xFFFFCA28), Color(0xFFFF7043), Color(0xFF8D6E63),
+  Color(0xFF78909C),
+];
 
 
   // ── Spacing — 4pt grid ────────────────────────────────────────────────────
@@ -665,13 +680,13 @@ void _configureHttpClient(Dio dio) {
 Future<T?> safeApiCall<T>({
     required Future<T> Function() apiCall,
     required FutureOr<T?> Function() onNoInternet,
+    FutureOr<void> Function(AppException exception)? onError,
   }) async {
   // 1. Check current connectivity status
   final List<ConnectivityResult> connectivityResult = await (Connectivity().checkConnectivity());
   
   // connectivity_plus returns a list. If it contains 'none', there is no internet.
   if (connectivityResult.contains(ConnectivityResult.none)) {
-    // UI FEEDBACK
     return await onNoInternet();
   }
 
@@ -679,13 +694,12 @@ Future<T?> safeApiCall<T>({
     // 2. Internet is available, execute the API call
     return await apiCall();
   } on DioException catch (e) {
-   // 3. Handle Dio errors
     final exception = AppException.fromDioError(e);
-    // UI FEEDBACK
+    await onError?.call(exception);
     return null;
-   } catch (e, s) {
+  } catch (e, s) {
     final exception = AppException.fromError(e, s);
-     // UI FEEDBACK
+    await onError?.call(exception);
     return null;
   }
 }
