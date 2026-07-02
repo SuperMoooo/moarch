@@ -14,39 +14,36 @@ import './app_routes.dart';
 // Use this to navigate from anywhere without BuildContext:
 //   ref.read(routerProvider).go(AppRoutes.home)
 //   ref.read(routerProvider).push(AppRoutes.detail)
- 
-final routerProvider = Provider<GoRouter>((ref) => _router);
- 
-final rootNavigatorKey = GlobalKey<NavigatorState>();
 
-
-Future<String?> _redirect(BuildContext context, GoRouterState state) async {
-  // if the user is not logged in, they need to login
-  final loggedIn = <authNotifier>.isAuthenticated;
-  final loggingIn = state.matchedLocation == Routes.login;
-  if (!loggedIn) {
-    return Routes.login;
+class GoRouterRefreshNotifier extends ChangeNotifier {
+  GoRouterRefreshNotifier(Ref ref) {
+    ref.listen(authNotifier, (previous, next) {
+      notifyListeners();
+    });
   }
+}
 
-  // if the user is logged in but still on the login page, send them to
-  // the home page
-  if (loggingIn) {
-    return Routes.home;
-  }
+String? _redirect(Ref ref, GoRouterState state) {
+  final auth = ref.read(authNotifierProvider).requireValue.auth;
+  final loggingIn = state.matchedLocation == AppRoutes.login;
 
-  // no need to redirect at all
+  if (auth == null) return AppRoutes.login;
+  if (loggingIn) return AppRoutes.homeNavigation;
   return null;
 }
+
+final rootNavigatorKey = GlobalKey<NavigatorState>();
  
- 
-// ── Router ────────────────────────────────────────────────────────────────────
- 
-final _router = GoRouter(
+
+final routerProvider = Provider<GoRouter>((ref) {
+  final refreshNotifier = GoRouterRefreshNotifier(ref);
+  ref.onDispose(refreshNotifier.dispose);
+  return GoRouter(
   navigatorKey: rootNavigatorKey,
   initialLocation: AppRoutes.home,
   debugLogDiagnostics: true,
-  redirect: _redirect,
-  refreshListenable: <authNotifier>,
+  refreshListenable: refreshNotifier,
+  redirect: (context, state) => _redirect(ref, state),
   routes: [
     GoRoute(
       path: AppRoutes.home,
@@ -95,6 +92,8 @@ final _router = GoRouter(
     // ),
   ],
 );
+});
+ 
 
 
 ''';
