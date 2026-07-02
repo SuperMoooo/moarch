@@ -18,6 +18,25 @@ import './app_routes.dart';
 final routerProvider = Provider<GoRouter>((ref) => _router);
  
 final rootNavigatorKey = GlobalKey<NavigatorState>();
+
+
+Future<String?> _redirect(BuildContext context, GoRouterState state) async {
+  // if the user is not logged in, they need to login
+  final loggedIn = <authNotifier>.isAuthenticated;
+  final loggingIn = state.matchedLocation == Routes.login;
+  if (!loggedIn) {
+    return Routes.login;
+  }
+
+  // if the user is logged in but still on the login page, send them to
+  // the home page
+  if (loggingIn) {
+    return Routes.home;
+  }
+
+  // no need to redirect at all
+  return null;
+}
  
  
 // ── Router ────────────────────────────────────────────────────────────────────
@@ -78,23 +97,6 @@ final _router = GoRouter(
 );
 
 
-Future<String?> _redirect(BuildContext context, GoRouterState state) async {
-  // if the user is not logged in, they need to login
-  final loggedIn = <authNotifier>.isAuthenticated;
-  final loggingIn = state.matchedLocation == Routes.login;
-  if (!loggedIn) {
-    return Routes.login;
-  }
-
-  // if the user is logged in but still on the login page, send them to
-  // the home page
-  if (loggingIn) {
-    return Routes.home;
-  }
-
-  // no need to redirect at all
-  return null;
-}
 ''';
 
   /// App routes
