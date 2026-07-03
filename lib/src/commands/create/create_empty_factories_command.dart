@@ -114,9 +114,13 @@ class CreateEmptyFactoriesCommand extends Command<int> {
       _logger.info('  Already done: $skipped');
     } else {
       _logger.success('  Patched : $patched');
-      if (skipped > 0)
+      if (skipped > 0) {
         _logger.info('  Skipped : $skipped (already have .empty())');
-      if (failed > 0) _logger.err('  Failed  : $failed');
+      }
+
+      if (failed > 0) {
+        _logger.err('  Failed  : $failed');
+      }
     }
     _logger.info('');
 
