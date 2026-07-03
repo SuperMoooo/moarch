@@ -212,9 +212,9 @@ extension StringX on String {
   bool get isValidEmail =>
       RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(this);
 
-  bool isValid(String? url) {
-    if (url == null || url.isEmpty) return false;
-    final uri = Uri.tryParse(url);
+  bool? isValidUrl() {
+    if (isEmpty) return null;
+    final uri = Uri.tryParse(this);
     return uri != null && uri.hasScheme && uri.host.isNotEmpty;
   }
 
@@ -496,9 +496,7 @@ import 'package:dio_smart_retry/dio_smart_retry.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'dart:async';
-import '../../core/errors/app_exception.dart';
+
 
 import '../../config/env/app_env.dart';
 import '../constants/api_constants.dart';
@@ -579,41 +577,16 @@ void _configureHttpClient(Dio dio) {
   );
 }
 
-
-Future<T> safeApiCall<T>({
-  required Future<T> Function() apiCall,
-  FutureOr<T>? Function()? onNoInternet, // optional fallback, e.g. return cached data
-  FutureOr<void> Function(AppException exception)? onError,
-}) async {
-  final connectivityResult = await Connectivity().checkConnectivity();
-
-  if (connectivityResult.contains(ConnectivityResult.none)) {
-    if (onNoInternet != null) {
-      final fallback = await onNoInternet();
-      if (fallback != null) return fallback;
-    }
-    final exception = AppException.noInternet();
-    await onError?.call(exception);
-    throw exception;
-  }
-
-  try {
-    return await apiCall();
-  } on DioException catch (e) {
-    final exception = AppException.fromDioError(e);
-    await onError?.call(exception);
-    throw exception;
-  } catch (e, s) {
-    final exception = AppException.fromError(e, s);
-    await onError?.call(exception);
-    throw exception;
-  }
-}
-
 ''';
 
   /// SAFE API CALL
-  static String safeApiCall() => '''
+  static String safeApiCall() => '''~
+  import 'dart:async';
+import '../../core/errors/app_exception.dart';
+import 'package:dio/dio.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+
+
 Future<T> safeApiCall<T>({
   required Future<T> Function() apiCall,
   FutureOr<T>? Function()? onNoInternet, // optional cache fallback

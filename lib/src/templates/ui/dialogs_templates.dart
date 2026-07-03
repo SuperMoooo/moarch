@@ -16,7 +16,7 @@ final dialogProvider = Provider<IAppDialogs>((ref) {
 
 
 abstract class IAppDialogs {
-  Future<T?> showAppDialog({
+  Future<T?> showAppDialog<T>({
   required Widget child,
   bool dismissible = true,
   bool useRootNavigator = true,

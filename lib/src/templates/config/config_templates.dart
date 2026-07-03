@@ -27,7 +27,7 @@ String? _redirect(Ref ref, GoRouterState state) {
   final authState = ref.read(authNotifierProvider).requireValue;
 
   final publicRoutes = {
-    AppRoutes.home,
+    AppRoutes.login,
   };
 
   final onPublicRoute = publicRoutes.contains(state.matchedLocation);
@@ -36,11 +36,11 @@ String? _redirect(Ref ref, GoRouterState state) {
   final isAuthenticated = (authState?.authenticated ?? false);
 
   if (!isAuthenticated && !onPublicRoute) {
-    return AppRoutes.home;
+    return AppRoutes.login;
   }
 
   if (isAuthenticated && onPublicRoute) {
-    return AppRoutes.homeNavigation;
+    return AppRoutes.home;
   }
 
   return null;

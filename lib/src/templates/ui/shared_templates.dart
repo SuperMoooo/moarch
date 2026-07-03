@@ -7,7 +7,7 @@ class SharedTemplates {
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/utils/url_utils.dart';
+import '../../../core/utils/extensions.dart';
 
 enum AppAvatarSize {
   profile(160),
@@ -52,7 +52,7 @@ class AppAvatar extends StatelessWidget {
     final double dimension = size.diameter;
     final Widget image = SizedBox.square(
       dimension: dimension,
-      child: UrlUtils.isValid(avatar)
+      child: avatar?.isValidUrl != null
           ? CachedNetworkImage(
               imageUrl: avatar!,
               fit: BoxFit.cover,
@@ -93,7 +93,7 @@ class AppAvatar extends StatelessWidget {
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/utils/url_utils.dart';
+import '../../../core/utils/extensions.dart';
 
 enum AppImageSize {
   banner(320),
@@ -140,7 +140,7 @@ class AppImage extends StatelessWidget {
     final Widget image = SizedBox(
       width: resolvedWidth,
       height: resolvedHeight,
-      child: UrlUtils.isValid(imageUrl)
+      child: ?.isValidUrl != null
           ? CachedNetworkImage(
               imageUrl: imageUrl!,
               fit: fit,
@@ -348,7 +348,7 @@ class InputTitle extends StatelessWidget {
   /// Returns the generated appInput template.
   static String appInput() => r'''
 import 'package:flutter/material.dart';
-import '../misc/input_title.dart';
+import './input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/security/validation_service.dart';
 import '../../../core/utils/extensions.dart';
@@ -486,7 +486,7 @@ class _AppInputState extends State<AppInput> {
   /// Returns the generated dateInput template.
   static String dateInput() => r'''
 import 'package:flutter/material.dart';
-import '../misc/input_title.dart';
+import './input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
@@ -578,7 +578,7 @@ class _AppDateInputState extends State<AppDateInput> {
   /// Returns the generated timeInput template.
   static String timeInput() => r'''
 import 'package:flutter/material.dart';
-import '../misc/input_title.dart';
+import './input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
@@ -668,7 +668,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
   /// Returns the generated appDropdown template.
   static String appDropdown() => r'''
 import 'package:flutter/material.dart';
-import '../misc/input_title.dart';
+import './input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 

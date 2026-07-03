@@ -47,7 +47,7 @@ class ValidationResult {
    factory ValidationResult.invalid(String error, String original) =>
       ValidationResult(isValid: false, error: error, sanitizedValue: "");
 }
-}
+
 
 
 final validationServiceProvider = Provider<ValidationService>((ref) {

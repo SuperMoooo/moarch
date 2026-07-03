@@ -33,7 +33,6 @@ const _kWorkflows = 'Workflows (security, tests, build)';
 const _kMediaService = 'Media Service (Image Picker and File Picker)';
 const _kLaunchUrlService = 'Url launcher for links';
 const _kDebouncerService = 'Debouncer for actions';
-const _kHelpers = 'Helper folder (dialog and bottom modal)';
 const _kNotificationsService = 'Notifications service';
 const _kLocalizations = 'Localization (l10n)';
 
@@ -84,7 +83,6 @@ class InitCommand extends Command<int> {
         _kDio,
         _kRouter,
         _kWorkflows,
-        _kHelpers,
         _kMediaService,
         _kLaunchUrlService,
         _kDebouncerService,
@@ -108,7 +106,6 @@ class InitCommand extends Command<int> {
         items: [
           const ChecklistItem(_kRouter, defaultOn: true),
           const ChecklistItem(_kWorkflows, defaultOn: true),
-          const ChecklistItem(_kHelpers, defaultOn: true),
           const ChecklistItem(_kMediaService, defaultOn: false),
           const ChecklistItem(_kLaunchUrlService, defaultOn: false),
           const ChecklistItem(_kDebouncerService, defaultOn: false),
@@ -132,7 +129,6 @@ class InitCommand extends Command<int> {
       'intl:',
       'logger:',
       'connectivity_plus:',
-      "fpdart",
       if (stack.contains(_kRouter)) 'go_router:',
       if (stack.contains(_kDio)) 'dio:',
       if (stack.contains(_kDio)) 'dio_smart_retry:',

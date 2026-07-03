@@ -14,7 +14,7 @@ final modalProvider = Provider<IAppBottomModals>((ref) {
 });
 
 abstract class IAppBottomModals {
-  Future<T?> showAppBottomModal({
+  Future<T?> showAppBottomModal<T>({
   required Widget child,
   bool enableDrag = true,
   bool isDismissible = true,
