@@ -177,102 +177,6 @@ $localizationConfig      debugShowCheckedModeBanner: false,
 ''';
   }
 
-  /// Returns the generated appException template.
-  static String appException({bool hasDio = true}) {
-    const catchError = r'''
-    appLogger.e(
-    '[AppException] — $message',
-    error: error,
-    stackTrace: stackTrace,
-    );
-    ''';
-    final import = hasDio
-        ? "import 'package:dio/dio.dart';"
-        : "import 'package:cloud_firestore/cloud_firestore.dart';";
-    final factory = hasDio
-        ? r'''
-  factory AppException.fromDioError(DioException dioError) {
-    try {
-      final message =
-          dioError.response?.data?['message'] as String? ??
-          dioError.message ??
-          'Unknown error';
-      final statusCode = dioError.response?.statusCode;
-
-      appLogger.e(
-        '[AppException] — $message',
-        error: dioError,
-        stackTrace: dioError.stackTrace,
-      );
-
-      return AppException._(message: message, statusCode: statusCode);
-    } catch (error) {
-      final message = error.toString();
-      appLogger.e(
-        '[AppException] — $message',
-        error: error,
-        stackTrace: dioError.stackTrace,
-      );
-      return const AppException._(message: 'Unknown error');
-    }
-  }
-  '''
-        : r'''
-  factory AppException.fromFirebaseError(FirebaseException error) {
-    final message = error.message ?? 'Unknown error';
-
-    appLogger.e(
-      '[AppException] — $message',
-      error: error,
-      stackTrace: error.stackTrace,
-    );
-
-    switch (error.code) {
-      case "user-not-found":
-        return const AppException(message: "Usuário não encontrado");
-      case "wrong-password":
-        return const AppException(message: "Senha incorreta");
-      case "invalid-email":
-        return const AppException(message: "Email inválido");
-      case "email-already-in-use":
-        return const AppException(message: "Email já cadastrado");
-      case "weak-password":
-        return const AppException(message: "Senha fraca");
-      default:
-        return AppException._(message: error.message ?? "Erro desconhecido");
-    }
-  }''';
-
-    return '''
-$import
-import '../../core/utils/app_logger.dart';
-
-class AppException implements Exception {
-  const AppException._({required this.message, this.statusCode});
-  final String message;
-  final int? statusCode;
-  
-  @override
-  String toString() =>
-      'AppException(message: \$message, statusCode: \$statusCode)';
-  
-  factory AppException.test() {
-    return const AppException._(message: "Test exception", statusCode: 400);
-  }
-
-  factory AppException.fromError(Object error, StackTrace stackTrace) {
-  final message = error.toString();
-
-  $catchError
-
-  return AppException(message: message, statusCode: null);
-}
-
-$factory
-}
-''';
-  }
-
   /// Returns the generated appLogger template.
   static String appLogger() => r'''
 import 'package:flutter/foundation.dart';
@@ -676,33 +580,63 @@ void _configureHttpClient(Dio dio) {
 }
 
 
+Future<T> safeApiCall<T>({
+  required Future<T> Function() apiCall,
+  FutureOr<T>? Function()? onNoInternet, // optional fallback, e.g. return cached data
+  FutureOr<void> Function(AppException exception)? onError,
+}) async {
+  final connectivityResult = await Connectivity().checkConnectivity();
 
-Future<T?> safeApiCall<T>({
-    required Future<T> Function() apiCall,
-    required FutureOr<T?> Function() onNoInternet,
-    FutureOr<void> Function(AppException exception)? onError,
-  }) async {
-  // 1. Check current connectivity status
-  final List<ConnectivityResult> connectivityResult = await (Connectivity().checkConnectivity());
-  
-  // connectivity_plus returns a list. If it contains 'none', there is no internet.
   if (connectivityResult.contains(ConnectivityResult.none)) {
-    return await onNoInternet();
+    if (onNoInternet != null) {
+      final fallback = await onNoInternet();
+      if (fallback != null) return fallback;
+    }
+    final exception = AppException.noInternet();
+    await onError?.call(exception);
+    throw exception;
   }
 
   try {
-    // 2. Internet is available, execute the API call
     return await apiCall();
   } on DioException catch (e) {
     final exception = AppException.fromDioError(e);
     await onError?.call(exception);
-    return null;
+    throw exception;
   } catch (e, s) {
     final exception = AppException.fromError(e, s);
     await onError?.call(exception);
-    return null;
+    throw exception;
   }
 }
+
+''';
+
+  /// SAFE API CALL
+  static String safeApiCall() => '''
+Future<T> safeApiCall<T>({
+  required Future<T> Function() apiCall,
+  FutureOr<T>? Function()? onNoInternet, // optional cache fallback
+}) async {
+  final connectivityResult = await Connectivity().checkConnectivity();
+
+  if (connectivityResult.contains(ConnectivityResult.none)) {
+    if (onNoInternet != null) {
+      final fallback = await onNoInternet();
+      if (fallback != null) return fallback;
+    }
+    throw AppException.noInternet();
+  }
+
+  try {
+    return await apiCall();
+  } on DioException catch (e) {
+    throw AppException.fromDioError(e);
+  } catch (e, s) {
+    throw AppException.fromError(e, s);
+  }
+}
+
 
 ''';
 }

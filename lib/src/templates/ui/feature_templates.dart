@@ -110,12 +110,6 @@ class ${cls}RemoteDataSource {
         final response = await _dio.get('/${name}');
         return ${cls}Model.fromJson(response.data);
       },
-      onNoInternet: () async {
-        return null;
-      },
-      onError: (exception) {
-        // TODO: show UI feedback here (snackbar/dialog)
-      },
     );
   }
 }
@@ -260,8 +254,10 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State> {
   //   try {
   //    // await ref.read(${varName}RepositoryProvider).doSomething();
   //    state = AsyncData(current.copyWith(success: 'Done!'));
-  //   } catch (e, s) {
-  //    AppException.fromError(e, s);
+  //   } on AppException catch (e) {
+  //     state = state.copyWith(isLoading: false, error: e.message);
+  //   } catch (e) {
+  //     state = state.copyWith(isLoading: false, error: "Unknown error");
   //   }
   // }
 

@@ -1,5 +1,6 @@
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
+import 'package:moarch/src/templates/core/error_templates.dart';
 import 'package:moarch/src/templates/core/security_templates.dart';
 import 'package:moarch/src/templates/core/services_templates.dart';
 import 'package:moarch/src/templates/helpers/test_helper.dart';
@@ -131,6 +132,7 @@ class InitCommand extends Command<int> {
       'intl:',
       'logger:',
       'connectivity_plus:',
+      "fpdart",
       if (stack.contains(_kRouter)) 'go_router:',
       if (stack.contains(_kDio)) 'dio:',
       if (stack.contains(_kDio)) 'dio_smart_retry:',
@@ -325,8 +327,9 @@ class InitCommand extends Command<int> {
 
     await FileUtils.writeFile(
       p.join(c, 'errors', 'app_exception.dart'),
-      CoreTemplates.appException(hasDio: stack.contains(_kDio)),
+      ErrorTemplates.appException(hasDio: stack.contains(_kDio)),
     );
+
     await FileUtils.writeFile(
       p.join(c, 'utils', 'extensions.dart'),
       CoreTemplates.extensions(),
@@ -347,6 +350,10 @@ class InitCommand extends Command<int> {
       await FileUtils.writeFile(
         p.join(c, 'network', 'dio_client.dart'),
         CoreTemplates.dioClient(),
+      );
+      await FileUtils.writeFile(
+        p.join(c, 'network', 'safe_api_call.dart'),
+        CoreTemplates.safeApiCall(),
       );
     }
     await FileUtils.writeFile(

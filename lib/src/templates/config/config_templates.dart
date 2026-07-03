@@ -24,11 +24,25 @@ class GoRouterRefreshNotifier extends ChangeNotifier {
 }
 
 String? _redirect(Ref ref, GoRouterState state) {
-  final auth = ref.read(authNotifierProvider).requireValue.auth;
-  final loggingIn = state.matchedLocation == AppRoutes.login;
+  final authState = ref.read(authNotifierProvider).requireValue;
 
-  if (auth == null) return AppRoutes.login;
-  if (loggingIn) return AppRoutes.homeNavigation;
+  final publicRoutes = {
+    AppRoutes.home,
+  };
+
+  final onPublicRoute = publicRoutes.contains(state.matchedLocation);
+
+
+  final isAuthenticated = (authState?.authenticated ?? false);
+
+  if (!isAuthenticated && !onPublicRoute) {
+    return AppRoutes.home;
+  }
+
+  if (isAuthenticated && onPublicRoute) {
+    return AppRoutes.homeNavigation;
+  }
+
   return null;
 }
 
