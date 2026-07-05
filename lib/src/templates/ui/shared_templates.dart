@@ -52,7 +52,7 @@ class AppAvatar extends StatelessWidget {
     final double dimension = size.diameter;
     final Widget image = SizedBox.square(
       dimension: dimension,
-      child: avatar?.isValidUrl != null
+      child: (avatar?.isValidUrl() ?? false)
           ? CachedNetworkImage(
               imageUrl: avatar!,
               fit: BoxFit.cover,
@@ -140,7 +140,7 @@ class AppImage extends StatelessWidget {
     final Widget image = SizedBox(
       width: resolvedWidth,
       height: resolvedHeight,
-      child: ?.isValidUrl != null
+      child: (imageUrl?.isValidUrl() ?? false)
           ? CachedNetworkImage(
               imageUrl: imageUrl!,
               fit: fit,

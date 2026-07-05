@@ -9,55 +9,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/widgets/design_system_view.dart';
 import './app_routes.dart';
- 
+
 // ── Navigator key ─────────────────────────────────────────────────────────────
 // Use this to navigate from anywhere without BuildContext:
 //   ref.read(routerProvider).go(AppRoutes.home)
 //   ref.read(routerProvider).push(AppRoutes.detail)
 
-class GoRouterRefreshNotifier extends ChangeNotifier {
-  GoRouterRefreshNotifier(Ref ref) {
-    ref.listen(authNotifier, (previous, next) {
-      notifyListeners();
-    });
-  }
-}
-
-String? _redirect(Ref ref, GoRouterState state) {
-  final authState = ref.read(authNotifierProvider).requireValue;
-
-  final publicRoutes = {
-    AppRoutes.login,
-  };
-
-  final onPublicRoute = publicRoutes.contains(state.matchedLocation);
-
-
-  final isAuthenticated = (authState?.authenticated ?? false);
-
-  if (!isAuthenticated && !onPublicRoute) {
-    return AppRoutes.login;
-  }
-
-  if (isAuthenticated && onPublicRoute) {
-    return AppRoutes.home;
-  }
-
-  return null;
-}
-
 final rootNavigatorKey = GlobalKey<NavigatorState>();
- 
+
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final refreshNotifier = GoRouterRefreshNotifier(ref);
-  ref.onDispose(refreshNotifier.dispose);
   return GoRouter(
   navigatorKey: rootNavigatorKey,
   initialLocation: AppRoutes.home,
   debugLogDiagnostics: true,
-  refreshListenable: refreshNotifier,
-  redirect: (context, state) => _redirect(ref, state),
   routes: [
     GoRoute(
       path: AppRoutes.home,
@@ -107,8 +72,33 @@ final routerProvider = Provider<GoRouter>((ref) {
   ],
 );
 });
- 
 
+// ── Auth guard example ────────────────────────────────────────────────────────
+// Once you have an auth feature with a notifier exposing an `authenticated`
+// bool, wire it up like this:
+//
+// class GoRouterRefreshNotifier extends ChangeNotifier {
+//   GoRouterRefreshNotifier(Ref ref) {
+//     ref.listen(authNotifierProvider, (previous, next) {
+//       notifyListeners();
+//     });
+//   }
+// }
+//
+// String? _redirect(Ref ref, GoRouterState state) {
+//   final authState = ref.read(authNotifierProvider).requireValue;
+//   final publicRoutes = {AppRoutes.login};
+//   final onPublicRoute = publicRoutes.contains(state.matchedLocation);
+//   final isAuthenticated = authState?.authenticated ?? false;
+//   if (!isAuthenticated && !onPublicRoute) return AppRoutes.login;
+//   if (isAuthenticated && onPublicRoute) return AppRoutes.home;
+//   return null;
+// }
+//
+// Then add to the GoRouter above:
+//   refreshListenable: GoRouterRefreshNotifier(ref),
+//   redirect: (context, state) => _redirect(ref, state),
+// And add `login` back to AppRoutes in app_routes.dart.
 
 ''';
 
@@ -403,10 +393,202 @@ abstract final class AppTheme {
   );
 
   static ThemeData get dark => ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        // TODO: add your dark theme
-      );
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    colorScheme: ColorScheme.dark(
+      primary: AppConstants.primaryDark,
+      onPrimary: AppConstants.surfaceDark,
+
+      secondary: AppConstants.secondaryDark,
+      onSecondary: AppConstants.surfaceDark,
+
+      tertiary: AppConstants.tertiaryDark,
+      onTertiary: AppConstants.surfaceDark,
+
+      surface: AppConstants.surfaceDark,
+      onSurface: AppConstants.onSurfaceDark,
+      surfaceContainer: AppConstants.surfaceContainerLowDark,
+      surfaceContainerLow: AppConstants.surfaceContainerLowDark,
+      surfaceContainerLowest: AppConstants.surfaceContainerLowestDark,
+      surfaceContainerHigh: AppConstants.surfaceContainerHighestDark,
+      surfaceContainerHighest: AppConstants.surfaceContainerHighestDark,
+      error: AppConstants.errorDark,
+      onError: AppConstants.surfaceDark,
+
+      outline: AppConstants.outlineDark.withValues(alpha: 0.3),
+      outlineVariant: AppConstants.outlineDark.withValues(
+        alpha: 0.3,
+      ),
+    ),
+
+    scaffoldBackgroundColor: AppConstants.surfaceDark,
+
+    iconTheme: IconThemeData(
+      color: AppConstants.outlineDark,
+      size: AppConstants.iconSmall,
+    ),
+
+    searchBarTheme: SearchBarThemeData(
+      elevation: WidgetStatePropertyAll(0),
+      backgroundColor: WidgetStatePropertyAll(
+        AppConstants.surfaceContainerLowestDark,
+      ),
+      surfaceTintColor: WidgetStatePropertyAll(
+        AppConstants.surfaceContainerLowestDark,
+      ),
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
+      ),
+      side: WidgetStatePropertyAll(BorderSide.none),
+      overlayColor: WidgetStatePropertyAll(Colors.transparent),
+      shadowColor: WidgetStatePropertyAll(Colors.transparent),
+      padding: WidgetStatePropertyAll(
+        EdgeInsets.symmetric(
+          horizontal: AppConstants.space12,
+          vertical: (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
+        ),
+      ),
+      textStyle: WidgetStatePropertyAll(
+        TextStyle(
+          fontSize: AppConstants.fontSize16,
+          color: AppConstants.onSurfaceDark,
+        ),
+      ),
+      hintStyle: WidgetStatePropertyAll(
+        TextStyle(
+          fontSize: AppConstants.fontSize16,
+          color: AppConstants.onSurfaceDark.withValues(alpha: 0.35),
+        ),
+      ),
+    ),
+
+    appBarTheme: AppBarTheme(
+      backgroundColor: AppConstants.surfaceContainerLowDark,
+      foregroundColor: AppConstants.onSurfaceDark,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+    ),
+
+    cardTheme: CardThemeData(
+      color: AppConstants.surfaceContainerLowDark,
+      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      indicatorColor: AppConstants.primaryDark,
+    ),
+
+    tabBarTheme: TabBarThemeData(
+      indicatorColor: AppConstants.accentActive,
+      tabAlignment: TabAlignment.fill,
+      indicatorSize: TabBarIndicatorSize.tab,
+      indicatorAnimation: TabIndicatorAnimation.elastic,
+      labelStyle: TextStyle(
+        color: AppConstants.onSurfaceDark,
+        fontWeight: FontWeight.bold,
+      ),
+      unselectedLabelColor: Colors.grey,
+      unselectedLabelStyle: TextStyle(
+        color: Colors.blueGrey,
+      ),
+    ),
+
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: AppConstants.surfaceContainerLowestDark,
+      border: OutlineInputBorder(
+        borderRadius: AppConstants.borderRadius12,
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: AppConstants.borderRadius12,
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: AppConstants.borderRadius12,
+        borderSide: BorderSide(color: AppConstants.outlineDark, width: 0.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: AppConstants.borderRadius12,
+        borderSide: BorderSide(color: AppConstants.errorDark, width: 0.5),
+      ),
+      prefixIconColor: AppConstants.primaryDark,
+      suffixIconColor: AppConstants.primaryDark,
+      contentPadding: EdgeInsets.symmetric(
+        vertical: (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
+        horizontal: AppConstants.space12,
+      ),
+
+      hintStyle: TextStyle(
+        fontSize: AppConstants.fontSize16,
+        color: AppConstants.onSurfaceDark.withValues(alpha: 0.35),
+      ),
+    ),
+
+    datePickerTheme: DatePickerThemeData(
+      backgroundColor: AppConstants.surfaceDark,
+      headerBackgroundColor: AppConstants.primaryDark,
+      headerForegroundColor: AppConstants.surfaceDark,
+      rangePickerBackgroundColor: AppConstants.surfaceDark,
+      rangePickerHeaderBackgroundColor: AppConstants.primaryDark,
+      rangePickerHeaderForegroundColor: AppConstants.surfaceDark,
+      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
+    ),
+
+    timePickerTheme: TimePickerThemeData(
+      backgroundColor: AppConstants.surfaceDark,
+      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
+      dialBackgroundColor: AppConstants.surfaceContainerLowestDark,
+      dialHandColor: AppConstants.primaryDark,
+      hourMinuteColor: WidgetStateColor.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return AppConstants.primaryDark; // Color when selected
+        }
+        return AppConstants.secondaryDark.withValues(
+          alpha: 0.2,
+        ); // Color when not selected
+      }),
+    ),
+
+    checkboxTheme: CheckboxThemeData(
+      fillColor: WidgetStateProperty.resolveWith<Color>((
+        Set<WidgetState> states,
+      ) {
+        if (states.contains(WidgetState.selected)) {
+          return AppConstants.primaryDark;
+        }
+        return Colors.transparent;
+      }),
+      checkColor: WidgetStatePropertyAll(AppConstants.surfaceDark),
+      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius4),
+      side: BorderSide(color: AppConstants.primaryDark, width: 1),
+    ),
+
+    textSelectionTheme: TextSelectionThemeData(
+      cursorColor: AppConstants.primaryDark,
+      selectionColor: AppConstants.primaryDark.withValues(alpha: 0.25),
+      selectionHandleColor: AppConstants.primaryDark,
+    ),
+
+    dividerTheme: DividerThemeData(color: Colors.transparent),
+
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: AppConstants.primaryDark,
+      foregroundColor: AppConstants.surfaceDark,
+    ),
+
+    dialogTheme: DialogThemeData(
+      backgroundColor: AppConstants.surfaceContainerLowDark,
+      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
+    ),
+
+    chipTheme: ChipThemeData(
+      backgroundColor: AppConstants.surfaceContainerLowDark,
+      selectedColor: AppConstants.primaryDark.withValues(alpha: 0.25),
+      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
+      side: BorderSide.none,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    ),
+  );
 }
 ''';
 }

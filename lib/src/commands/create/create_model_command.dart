@@ -96,6 +96,7 @@ class CreateModelCommand extends Command<int> {
     _logger.info('');
 
     final progress = _logger.progress('Scaffolding');
+    FileUtils.beginSession();
 
     try {
       await FileUtils.writeFile(
@@ -109,6 +110,7 @@ class CreateModelCommand extends Command<int> {
       progress.complete('Model scaffolded');
     } catch (e) {
       progress.fail('Failed: $e');
+      FileUtils.rollback();
       return 1;
     }
 

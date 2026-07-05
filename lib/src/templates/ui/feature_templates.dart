@@ -20,7 +20,9 @@ class ${cls}Entity {
 import '../entities/${name}_entity.dart';
 
 abstract interface class ${cls}Repository {
-  // TODO: add your methods
+  Future<List<${cls}Entity>> getAll();
+
+  // TODO: add your other methods
 }
 ''';
 
@@ -30,8 +32,7 @@ abstract interface class ${cls}Repository {
   static String usecase(String name, String cls, String varName) => '''
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../data/repositories/${name}_repository_impl.dart';
-import '../../../../core/usecases/usecase.dart';
+import '../../data/repositories/${name}_repository_impl.dart';
 import '../entities/${name}_entity.dart';
 import '../repositories/${name}_repository.dart';
 
@@ -41,12 +42,11 @@ final get${varName}Provider = Provider<Get$cls>(
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-class Get$cls implements NoParamsUseCase<List<${cls}Entity>> {
+class Get$cls {
   const Get$cls(this._repository);
 
   final ${cls}Repository _repository;
 
-  @override
   Future<List<${cls}Entity>> call() => _repository.getAll();
 }
 ''';
@@ -89,6 +89,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/network/safe_api_call.dart';
 import '../models/${name}_model.dart';
 
 final ${varName}RemoteDataSourceProvider = Provider<${cls}RemoteDataSource>(
@@ -168,6 +169,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/errors/app_exception.dart';
 ${hasRemote ? "import '../datasources/${name}_remote_datasource.dart';" : ''}
 ${hasLocal ? "import '../datasources/${name}_local_datasource.dart';" : ''}
+import '../../domain/entities/${name}_entity.dart';
 import '../../domain/repositories/${name}_repository.dart';
 
 final ${varName}RepositoryProvider = Provider<${cls}Repository>(
@@ -183,7 +185,11 @@ class ${cls}RepositoryImpl implements ${cls}Repository {
 
 $fields
 
-  
+  @override
+  Future<List<${cls}Entity>> getAll() {
+    // TODO: implement using the datasource(s) above
+    throw UnimplementedError();
+  }
 }
 ''';
   }
@@ -227,7 +233,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/errors/app_exception.dart';
 
-${hasUseCase ? "import '../../domain/usecases/get_$name.dart';" : "import '../../data/repositories/${name}_repository_impl.dart';"}
+import '../../data/repositories/${name}_repository_impl.dart';
+${hasUseCase ? "import '../../domain/usecases/get_$name.dart';" : ''}
 import '../../domain/repositories/${name}_repository.dart';
 import '../states/${name}_state.dart';
 

@@ -45,6 +45,12 @@ void main(List<String> args) async {
       '3) Existing feature support: generate tests only when feature already exists');
   logger.info('   moarch create feature auth');
   logger.info('');
+  logger.info('4) Preview an init without writing any files');
+  logger.info('   moarch init --dry-run');
+  logger.info('');
+  logger.info('5) Check an existing scaffolded project for common issues');
+  logger.info('   moarch doctor');
+  logger.info('');
   logger.info(
       'Run with --execute to actually scaffold the sample commands into the current directory.');
   logger.info('');

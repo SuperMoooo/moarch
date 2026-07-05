@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/templates/core/error_templates.dart';
@@ -52,6 +54,11 @@ class InitCommand extends Command<int> {
         abbr: 'a',
         negatable: false,
         help: 'Skip checklist and generate everything.',
+      )
+      ..addFlag(
+        'dry-run',
+        negatable: false,
+        help: 'Preview the files that would be created without writing them.',
       );
   }
 
@@ -68,6 +75,7 @@ class InitCommand extends Command<int> {
     final targetPath = argResults?['path'] as String? ?? '.';
     final libPath = p.join(p.absolute(targetPath), 'lib');
     final skipChecklist = argResults?['all'] as bool? ?? false;
+    final dryRun = argResults?['dry-run'] as bool? ?? false;
 
     _logger.info('');
     _logger.info('🧱 moarch — Initializing project...');
@@ -90,34 +98,91 @@ class InitCommand extends Command<int> {
         _kLocalizations,
       };
     } else {
-      stack = Checklist.prompt(
-        title: '  Backend / networking:',
-        items: [
-          const ChecklistItem(_kDio, defaultOn: true),
-          const ChecklistItem(_kFirestore, defaultOn: false),
-          const ChecklistItem(_kFirebaseAuth, defaultOn: false),
-        ],
-      );
+      try {
+        stack = Checklist.prompt(
+          title: '  Backend / networking:',
+          items: [
+            const ChecklistItem(
+              _kDio,
+              defaultOn: true,
+              description:
+                  'REST client with retry + secure-storage auth interceptor.',
+            ),
+            const ChecklistItem(
+              _kFirestore,
+              defaultOn: false,
+              description:
+                  'Cloud Firestore provider (requires Firebase setup).',
+            ),
+            const ChecklistItem(
+              _kFirebaseAuth,
+              defaultOn: false,
+              description: 'FirebaseAuth provider (requires Firebase setup).',
+            ),
+          ],
+        );
 
-      // ── Feature checklist ───────────────────────────────────────────────────
-      // What extra files do you want generated?
-      final features = Checklist.prompt(
-        title: '  What to generate:',
-        items: [
-          const ChecklistItem(_kRouter, defaultOn: true),
-          const ChecklistItem(_kWorkflows, defaultOn: true),
-          const ChecklistItem(_kMediaService, defaultOn: false),
-          const ChecklistItem(_kLaunchUrlService, defaultOn: false),
-          const ChecklistItem(_kDebouncerService, defaultOn: false),
-          const ChecklistItem(_kNotificationsService, defaultOn: false),
-          const ChecklistItem(_kLocalizations, defaultOn: false)
-        ],
-      );
+        // ── Feature checklist ─────────────────────────────────────────────────
+        // What extra files do you want generated?
+        final features = Checklist.prompt(
+          title: '  What to generate:',
+          items: [
+            const ChecklistItem(
+              _kRouter,
+              defaultOn: true,
+              description: 'GoRouter with an auth-aware redirect.',
+            ),
+            const ChecklistItem(
+              _kWorkflows,
+              defaultOn: true,
+              description:
+                  'GitHub Actions: CI, code scanning, Android/iOS build, store deploy.',
+            ),
+            const ChecklistItem(
+              _kMediaService,
+              defaultOn: false,
+              description: 'Image/file picker with permission handling.',
+            ),
+            const ChecklistItem(
+              _kLaunchUrlService,
+              defaultOn: false,
+              description: 'Open external links/URLs.',
+            ),
+            const ChecklistItem(
+              _kDebouncerService,
+              defaultOn: false,
+              description: 'Debounce rapid user actions (e.g. search input).',
+            ),
+            const ChecklistItem(
+              _kNotificationsService,
+              defaultOn: false,
+              description: 'Local push notifications.',
+            ),
+            const ChecklistItem(
+              _kLocalizations,
+              defaultOn: false,
+              description:
+                  'l10n scaffolding with English + Portuguese .arb files.',
+            ),
+          ],
+        );
 
-      stack = {...stack, ...features};
+        stack = {...stack, ...features};
+      } on ChecklistCancelled {
+        _logger.info('Cancelled — nothing was generated.');
+        return 0;
+      }
     }
 
-    final progress = _logger.progress('Creating structure');
+    final progress = _logger.progress(
+      dryRun ? 'Previewing structure' : 'Creating structure',
+    );
+    FileUtils.beginSession(dryRun: dryRun);
+
+    final pubspecFile = File(p.join(p.absolute(targetPath), 'pubspec.yaml'));
+    final pubspecExisted = pubspecFile.existsSync();
+    final pubspecBackup =
+        pubspecExisted ? await pubspecFile.readAsString() : null;
 
     final defaultDependencies = <String>[
       'flutter:\n    sdk: flutter',
@@ -192,12 +257,12 @@ class InitCommand extends Command<int> {
         # dart run flutter_native_splash:create --path=flutter_native_splash.yaml
         # No icon because it will use the app icon files in each platform folder
         flutter_native_splash:
-          color: '#FFFFFF' # BG COLOR
-          color_dark: '#FFFFFF' # BG COLOR
+          color: '#FFFFFF' # BG COLOR (light mode)
+          color_dark: '#000000' # BG COLOR (dark mode)
 
           android_12:
-              color: '#FFFFFF' # BG COLOR
-              color_dark: '#FFFFFF' # BG COLOR
+              color: '#FFFFFF' # BG COLOR (light mode)
+              color_dark: '#000000' # BG COLOR (dark mode)
     ''');
 
       await FileUtils.writeFile(
@@ -251,11 +316,18 @@ class InitCommand extends Command<int> {
         '.env\n',
       );
 
-      await PubspecUtils.ensureDependencies(
-        p.absolute(targetPath),
-        dependencies: defaultDependencies,
-        devDependencies: devDependencies,
-      );
+      if (dryRun) {
+        _logger.info('  Would update pubspec.yaml with:');
+        for (final dep in [...defaultDependencies, ...devDependencies]) {
+          _logger.info('    + $dep');
+        }
+      } else {
+        await PubspecUtils.ensureDependencies(
+          p.absolute(targetPath),
+          dependencies: defaultDependencies,
+          devDependencies: devDependencies,
+        );
+      }
 
       if (stack.contains(_kLocalizations)) {
         // ARB files (flutter_localizations uses .arb, not .json)
@@ -288,10 +360,15 @@ class InitCommand extends Command<int> {
         );
 
         // generate: true under flutter: section
-        await PubspecUtils.ensureFlutterFlags(
-          p.absolute(targetPath),
-          flags: ['generate: true', 'uses-material-design: true'],
-        );
+        if (dryRun) {
+          _logger.info(
+              '  Would set generate: true and uses-material-design: true in pubspec.yaml');
+        } else {
+          await PubspecUtils.ensureFlutterFlags(
+            p.absolute(targetPath),
+            flags: ['generate: true', 'uses-material-design: true'],
+          );
+        }
 
         await FileUtils.writeFile(
           p.join(p.absolute(targetPath), 'lib', 'core', 'services',
@@ -303,7 +380,27 @@ class InitCommand extends Command<int> {
       progress.complete('Done');
     } catch (e) {
       progress.fail('Failed: $e');
+      if (!dryRun) {
+        FileUtils.rollback();
+        if (pubspecExisted && pubspecBackup != null) {
+          await pubspecFile.writeAsString(pubspecBackup);
+        } else if (!pubspecExisted && pubspecFile.existsSync()) {
+          await pubspecFile.delete();
+        }
+        _logger.info('  Rolled back partially generated files.');
+      }
       return 1;
+    }
+
+    if (dryRun) {
+      _logger.info('');
+      _logger.info('Dry run — the following files would be created:');
+      for (final path in FileUtils.plannedWrites) {
+        _logger.info('  ${p.relative(path, from: p.absolute(targetPath))}');
+      }
+      _logger.info('');
+      _logger.info('Run without --dry-run to actually scaffold.');
+      return 0;
     }
 
     _logger.success('');

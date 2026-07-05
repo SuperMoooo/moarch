@@ -554,7 +554,7 @@ class MediaService {
       }
     }
 
-    final FilePickerResult? result = await FilePicker.pickFiles(
+    final FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: type,
       allowedExtensions: allowedExtensions,
       allowMultiple: allowMultiple,
@@ -613,7 +613,7 @@ class UrlLauncherService {
   static String connectivityService() => r'''
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/utils/appappLogger.iger.dart';
+import '../utils/app_logger.dart';
 
 final connectivityProvider = Provider<ConnectivityService>((ref) {
   return ConnectivityService();
@@ -629,7 +629,7 @@ class ConnectivityService {
 
   Stream<bool> get hasInternetStream =>
       _connectivity.onConnectivityChanged.map((results) {
-        log(results.toString());
+        appLogger.d('[Connectivity] $results');
         return !results.contains(ConnectivityResult.none);
       });
   Future<bool> hasInternet() async {

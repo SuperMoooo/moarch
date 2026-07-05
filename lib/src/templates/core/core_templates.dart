@@ -369,7 +369,7 @@ import 'package:flutter/material.dart';
 /// | labelSmall     | 11.0 |   16.0  | medium  |  0.5     |             |
 
 abstract final class AppConstants {
- // ── Palette ─────────────────────────────────────────────────
+ // ── Palette (light) ────────────────────────────────────────────
 static const Color primary   = Color(0xFF000000);
 static const Color secondary = Color(0xFF000000);
 static const Color tertiary  = Color(0xFF000000);
@@ -377,6 +377,15 @@ static const Color surface   = Color(0xFF000000);
 static const Color onSurface = Color(0xFF000000);
 static const Color outline   = Color(0xFF000000);
 static const Color error = Color(0xFFba1a1a);
+
+// ── Palette (dark) — same hues, tuned for a dark surface ───────
+static const Color primaryDark   = Color(0xFFFFFFFF);
+static const Color secondaryDark = Color(0xFFFFFFFF);
+static const Color tertiaryDark  = Color(0xFFFFFFFF);
+static const Color surfaceDark   = Color(0xFF121212);
+static const Color onSurfaceDark = Color(0xFFFFFFFF);
+static const Color outlineDark   = Color(0xFFFFFFFF);
+static const Color errorDark = Color(0xFFffb4ab);
 
 // ── Accent tokens ────────────────────────────────────────────
 static const Color accentActive      = Color(0xFF000000);
@@ -388,6 +397,11 @@ static const Color accentEnergetic   = Color(0xFF000000);
 static const Color surfaceContainerLowest  = Color(0xFF000000);
 static const Color surfaceContainerLow     = Color(0xFF000000);
 static const Color surfaceContainerHighest = Color(0xFF000000);
+
+// ── Surface layers (dark) ────────────────────────────────────
+static const Color surfaceContainerLowestDark  = Color(0xFF0A0A0A);
+static const Color surfaceContainerLowDark     = Color(0xFF1E1E1E);
+static const Color surfaceContainerHighestDark = Color(0xFF2C2C2C);
 
 // ── Flat colors for avatar bg fallback ───────────────
 static const List<Color> avatarPalette = [
@@ -515,7 +529,7 @@ Dio _buildDioClient(Ref ref) {
 
   final dio = Dio(
     BaseOptions(
-      baseUrl: appFlavor == "prod" ? AppEnv.prodBaseUrl : AppEnv.devBaseUrl,
+      baseUrl: AppEnv.baseUrl,
       connectTimeout: ApiConstants.connectTimeout,
       receiveTimeout: ApiConstants.receiveTimeout,
       headers: const {
@@ -580,8 +594,8 @@ void _configureHttpClient(Dio dio) {
 ''';
 
   /// SAFE API CALL
-  static String safeApiCall() => '''~
-  import 'dart:async';
+  static String safeApiCall() => '''
+import 'dart:async';
 import '../../core/errors/app_exception.dart';
 import 'package:dio/dio.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';

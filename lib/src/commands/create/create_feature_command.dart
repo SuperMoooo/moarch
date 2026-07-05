@@ -134,17 +134,48 @@ class CreateFeatureCommand extends Command<int> {
         _kView,
       };
     } else {
-      selected = Checklist.prompt(
-        title: '  Select layers for "$className":',
-        items: [
-          const ChecklistItem(_kRemoteDatasource, defaultOn: true),
-          const ChecklistItem(_kLocalDatasource, defaultOn: false),
-          const ChecklistItem(_kRepository, defaultOn: true),
-          const ChecklistItem(_kUseCases, defaultOn: false),
-          const ChecklistItem(_kStateNotifier, defaultOn: true),
-          const ChecklistItem(_kView, defaultOn: true),
-        ],
-      );
+      try {
+        selected = Checklist.prompt(
+          title: '  Select layers for "$className":',
+          items: [
+            const ChecklistItem(
+              _kRemoteDatasource,
+              defaultOn: true,
+              description: 'Fetches data from an API via the Dio client.',
+            ),
+            const ChecklistItem(
+              _kLocalDatasource,
+              defaultOn: false,
+              description: 'Cache fallback used when there is no connectivity.',
+            ),
+            const ChecklistItem(
+              _kRepository,
+              defaultOn: true,
+              description:
+                  'Interface + implementation combining the datasources.',
+            ),
+            const ChecklistItem(
+              _kUseCases,
+              defaultOn: false,
+              description:
+                  'Domain-layer use case wrapping the repository call.',
+            ),
+            const ChecklistItem(
+              _kStateNotifier,
+              defaultOn: true,
+              description: 'Riverpod state + notifier for this feature.',
+            ),
+            const ChecklistItem(
+              _kView,
+              defaultOn: true,
+              description: 'Basic Flutter view wired to the notifier.',
+            ),
+          ],
+        );
+      } on ChecklistCancelled {
+        _logger.info('Cancelled — nothing was generated.');
+        return 0;
+      }
     }
 
     _logger.info('');
@@ -152,6 +183,7 @@ class CreateFeatureCommand extends Command<int> {
     _logger.info('');
 
     final progress = _logger.progress('Scaffolding');
+    FileUtils.beginSession();
 
     try {
       if (selected.contains(_kRemoteDatasource)) {
@@ -165,7 +197,7 @@ class CreateFeatureCommand extends Command<int> {
       }
       if (selected.contains(_kLocalDatasource)) {
         await _writeLocalDatasource(
-            featurePath, featureName, className, libPath, varName);
+            featurePath, featureName, className, varName, libPath);
       }
       if (selected.contains(_kRepository)) {
         await _writeRepository(
@@ -205,6 +237,8 @@ class CreateFeatureCommand extends Command<int> {
       progress.complete('Feature scaffolded');
     } catch (e) {
       progress.fail('Failed: $e');
+      FileUtils.rollback();
+      _logger.info('  Rolled back partially generated files.');
       return 1;
     }
 
