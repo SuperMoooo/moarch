@@ -91,6 +91,11 @@ class App extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     $localizationWatch
+
+    // Parent provider, invalidate this to reset app. Replace with your auth provider
+    final sessionKey = ref.watch(
+      authProvider.select((s) => s.value?.authenticated ?? ''),
+    );
  
     return MaterialApp.router(
       title: 'App',
@@ -105,7 +110,7 @@ class App extends ConsumerWidget {
             textScaler: TextScaler.noScaling,
             alwaysUse24HourFormat: true,
           ),
-          child: child!,
+          child:  ProviderScope(key: ValueKey(sessionKey), child: child!),
         );
       },
     );

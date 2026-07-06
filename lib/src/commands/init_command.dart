@@ -5,7 +5,6 @@ import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/templates/core/error_templates.dart';
 import 'package:moarch/src/templates/core/security_templates.dart';
 import 'package:moarch/src/templates/core/services_templates.dart';
-import 'package:moarch/src/templates/helpers/test_helper.dart';
 import 'package:moarch/src/templates/misc/checklist_templates.dart';
 import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/templates/misc/workflow_templates.dart';
@@ -230,10 +229,6 @@ class InitCommand extends Command<int> {
       await FileUtils.createDir(testPath);
       await FileUtils.createDir(p.join(testPath, 'unit'));
       await FileUtils.createDir(p.join(testPath, 'integration'));
-      await FileUtils.writeFile(
-        p.join(testPath, 'test_helper.dart'),
-        TestHelper.testHelper(),
-      );
 
       await FileUtils.writeFile(
         p.join(libPath, 'main.dart'),
