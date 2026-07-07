@@ -79,7 +79,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 //
 // class GoRouterRefreshNotifier extends ChangeNotifier {
 //   GoRouterRefreshNotifier(Ref ref) {
-//     ref.listen(authNotifierProvider, (previous, next) {
+//     ref.container.listen(authNotifierProvider, (previous, next) {
 //       notifyListeners();
 //     });
 //   }

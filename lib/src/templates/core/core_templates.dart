@@ -571,11 +571,29 @@ Dio _buildDioClient(Ref ref) {
       LogInterceptor(
         requestBody: true,
         responseBody: true,
-        logPrint: (msg) => appLogger.d(msg.toString()),
+        logPrint: (msg) => appLogger.d(_redactSensitive(msg.toString())),
       ),
     );
 
   return dio;
+}
+
+final _kSensitiveKeyPattern = RegExp(
+  r'("?(?:password|newPassword|Password|token|Authorization|refreshToken|accessToken)"?\s*:\s*)'
+  r'("[^"]*"|[^,}\]\n]+)',
+  caseSensitive: false,
+);
+
+String _redactSensitive(String message) {
+  var redacted = message.replaceAllMapped(
+    _kSensitiveKeyPattern,
+    (m) => '${m.group(1)}***REDACTED***',
+  );
+  redacted = redacted.replaceAll(
+    RegExp(r'Bearer\s+\S+', caseSensitive: false),
+    'Bearer ***REDACTED***',
+  );
+  return redacted;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
