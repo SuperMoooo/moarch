@@ -588,12 +588,14 @@ class UrlLauncherService {
 
   /// Launch a URL string.
   Future<void> launch(String url, {LaunchMode? mode}) async {
-    final urlSanitized = ValidationService.validate(
+    final ValidationResult res = ValidationService.validate(
       url,
       inputType: InputType.text,
-    ).sanitizedValue;
+    );
 
-    final uri = Uri.parse(urlSanitized);
+    if (!res.isValid) return;
+
+    final uri = Uri.parse(res.sanitizedValue);
     try {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: mode ?? LaunchMode.externalApplication);

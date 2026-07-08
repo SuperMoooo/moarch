@@ -56,8 +56,8 @@ class AppAvatar extends StatelessWidget {
           ? CachedNetworkImage(
               imageUrl: avatar!,
               fit: BoxFit.cover,
-              placeholder: (_, __) => _placeholder(),
-              errorWidget: (_, __, ___) => _fallback(),
+              placeholder: (_, _) => _placeholder(),
+              errorWidget: (_, _, _) => _fallback(),
             )
           : _fallback(),
     );
@@ -144,8 +144,8 @@ class AppImage extends StatelessWidget {
           ? CachedNetworkImage(
               imageUrl: imageUrl!,
               fit: fit,
-              placeholder: (_, __) => _placeholder(),
-              errorWidget: (_, __, ___) => _fallback(),
+              placeholder: (_, _) => _placeholder(),
+              errorWidget: (_, _, _) => _fallback(),
             )
           : _fallback(),
     );
@@ -1022,7 +1022,7 @@ import '../widgets/loadings/app_loading_data.dart';
 /// Add to your router temporarily:
 ///   GoRoute(
 ///     path: '/design-system',
-///     builder: (_, __) => const DesignSystemView(),
+///     builder: (_, _) => const DesignSystemView(),
 ///   )
 class DesignSystemView extends StatefulWidget {
   const DesignSystemView({super.key});

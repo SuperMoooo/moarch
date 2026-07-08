@@ -1,5 +1,5 @@
-# [1.6.8]
+# [1.6.9]
 
 ## Fixes
 
-- Deploy workflow fix
+- FIXES

@@ -45,7 +45,7 @@ Future<T?> showAppDialog<T>({
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: duration,
     useRootNavigator: useRootNavigator,
-    pageBuilder: (_, __, ___) => child,
+    pageBuilder: (_, _, _) => child,
     transitionBuilder: (context, animation, _, child) {
       final curved = CurvedAnimation(parent: animation, curve: Curves.easeInOut);
       return FadeTransition(

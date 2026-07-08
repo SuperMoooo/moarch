@@ -325,7 +325,7 @@ class _${cls}ViewState extends ConsumerState<${cls}View> {
           enabled: true,
           child: _mainWidget(null),
         ),
-        error: (_, __) => ErrorView(message: "Failed to load ${cls}"),
+        error: (_, _) => ErrorView(message: "Failed to load ${cls}"),
         
     );
   }
