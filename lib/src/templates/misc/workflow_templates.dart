@@ -502,7 +502,7 @@ jobs:
 
   /// FASTLANE DEPLOY WORKFLOW
   static String deployWorkflow() => r'''
-  name: Fastlane Deploy
+name: Fastlane Deploy
 
 # Fastlane deployment workflow for Android and iOS.
 # gem install fastlane or brew install fastlane
@@ -570,23 +570,36 @@ on:
             - 'v*'
 
 jobs:
+    prepare:
+        runs-on: ubuntu-latest
+        outputs:
+            matrix: ${{ steps.set-matrix.outputs.matrix }}
+        steps:
+            - name: Determine platforms to deploy
+              id: set-matrix
+              shell: bash
+              run: |
+                  android='{"platform":"android","os":"ubuntu-latest","working_directory":"android"}'
+                  ios='{"platform":"ios","os":"macos-latest","working_directory":"ios"}'
+                  platform="${{ github.event.inputs.platform }}"
+
+                  if [ "${{ github.event_name }}" = "push" ] || [ "$platform" = "all" ] || [ -z "$platform" ]; then
+                    matrix="[$android,$ios]"
+                  elif [ "$platform" = "android" ]; then
+                    matrix="[$android]"
+                  else
+                    matrix="[$ios]"
+                  fi
+
+                  echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
     deploy:
+        needs: prepare
         runs-on: ${{ matrix.os }}
         strategy:
             fail-fast: false
             matrix:
-                include:
-                    - platform: android
-                      os: ubuntu-latest
-                      working_directory: android
-                    - platform: ios
-                      os: macos-latest
-                      working_directory: ios
-
-        if: >-
-            github.event_name == 'push' ||
-            github.event.inputs.platform == 'all' ||
-            github.event.inputs.platform == matrix.platform
+                include: ${{ fromJson(needs.prepare.outputs.matrix) }}
 
         steps:
             - name: Checkout repository
@@ -639,6 +652,5 @@ jobs:
                   echo "Deploying ${{ matrix.platform }} with lane ${{ github.event.inputs.lane || 'beta' }}"
                   bundle exec fastlane ${{ github.event.inputs.lane || 'beta' }}
 
-  
   ''';
 }

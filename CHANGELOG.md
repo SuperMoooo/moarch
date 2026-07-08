@@ -1,5 +1,5 @@
-# [1.6.7]
+# [1.6.8]
 
 ## Fixes
 
-- Router fixes
+- Deploy workflow fix
