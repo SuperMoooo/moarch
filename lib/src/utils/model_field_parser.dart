@@ -7,8 +7,8 @@ class ModelFieldParser {
   ///     required this.fieldName,         // required typed field
   ///     this.nullableField,              // optional / nullable
   ///   });
-  static List<_Field> parse(String source, String className) {
-    final fields = <_Field>[];
+  static List<ModelField> parse(String source, String className) {
+    final fields = <ModelField>[];
 
     // Look for: [Type] [name];
     // Exclude things like 'factory' or keywords
@@ -23,14 +23,14 @@ class ModelFieldParser {
 
       // Ignore internal or static members if necessary
       if (name != null && type != null && !name.contains('factory')) {
-        fields.add(_Field(name: name, type: type));
+        fields.add(ModelField(name: name, type: type));
       }
     }
     return fields;
   }
 
   /// Builds the `.empty()` factory string to inject.
-  static String buildEmptyFactory(String className, List<_Field> fields) {
+  static String buildEmptyFactory(String className, List<ModelField> fields) {
     if (fields.isEmpty) {
       return '\n  factory $className.empty() => $className();\n';
     }
@@ -45,7 +45,7 @@ $args
 ''';
   }
 
-  static String _defaultFor(_Field f) {
+  static String _defaultFor(ModelField f) {
     final t = (f.type ?? '').replaceAll(' ', '');
 
     if (t == 'dynamic') return 'null';
@@ -70,8 +70,14 @@ $args
   }
 }
 
-class _Field {
-  const _Field({required this.name, this.type});
+/// A single constructor field extracted from a model/entity class.
+class ModelField {
+  /// Creates a parsed field with its declared [name] and optional [type].
+  const ModelField({required this.name, this.type});
+
+  /// The field name as declared in the class.
   final String name;
+
+  /// The declared Dart type, if one was found.
   final String? type;
 }

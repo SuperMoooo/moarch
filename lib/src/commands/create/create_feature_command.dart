@@ -178,6 +178,15 @@ class CreateFeatureCommand extends Command<int> {
       }
     }
 
+    // The use case and notifier templates depend on the repository provider,
+    // so generating them without it would produce broken imports.
+    if ((selected.contains(_kUseCases) || selected.contains(_kStateNotifier)) &&
+        !selected.contains(_kRepository)) {
+      selected.add(_kRepository);
+      _logger.info(
+          '  Note: Repository layer added — Use Cases / Notifier depend on it.');
+    }
+
     _logger.info('');
     _logger.info('🧱 Creating feature: $className');
     _logger.info('');

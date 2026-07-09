@@ -121,42 +121,24 @@ abstract final class AppRoutes {
 
   /// Returns the generated firebaseProviders template.
   static String firebaseProviders({bool hasAuth = false, bool hasDb = false}) {
-    final authImport = hasAuth
-        ? '''
-  import 'package:firebase_auth/firebase_auth.dart';'''
-        : '';
+    final imports = [
+      if (hasDb) "import 'package:cloud_firestore/cloud_firestore.dart';",
+      if (hasAuth) "import 'package:firebase_auth/firebase_auth.dart';",
+      "import 'package:flutter_riverpod/flutter_riverpod.dart';",
+    ].join('\n');
 
-    final dbImport = hasDb
-        ? '''
-  import 'package:cloud_firestore/cloud_firestore.dart';'''
-        : '';
-
-    final authProvider = hasAuth
-        ? '''
-      final firebaseAuthProvider = Provider((ref) {
-          return FirebaseAuth.instance;
-      });
-      '''
-        : '';
-
-    final dbProvider = hasDb
-        ? '''
-       final firebaseDbProvider = Provider((ref) {
-    return FirebaseFirestore.instance;
-  });
-      '''
-        : '';
+    final providers = [
+      if (hasAuth)
+        'final firebaseAuthProvider = Provider((ref) => FirebaseAuth.instance);',
+      if (hasDb)
+        'final firebaseDbProvider = Provider((ref) => FirebaseFirestore.instance);',
+    ].join('\n\n');
 
     return '''
-$authImport
-$dbImport
-  import 'package:flutter_riverpod/flutter_riverpod.dart';
+$imports
 
-  $authProvider
-
- $dbProvider
-
-  ''';
+$providers
+''';
   }
 
   /// Returns the generated appEnv template.

@@ -23,7 +23,7 @@ class CreateModelCommand extends Command<int> {
       'empty',
       abbr: 'e',
       negatable: false,
-      help: 'Inject a .empty() factory into an existing model.',
+      help: 'Inject a .empty() factory into an existing entity.',
     );
   }
 
@@ -188,7 +188,8 @@ class CreateModelCommand extends Command<int> {
 
     _logger.success('');
     _logger.info('  ✓ $modelClass.empty() added to');
-    _logger.info('    ${modelFile.replaceAll(RegExp(r'^.*/lib/'), 'lib/')}');
+    _logger.info(
+        '    ${modelFile.replaceAll(RegExp(r'^.*[/\\]lib[/\\]'), 'lib/')}');
     _logger.info('');
     return 0;
   }

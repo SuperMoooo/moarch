@@ -183,41 +183,44 @@ class InitCommand extends Command<int> {
     final pubspecBackup =
         pubspecExisted ? await pubspecFile.readAsString() : null;
 
+    // Caret-pinned to the versions the templates were written against, so a
+    // breaking major release of a package can't silently break a fresh
+    // scaffold. Bump these alongside template changes.
     final defaultDependencies = <String>[
       'flutter:\n    sdk: flutter',
-      'flutter_riverpod:',
-      'flutter_native_splash:',
-      'envied:',
-      'skeletonizer:',
-      'cached_network_image:',
-      'intl:',
-      'logger:',
-      'connectivity_plus:',
-      if (stack.contains(_kRouter)) 'go_router:',
-      if (stack.contains(_kDio)) 'dio:',
-      if (stack.contains(_kDio)) 'dio_smart_retry:',
-      'flutter_secure_storage:',
+      'flutter_riverpod: ^3.3.2',
+      'flutter_native_splash: ^2.4.8',
+      'envied: ^1.3.8',
+      'skeletonizer: ^2.1.3',
+      'cached_network_image: ^3.4.1',
+      'intl: ^0.20.3',
+      'logger: ^2.7.0',
+      'connectivity_plus: ^7.2.0',
+      if (stack.contains(_kRouter)) 'go_router: ^17.3.0',
+      if (stack.contains(_kDio)) 'dio: ^5.10.0',
+      if (stack.contains(_kDio)) 'dio_smart_retry: ^7.0.1',
+      'flutter_secure_storage: ^10.3.1',
       if (stack.contains(_kFirebaseAuth) || stack.contains(_kFirestore))
-        'firebase_core:',
-      if (stack.contains(_kFirebaseAuth)) 'firebase_auth:',
-      if (stack.contains(_kFirestore)) 'cloud_firestore',
-      if (stack.contains(_kMediaService)) 'file_picker:',
-      if (stack.contains(_kMediaService)) 'image_picker:',
-      'permission_handler:',
-      if (stack.contains(_kLaunchUrlService)) 'url_launcher:',
+        'firebase_core: ^4.11.0',
+      if (stack.contains(_kFirebaseAuth)) 'firebase_auth: ^6.5.4',
+      if (stack.contains(_kFirestore)) 'cloud_firestore: ^6.6.0',
+      if (stack.contains(_kMediaService)) 'file_picker: ^11.0.2',
+      if (stack.contains(_kMediaService)) 'image_picker: ^1.2.3',
+      'permission_handler: ^12.0.3',
+      if (stack.contains(_kLaunchUrlService)) 'url_launcher: ^6.3.2',
       if (stack.contains(_kNotificationsService))
-        'flutter_local_notifications:',
-      if (stack.contains(_kNotificationsService)) "timezone:",
+        'flutter_local_notifications: ^22.0.1',
+      if (stack.contains(_kNotificationsService)) 'timezone: ^0.11.1',
       if (stack.contains(_kLocalizations))
         'flutter_localizations:\n    sdk: flutter',
     ];
 
     final devDependencies = <String>[
-      'build_runner:',
-      'envied_generator:',
-      'mogen_unit_tests:',
-      'mogen_integration_tests:',
-      'flutter_lints:'
+      'build_runner: ^2.15.1',
+      'envied_generator: ^1.3.8',
+      'mogen_unit_tests: ^1.1.4',
+      'mogen_integration_tests: ^1.0.12',
+      'flutter_lints: ^6.0.0',
     ];
 
     try {
@@ -306,10 +309,21 @@ class InitCommand extends Command<int> {
         );
       }
 
-      await FileUtils.writeFile(
-        p.join(p.absolute(targetPath), '.gitignore'),
-        '.env\n',
-      );
+      // `flutter create` projects already have a .gitignore, and writeFile
+      // never overwrites existing files — so append `.env` if it's missing.
+      final gitignoreFile = File(p.join(p.absolute(targetPath), '.gitignore'));
+      if (!gitignoreFile.existsSync() || dryRun) {
+        await FileUtils.writeFile(gitignoreFile.path, '.env\n');
+      } else {
+        final gitignore = await gitignoreFile.readAsString();
+        final hasEnvRule =
+            gitignore.split('\n').any((line) => line.trim() == '.env');
+        if (!hasEnvRule) {
+          await gitignoreFile.writeAsString(
+            '${gitignore.trimRight()}\n\n# Environment secrets (moarch)\n.env\n',
+          );
+        }
+      }
 
       if (dryRun) {
         _logger.info('  Would update pubspec.yaml with:');
@@ -338,11 +352,11 @@ class InitCommand extends Command<int> {
         );
         await FileUtils.writeFile(
           p.join(p.absolute(targetPath), 'lib', 'l10n', 'l10n.dart'),
-          '''
-            import 'dart:ui';
-            class L10n {
-              static final all = [const Locale('en'), const Locale('pt')];
-            }''',
+          "import 'dart:ui';\n"
+          '\n'
+          'class L10n {\n'
+          "  static const all = [Locale('en'), Locale('pt')];\n"
+          '}\n',
         );
 
         // l10n.yaml config file at project root
@@ -415,7 +429,11 @@ class InitCommand extends Command<int> {
 
     await FileUtils.writeFile(
       p.join(c, 'errors', 'app_exception.dart'),
-      ErrorTemplates.appException(hasDio: stack.contains(_kDio)),
+      ErrorTemplates.appException(
+        hasDio: stack.contains(_kDio),
+        hasFirebase:
+            stack.contains(_kFirestore) || stack.contains(_kFirebaseAuth),
+      ),
     );
 
     await FileUtils.writeFile(

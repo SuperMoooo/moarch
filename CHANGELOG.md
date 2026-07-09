@@ -1,5 +1,5 @@
-# [1.6.9]
+# [1.7.0]
 
 ## Fixes
 
-- FIXES
+- ADJUSTMENTS AND BUG FIXES

@@ -9,7 +9,7 @@ class CoreTemplates {
     bool withNotificationsService = false,
   }) {
     final localizationImports = withLocalization
-        ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\nimport  'core/services/language_service.dart';\nimport 'package:flutter_localizations/flutter_localizations.dart';\n"
+        ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\nimport 'core/services/language_service.dart';\nimport 'package:flutter_localizations/flutter_localizations.dart';\n"
         : '';
     final notificationImport = withNotificationsService
         ? "\nimport 'core/services/notifications_service.dart';"
@@ -46,7 +46,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport
 import 'core/utils/app_logger.dart';
-import '../shared/widgets/error_view.dart';
+import 'shared/widgets/error_view.dart';
 import 'config/theme/app_theme.dart';
 import 'config/router/app_router.dart';
 
@@ -92,16 +92,17 @@ class App extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     $localizationWatch
 
-    // Parent provider, invalidate this to reset app. Replace with your auth provider
-    final sessionKey = ref.watch(
-      authProvider.select((s) => s.value?.authenticated ?? ''),
-    );
- 
+    // To reset ALL app state on logout, key a ProviderScope by your session.
+    // Once you have an auth feature, uncomment and adapt:
+    // final sessionKey = ref.watch(
+    //   authNotifierProvider.select((s) => s.value?.authenticated ?? ''),
+    // );
+
     return MaterialApp.router(
       title: 'App',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      $localizationConfig      
+      $localizationConfig
       routerConfig: router,
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
@@ -110,7 +111,9 @@ class App extends ConsumerWidget {
             textScaler: TextScaler.noScaling,
             alwaysUse24HourFormat: true,
           ),
-          child:  ProviderScope(key: ValueKey(sessionKey), child: child!),
+          // With an auth feature, swap for:
+          //   ProviderScope(key: ValueKey(sessionKey), child: child!)
+          child: child!,
         );
       },
     );
@@ -121,14 +124,18 @@ class App extends ConsumerWidget {
 
     return '''
 import 'package:flutter/foundation.dart';
-import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport
-import '../../core/utils/app_logger.dart';
+import 'core/utils/app_logger.dart';
+import 'shared/widgets/error_view.dart';
 import 'config/theme/app_theme.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();$notificationInit
+  // Preserve the splash BEFORE anything else runs
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  $notificationInit
 
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
@@ -151,16 +158,18 @@ Future<void> main() async {
     return const ErrorView(); // your nice screen in prod
   };
 
-    //::::::::::ERROR MANAGEMENT::::::::::
+  // OR REMOVE AFTER SOME ASYNC INIT IN A ROOT WIDGET
+  FlutterNativeSplash.remove();
+
   runApp(const ProviderScope(child: App()));
 }
- 
-class App extends StatelessWidget {
+
+class App extends ConsumerWidget {
   const App({super.key});
- 
+
   @override
-  Widget build(BuildContext context) {
-  $localizationWatch
+  Widget build(BuildContext context, WidgetRef ref) {
+    $localizationWatch
     return MaterialApp(
       title: 'App',
       theme: AppTheme.light,
@@ -203,7 +212,6 @@ final appLogger = Logger(
   static String extensions() => r'''
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../core/errors/app_exception.dart';
 
 extension ContextX on BuildContext {
   ThemeData get theme => Theme.of(this);
@@ -231,18 +239,19 @@ extension StringX on String {
   int? get toIntOrNull => int.tryParse(this);
   double? get toDoubleOrNull => double.tryParse(this);
 
-  dynamic toColor() {
+  Color? toColor() {
     var hexColor = replaceAll('#', '');
     if (hexColor.length == 6) {
       hexColor = 'FF$hexColor';
     }
     if (hexColor.length == 8) {
-      return int.parse('0x$hexColor');
+      return Color(int.parse('0x$hexColor'));
     }
     return null;
   }
 
- DateTime formatToDateTime(String dateStr) {
+  /// Parses this string as a date; returns null when no known format matches.
+  DateTime? toDateTime() {
     // Try standard formats first
     final formats = [
       'yyyy-MM-dd',
@@ -256,14 +265,12 @@ extension StringX on String {
 
     for (final fmt in formats) {
       try {
-        return DateFormat(fmt).parseStrict(dateStr);
+        return DateFormat(fmt).parseStrict(this);
       } catch (_) {}
     }
 
-    DateTime date = DateTime.now();
-
-    // Fallback: manual split for d/M/yyyy or M/d/yyyy ambiguous cases
-    final parts = dateStr.split(RegExp(r'[/\-]'));
+    // Fallback: manual split for ambiguous cases
+    final parts = split(RegExp(r'[/\-]'));
     if (parts.length == 3) {
       final a = int.tryParse(parts[0]);
       final b = int.tryParse(parts[1]);
@@ -271,12 +278,12 @@ extension StringX on String {
 
       if (a != null && b != null && c != null) {
         // c is year if > 31, assume d/M/yyyy
-        if (c > 31) date = DateTime(c, b, a);
+        if (c > 31) return DateTime(c, b, a);
         // a is year if > 31, assume yyyy/M/d
-        if (a > 31) date = DateTime(a, b, c);
+        if (a > 31) return DateTime(a, b, c);
       }
     }
-    return date;
+    return null;
   }
 }
 
@@ -522,7 +529,7 @@ import '../constants/api_constants.dart';
 import '../security/secure_storage.dart';
 import '../utils/app_logger.dart';
 
-final _kPublicEndpoints = [
+const _kPublicEndpoints = <String>[
   // Add public routes here
 ];
 

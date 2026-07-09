@@ -36,7 +36,7 @@ import '../../data/repositories/${name}_repository_impl.dart';
 import '../entities/${name}_entity.dart';
 import '../repositories/${name}_repository.dart';
 
-final get${varName}Provider = Provider<Get$cls>(
+final get${cls}Provider = Provider<Get$cls>(
   (ref) => Get$cls(ref.watch(${varName}RepositoryProvider)),
 );
 
@@ -108,7 +108,7 @@ class ${cls}RemoteDataSource {
   Future<${cls}Model?> fetchOne() async {
     return safeApiCall<${cls}Model>(
       apiCall: () async {
-        final response = await _dio.get('/${name}');
+        final response = await _dio.get('/$name');
         return ${cls}Model.fromJson(response.data);
       },
     );
@@ -206,6 +206,9 @@ class ${cls}State {
   });
 
   final bool isLoadingAction;
+
+  /// One-shot UI event fields: any copyWith call that omits them clears
+  /// them, so a message is only surfaced once.
   final String? error;
   final String? success;
 
@@ -215,7 +218,7 @@ class ${cls}State {
     String? success,
   }) {
     return ${cls}State(
-      isLoadingAction: isLoadingAction ?? false,
+      isLoadingAction: isLoadingAction ?? this.isLoadingAction,
       error: error,
       success: success,
     );
@@ -276,38 +279,49 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State> {
 
   /// Returns the generated view template.
   static String view(String name, String cls, String varName,
-          {required bool hasNotifier}) =>
-      '''
+      {required bool hasNotifier}) {
+    if (!hasNotifier) {
+      return '''
 import 'package:flutter/material.dart';
-import '../../../../shared/widgets/error_view.dart';
-import 'package:skeletonizer/skeletonizer.dart';
-import '../states/${name}_state.dart';
 
-${hasNotifier ? "import 'package:flutter_riverpod/flutter_riverpod.dart';" : ''}
-
-${hasNotifier ? "import '../notifiers/${name}_notifier.dart';" : ''}
-
-class ${cls}View extends ${hasNotifier ? 'ConsumerStatefulWidget' : 'StatelessWidget'} {
+class ${cls}View extends StatelessWidget {
   const ${cls}View({super.key});
 
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('$cls')),
+      body: const SizedBox.shrink(),
+    );
+  }
+}
+''';
+    }
 
-${hasNotifier ? '''  @override
+    return '''
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:skeletonizer/skeletonizer.dart';
+
+import '../../../../shared/widgets/error_view.dart';
+import '../notifiers/${name}_notifier.dart';
+import '../states/${name}_state.dart';
+
+class ${cls}View extends ConsumerStatefulWidget {
+  const ${cls}View({super.key});
+
+  @override
   ConsumerState<${cls}View> createState() => _${cls}ViewState();
 }
 
 class _${cls}ViewState extends ConsumerState<${cls}View> {
-  @override
-  void initState() {
-    super.initState();
-  }
-
   @override
   Widget build(BuildContext context) {
     final ${varName}Async = ref.watch(${varName}NotifierProvider);
     ref.listen(${varName}NotifierProvider, (_, next) {
       final value = next.value;
       if (value == null) return;
-        if (value.error != null) {
+      if (value.error != null) {
         // SHOW UI ERROR
       }
       if (value.success != null) {
@@ -315,27 +329,20 @@ class _${cls}ViewState extends ConsumerState<${cls}View> {
       }
     });
 
-    Widget _mainWidget(${cls}State? state){
+    Widget mainWidget(${cls}State? state) {
       return const SizedBox.shrink();
     }
-    return ${varName}Async.when(
-        data: (state) => _mainWidget(state),
 
-        loading: () => Skeletonizer(
-          enabled: true,
-          child: _mainWidget(null),
-        ),
-        error: (_, _) => ErrorView(message: "Failed to load ${cls}"),
-        
+    return ${varName}Async.when(
+      data: (state) => mainWidget(state),
+      loading: () => Skeletonizer(
+        enabled: true,
+        child: mainWidget(null),
+      ),
+      error: (_, _) => const ErrorView(message: 'Failed to load $cls'),
     );
   }
-}''' : '''  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('$cls')),
-      body: const SizedBox.shrink(),
-    );
-  }
-}'''}
+}
 ''';
+  }
 }

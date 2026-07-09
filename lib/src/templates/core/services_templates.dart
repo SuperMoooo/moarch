@@ -8,28 +8,28 @@ import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-final languageProvider = StateNotifierProvider<LanguageService, LanguageState>(
-  (ref) => LanguageService(const LanguageState(locale: Locale('en'))),
+final languageProvider = NotifierProvider<LanguageService, LanguageState>(
+  LanguageService.new,
 );
 
 class LanguageState {
-  final Locale locale;
   const LanguageState({required this.locale});
+
+  final Locale locale;
 }
 
-class LanguageService extends StateNotifier<LanguageState> {
-  LanguageService(super._state) {
-    _loadSavedLocale();
+class LanguageService extends Notifier<LanguageState> {
+  @override
+  LanguageState build() {
+    // TODO: load the saved locale (e.g. from secure storage) if you persist it.
+    return const LanguageState(locale: Locale('en'));
   }
-
-  Future<void> _loadSavedLocale() async {}
 
   Future<void> changeLanguage(String languageCode) async {
     state = LanguageState(locale: Locale(languageCode));
   }
 }
-
-  ''';
+''';
 
   /// Returns a notification service scaffold.
   static String notificationsService() => r'''

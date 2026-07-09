@@ -131,7 +131,8 @@ class CreateEmptyFactoriesCommand extends Command<int> {
     required File file,
     required bool dryRun,
   }) async {
-    final relativePath = file.path.replaceAll(RegExp(r'^.*/lib/'), 'lib/');
+    final relativePath =
+        file.path.replaceAll(RegExp(r'^.*[/\\]lib[/\\]'), 'lib/');
 
     try {
       String source = await file.readAsString();

@@ -1213,7 +1213,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                     ),
                     const SizedBox(height: AppConstants.space12),
                     DropdownButtonFormField<String>(
-                      value: _selectedDropdown,
+                      initialValue: _selectedDropdown,
                       hint: const Text('Dropdown'),
                       items: const [
                         DropdownMenuItem(value: 'a', child: Text('Option A')),
