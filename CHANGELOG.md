@@ -2,4 +2,4 @@
 
 ## Fixes
 
-- APP IMAGE ADJUSTMENT
+- ADJUSTMENTS
