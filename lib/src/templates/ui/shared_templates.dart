@@ -146,8 +146,8 @@ class AppImage extends StatelessWidget {
           ? CachedNetworkImage(
               imageUrl: imageUrl!,
               fit: fit,
-              placeholder: (_, _) => _placeholder(),
-              errorWidget: (_, _, _) => _fallback(),
+              placeholder: (_, __) => _placeholder(),
+              errorWidget: (_, __, ___) => _fallback(),
             )
           : _localOrFallback(),
     );
@@ -173,7 +173,7 @@ class AppImage extends StatelessWidget {
       return Image.asset(
         path,
         fit: fit,
-        errorBuilder: (_, _, _) => _fallback(),
+        errorBuilder: (_, __, ___) => _fallback(),
       );
     }
     return _fallback();
