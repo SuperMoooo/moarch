@@ -268,18 +268,23 @@ class InitCommand extends Command<int> {
           DevTemplates.analysisOptions());
 
       await FileUtils.writeFile(
-        p.join(p.absolute(targetPath), 'CHECKLIST_BEFORE_DEPLOYMENT.md'),
+        p.join(
+            p.absolute(targetPath), 'docs', 'CHECKLIST_BEFORE_DEPLOYMENT.md'),
         ChecklistTemplates.prodChecklist(),
       );
 
       await FileUtils.writeFile(
-        p.join(p.absolute(targetPath), 'SECURITY_BEFORE_DEPLOYMENT.md'),
+        p.join(p.absolute(targetPath), 'docs', 'SECURITY_BEFORE_DEPLOYMENT.md'),
         ChecklistTemplates.securityChecklist(),
       );
 
       await FileUtils.writeFile(
-        p.join(p.absolute(targetPath), 'GENERATE_JKS_FILE.md'),
+        p.join(p.absolute(targetPath), 'docs', 'GENERATE_JKS_FILE.md'),
         ChecklistTemplates.generateJKS(),
+      );
+      await FileUtils.writeFile(
+        p.join(p.absolute(targetPath), 'docs', 'STEPS_FOR_WORKFLOW.md'),
+        ChecklistTemplates.stepsForWorkflow(),
       );
 
       if (stack.contains(_kWorkflows)) {
