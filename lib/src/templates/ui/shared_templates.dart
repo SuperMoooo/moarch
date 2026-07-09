@@ -116,6 +116,7 @@ class AppImage extends StatelessWidget {
   const AppImage({
     super.key,
     this.imageUrl,
+    this.assetPath,
     this.width,
     this.height,
     this.size = AppImageSize.medium,
@@ -125,6 +126,7 @@ class AppImage extends StatelessWidget {
   });
 
   final String? imageUrl;
+  final String? assetPath;
   final double? width;
   final double? height;
   final AppImageSize size;
@@ -147,7 +149,7 @@ class AppImage extends StatelessWidget {
               placeholder: (_, _) => _placeholder(),
               errorWidget: (_, _, _) => _fallback(),
             )
-          : _fallback(),
+          : _localOrFallback(),
     );
 
     return switch (shape) {
@@ -164,6 +166,18 @@ class AppImage extends StatelessWidget {
         color: Colors.grey[300],
         child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
+
+ Widget _localOrFallback() {
+    final path = assetPath;
+    if (path != null && path.isNotEmpty) {
+      return Image.asset(
+        path,
+        fit: fit,
+        errorBuilder: (_, _, _) => _fallback(),
+      );
+    }
+    return _fallback();
+  }
 
   Widget _fallback() => Image.asset(placeholderAsset, fit: fit);
 }

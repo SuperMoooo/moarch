@@ -1,5 +1,5 @@
-# [1.7.0]
+# [1.7.1]
 
 ## Fixes
 
-- ADJUSTMENTS AND BUG FIXES
+- APP IMAGE ADJUSTMENT
