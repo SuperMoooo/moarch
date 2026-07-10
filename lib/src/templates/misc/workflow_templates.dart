@@ -33,8 +33,6 @@ on:
     pull_request:
         branches: [main]
     workflow_dispatch: {}
-    schedule:
-        - cron: '0 0 * * 0'
 
 jobs:
     # ── 1. Unit tests ────────────────────────────────────────────────────────────
@@ -51,6 +49,13 @@ jobs:
 
             - name: Install dependencies
               run: flutter pub get
+            
+            - name: Create .env & generate env code
+              run: |
+                  cat <<EOF > .env
+                  BASE_URL=${{ secrets.BASE_URL }}
+                  EOF
+                  dart run build_runner build --delete-conflicting-outputs
 
             - name: Analyze
               run: flutter analyze --no-fatal-warnings
@@ -81,11 +86,12 @@ jobs:
             - name: Install dependencies
               run: flutter pub get
 
-            - name: Create .env
+            - name: Create .env & generate env code
               run: |
-                  echo "BASE_URL=${{ secrets.BASE_URL }}" > .env
-                  # Add more secrets here if needed:
-                  # echo "OTHER_KEY=${{ secrets.OTHER_KEY }}" >> .env
+                  cat <<EOF > .env
+                  BASE_URL=${{ secrets.BASE_URL }}
+                  EOF
+                  dart run build_runner build --delete-conflicting-outputs
 
             - name: Integration tests
               run: |
@@ -113,6 +119,13 @@ jobs:
 
             - name: Install dependencies
               run: flutter pub get
+
+            - name: Create .env & generate env code
+              run: |
+                  cat <<EOF > .env
+                  BASE_URL=${{ secrets.BASE_URL }}
+                  EOF
+                  dart run build_runner build --delete-conflicting-outputs
 
             - name: Run Flutter analyzer
               run: |
@@ -259,6 +272,13 @@ jobs:
             - name: Install dependencies
               run: flutter pub get
 
+            - name: Create .env & generate env code
+              run: |
+                  cat <<EOF > .env
+                  BASE_URL=${{ secrets.BASE_URL }}
+                  EOF
+                  dart run build_runner build --delete-conflicting-outputs
+
             - name: Import signing certificate
               env:
                   P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
@@ -391,6 +411,13 @@ jobs:
             - name: Install dependencies
               run: flutter pub get
 
+            - name: Create .env & generate env code
+              run: |
+                  cat <<EOF > .env
+                  BASE_URL=${{ secrets.BASE_URL }}
+                  EOF
+                  dart run build_runner build --delete-conflicting-outputs
+
             - name: Build APK
               run: flutter build apk --release --obfuscate --split-debug-info=build/debug-info/android --verbose
 
@@ -464,6 +491,14 @@ jobs:
 
             - name: Install dependencies
               run: flutter pub get
+
+            # pana compiles the package, so the gitignored env code must exist.
+            - name: Create .env & generate env code
+              run: |
+                  cat <<EOF > .env
+                  BASE_URL=${{ secrets.BASE_URL }}
+                  EOF
+                  dart run build_runner build --delete-conflicting-outputs
 
             - name: Run pana license/health report
               run: |
