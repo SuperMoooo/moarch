@@ -8,6 +8,7 @@ import 'package:moarch/src/templates/core/services_templates.dart';
 import 'package:moarch/src/templates/misc/checklist_templates.dart';
 import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/templates/misc/workflow_templates.dart';
+import 'package:moarch/src/templates/ui/auth_templates.dart';
 import 'package:moarch/src/templates/ui/dialogs_templates.dart';
 import 'package:moarch/src/templates/ui/modals_templates.dart';
 import 'package:moarch/src/utils/checklist.dart';
@@ -25,10 +26,12 @@ import '../utils/pubspec_utils.dart';
 const _kDio = 'Dio (REST API)';
 const _kFirestore = 'Firebase Firestore';
 const _kFirebaseAuth = 'Firebase Auth';
+const _kCrashlytics = 'Firebase Crashlytics';
 
 // ── Feature options ───────────────────────────────────────────────────────────
 // What gets generated into lib/ beyond the bare minimum.
 
+const _kAuthFeature = 'Auth feature (login/register/refresh/logout/delete)';
 const _kRouter = 'Router (GoRouter)';
 const _kWorkflows = 'Workflows (security, tests, build)';
 const _kMediaService = 'Media Service (Image Picker and File Picker)';
@@ -88,6 +91,7 @@ class InitCommand extends Command<int> {
     if (skipChecklist) {
       stack = {
         _kDio,
+        _kAuthFeature,
         _kRouter,
         _kWorkflows,
         _kMediaService,
@@ -118,6 +122,12 @@ class InitCommand extends Command<int> {
               defaultOn: false,
               description: 'FirebaseAuth provider (requires Firebase setup).',
             ),
+            const ChecklistItem(
+              _kCrashlytics,
+              defaultOn: false,
+              description:
+                  'Crash reporting wired into the error handlers (requires Firebase setup).',
+            ),
           ],
         );
 
@@ -126,6 +136,12 @@ class InitCommand extends Command<int> {
         final features = Checklist.prompt(
           title: '  What to generate:',
           items: [
+            const ChecklistItem(
+              _kAuthFeature,
+              defaultOn: true,
+              description:
+                  'REST auth feature: tokens + user id in secure storage, session restore on app start.',
+            ),
             const ChecklistItem(
               _kRouter,
               defaultOn: true,
@@ -173,6 +189,13 @@ class InitCommand extends Command<int> {
       }
     }
 
+    // The auth feature calls the API through the Dio client and its refresh
+    // interceptor, so generating it without Dio would produce broken imports.
+    if (stack.contains(_kAuthFeature) && !stack.contains(_kDio)) {
+      stack.add(_kDio);
+      _logger.info('  Note: Dio added — the auth feature depends on it.');
+    }
+
     final progress = _logger.progress(
       dryRun ? 'Previewing structure' : 'Creating structure',
     );
@@ -188,39 +211,42 @@ class InitCommand extends Command<int> {
     // scaffold. Bump these alongside template changes.
     final defaultDependencies = <String>[
       'flutter:\n    sdk: flutter',
-      'flutter_riverpod: ^3.3.2',
-      'flutter_native_splash: ^2.4.8',
-      'envied: ^1.3.8',
-      'skeletonizer: ^2.1.3',
-      'cached_network_image: ^3.4.1',
-      'intl: ^0.20.3',
-      'logger: ^2.7.0',
-      'connectivity_plus: ^7.2.0',
-      if (stack.contains(_kRouter)) 'go_router: ^17.3.0',
-      if (stack.contains(_kDio)) 'dio: ^5.10.0',
-      if (stack.contains(_kDio)) 'dio_smart_retry: ^7.0.1',
-      'flutter_secure_storage: ^10.3.1',
-      if (stack.contains(_kFirebaseAuth) || stack.contains(_kFirestore))
-        'firebase_core: ^4.11.0',
-      if (stack.contains(_kFirebaseAuth)) 'firebase_auth: ^6.5.4',
-      if (stack.contains(_kFirestore)) 'cloud_firestore: ^6.6.0',
-      if (stack.contains(_kMediaService)) 'file_picker: ^11.0.2',
-      if (stack.contains(_kMediaService)) 'image_picker: ^1.2.3',
-      'permission_handler: ^12.0.3',
-      if (stack.contains(_kLaunchUrlService)) 'url_launcher: ^6.3.2',
+      'flutter_riverpod: ',
+      'flutter_native_splash: ',
+      'envied: ',
+      'skeletonizer: ',
+      'cached_network_image: ',
+      'intl:',
+      'logger: ',
+      'connectivity_plus: ',
+      if (stack.contains(_kRouter)) 'go_router: ',
+      if (stack.contains(_kDio)) 'dio: ',
+      if (stack.contains(_kDio)) 'dio_smart_retry: ',
+      'flutter_secure_storage: ',
+      if (stack.contains(_kFirebaseAuth) ||
+          stack.contains(_kFirestore) ||
+          stack.contains(_kCrashlytics))
+        'firebase_core: ',
+      if (stack.contains(_kCrashlytics)) 'firebase_crashlytics: ',
+      if (stack.contains(_kFirebaseAuth)) 'firebase_auth: ',
+      if (stack.contains(_kFirestore)) 'cloud_firestore: ',
+      if (stack.contains(_kMediaService)) 'file_picker: ',
+      if (stack.contains(_kMediaService)) 'image_picker: ',
+      'permission_handler: ',
+      if (stack.contains(_kLaunchUrlService)) 'url_launcher: ',
       if (stack.contains(_kNotificationsService))
-        'flutter_local_notifications: ^22.0.1',
-      if (stack.contains(_kNotificationsService)) 'timezone: ^0.11.1',
+        'flutter_local_notifications: ',
+      if (stack.contains(_kNotificationsService)) 'timezone: ',
       if (stack.contains(_kLocalizations))
         'flutter_localizations:\n    sdk: flutter',
     ];
 
     final devDependencies = <String>[
-      'build_runner: ^2.15.1',
-      'envied_generator: ^1.3.8',
-      'mogen_unit_tests: ^1.1.4',
-      'mogen_integration_tests: ^1.0.12',
-      'flutter_lints: ^6.0.0',
+      'build_runner: ',
+      'envied_generator: ',
+      'mogen_unit_tests: ',
+      'mogen_integration_tests: ',
+      'flutter_lints: ',
     ];
 
     try {
@@ -228,6 +254,9 @@ class InitCommand extends Command<int> {
       await _buildConfig(libPath, stack);
       await _buildShared(libPath);
       await FileUtils.createDir(p.join(libPath, 'features'));
+      if (stack.contains(_kAuthFeature)) {
+        await _buildAuthFeature(libPath);
+      }
       final testPath = p.join(p.absolute(targetPath), 'test');
       await FileUtils.createDir(testPath);
       await FileUtils.createDir(p.join(testPath, 'unit'));
@@ -238,6 +267,7 @@ class InitCommand extends Command<int> {
         CoreTemplates.mainDart(
           withRouter: stack.contains(_kRouter),
           withLocalization: stack.contains(_kLocalizations),
+          withCrashlytics: stack.contains(_kCrashlytics),
         ),
       );
 
@@ -314,18 +344,40 @@ class InitCommand extends Command<int> {
         );
       }
 
+      // Secrets and generated files that must never be committed.
+      const ignoreRules = [
+        '.fvm/',
+        'android/key.properties',
+        'android/*.jks',
+        '*.jks',
+        '*.jks.old',
+        '*.keystore',
+        '.env',
+        'lib/config/env/app_env.g.dart',
+      ];
+
       // `flutter create` projects already have a .gitignore, and writeFile
-      // never overwrites existing files — so append `.env` if it's missing.
+      // never overwrites existing files — so append the missing rules instead.
       final gitignoreFile = File(p.join(p.absolute(targetPath), '.gitignore'));
       if (!gitignoreFile.existsSync() || dryRun) {
-        await FileUtils.writeFile(gitignoreFile.path, '.env\n');
+        await FileUtils.writeFile(
+          gitignoreFile.path,
+          '# Secrets & generated files (moarch)\n${ignoreRules.join('\n')}\n',
+        );
       } else {
         final gitignore = await gitignoreFile.readAsString();
-        final hasEnvRule =
-            gitignore.split('\n').any((line) => line.trim() == '.env');
-        if (!hasEnvRule) {
+        final existingRules = gitignore
+            .split('\n')
+            .map((line) => line.trim())
+            .where((line) => line.isNotEmpty)
+            .toSet();
+        final missingRules =
+            ignoreRules.where((rule) => !existingRules.contains(rule));
+        if (missingRules.isNotEmpty) {
           await gitignoreFile.writeAsString(
-            '${gitignore.trimRight()}\n\n# Environment secrets (moarch)\n.env\n',
+            '${gitignore.trimRight()}\n\n'
+            '# Secrets & generated files (moarch)\n'
+            '${missingRules.join('\n')}\n',
           );
         }
       }
@@ -424,6 +476,14 @@ class InitCommand extends Command<int> {
         '  The selected scaffold dependencies were added to pubspec.yaml.');
     _logger.info('  Run: flutter pub get');
     _logger.info('');
+    if (stack.contains(_kAuthFeature)) {
+      _logger.info(
+          '  Auth feature generated at lib/features/auth/ — adjust the');
+      _logger.info(
+          '  /auth/* endpoints and token JSON keys in auth_remote_datasource.dart');
+      _logger.info('  and core/network/dio_client.dart to your API contract.');
+      _logger.info('');
+    }
     _logger.info('  moarch create feature <name>   → generate a feature');
     _logger.info('');
     return 0;
@@ -438,6 +498,7 @@ class InitCommand extends Command<int> {
         hasDio: stack.contains(_kDio),
         hasFirebase:
             stack.contains(_kFirestore) || stack.contains(_kFirebaseAuth),
+        hasCrashlytics: stack.contains(_kCrashlytics),
       ),
     );
 
@@ -505,6 +566,39 @@ class InitCommand extends Command<int> {
     await FileUtils.writeFile(
       p.join(c, 'services', 'permission_service.dart'),
       ServicesTemplates.permissionService(),
+    );
+  }
+
+  Future<void> _buildAuthFeature(String libPath) async {
+    final f = p.join(libPath, 'features', 'auth');
+
+    await FileUtils.writeFile(
+      p.join(f, 'domain', 'entities', 'auth_tokens_entity.dart'),
+      AuthTemplates.entity(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'domain', 'repositories', 'auth_repository.dart'),
+      AuthTemplates.repositoryInterface(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'data', 'models', 'auth_tokens_model.dart'),
+      AuthTemplates.model(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'data', 'datasources', 'auth_remote_datasource.dart'),
+      AuthTemplates.remoteDatasource(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'data', 'repositories', 'auth_repository_impl.dart'),
+      AuthTemplates.repositoryImpl(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'presentation', 'states', 'auth_state.dart'),
+      AuthTemplates.state(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'presentation', 'notifiers', 'auth_notifier.dart'),
+      AuthTemplates.notifier(),
     );
   }
 

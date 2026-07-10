@@ -6,7 +6,6 @@ class DialogsTemplates {
   static String appDialog() => '''
 import 'package:flutter/material.dart';
 import '../../../config/router/app_router.dart';
-import '../../../core/constants/app_constants.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

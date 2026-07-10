@@ -6,7 +6,11 @@ class ErrorTemplates {
   ///
   /// Imports and error-mapping factories are generated only for the stack
   /// options the user actually selected, so the file always compiles.
-  static String appException({bool hasDio = true, bool hasFirebase = false}) {
+  static String appException({
+    bool hasDio = true,
+    bool hasFirebase = false,
+    bool hasCrashlytics = false,
+  }) {
     const catchError = r'''
     appLogger.e('[AppException] — $message', error: error, stackTrace: stackTrace);
     ''';
@@ -15,37 +19,54 @@ class ErrorTemplates {
       // FirebaseException lives in firebase_core, which both the Firestore
       // and FirebaseAuth options depend on.
       if (hasFirebase) "import 'package:firebase_core/firebase_core.dart';",
+      if (hasCrashlytics)
+        "import 'package:firebase_crashlytics/firebase_crashlytics.dart';",
     ].join('\n');
 
-    const dioFactory = r'''
+    // Crashlytics collection is toggled off for debug builds in main.dart, so
+    // these calls are safe to leave unconditional in the generated code.
+    final crashlyticsFromError = hasCrashlytics
+        ? '\n    FirebaseCrashlytics.instance.recordError(error, stackTrace, reason: message);'
+        : '';
+    final crashlyticsDio = hasCrashlytics
+        ? '\n      FirebaseCrashlytics.instance.recordError(dioError, dioError.stackTrace, reason: message);'
+        : '';
+    final crashlyticsDioCatch = hasCrashlytics
+        ? '\n      FirebaseCrashlytics.instance.recordError(error, dioError.stackTrace);'
+        : '';
+    final crashlyticsFirebase = hasCrashlytics
+        ? '\n    FirebaseCrashlytics.instance.recordError(error, error.stackTrace, reason: message);'
+        : '';
+
+    final dioFactory = '''
   factory AppException.fromDioError(DioException dioError) {
     try {
       final message = dioError.response?.data?['message'] as String? ??
           dioError.message ??
           'Unknown error';
       final statusCode = dioError.response?.statusCode;
-      appLogger.e('[AppException] — $message', error: dioError, stackTrace: dioError.stackTrace);
+      appLogger.e('[AppException] — \$message', error: dioError, stackTrace: dioError.stackTrace);$crashlyticsDio
       return AppException._(
         message: message,
         statusCode: statusCode,
         type: statusCode == 404 ? AppExceptionType.notFound : AppExceptionType.server,
       );
     } catch (error) {
-      appLogger.e('[AppException] — $error', error: error, stackTrace: dioError.stackTrace);
+      appLogger.e('[AppException] — \$error', error: error, stackTrace: dioError.stackTrace);$crashlyticsDioCatch
       return const AppException._(message: 'Unknown error');
     }
   }
 ''';
 
-    const firebaseFactory = r'''
+    final firebaseFactory = '''
   factory AppException.fromFirebaseError(FirebaseException error) {
     final message = error.message ?? 'Unknown error';
 
     appLogger.e(
-      '[AppException] — $message',
+      '[AppException] — \$message',
       error: error,
       stackTrace: error.stackTrace,
-    );
+    );$crashlyticsFirebase
 
     switch (error.code) {
       case "user-not-found":
@@ -98,9 +119,15 @@ class AppException implements Exception {
         type: AppExceptionType.network,
   );
 
+  factory AppException.sessionExpired() => const AppException._(
+        message: 'Session expired',
+        statusCode: 401,
+        type: AppExceptionType.server,
+  );
+
   factory AppException.fromError(Object error, StackTrace stackTrace) {
     final message = error.toString();
-    $catchError
+    $catchError$crashlyticsFromError
     return AppException._(message: message, type: AppExceptionType.unknown);
   }
 

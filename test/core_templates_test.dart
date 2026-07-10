@@ -1,4 +1,5 @@
 import 'package:moarch/src/templates/core/core_templates.dart';
+import 'package:moarch/src/templates/core/error_templates.dart';
 import 'package:moarch/src/templates/ui/feature_templates.dart';
 import 'package:moarch/src/templates/ui/modals_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
@@ -23,6 +24,65 @@ void main() {
         isNot(contains("import 'core/services/notifications_service.dart';")));
     expect(
         output, isNot(contains('await NotificationService.instance.init();')));
+  });
+
+  test('mainDart wires Crashlytics into error handlers when requested', () {
+    final output = CoreTemplates.mainDart(
+      withRouter: false,
+      withCrashlytics: true,
+    );
+
+    expect(output,
+        contains("import 'package:firebase_crashlytics/firebase_crashlytics.dart';"));
+    expect(output, contains('await Firebase.initializeApp();'));
+    expect(
+        output,
+        contains(
+            'FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);'));
+    expect(
+        output,
+        contains(
+            'FirebaseCrashlytics.instance.recordError(error, st, fatal: true);'));
+    expect(
+        output,
+        contains(
+            'FirebaseCrashlytics.instance.recordFlutterFatalError(details);'));
+  });
+
+  test('mainDart omits Crashlytics by default', () {
+    final output = CoreTemplates.mainDart(withRouter: false);
+
+    expect(output, isNot(contains('FirebaseCrashlytics')));
+    expect(output, isNot(contains('Firebase.initializeApp')));
+  });
+
+  test('appException records to Crashlytics when requested', () {
+    final output = ErrorTemplates.appException(
+      hasDio: true,
+      hasFirebase: true,
+      hasCrashlytics: true,
+    );
+
+    expect(output,
+        contains("import 'package:firebase_crashlytics/firebase_crashlytics.dart';"));
+    expect(
+        output,
+        contains(
+            'FirebaseCrashlytics.instance.recordError(error, stackTrace, reason: message);'));
+    expect(
+        output,
+        contains(
+            'FirebaseCrashlytics.instance.recordError(dioError, dioError.stackTrace, reason: message);'));
+    expect(
+        output,
+        contains(
+            'FirebaseCrashlytics.instance.recordError(error, error.stackTrace, reason: message);'));
+  });
+
+  test('appException omits Crashlytics by default', () {
+    final output = ErrorTemplates.appException(hasDio: true, hasFirebase: true);
+
+    expect(output, isNot(contains('FirebaseCrashlytics')));
   });
 
   test('generated modals use the interface expected for testability', () {

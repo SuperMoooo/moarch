@@ -7,6 +7,7 @@ class CoreTemplates {
     bool withRouter = true,
     bool withLocalization = false,
     bool withNotificationsService = false,
+    bool withCrashlytics = false,
   }) {
     final localizationImports = withLocalization
         ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\nimport 'core/services/language_service.dart';\nimport 'package:flutter_localizations/flutter_localizations.dart';\n"
@@ -17,6 +18,29 @@ class CoreTemplates {
 
     final notificationInit = withNotificationsService
         ? "\n await NotificationService.instance.init();"
+        : '';
+
+    final crashlyticsImports = withCrashlytics
+        ? "\nimport 'package:firebase_core/firebase_core.dart';\nimport 'package:firebase_crashlytics/firebase_crashlytics.dart';"
+        : '';
+
+    final crashlyticsInit = withCrashlytics
+        ? '''
+
+  // Requires Firebase setup — run `flutterfire configure`, then pass the
+  // generated options: Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)
+  await Firebase.initializeApp();
+  // Only report crashes from release builds.
+  await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);
+'''
+        : '';
+
+    final crashlyticsUncaught = withCrashlytics
+        ? '\n    FirebaseCrashlytics.instance.recordError(error, st, fatal: true);'
+        : '';
+
+    final crashlyticsFlutterError = withCrashlytics
+        ? '\n    FirebaseCrashlytics.instance.recordFlutterFatalError(details);'
         : '';
 
     final localizationConfig = withLocalization
@@ -44,7 +68,7 @@ final locale = ref.watch(languageProvider).locale;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport
+import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$crashlyticsImports
 import 'core/utils/app_logger.dart';
 import 'shared/widgets/error_view.dart';
 import 'config/theme/app_theme.dart';
@@ -56,16 +80,16 @@ Future<void> main() async {
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   
   $notificationInit
-
+$crashlyticsInit
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
-    appLogger.e('[Uncaught error]', error: error, stackTrace: st);
+    appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught
     if (kDebugMode) return false; // false = let Flutter crash normally in dev
     return true; // true = swallow in prod, app stays alive
   };
 
   FlutterError.onError = (details) {
-    appLogger.e('[Flutter error]', error: details.exception, stackTrace: details.stack);
+    appLogger.e('[Flutter error]', error: details.exception, stackTrace: details.stack);$crashlyticsFlutterError
     if (kDebugMode) {
       // default behaviour — shows red screen in dev
       FlutterError.presentError(details);
@@ -126,7 +150,7 @@ class App extends ConsumerWidget {
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport
+import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$crashlyticsImports
 import 'core/utils/app_logger.dart';
 import 'shared/widgets/error_view.dart';
 import 'config/theme/app_theme.dart';
@@ -136,16 +160,16 @@ Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   $notificationInit
-
+$crashlyticsInit
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
-    appLogger.e('[Uncaught error]', error: error, stackTrace: st);
+    appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught
     if (kDebugMode) return false; // false = let Flutter crash normally in dev
     return true; // true = swallow in prod, app stays alive
   };
 
   FlutterError.onError = (details) {
-    appLogger.e('[Flutter error]', error: details.exception, stackTrace: details.stack);
+    appLogger.e('[Flutter error]', error: details.exception, stackTrace: details.stack);$crashlyticsFlutterError
     if (kDebugMode) {
       // default behaviour — shows red screen in dev
       FlutterError.presentError(details);
@@ -178,7 +202,9 @@ $localizationConfig      debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.noScaling,
+            textScaler: MediaQuery.textScalerOf(
+              context,
+            ).clamp(minScaleFactor: 1.0, maxScaleFactor: 1.3),
             alwaysUse24HourFormat: true,
           ),
           child: child!,
@@ -520,7 +546,6 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:dio_smart_retry/dio_smart_retry.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 
@@ -530,14 +555,25 @@ import '../security/secure_storage.dart';
 import '../utils/app_logger.dart';
 
 const _kPublicEndpoints = <String>[
-  // Add public routes here
+  // Routes that never receive the Authorization header (and are never
+  // retried after a token refresh). Adjust to your API contract.
+  '/auth/login',
+  '/auth/register',
+  '/auth/refresh',
 ];
+
+bool _isPublicPath(String path) {
+  final cleanPath = path.split('?').first;
+  return _kPublicEndpoints.any(
+    (endpoint) => cleanPath == endpoint || cleanPath.startsWith('$endpoint/'),
+  );
+}
 
 final dioClientProvider = Provider<Dio>((ref) => _buildDioClient(ref));
 
 // ─────────────────────────────────────────────────────────────────────────────
 Dio _buildDioClient(Ref ref) {
-  final storage = ref.watch(secureStorageProvider);
+  final storage = ref.watch(tokenStorageProvider);
 
   final dio = Dio(
     BaseOptions(
@@ -558,16 +594,43 @@ Dio _buildDioClient(Ref ref) {
     ..interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final isPublicEndpoint = _kPublicEndpoints.any(
-            (endpoint) => options.path.contains(endpoint),
-          );
+          final isPublicEndpoint = _isPublicPath(options.path);
           if (!isPublicEndpoint) {
-            final token = await storage.read(key: 'token');
+            final token = await storage.accessToken;
             if (token != null) {
               options.headers['Authorization'] = 'Bearer $token';
             }
           }
           handler.next(options);
+        },
+        onError: (error, handler) async {
+          final status = error.response?.statusCode;
+          final alreadyRetried =
+              error.requestOptions.extra[_kRetriedAfterRefresh] == true;
+          if (status != 401 ||
+              alreadyRetried ||
+              _isPublicPath(error.requestOptions.path)) {
+            return handler.next(error);
+          }
+
+          // Session expired — refresh the access token, then retry once.
+          final refreshed = await _refreshSession(storage);
+          if (!refreshed) {
+            // Refresh token missing/expired: clear the session so the auth
+            // notifier / router redirect can send the user back to login.
+            await storage.clearSession();
+            return handler.next(error);
+          }
+
+          try {
+            final options = error.requestOptions
+              ..extra[_kRetriedAfterRefresh] = true;
+            // Re-entering the chain lets onRequest attach the new token.
+            final response = await dio.fetch<dynamic>(options);
+            return handler.resolve(response);
+          } on DioException catch (retryError) {
+            return handler.next(retryError);
+          }
         },
       ),
     )
@@ -583,6 +646,59 @@ Dio _buildDioClient(Ref ref) {
     );
 
   return dio;
+}
+
+// ── Token refresh ────────────────────────────────────────────────────────────
+
+const _kRetriedAfterRefresh = '__retried_after_refresh__';
+
+/// Single-flight guard: concurrent 401s share one refresh call instead of
+/// racing each other with the same refresh token.
+Future<bool>? _ongoingRefresh;
+
+Future<bool> _refreshSession(TokenStorage storage) {
+  return _ongoingRefresh ??= _doRefresh(storage).whenComplete(() {
+    _ongoingRefresh = null;
+  });
+}
+
+Future<bool> _doRefresh(TokenStorage storage) async {
+  final refreshToken = await storage.refreshToken;
+  if (refreshToken == null) return false;
+  try {
+    // Bare client (no interceptors), so a failing refresh can't loop back
+    // into the 401 handler above.
+    final refreshDio = Dio(
+      BaseOptions(
+        baseUrl: AppEnv.baseUrl,
+        connectTimeout: ApiConstants.connectTimeout,
+        receiveTimeout: ApiConstants.receiveTimeout,
+        headers: const {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ),
+    );
+    _configureHttpClient(refreshDio);
+    final response = await refreshDio.post<dynamic>(
+      '/auth/refresh',
+      data: {'refreshToken': refreshToken},
+    );
+    final data = response.data as Map<String, dynamic>;
+    // Adjust the keys to your API contract. Backends that don't rotate the
+    // refresh token only return a new access token.
+    final newAccessToken = data['accessToken'] as String?;
+    final newRefreshToken = data['refreshToken'] as String? ?? refreshToken;
+    if (newAccessToken == null) return false;
+    await storage.saveSession(
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    );
+    return true;
+  } catch (error) {
+    appLogger.w('Session refresh failed', error: error);
+    return false;
+  }
 }
 
 final _kSensitiveKeyPattern = RegExp(
