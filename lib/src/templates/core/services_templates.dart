@@ -297,11 +297,33 @@ class NotificationService {
   appLogger.i('[NotificationService] Daily scheduled at $hour:$minute (id: $id)');
 }
  
-  /// Schedule a weekly notification on a specific [day] and [time].
-  ///
+  /// Schedule a weekly notification on a specific [day]
+  /// (DateTime.monday..DateTime.sunday) at [hour]:[minute].
+  Future<void> scheduleWeeklyAt({
+    int id = scheduledId,
+    required String title,
+    required String body,
+    required int day,
+    required int hour,
+    required int minute,
+    String? payload,
+  }) async {
+    _ensureInit();
+    await _plugin.zonedSchedule(
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: _nextInstanceOfDay(day, hour, minute),
+      notificationDetails: _buildScheduledDetails(),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+      payload: payload,
+    );
+    appLogger.i(
+      '[NotificationService] Weekly scheduled (day $day at $hour:$minute, id: $id)',
+    );
+  }
 
- 
- 
   // ===========================================================================
   // PERIODIC
   // ===========================================================================
@@ -414,6 +436,14 @@ class NotificationService {
     }
     return scheduledDate;
 }
+
+  tz.TZDateTime _nextInstanceOfDay(int day, int hour, int minute) {
+    tz.TZDateTime scheduledDate = _nextInstanceOfTime(hour, minute);
+    while (scheduledDate.weekday != day) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+    return scheduledDate;
+  }
  
  
  
@@ -427,6 +457,120 @@ class NotificationService {
   }
 }
 
+''';
+
+  /// Returns a Firebase Cloud Messaging (push notifications) service scaffold.
+  static String firebaseNotificationsService() => r'''
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import '../../core/utils/app_logger.dart';
+
+/// Firebase Cloud Messaging (FCM) push notifications.
+///
+/// Setup:
+/// 1. Create a Firebase project and run: flutterfire configure
+/// 2. iOS: enable the Push Notifications and Background Modes (remote
+///    notifications) capabilities in Xcode, and upload your APNs key to
+///    Firebase console → Project settings → Cloud Messaging.
+/// 3. Android: no extra setup — google-services.json from flutterfire is enough.
+///
+/// Test it from Firebase console → Messaging → New campaign.
+
+// ─── Background handler (must be top-level) ──────────────────────────────────
+@pragma('vm:entry-point')
+Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
+  // Runs in its own isolate. If you need other Firebase services here,
+  // initialize Firebase first: await Firebase.initializeApp();
+  appLogger.i('[FCM] Background message | id: ${message.messageId}');
+}
+
+class FirebaseNotificationsService {
+  FirebaseNotificationsService._();
+
+  static final FirebaseNotificationsService instance =
+      FirebaseNotificationsService._();
+
+  bool _initialized = false;
+
+  FirebaseMessaging get _messaging => FirebaseMessaging.instance;
+
+  /// The current FCM registration token — send it to your backend so it can
+  /// target this device.
+  Future<String?> get token => _messaging.getToken();
+
+  Future<void> init() async {
+    if (_initialized) return;
+
+    // Safe if Firebase was already initialized elsewhere (e.g. Crashlytics).
+    // Pass DefaultFirebaseOptions.currentPlatform after `flutterfire configure`.
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp();
+    }
+
+    FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
+
+    // iOS: show the system banner while the app is in the foreground.
+    await _messaging.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    // Message that opened the app from a terminated state.
+    final initialMessage = await _messaging.getInitialMessage();
+    if (initialMessage != null) _onMessageOpened(initialMessage);
+
+    FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+    FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpened);
+
+    _messaging.onTokenRefresh.listen((token) {
+      appLogger.i('[FCM] Token refreshed');
+      // TODO: send the new token to your backend.
+    });
+
+    _initialized = true;
+    appLogger.i('[FCM] Initialized');
+
+    await requestPermissions();
+  }
+
+  /// Request notification permissions from the user.
+  /// Returns true if granted (or provisionally granted on iOS).
+  Future<bool> requestPermissions() async {
+    final settings = await _messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    return settings.authorizationStatus == AuthorizationStatus.authorized ||
+        settings.authorizationStatus == AuthorizationStatus.provisional;
+  }
+
+  /// Receive messages sent to a topic (server side: send to /topics/<topic>).
+  Future<void> subscribeToTopic(String topic) =>
+      _messaging.subscribeToTopic(topic);
+
+  Future<void> unsubscribeFromTopic(String topic) =>
+      _messaging.unsubscribeFromTopic(topic);
+
+  void _onForegroundMessage(RemoteMessage message) {
+    appLogger.i(
+      '[FCM] Foreground message | title: ${message.notification?.title}',
+    );
+    // Android shows no system notification for foreground messages.
+    // If you also generated the local NotificationService, display one manually:
+    // NotificationService.instance.show(
+    //   title: message.notification?.title ?? '',
+    //   body: message.notification?.body ?? '',
+    //   payload: message.data.toString(),
+    // );
+  }
+
+  void _onMessageOpened(RemoteMessage message) {
+    appLogger.i('[FCM] Opened from notification | data: ${message.data}');
+    // TODO: navigate based on message.data.
+  }
+}
 ''';
 
   /// Returns the generated mediaService template.

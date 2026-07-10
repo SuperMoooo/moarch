@@ -1,5 +1,5 @@
-# [1.7.6]
+# [1.7.7]
 
 ## Fixes
 
-- notifier action
+- firebase notifications

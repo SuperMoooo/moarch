@@ -7,6 +7,7 @@ class CoreTemplates {
     bool withRouter = true,
     bool withLocalization = false,
     bool withNotificationsService = false,
+    bool withFirebaseNotifications = false,
     bool withCrashlytics = false,
   }) {
     final localizationImports = withLocalization
@@ -18,6 +19,17 @@ class CoreTemplates {
 
     final notificationInit = withNotificationsService
         ? "\n await NotificationService.instance.init();"
+        : '';
+
+    final firebaseNotificationImport = withFirebaseNotifications
+        ? "\nimport 'core/services/firebase_notifications_service.dart';"
+        : '';
+
+    // Placed after the Crashlytics block so its unguarded
+    // Firebase.initializeApp() runs first; the FCM service only initializes
+    // Firebase itself when no one else has.
+    final firebaseNotificationInit = withFirebaseNotifications
+        ? '\n  await FirebaseNotificationsService.instance.init();'
         : '';
 
     final crashlyticsImports = withCrashlytics
@@ -68,7 +80,7 @@ final locale = ref.watch(languageProvider).locale;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$crashlyticsImports
+import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$crashlyticsImports
 import 'core/utils/app_logger.dart';
 import 'shared/widgets/error_view.dart';
 import 'config/theme/app_theme.dart';
@@ -78,9 +90,9 @@ Future<void> main() async {
   // Preserve the splash BEFORE anything else runs
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-  
+
   $notificationInit
-$crashlyticsInit
+$crashlyticsInit$firebaseNotificationInit
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
     appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught
@@ -153,7 +165,7 @@ class App extends ConsumerWidget {
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$crashlyticsImports
+import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$crashlyticsImports
 import 'core/utils/app_logger.dart';
 import 'shared/widgets/error_view.dart';
 import 'config/theme/app_theme.dart';
@@ -163,7 +175,7 @@ Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   $notificationInit
-$crashlyticsInit
+$crashlyticsInit$firebaseNotificationInit
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
     appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught

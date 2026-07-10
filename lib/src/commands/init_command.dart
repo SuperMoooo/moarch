@@ -38,6 +38,7 @@ const _kMediaService = 'Media Service (Image Picker and File Picker)';
 const _kLaunchUrlService = 'Url launcher for links';
 const _kDebouncerService = 'Debouncer for actions';
 const _kNotificationsService = 'Notifications service';
+const _kFirebaseNotifications = 'Firebase push notifications (FCM)';
 const _kLocalizations = 'Localization (l10n)';
 
 /// Creates the project-initialization CLI command.
@@ -174,6 +175,12 @@ class InitCommand extends Command<int> {
               description: 'Local push notifications.',
             ),
             const ChecklistItem(
+              _kFirebaseNotifications,
+              defaultOn: false,
+              description:
+                  'Remote push notifications via Firebase Cloud Messaging (requires Firebase setup).',
+            ),
+            const ChecklistItem(
               _kLocalizations,
               defaultOn: false,
               description:
@@ -225,8 +232,10 @@ class InitCommand extends Command<int> {
       'flutter_secure_storage: ',
       if (stack.contains(_kFirebaseAuth) ||
           stack.contains(_kFirestore) ||
-          stack.contains(_kCrashlytics))
+          stack.contains(_kCrashlytics) ||
+          stack.contains(_kFirebaseNotifications))
         'firebase_core: ',
+      if (stack.contains(_kFirebaseNotifications)) 'firebase_messaging: ',
       if (stack.contains(_kCrashlytics)) 'firebase_crashlytics: ',
       if (stack.contains(_kFirebaseAuth)) 'firebase_auth: ',
       if (stack.contains(_kFirestore)) 'cloud_firestore: ',
@@ -267,6 +276,8 @@ class InitCommand extends Command<int> {
         CoreTemplates.mainDart(
           withRouter: stack.contains(_kRouter),
           withLocalization: stack.contains(_kLocalizations),
+          withNotificationsService: stack.contains(_kNotificationsService),
+          withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
           withCrashlytics: stack.contains(_kCrashlytics),
         ),
       );
@@ -477,8 +488,8 @@ class InitCommand extends Command<int> {
     _logger.info('  Run: flutter pub get');
     _logger.info('');
     if (stack.contains(_kAuthFeature)) {
-      _logger.info(
-          '  Auth feature generated at lib/features/auth/ — adjust the');
+      _logger
+          .info('  Auth feature generated at lib/features/auth/ — adjust the');
       _logger.info(
           '  /auth/* endpoints and token JSON keys in auth_remote_datasource.dart');
       _logger.info('  and core/network/dio_client.dart to your API contract.');
@@ -557,6 +568,12 @@ class InitCommand extends Command<int> {
       await FileUtils.writeFile(
         p.join(c, 'services', 'notifications_service.dart'),
         ServicesTemplates.notificationsService(),
+      );
+    }
+    if (stack.contains(_kFirebaseNotifications)) {
+      await FileUtils.writeFile(
+        p.join(c, 'services', 'firebase_notifications_service.dart'),
+        ServicesTemplates.firebaseNotificationsService(),
       );
     }
 

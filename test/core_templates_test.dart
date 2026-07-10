@@ -26,14 +26,41 @@ void main() {
         output, isNot(contains('await NotificationService.instance.init();')));
   });
 
+  test('mainDart adds Firebase notification initialization when requested', () {
+    final output = CoreTemplates.mainDart(
+      withRouter: false,
+      withFirebaseNotifications: true,
+    );
+
+    expect(
+        output,
+        contains(
+            "import 'core/services/firebase_notifications_service.dart';"));
+    expect(output,
+        contains('await FirebaseNotificationsService.instance.init();'));
+  });
+
+  test('mainDart omits Firebase notification initialization by default', () {
+    final output = CoreTemplates.mainDart(withRouter: false);
+
+    expect(
+        output,
+        isNot(contains(
+            "import 'core/services/firebase_notifications_service.dart';")));
+    expect(output,
+        isNot(contains('await FirebaseNotificationsService.instance.init();')));
+  });
+
   test('mainDart wires Crashlytics into error handlers when requested', () {
     final output = CoreTemplates.mainDart(
       withRouter: false,
       withCrashlytics: true,
     );
 
-    expect(output,
-        contains("import 'package:firebase_crashlytics/firebase_crashlytics.dart';"));
+    expect(
+        output,
+        contains(
+            "import 'package:firebase_crashlytics/firebase_crashlytics.dart';"));
     expect(output, contains('await Firebase.initializeApp();'));
     expect(
         output,
@@ -63,8 +90,10 @@ void main() {
       hasCrashlytics: true,
     );
 
-    expect(output,
-        contains("import 'package:firebase_crashlytics/firebase_crashlytics.dart';"));
+    expect(
+        output,
+        contains(
+            "import 'package:firebase_crashlytics/firebase_crashlytics.dart';"));
     expect(
         output,
         contains(

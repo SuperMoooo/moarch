@@ -40,7 +40,7 @@ moarch create empty-factories # generate .empty() in all entities
 - Riverpod + optional GoRouter setup
 - Envied-based `.env` support
 - secure storage, logger, helpers, and reusable widgets
-- optional services such as notifications, URL launcher, media, debounce
+- optional services such as notifications (local or Firebase push), URL launcher, media, debounce
 - optional localization with `assets/i18n/` and FlutterLocalization initialization
 
 ## Local development

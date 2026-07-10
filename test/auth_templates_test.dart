@@ -21,7 +21,8 @@ void main() {
   test('dioClient refreshes the session on 401 and retries once', () {
     final output = CoreTemplates.dioClient();
 
-    expect(output, contains('final storage = ref.watch(tokenStorageProvider);'));
+    expect(
+        output, contains('final storage = ref.watch(tokenStorageProvider);'));
     expect(output, contains('await storage.accessToken'));
     expect(output, contains('onError: (error, handler) async'));
     expect(output, contains('status != 401'));
@@ -97,7 +98,8 @@ void main() {
         AuthTemplates.state(), contains('implements ActionState<AuthState>'));
 
     // Generic feature templates use it too.
-    expect(FeatureTemplates.notifier('sample', 'Sample', 'sample',
+    expect(
+        FeatureTemplates.notifier('sample', 'Sample', 'sample',
             hasUseCase: false),
         contains('with ActionNotifierMixin<SampleState>'));
     expect(FeatureTemplates.state('sample', 'Sample'),

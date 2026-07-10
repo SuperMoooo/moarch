@@ -25,6 +25,7 @@ void main(List<String> args) async {
   logger.info('     - Launch URL service');
   logger.info('     - Debouncer service');
   logger.info('     - Notifications service');
+  logger.info('     - Firebase push notifications (FCM)');
   logger.info('     - Localization (l10n)');
   logger.info('     - Test folder and deployment checklists');
   logger.info('');
