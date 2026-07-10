@@ -1,5 +1,5 @@
-# [1.7.3]
+# [1.7.4]
 
 ## Fixes
 
-- REFRESH TOKEN
+- WORFLOW ADJUSTMENT
