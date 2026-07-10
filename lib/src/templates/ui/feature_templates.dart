@@ -198,7 +198,9 @@ $fields
 
   /// Returns the generated state template.
   static String state(String name, String cls) => '''
-class ${cls}State {
+import '../../../../core/utils/action_notifier.dart';
+
+class ${cls}State implements ActionState<${cls}State> {
   const ${cls}State({
     this.isLoadingAction = false,
     this.error,
@@ -223,6 +225,12 @@ class ${cls}State {
       success: success,
     );
   }
+
+  @override
+  ${cls}State copyWithLoading() => copyWith(isLoadingAction: true);
+
+  @override
+  ${cls}State copyWithError(String message) => copyWith(error: message);
 }
 ''';
 
@@ -234,7 +242,7 @@ class ${cls}State {
       '''
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/errors/app_exception.dart';
+import '../../../../core/utils/action_notifier.dart';
 
 import '../../data/repositories/${name}_repository_impl.dart';
 ${hasUseCase ? "import '../../domain/usecases/get_$name.dart';" : ''}
@@ -246,7 +254,8 @@ final ${varName}NotifierProvider =
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-class ${cls}Notifier extends AsyncNotifier<${cls}State> {
+class ${cls}Notifier extends AsyncNotifier<${cls}State>
+    with ActionNotifierMixin<${cls}State> {
 
   ${cls}Repository get _repo => ref.watch(${varName}RepositoryProvider);
 
@@ -255,20 +264,15 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State> {
     return const ${cls}State();
   }
 
-  // TODO: add your methods
+  // TODO: add your methods — runAction (from ActionNotifierMixin) handles
+  // loading, AppException and unknown errors for you. It passes you the
+  // pre-action state (loading off): build the next state from it.
   // Example:
-  // Future<void> doSomething() async {
-  //   final current = state.value;
-  //   if (current == null) return;
-  //   state = AsyncData(current.copyWith(isLoadingAction: true));
-  //   try {
-  //    // await ref.read(${varName}RepositoryProvider).doSomething();
-  //    state = AsyncData(current.copyWith(success: 'Done!'));
-  //   } on AppException catch (e) {
-  //     state = state.copyWith(isLoading: false, error: e.message);
-  //   } catch (e) {
-  //     state = state.copyWith(isLoading: false, error: "Unknown error");
-  //   }
+  // Future<void> doSomething() {
+  //   return runAction((current) async {
+  //     await _repo.doSomething();
+  //     return current.copyWith(success: 'Done!');
+  //   });
   // }
 
 

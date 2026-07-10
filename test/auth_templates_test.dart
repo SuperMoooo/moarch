@@ -2,6 +2,7 @@ import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/core/error_templates.dart';
 import 'package:moarch/src/templates/core/security_templates.dart';
 import 'package:moarch/src/templates/ui/auth_templates.dart';
+import 'package:moarch/src/templates/ui/feature_templates.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -65,11 +66,41 @@ void main() {
     expect(impl, contains('await refresh();'));
   });
 
+  test('auth views are generated as bare skeletons', () {
+    expect(AuthTemplates.loginView(), contains('class LoginView'));
+    expect(AuthTemplates.registerView(), contains('class RegisterView'));
+  });
+
   test('auth notifier restores the session in build()', () {
     final output = AuthTemplates.notifier();
 
     expect(output, contains('FutureOr<AuthState> build() async'));
     expect(output, contains('await _repo.isLoggedIn();'));
     expect(output, contains('authenticated: true'));
+  });
+
+  test('notifiers share the global runAction helper', () {
+    final helper = CoreTemplates.actionNotifier();
+    expect(helper, contains('mixin ActionNotifierMixin'));
+    expect(helper, contains('Future<void> runAction'));
+    expect(helper, contains('abstract interface class ActionState<T>'));
+
+    // Auth templates use it.
+    expect(AuthTemplates.notifier(),
+        contains('with ActionNotifierMixin<AuthState>'));
+    expect(AuthTemplates.notifier(), contains('return runAction((_) async {'));
+    // The callback receives the pre-action state so the next state never
+    // carries isLoadingAction: true forward.
+    expect(helper, contains('Future<S> Function(S current) action'));
+    expect(helper, contains('await action(current)'));
+    expect(
+        AuthTemplates.state(), contains('implements ActionState<AuthState>'));
+
+    // Generic feature templates use it too.
+    expect(FeatureTemplates.notifier('sample', 'Sample', 'sample',
+            hasUseCase: false),
+        contains('with ActionNotifierMixin<SampleState>'));
+    expect(FeatureTemplates.state('sample', 'Sample'),
+        contains('implements ActionState<SampleState>'));
   });
 }

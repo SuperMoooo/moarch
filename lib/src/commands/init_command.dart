@@ -511,6 +511,10 @@ class InitCommand extends Command<int> {
       CoreTemplates.appLogger(),
     );
     await FileUtils.writeFile(
+      p.join(c, 'utils', 'action_notifier.dart'),
+      CoreTemplates.actionNotifier(),
+    );
+    await FileUtils.writeFile(
       p.join(c, 'constants', 'app_constants.dart'),
       CoreTemplates.appConstants(),
     );
@@ -599,6 +603,14 @@ class InitCommand extends Command<int> {
     await FileUtils.writeFile(
       p.join(f, 'presentation', 'notifiers', 'auth_notifier.dart'),
       AuthTemplates.notifier(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'presentation', 'views', 'login_view.dart'),
+      AuthTemplates.loginView(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'presentation', 'views', 'register_view.dart'),
+      AuthTemplates.registerView(),
     );
   }
 

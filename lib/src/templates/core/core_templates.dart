@@ -532,6 +532,52 @@ static const List<Color> avatarPalette = [
 }
 ''';
 
+  /// Returns the generated actionNotifier template — the shared runAction
+  /// helper used by all feature notifiers.
+  static String actionNotifier() => r'''
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../errors/app_exception.dart';
+
+/// Contract for states usable with [ActionNotifierMixin.runAction]: the
+/// state must know how to flag its loading and error cases.
+abstract interface class ActionState<T> {
+  T copyWithLoading();
+  T copyWithError(String message);
+}
+
+/// Shared loading/error handling for AsyncNotifier actions.
+///
+/// ```dart
+/// class MyNotifier extends AsyncNotifier<MyState>
+///     with ActionNotifierMixin<MyState> {
+///   Future<void> doSomething() => runAction((current) async {
+///     await ref.read(myRepositoryProvider).doSomething();
+///     return current.copyWith(success: 'Done!');
+///   });
+/// }
+/// ```
+mixin ActionNotifierMixin<S extends ActionState<S>> on AsyncNotifier<S> {
+  /// Runs [action] with the shared loading/error handling; [action] returns
+  /// the next state. [action] receives the pre-action state (loading off) —
+  /// build the next state from it, not from `state.value`, which holds the
+  /// loading flag while the action runs. Errors reset the state to how it
+  /// was before the action, with the message in `error`.
+  Future<void> runAction(Future<S> Function(S current) action) async {
+    final current = state.value;
+    if (current == null) return;
+    state = AsyncData(current.copyWithLoading());
+    try {
+      state = AsyncData(await action(current));
+    } on AppException catch (e) {
+      state = AsyncData(current.copyWithError(e.message));
+    } catch (_) {
+      state = AsyncData(current.copyWithError('Unknown error'));
+    }
+  }
+}
+''';
+
   /// Returns the generated apiConstants template.
   static String apiConstants() => r'''
 abstract final class ApiConstants {

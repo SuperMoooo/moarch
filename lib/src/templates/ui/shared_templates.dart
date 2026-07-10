@@ -56,8 +56,8 @@ class AppAvatar extends StatelessWidget {
           ? CachedNetworkImage(
               imageUrl: avatar!,
               fit: BoxFit.cover,
-              placeholder: (_, _) => _placeholder(),
-              errorWidget: (_, _, _) => _fallback(),
+              placeholder: (_, __) => _placeholder(),
+              errorWidget: (_, __, ___) => _fallback(),
             )
           : _fallback(),
     );

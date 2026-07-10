@@ -1,5 +1,5 @@
-# [1.7.5]
+# [1.7.6]
 
 ## Fixes
 
-- ACESSABILITY FIXES
+- notifier action

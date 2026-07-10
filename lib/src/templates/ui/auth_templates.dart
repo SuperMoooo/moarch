@@ -128,7 +128,7 @@ class AuthRemoteDataSource {
     );
   }
 
-  Future<AuthTokensModel> refresh(String refreshToken) {
+  Future<AuthTokensModel> refresh({required String refreshToken}) {
     return safeApiCall<AuthTokensModel>(
       apiCall: () async {
         final response = await _dio.post<dynamic>('/auth/refresh', data: {
@@ -145,7 +145,7 @@ class AuthRemoteDataSource {
     );
   }
 
-  Future<void> logout(String refreshToken) {
+  Future<void> logout({required String refreshToken}) {
     return safeApiCall<void>(
       apiCall: () async {
         // Lets the backend revoke the refresh token; local cleanup happens
@@ -236,7 +236,7 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<void> refresh() async {
     final refreshToken = await _tokens.refreshToken;
     if (refreshToken == null) throw AppException.sessionExpired();
-    final tokens = await _remote.refresh(refreshToken);
+    final tokens = await _remote.refresh(refreshToken: refreshToken);
     await _tokens.saveSession(
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
@@ -247,7 +247,9 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<void> logout() async {
     final refreshToken = await _tokens.refreshToken;
     try {
-      if (refreshToken != null) await _remote.logout(refreshToken);
+      if (refreshToken != null) {
+        await _remote.logout(refreshToken: refreshToken);
+      }
     } on AppException catch (e) {
       // Logout must always succeed locally, even if revocation fails.
       appLogger.w('Remote logout failed', error: e);
@@ -271,7 +273,9 @@ class AuthRepositoryImpl implements AuthRepository {
 
   /// Returns the generated auth state template.
   static String state() => r'''
-class AuthState {
+import '../../../../core/utils/action_notifier.dart';
+
+class AuthState implements ActionState<AuthState> {
   const AuthState({
     this.authenticated = false,
     this.userId,
@@ -304,6 +308,54 @@ class AuthState {
       success: success,
     );
   }
+
+  @override
+  AuthState copyWithLoading() => copyWith(isLoadingAction: true);
+
+  @override
+  AuthState copyWithError(String message) => copyWith(error: message);
+}
+''';
+
+  // ── Presentation — Views ────────────────────────────────────────────────────
+
+  /// Returns the generated login view template.
+  static String loginView() => r'''
+import 'package:flutter/material.dart';
+
+// TODO: build your login UI and call
+// ref.read(authNotifierProvider.notifier).login(email: ..., password: ...)
+
+class LoginView extends StatelessWidget {
+  const LoginView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login')),
+      body: const SizedBox.shrink(),
+    );
+  }
+}
+''';
+
+  /// Returns the generated register view template.
+  static String registerView() => r'''
+import 'package:flutter/material.dart';
+
+// TODO: build your register UI and call
+// ref.read(authNotifierProvider.notifier).register(email: ..., password: ...)
+
+class RegisterView extends StatelessWidget {
+  const RegisterView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Register')),
+      body: const SizedBox.shrink(),
+    );
+  }
 }
 ''';
 
@@ -315,7 +367,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/errors/app_exception.dart';
+import '../../../../core/utils/action_notifier.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../states/auth_state.dart';
@@ -325,7 +377,8 @@ final authNotifierProvider =
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-class AuthNotifier extends AsyncNotifier<AuthState> {
+class AuthNotifier extends AsyncNotifier<AuthState>
+    with ActionNotifierMixin<AuthState> {
   AuthRepository get _repo => ref.read(authRepositoryProvider);
 
   @override
@@ -341,7 +394,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   }
 
   Future<void> login({required String email, required String password}) {
-    return _runAction(() async {
+    return runAction((_) async {
       await _repo.login(email: email, password: password);
       return AuthState(
         authenticated: true,
@@ -351,7 +404,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   }
 
   Future<void> register({required String email, required String password}) {
-    return _runAction(() async {
+    return runAction((_) async {
       await _repo.register(email: email, password: password);
       return AuthState(
         authenticated: true,
@@ -361,31 +414,17 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   }
 
   Future<void> logout() {
-    return _runAction(() async {
+    return runAction((_) async {
       await _repo.logout();
       return const AuthState();
     });
   }
 
   Future<void> deleteAccount() {
-    return _runAction(() async {
+    return runAction((_) async {
       await _repo.deleteAccount();
       return const AuthState(success: 'Account deleted');
     });
-  }
-
-  /// Runs [action] with shared loading/error handling; [action] returns the
-  /// next state.
-  Future<void> _runAction(Future<AuthState> Function() action) async {
-    final current = state.value ?? const AuthState();
-    state = AsyncData(current.copyWith(isLoadingAction: true));
-    try {
-      state = AsyncData(await action());
-    } on AppException catch (e) {
-      state = AsyncData(current.copyWith(error: e.message));
-    } catch (_) {
-      state = AsyncData(current.copyWith(error: 'Unknown error'));
-    }
   }
 }
 ''';

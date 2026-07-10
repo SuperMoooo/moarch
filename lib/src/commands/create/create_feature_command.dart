@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
+import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/core/services_templates.dart';
 import 'package:path/path.dart' as p;
 
@@ -231,6 +232,12 @@ class CreateFeatureCommand extends Command<int> {
           className,
           varName,
           hasUseCase: selected.contains(_kUseCases),
+        );
+        // The state/notifier depend on the shared runAction helper — write it
+        // if the project doesn't have it yet (writeFile never overwrites).
+        await FileUtils.writeFile(
+          p.join(libPath, 'core', 'utils', 'action_notifier.dart'),
+          CoreTemplates.actionNotifier(),
         );
       }
       if (selected.contains(_kView)) {
