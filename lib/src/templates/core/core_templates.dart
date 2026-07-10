@@ -132,10 +132,13 @@ class App extends ConsumerWidget {
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.noScaling,
-            alwaysUse24HourFormat: true,
-          ),
-          // With an auth feature, swap for:
+                  // Respect the system font-size setting but cap it so large
+                  // scales don't break fixed layouts.
+                  textScaler: MediaQuery.textScalerOf(
+                    context,
+                  ).clamp(minScaleFactor: 1.0, maxScaleFactor: 1.35),
+                  alwaysUse24HourFormat: true,
+                ),
           //   ProviderScope(key: ValueKey(sessionKey), child: child!)
           child: child!,
         );
@@ -204,7 +207,7 @@ $localizationConfig      debugShowCheckedModeBanner: false,
           data: MediaQuery.of(context).copyWith(
             textScaler: MediaQuery.textScalerOf(
               context,
-            ).clamp(minScaleFactor: 1.0, maxScaleFactor: 1.3),
+            ).clamp(minScaleFactor: 1.0, maxScaleFactor: 1.35),
             alwaysUse24HourFormat: true,
           ),
           child: child!,

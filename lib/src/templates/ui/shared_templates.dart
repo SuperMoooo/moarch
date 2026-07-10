@@ -549,6 +549,15 @@ class _AppDateInputState extends State<AppDateInput> {
       initialDate: DateTime.now(),
       firstDate: DateTime.now().subtract(const Duration(days: 365 * 100)),
       lastDate: DateTime.now().add(const Duration(days: 365 * 100)),
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.noScaling,
+            alwaysUse24HourFormat: true,
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null) {
       setState(() {
@@ -639,6 +648,15 @@ class _AppTimeInputState extends State<AppTimeInput> {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.now(),
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.noScaling,
+            alwaysUse24HourFormat: true,
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null) {
       setState(() {
