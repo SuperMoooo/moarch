@@ -5,8 +5,9 @@ import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/templates/core/error_templates.dart';
 import 'package:moarch/src/templates/core/security_templates.dart';
 import 'package:moarch/src/templates/core/services_templates.dart';
-import 'package:moarch/src/templates/misc/checklist_templates.dart';
 import 'package:moarch/src/templates/misc/dev_templates.dart';
+import 'package:moarch/src/templates/misc/docs_templates.dart';
+import 'package:moarch/src/templates/misc/ios_templates.dart';
 import 'package:moarch/src/templates/misc/workflow_templates.dart';
 import 'package:moarch/src/templates/ui/auth_templates.dart';
 import 'package:moarch/src/templates/ui/dialogs_templates.dart';
@@ -18,7 +19,9 @@ import '../templates/config/config_templates.dart';
 import '../templates/core/core_templates.dart';
 import '../templates/ui/shared_templates.dart';
 import '../utils/file_utils.dart';
+import '../utils/plist_utils.dart';
 import '../utils/pubspec_utils.dart';
+import '../utils/swift_utils.dart';
 
 // ── Stack options ─────────────────────────────────────────────────────────────
 // Add a new const + ChecklistItem + if block to support a new option.
@@ -231,6 +234,17 @@ class InitCommand extends Command<int> {
     final pubspecBackup =
         pubspecExisted ? await pubspecFile.readAsString() : null;
 
+    final infoPlistFile =
+        File(p.join(p.absolute(targetPath), 'ios', 'Runner', 'Info.plist'));
+    final infoPlistBackup =
+        infoPlistFile.existsSync() ? await infoPlistFile.readAsString() : null;
+
+    final appDelegateFile = File(
+        p.join(p.absolute(targetPath), 'ios', 'Runner', 'AppDelegate.swift'));
+    final appDelegateBackup = appDelegateFile.existsSync()
+        ? await appDelegateFile.readAsString()
+        : null;
+
     // Caret-pinned to the versions the templates were written against, so a
     // breaking major release of a package can't silently break a fresh
     // scaffold. Bump these alongside template changes.
@@ -331,21 +345,21 @@ class InitCommand extends Command<int> {
       await FileUtils.writeFile(
         p.join(
             p.absolute(targetPath), 'docs', 'CHECKLIST_BEFORE_DEPLOYMENT.md'),
-        ChecklistTemplates.prodChecklist(),
+        DocsTemplates.prodChecklist(),
       );
 
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), 'docs', 'SECURITY_BEFORE_DEPLOYMENT.md'),
-        ChecklistTemplates.securityChecklist(),
+        DocsTemplates.securityChecklist(),
       );
 
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), 'docs', 'GENERATE_JKS_FILE.md'),
-        ChecklistTemplates.generateJKS(),
+        DocsTemplates.generateJKS(),
       );
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), 'docs', 'STEPS_FOR_WORKFLOW.md'),
-        ChecklistTemplates.stepsForWorkflow(),
+        DocsTemplates.stepsForWorkflow(),
       );
 
       if (stack.contains(_kWorkflows)) {
@@ -361,7 +375,13 @@ class InitCommand extends Command<int> {
         await FileUtils.writeFile(
           p.join(
               p.absolute(targetPath), '.github', 'workflows', 'build_ipa.yml'),
-          WorkflowTemplates.buildIOS(),
+          WorkflowTemplates.buildIOS(
+            withFirebase: stack.contains(_kFirestore) ||
+                stack.contains(_kFirebaseAuth) ||
+                stack.contains(_kCrashlytics) ||
+                stack.contains(_kFirebaseNotifications),
+            withPushEntitlements: stack.contains(_kFirebaseNotifications),
+          ),
         );
         await FileUtils.writeFile(
           p.join(
@@ -493,12 +513,47 @@ class InitCommand extends Command<int> {
             p.absolute(targetPath),
             assets: ['assets/translations/'],
           );
-          await PubspecUtils.ensureFlutterFlags(
-            p.absolute(targetPath),
-            flags: ['uses-material-design: true'],
-          );
         }
       }
+      if (!dryRun) {
+        await PubspecUtils.ensureFlutterFlags(
+          p.absolute(targetPath),
+          flags: ['uses-material-design: true'],
+        );
+      }
+
+      final hasFirebase = stack.contains(_kFirestore) ||
+          stack.contains(_kFirebaseAuth) ||
+          stack.contains(_kCrashlytics) ||
+          stack.contains(_kFirebaseNotifications);
+
+      if (stack.contains(_kFirebaseNotifications)) {
+        // APNs entitlements for remote push. Local-only notifications don't
+        // get these: aps-environment makes codesigning fail when the
+        // provisioning profile lacks the push capability.
+        await FileUtils.writeFile(
+          p.join(
+              p.absolute(targetPath), 'ios', 'Runner', 'Runner.entitlements'),
+          IosTemplates.runnerEntitlements(),
+        );
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'ios', 'Runner',
+              'RunnerProfile.entitlements'),
+          IosTemplates.runnerProfileEntitlements(),
+        );
+      }
+
+      if (hasFirebase) {
+        // Used by the build_ipa workflow to (re)link GoogleService-Info.plist
+        // into the Xcode project after it's recreated from a CI secret.
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'add_files_to_xcode.rb'),
+          IosTemplates.addFilesToXcodeScript(),
+        );
+      }
+
+      await _patchInfoPlist(infoPlistFile, stack, dryRun: dryRun);
+      await _patchAppDelegate(appDelegateFile, stack, dryRun: dryRun);
 
       progress.complete('Done');
     } catch (e) {
@@ -509,6 +564,12 @@ class InitCommand extends Command<int> {
           await pubspecFile.writeAsString(pubspecBackup);
         } else if (!pubspecExisted && pubspecFile.existsSync()) {
           await pubspecFile.delete();
+        }
+        if (infoPlistBackup != null) {
+          await infoPlistFile.writeAsString(infoPlistBackup);
+        }
+        if (appDelegateBackup != null) {
+          await appDelegateFile.writeAsString(appDelegateBackup);
         }
         _logger.info('  Rolled back partially generated files.');
       }
@@ -544,6 +605,108 @@ class InitCommand extends Command<int> {
     _logger.info('  moarch create feature <name>   → generate a feature');
     _logger.info('');
     return 0;
+  }
+
+  /// iOS refuses to activate non-default locales and rejects permission
+  /// prompts whose usage description is missing, so the selected options
+  /// need matching Info.plist entries. Existing keys are never overwritten.
+  Future<void> _patchInfoPlist(
+    File plistFile,
+    Set<String> stack, {
+    required bool dryRun,
+  }) async {
+    final wantsLocales =
+        stack.contains(_kLocalizations) || stack.contains(_kEasyLocalization);
+    final wantsMedia = stack.contains(_kMediaService);
+    final wantsUrlLauncher = stack.contains(_kLaunchUrlService);
+    final wantsFcm = stack.contains(_kFirebaseNotifications);
+    if (!wantsLocales && !wantsMedia && !wantsUrlLauncher && !wantsFcm) {
+      return;
+    }
+
+    final additions = [
+      if (wantsLocales) 'CFBundleLocalizations (en, pt)',
+      if (wantsMedia) 'camera/photo library/microphone usage descriptions',
+      if (wantsUrlLauncher) 'LSApplicationQueriesSchemes',
+      if (wantsFcm) 'UIBackgroundModes (remote-notification)',
+    ].join(' and ');
+
+    if (dryRun) {
+      _logger.info('  Would add $additions to ios/Runner/Info.plist');
+      return;
+    }
+    if (!plistFile.existsSync()) {
+      _logger.info(
+          '  Note: ios/Runner/Info.plist not found — add $additions manually '
+          'once the iOS folder exists.');
+      return;
+    }
+
+    var content = await plistFile.readAsString();
+    if (wantsLocales) {
+      content = PlistUtils.ensureLocalizations(content, ['en', 'pt']);
+    }
+    if (wantsMedia) {
+      content = PlistUtils.ensureEntries(content, {
+        'NSCameraUsageDescription':
+            'This app uses the camera to take photos and record videos.',
+        'NSPhotoLibraryUsageDescription':
+            'This app accesses your photo library so you can pick images.',
+        'NSMicrophoneUsageDescription':
+            'This app uses the microphone when recording videos.',
+      });
+    }
+    if (wantsUrlLauncher) {
+      // canLaunchUrl returns false on iOS for schemes not declared here,
+      // which would force every link into the in-app web view fallback.
+      content = PlistUtils.ensureArray(
+        content,
+        'LSApplicationQueriesSchemes',
+        ['https', 'http', 'mailto', 'tel', 'sms'],
+      );
+    }
+    if (wantsFcm) {
+      // Without the remote-notification background mode, FCM messages are
+      // only delivered while the app is in the foreground.
+      content = PlistUtils.ensureArray(
+        content,
+        'UIBackgroundModes',
+        ['fetch', 'remote-notification'],
+      );
+    }
+    await plistFile.writeAsString(content);
+    _logger.info('  Updated ios/Runner/Info.plist with $additions.');
+  }
+
+  /// flutter_local_notifications needs the UNUserNotificationCenter delegate
+  /// wired up in AppDelegate.swift; without it, foreground notifications and
+  /// taps are not delivered on iOS. Skipped when the user already touched
+  /// UNUserNotificationCenter or customized away the registrant anchor line.
+  Future<void> _patchAppDelegate(
+    File appDelegateFile,
+    Set<String> stack, {
+    required bool dryRun,
+  }) async {
+    if (!stack.contains(_kNotificationsService)) return;
+
+    const addition = 'UNUserNotificationCenter delegate wiring';
+
+    if (dryRun) {
+      _logger.info('  Would add $addition to ios/Runner/AppDelegate.swift');
+      return;
+    }
+    if (!appDelegateFile.existsSync()) {
+      _logger.info('  Note: ios/Runner/AppDelegate.swift not found — add the '
+          'UNUserNotificationCenter delegate manually once the iOS folder '
+          'exists (see the comment in notifications_service.dart).');
+      return;
+    }
+
+    final content = await appDelegateFile.readAsString();
+    final patched = SwiftUtils.ensureNotificationDelegate(content);
+    if (patched == content) return;
+    await appDelegateFile.writeAsString(patched);
+    _logger.info('  Updated ios/Runner/AppDelegate.swift with $addition.');
   }
 
   Future<void> _buildCore(String libPath, Set<String> stack) async {

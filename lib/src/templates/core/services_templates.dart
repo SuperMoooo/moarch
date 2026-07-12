@@ -48,8 +48,11 @@ import 'dart:io';
 ///
 
 
-/// iOS: add to ios/Runner/AppDelegate.swift:
-///   UNUserNotificationCenter.current().delegate = self
+/// iOS: moarch init adds this to ios/Runner/AppDelegate.swift when the iOS
+/// folder exists; otherwise add it before GeneratedPluginRegistrant.register:
+///   if #available(iOS 10.0, *) {
+///     UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate
+///   }
 
 
 

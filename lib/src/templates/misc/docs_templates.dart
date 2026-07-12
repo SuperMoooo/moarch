@@ -1,6 +1,6 @@
 /// Generates release-checklist markdown templates.
-class ChecklistTemplates {
-  ChecklistTemplates._();
+class DocsTemplates {
+  DocsTemplates._();
 
   /// Returns the generated prodChecklist template.
   static String prodChecklist() => r'''
@@ -54,7 +54,8 @@ Check off each item as you complete it.
 - [ ] `PRODUCT_BUNDLE_IDENTIFIER` correct per scheme
 - [ ] Icons and launch screen set
 - [ ] App tested on a physical device
-- [ ] Privacy usage descriptions added to `Info.plist` for any sensitive permissions (camera, location, etc.)
+- [ ] Privacy usage descriptions added to `Info.plist` for any sensitive permissions (camera, location, etc. — moarch adds the ones for its own options)
+- [ ] If using push: Push Notifications capability on the App ID, APNs key uploaded to Firebase, provisioning profile regenerated after enabling the capability
 
 ## General
 
@@ -216,15 +217,20 @@ All network traffic must be encrypted and verified.
 - [ ] iOS `NSAppTransportSecurity` does not allow arbitrary loads
 - [ ] Self-signed certificates are not accepted in production builds
 
-**Example — certificate pinning:**
+**Example — certificate pinning (dio):**
 ```dart
-// http: ^1.x or dio: ^5.x
-import 'package:dio/dio.dart';
-import 'package:dio_http2_adapter/dio_http2_adapter.dart';
+import 'dart:io';
 
-// With dio + custom SecurityContext:
-final context = SecurityContext(withTrustedRoots: false);
-context.setTrustedCertificatesBytes(certBytes);
+import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
+
+// Trust ONLY your server's certificate (bundle the .pem as an asset):
+final context = SecurityContext(withTrustedRoots: false)
+  ..setTrustedCertificatesBytes(certBytes);
+
+dio.httpClientAdapter = IOHttpClientAdapter(
+  createHttpClient: () => HttpClient(context: context),
+);
 ```
 
 **Packages:** [`dio`](https://pub.dev/packages/dio), [`http_certificate_pinning`](https://pub.dev/packages/http_certificate_pinning)
@@ -251,12 +257,10 @@ Apps must handle personal data with care and comply with GDPR / App Store privac
 
 **Example — disable debug logging in release:**
 ```dart
-// In your logger setup
-if (kDebugMode) {
-  logger.level = Level.verbose;
-} else {
-  logger.level = Level.off; // or Level.error only
-}
+// In your logger setup (the generated app_logger.dart already does this)
+final logger = Logger(
+  level: kReleaseMode ? Level.off : Level.trace, // or Level.error in release
+);
 ```
 
 **Packages:** [`permission_handler`](https://pub.dev/packages/permission_handler), [`logger`](https://pub.dev/packages/logger)
@@ -372,9 +376,10 @@ App integrity detects if your app has been tampered with, repackaged, or is runn
 #### Android — Play Integrity API
 
 ```yaml
-# pubspec.yaml
+# pubspec.yaml — check pub.dev for the current package/version
+# (e.g. play_integrity or play_integrity_flutter)
 dependencies:
-  play_integrity: ^2.0.0   # or use google_play_integrity
+  play_integrity:
 ```
 
 ```dart
@@ -580,38 +585,59 @@ final decrypted = encrypter.decrypt(encrypted, iv: iv);
 
 ''';
 
-  /// code to generate jks file
+  /// Returns the Android release-signing (JKS) guide.
   static String generateJKS() => r'''
-  
-  keytool -genkeypair -v -keystore my-release-key.jks -alias my-key-alias -keyalg RSA -keysize 2048 -validity 10000
+# Android Release Signing (JKS)
 
+## 1. Generate the keystore
 
-  android/key.properties file:
-    storePassword=
-    keyPassword=
-    keyAlias=
-    storeFile=
+```bash
+keytool -genkeypair -v -keystore my-release-key.jks -alias my-key-alias -keyalg RSA -keysize 2048 -validity 10000
+```
 
+> ⚠️ Never commit the `.jks` file — the moarch-generated `.gitignore` rules
+> already cover `*.jks` and `android/key.properties`. Store the keystore and
+> its passwords in a password manager; losing it means you can never update
+> the app on Google Play again.
 
-  android/app/build.gradle.kts file:
+Place the keystore in `android/app/` so `storeFile` can be a plain filename
+(this matches what the build_apk workflow does in CI).
 
-    plugins {
-      id("com.android.application")
-      id("com.google.gms.google-services")
-      id("kotlin-android")
-      id("dev.flutter.flutter-gradle-plugin")
-  }
-  # new section after plugins
-    val keystoreProperties = Properties()
-    val keystorePropertiesFile = rootProject.file("key.properties")
-    if (keystorePropertiesFile.exists()) {
-        keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-    }
+## 2. Create `android/key.properties`
 
+```properties
+storePassword=YOUR_STORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=my-key-alias
+storeFile=my-release-key.jks
+```
 
-    and
+## 3. Wire it into `android/app/build.gradle.kts`
 
-        signingConfigs {
+The `Properties`/`FileInputStream` imports at the top are required:
+
+```kotlin
+import java.io.FileInputStream
+import java.util.Properties
+
+plugins {
+    id("com.android.application")
+    // Only add this line if the project uses Firebase:
+    // id("com.google.gms.google-services")
+    id("kotlin-android")
+    id("dev.flutter.flutter-gradle-plugin")
+}
+
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    // ...existing config...
+
+    signingConfigs {
         create("release") {
             keyAlias = keystoreProperties["keyAlias"] as? String
             keyPassword = keystoreProperties["keyPassword"] as? String
@@ -619,13 +645,14 @@ final decrypted = encrypter.decrypt(encrypted, iv: iv);
             storePassword = keystoreProperties["storePassword"] as? String
         }
     }
+
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             ndk {
-                debugSymbolLevel = "NONE" 
+                debugSymbolLevel = "NONE"
             }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -634,63 +661,107 @@ final decrypted = encrypter.decrypt(encrypted, iv: iv);
         }
     }
 }
+```
 
+## 4. Get the certificate SHA fingerprints
 
-ADD TO GIT IGNORE THE JKS FILE
+Needed for Firebase, Google Sign-In, deep links, etc.:
 
-GETTING SHA's
-
+```bash
 keytool -list -v -keystore my-release-key.jks -alias my-key-alias
+```
+''';
 
-  ''';
-
-  /// code to generate jks file
+  /// Returns the CI/CD secrets setup guide for the build workflows.
   static String stepsForWorkflow() => r'''
-  IOS
+# CI/CD Workflow Setup
 
-  cd C:\openssl\<temp folder to store the output>
+Steps to produce every GitHub secret the generated workflows need
+(Settings → Secrets and variables → Actions).
 
-  openssl genrsa -out <name_key>.key 2048
+## Secrets overview
 
-  openssl req -new -key <name_key>.key -out <name_app>.certSigningRequest -subj "/emailAddress=YOUR_EMAIL/CN=YOUR_NAME/C=YOUR_COUNTRY_CODE" -config C:\openssl\openssl.cnf
+| Secret | Used by | Value |
+|---|---|---|
+| `BASE_URL` | all workflows | your API base URL |
+| `IOS_P12_BASE64` | build_ipa | base64 of your `.p12` (cert + key) |
+| `IOS_P12_PASSWORD` | build_ipa | password you set when exporting the `.p12` |
+| `IOS_PROVISIONING_PROFILE_BASE64` | build_ipa | base64 of your `.mobileprovision` |
+| `IOS_TEAM_ID` | build_ipa | Apple Developer Team ID |
+| `ANDROID_KEYSTORE_BASE64` | build_apk | base64 of your `.jks` keystore |
+| `KEYSTORE_STORE_PASSWORD` | build_apk | keystore store password |
+| `KEYSTORE_KEY_PASSWORD` | build_apk | key password |
+| `KEYSTORE_KEY_ALIAS` | build_apk | key alias (e.g. `my-key-alias`) |
 
+---
 
-  check CERT:
-  openssl req -in <name_app>.certSigningRequest -noout -subject
+## iOS — signing certificate (.p12) without a Mac
 
+Requires OpenSSL (e.g. installed at `C:\openssl` on Windows).
 
-  openssl x509 -in <name>.cer -inform DER -out <name>.pem -outform PEM
+```bash
+cd C:\openssl\<temp folder to store the output>
 
-  openssl pkcs12 -export -inkey <key_name>.key -in <name>.pem -out <name>.p12 -password pass:YOUR_CHOSEN_PASSWORD
+# 1. Private key
+openssl genrsa -out <name_key>.key 2048
 
-  or if needed legacy:
-  openssl pkcs12 -export -inkey <key_name>.key -in <name>.pem -out <name>.p12 -password pass:YOUR_CHOSEN_PASSWORD -legacy
+# 2. Certificate signing request (upload the .certSigningRequest at
+#    developer.apple.com → Certificates → +)
+openssl req -new -key <name_key>.key -out <name_app>.certSigningRequest -subj "/emailAddress=YOUR_EMAIL/CN=YOUR_NAME/C=YOUR_COUNTRY_CODE" -config C:\openssl\openssl.cnf
 
-  [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\path\path\path\<name>.p12")) | Out-File p12_base64.txt -NoNewline
+# (verify the CSR)
+openssl req -in <name_app>.certSigningRequest -noout -subject
 
-  [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\path\path\path\YourProfile.mobileprovision")) | Out-File profile_base64.txt -NoNewline
+# 3. Download the issued .cer from Apple, convert it to PEM
+openssl x509 -in <name>.cer -inform DER -out <name>.pem -outform PEM
 
+# 4. Bundle key + cert into a .p12
+openssl pkcs12 -export -inkey <key_name>.key -in <name>.pem -out <name>.p12 -password pass:YOUR_CHOSEN_PASSWORD
 
-  IOS_P12_BASE64   - base64 of your .p12 (cert + key)
-  IOS_P12_PASSWORD   - password you set above
-  IOS_PROVISIONING_PROFILE_BASE64  - base64 of your .mobileprovision file
-  IOS_TEAM_ID    - Apple Developer Team ID
+# ...or, if the runner rejects the p12, use legacy encryption:
+openssl pkcs12 -export -inkey <key_name>.key -in <name>.pem -out <name>.p12 -password pass:YOUR_CHOSEN_PASSWORD -legacy
 
+# (verify the p12)
+openssl pkcs12 -info -in <p12file>.p12 -noout -password pass:YourExactPassword
+```
 
-  CONFIRM P12:
-  openssl pkcs12 -info -in <p12file>.p12 -noout -password pass:YourExactPassword
+Create the provisioning profile at developer.apple.com → Profiles, using the
+same certificate and your app's bundle ID, then download it.
 
+Base64-encode both files (PowerShell):
 
-  ANDROID
-  generate jks file
-  POWERSHELL:
-  [Convert]::ToBase64String([IO.File]::ReadAllBytes("<name>.jks")) | Out-File release-key-base64.txt
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\<name>.p12")) | Out-File p12_base64.txt -NoNewline
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\YourProfile.mobileprovision")) | Out-File profile_base64.txt -NoNewline
+```
 
-  GITHUB:
-  ANDROID_KEYSTORE_BASE64   the base64 string
-  
-  KEYSTORE_STORE_PASSWORD     your keystore's store password
-  KEYSTORE_KEY_PASSWORD     your key's password
-  KEYSTORE_KEY_ALIAS        your key alias (e.g. my-key-alias)
-  ''';
+## iOS — extra steps for Firebase push (FCM)
+
+Only needed when the project uses Firebase push notifications:
+
+1. In developer.apple.com → Identifiers, enable the **Push Notifications**
+   capability on the app's App ID, then regenerate the provisioning profile
+   (a profile created before the capability was enabled won't include the
+   `aps-environment` entitlement and codesigning will fail).
+2. Upload your **APNs key** (.p8) in Firebase console → Project settings →
+   Cloud Messaging.
+3. `ios/Runner/Runner.entitlements` and `RunnerProfile.entitlements` are
+   generated by moarch; the build_ipa workflow signs the archive with them.
+4. Run `flutterfire configure` so `ios/Runner/GoogleService-Info.plist`
+   exists — the workflow's "Register files in Xcode" step
+   (`add_files_to_xcode.rb`) links it into the Xcode project.
+
+---
+
+## Android — release keystore
+
+Generate the `.jks` first (see `GENERATE_JKS_FILE.md`), then base64-encode it
+(PowerShell):
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("<name>.jks")) | Out-File release-key-base64.txt
+```
+
+Add the four `ANDROID_*`/`KEYSTORE_*` secrets from the table above.
+''';
 }

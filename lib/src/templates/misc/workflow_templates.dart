@@ -220,7 +220,30 @@ jobs:
 ''';
 
   /// BUILD IOS WORKFLOW
-  static String buildIOS() => r'''
+  ///
+  /// [withFirebase] adds a step that recreates GoogleService-Info.plist from
+  /// a secret and links it into the Xcode project via add_files_to_xcode.rb.
+  /// [withPushEntitlements] signs the archive with Runner.entitlements so
+  /// the APNs (push) capability is embedded in the IPA.
+  static String buildIOS({
+    bool withFirebase = false,
+    bool withPushEntitlements = false,
+  }) {
+    final firebaseStep = withFirebase
+        ? '''            - name: Install xcodeproj gem
+              run: gem install xcodeproj
+
+            - name: Register files in Xcode
+              run: ruby add_files_to_xcode.rb
+
+'''
+        : '';
+
+    final entitlementsArg = withPushEntitlements
+        ? '\n                    CODE_SIGN_ENTITLEMENTS="Runner/Runner.entitlements" \\'
+        : '';
+
+    const head = r'''
 
 # Secret
 # IOS_P12_BASE64   - base64 of your .p12 (cert + key)
@@ -312,7 +335,9 @@ jobs:
                   echo "Profile name: $PROFILE_NAME"
                   echo "Bundle ID: $BUNDLE_ID"
 
-            - name: Build iOS (no codesign step, just compile)
+''';
+
+    const mid = r'''            - name: Build iOS (no codesign step, just compile)
               run: flutter build ios --release --no-codesign
 
             - name: Archive and export IPA
@@ -330,8 +355,9 @@ jobs:
                     archive \
                     CODE_SIGN_STYLE=Manual \
                     DEVELOPMENT_TEAM="$TEAM_ID" \
-                    PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-                    CODE_SIGN_IDENTITY="Apple Development"
+                    PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \''';
+
+    const tail = r'''                    CODE_SIGN_IDENTITY="Apple Development"
 
                   cat > ExportOptions.plist << EOF
                   <?xml version="1.0" encoding="UTF-8"?>
@@ -371,6 +397,11 @@ jobs:
                   rm -f certificate.p12
                   security delete-keychain build.keychain || true
 ''';
+
+    // Dart eats the newline right after an opening ''', so tail supplies its
+    // own indentation and the \n before it lives here instead.
+    return '$head$firebaseStep$mid$entitlementsArg\n$tail';
+  }
 
   /// BUILD ANDROID APK
   static String buildANDROID() => r'''
