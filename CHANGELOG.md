@@ -1,5 +1,5 @@
-# [1.7.7]
+# [1.7.8]
 
-## Fixes
+## Features
 
-- firebase notifications
+- easy_localization option (mutually exclusive with flutter_localizations)

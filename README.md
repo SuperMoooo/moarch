@@ -41,7 +41,7 @@ moarch create empty-factories # generate .empty() in all entities
 - Envied-based `.env` support
 - secure storage, logger, helpers, and reusable widgets
 - optional services such as notifications (local or Firebase push), URL launcher, media, debounce
-- optional localization with `assets/i18n/` and FlutterLocalization initialization
+- optional localization: flutter_localizations (`lib/l10n/` + `.arb` files) or easy_localization (`assets/translations/` JSON files) — pick one, the checklist keeps them mutually exclusive
 
 ## Local development
 

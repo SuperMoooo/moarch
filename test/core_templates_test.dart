@@ -26,6 +26,44 @@ void main() {
         output, isNot(contains('await NotificationService.instance.init();')));
   });
 
+  test('mainDart wires easy_localization when requested', () {
+    final output = CoreTemplates.mainDart(
+      withRouter: false,
+      withEasyLocalization: true,
+    );
+
+    expect(output,
+        contains("import 'package:easy_localization/easy_localization.dart';"));
+    expect(output, contains('await EasyLocalization.ensureInitialized();'));
+    expect(output, contains('EasyLocalization('));
+    expect(output, contains("path: 'assets/translations'"));
+    expect(output, contains('locale: context.locale'));
+    expect(output, contains('localizationsDelegates: context.localizationDelegates'));
+    // Must not pull in the flutter_localizations wiring.
+    expect(output, isNot(contains('flutter_localizations')));
+    expect(output, isNot(contains('AppLocalizations.delegate')));
+  });
+
+  test('mainDart prefers easy_localization when both localizations are set',
+      () {
+    final output = CoreTemplates.mainDart(
+      withRouter: true,
+      withLocalization: true,
+      withEasyLocalization: true,
+    );
+
+    expect(output, contains('EasyLocalization('));
+    expect(output, isNot(contains('flutter_localizations')));
+    expect(output, isNot(contains('languageProvider')));
+  });
+
+  test('mainDart omits easy_localization by default', () {
+    final output = CoreTemplates.mainDart(withRouter: false);
+
+    expect(output, isNot(contains('EasyLocalization')));
+    expect(output, contains('runApp(const ProviderScope(child: App()));'));
+  });
+
   test('mainDart adds Firebase notification initialization when requested', () {
     final output = CoreTemplates.mainDart(
       withRouter: false,

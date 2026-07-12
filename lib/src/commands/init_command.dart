@@ -40,6 +40,7 @@ const _kDebouncerService = 'Debouncer for actions';
 const _kNotificationsService = 'Notifications service';
 const _kFirebaseNotifications = 'Firebase push notifications (FCM)';
 const _kLocalizations = 'Localization (l10n)';
+const _kEasyLocalization = 'Localization (easy_localization)';
 
 /// Creates the project-initialization CLI command.
 class InitCommand extends Command<int> {
@@ -185,6 +186,14 @@ class InitCommand extends Command<int> {
               defaultOn: false,
               description:
                   'l10n scaffolding with English + Portuguese .arb files.',
+              excludes: {_kEasyLocalization},
+            ),
+            const ChecklistItem(
+              _kEasyLocalization,
+              defaultOn: false,
+              description:
+                  'easy_localization with English + Portuguese JSON files in assets/translations.',
+              excludes: {_kLocalizations},
             ),
           ],
         );
@@ -201,6 +210,15 @@ class InitCommand extends Command<int> {
     if (stack.contains(_kAuthFeature) && !stack.contains(_kDio)) {
       stack.add(_kDio);
       _logger.info('  Note: Dio added — the auth feature depends on it.');
+    }
+
+    // The two localization options are mutually exclusive (the checklist
+    // enforces this interactively); if both end up selected anyway,
+    // easy_localization wins — matching the mainDart template.
+    if (stack.contains(_kEasyLocalization) && stack.contains(_kLocalizations)) {
+      stack.remove(_kLocalizations);
+      _logger.info(
+          '  Note: flutter_localizations dropped — easy_localization selected.');
     }
 
     final progress = _logger.progress(
@@ -248,6 +266,7 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kNotificationsService)) 'timezone: ',
       if (stack.contains(_kLocalizations))
         'flutter_localizations:\n    sdk: flutter',
+      if (stack.contains(_kEasyLocalization)) 'easy_localization: ',
     ];
 
     final devDependencies = <String>[
@@ -276,6 +295,7 @@ class InitCommand extends Command<int> {
         CoreTemplates.mainDart(
           withRouter: stack.contains(_kRouter),
           withLocalization: stack.contains(_kLocalizations),
+          withEasyLocalization: stack.contains(_kEasyLocalization),
           withNotificationsService: stack.contains(_kNotificationsService),
           withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
           withCrashlytics: stack.contains(_kCrashlytics),
@@ -452,6 +472,32 @@ class InitCommand extends Command<int> {
               'language_service.dart'),
           ServicesTemplates.languageService(),
         );
+      }
+
+      if (stack.contains(_kEasyLocalization)) {
+        // easy_localization loads JSON translation files from assets.
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'assets', 'translations', 'en.json'),
+          '{\n  "appTitle": "Moarch App",\n  "welcome": "Welcome"\n}\n',
+        );
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'assets', 'translations', 'pt.json'),
+          '{\n  "appTitle": "App Moarch",\n  "welcome": "Bem-vindo"\n}\n',
+        );
+
+        if (dryRun) {
+          _logger.info(
+              '  Would add assets/translations/ under flutter: assets in pubspec.yaml');
+        } else {
+          await PubspecUtils.ensureAssets(
+            p.absolute(targetPath),
+            assets: ['assets/translations/'],
+          );
+          await PubspecUtils.ensureFlutterFlags(
+            p.absolute(targetPath),
+            flags: ['uses-material-design: true'],
+          );
+        }
       }
 
       progress.complete('Done');

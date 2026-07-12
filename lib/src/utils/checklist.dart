@@ -44,11 +44,13 @@ class Checklist {
       for (final part in parts) {
         final n = int.tryParse(part);
         if (n != null && n >= 1 && n <= items.length) {
-          final label = items[n - 1].label;
-          if (selected.contains(label)) {
-            selected.remove(label);
+          final item = items[n - 1];
+          if (selected.contains(item.label)) {
+            selected.remove(item.label);
           } else {
-            selected.add(label);
+            selected.add(item.label);
+            // Turning this item on deselects anything it excludes.
+            selected.removeAll(item.excludes);
           }
         }
       }
@@ -84,7 +86,12 @@ class Checklist {
 /// Represents a single checklist item option.
 class ChecklistItem {
   /// Creates a checklist item with its default selected state.
-  const ChecklistItem(this.label, {this.defaultOn = true, this.description});
+  const ChecklistItem(
+    this.label, {
+    this.defaultOn = true,
+    this.description,
+    this.excludes = const <String>{},
+  });
 
   /// The user-facing label shown in the checklist.
   final String label;
@@ -94,4 +101,8 @@ class ChecklistItem {
 
   /// Optional one-line explanation of what selecting this item generates.
   final String? description;
+
+  /// Labels that are deselected when this item is turned on. List the
+  /// exclusion on both items to make the pair mutually exclusive.
+  final Set<String> excludes;
 }

@@ -3,16 +3,39 @@ class CoreTemplates {
   CoreTemplates._();
 
   /// Returns the generated mainDart template.
+  ///
+  /// [withLocalization] (flutter_localizations) and [withEasyLocalization]
+  /// are mutually exclusive; if both are set, easy_localization wins.
   static String mainDart({
     bool withRouter = true,
     bool withLocalization = false,
+    bool withEasyLocalization = false,
     bool withNotificationsService = false,
     bool withFirebaseNotifications = false,
     bool withCrashlytics = false,
   }) {
-    final localizationImports = withLocalization
-        ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\nimport 'core/services/language_service.dart';\nimport 'package:flutter_localizations/flutter_localizations.dart';\n"
+    if (withEasyLocalization) withLocalization = false;
+
+    final localizationImports = withEasyLocalization
+        ? "\nimport 'package:easy_localization/easy_localization.dart';\n"
+        : withLocalization
+            ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\nimport 'core/services/language_service.dart';\nimport 'package:flutter_localizations/flutter_localizations.dart';\n"
+            : '';
+
+    final easyLocalizationInit = withEasyLocalization
+        ? '\n  await EasyLocalization.ensureInitialized();\n'
         : '';
+
+    final runAppCall = withEasyLocalization
+        ? '''runApp(
+    EasyLocalization(
+      supportedLocales: const [Locale('en'), Locale('pt')],
+      path: 'assets/translations',
+      fallbackLocale: const Locale('en'),
+      child: const ProviderScope(child: App()),
+    ),
+  );'''
+        : 'runApp(const ProviderScope(child: App()));';
     final notificationImport = withNotificationsService
         ? "\nimport 'core/services/notifications_service.dart';"
         : '';
@@ -55,8 +78,14 @@ class CoreTemplates {
         ? '\n    FirebaseCrashlytics.instance.recordFlutterFatalError(details);'
         : '';
 
-    final localizationConfig = withLocalization
+    final localizationConfig = withEasyLocalization
         ? '''
+      locale: context.locale,
+      supportedLocales: context.supportedLocales,
+      localizationsDelegates: context.localizationDelegates,
+'''
+        : withLocalization
+            ? '''
       locale: locale,
       supportedLocales: L10n.all,
       localizationsDelegates: const [
@@ -66,14 +95,19 @@ class CoreTemplates {
         GlobalCupertinoLocalizations.delegate
       ],
 '''
-        : '';
+            : '';
 
-    final localizationWatch = withLocalization
+    final localizationWatch = withEasyLocalization
         ? '''
+// Translate with 'welcome'.tr()
+// Switch language with context.setLocale(const Locale('pt'));
+'''
+        : withLocalization
+            ? '''
 final locale = ref.watch(languageProvider).locale;
 //final l10n = AppLocalizations.of(context);
 '''
-        : '';
+            : '';
 
     if (withRouter) {
       return '''
@@ -90,7 +124,7 @@ Future<void> main() async {
   // Preserve the splash BEFORE anything else runs
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-
+$easyLocalizationInit
   $notificationInit
 $crashlyticsInit$firebaseNotificationInit
   //::::::::::ERROR MANAGEMENT::::::::::
@@ -117,7 +151,7 @@ $crashlyticsInit$firebaseNotificationInit
   // OR REMOVE AFTER SOME ASYNC INIT IN A ROOT WIDGET
   FlutterNativeSplash.remove();
 
-  runApp(const ProviderScope(child: App()));
+  $runAppCall
 }
  
 class App extends ConsumerWidget {
@@ -174,6 +208,7 @@ Future<void> main() async {
   // Preserve the splash BEFORE anything else runs
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+$easyLocalizationInit
   $notificationInit
 $crashlyticsInit$firebaseNotificationInit
   //::::::::::ERROR MANAGEMENT::::::::::
@@ -200,7 +235,7 @@ $crashlyticsInit$firebaseNotificationInit
   // OR REMOVE AFTER SOME ASYNC INIT IN A ROOT WIDGET
   FlutterNativeSplash.remove();
 
-  runApp(const ProviderScope(child: App()));
+  $runAppCall
 }
 
 class App extends ConsumerWidget {
