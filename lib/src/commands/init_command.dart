@@ -20,6 +20,7 @@ import '../templates/core/core_templates.dart';
 import '../templates/ui/shared_templates.dart';
 import '../utils/file_utils.dart';
 import '../utils/plist_utils.dart';
+import '../utils/podfile_utils.dart';
 import '../utils/pubspec_utils.dart';
 import '../utils/swift_utils.dart';
 
@@ -244,6 +245,11 @@ class InitCommand extends Command<int> {
     final appDelegateBackup = appDelegateFile.existsSync()
         ? await appDelegateFile.readAsString()
         : null;
+
+    final podfileFile =
+        File(p.join(p.absolute(targetPath), 'ios', 'Podfile'));
+    final podfileBackup =
+        podfileFile.existsSync() ? await podfileFile.readAsString() : null;
 
     // Caret-pinned to the versions the templates were written against, so a
     // breaking major release of a package can't silently break a fresh
@@ -554,6 +560,7 @@ class InitCommand extends Command<int> {
 
       await _patchInfoPlist(infoPlistFile, stack, dryRun: dryRun);
       await _patchAppDelegate(appDelegateFile, stack, dryRun: dryRun);
+      await _patchPodfile(podfileFile, stack, dryRun: dryRun);
 
       progress.complete('Done');
     } catch (e) {
@@ -570,6 +577,9 @@ class InitCommand extends Command<int> {
         }
         if (appDelegateBackup != null) {
           await appDelegateFile.writeAsString(appDelegateBackup);
+        }
+        if (podfileBackup != null) {
+          await podfileFile.writeAsString(podfileBackup);
         }
         _logger.info('  Rolled back partially generated files.');
       }
@@ -707,6 +717,56 @@ class InitCommand extends Command<int> {
     if (patched == content) return;
     await appDelegateFile.writeAsString(patched);
     _logger.info('  Updated ios/Runner/AppDelegate.swift with $addition.');
+  }
+
+  /// permission_handler is always a dependency (PermissionService is
+  /// generated unconditionally), so without this block it compiles every
+  /// permission group's native code by default — pulling in usage-description
+  /// requirements for permissions the app never requests. Only camera/photos
+  /// are turned on, since MediaService (gated by [_kMediaService]) is the
+  /// only place generated code ever calls permission_handler.
+  ///
+  /// When `ios/Podfile` doesn't exist yet (e.g. `moarch init` ran before
+  /// `flutter create` scaffolded `ios/`), a generic one is written instead
+  /// of skipped, with the same permission block already wired in.
+  Future<void> _patchPodfile(
+    File podfileFile,
+    Set<String> stack, {
+    required bool dryRun,
+  }) async {
+    final wantsMedia = stack.contains(_kMediaService);
+
+    if (!podfileFile.existsSync()) {
+      if (dryRun) {
+        _logger.info('  Would create ios/Podfile with permission_handler '
+            'defaults (camera/photos only)');
+        return;
+      }
+      await FileUtils.writeFile(
+        podfileFile.path,
+        PodfileUtils.defaultPodfile(camera: wantsMedia, photos: wantsMedia),
+      );
+      _logger.info('  Created ios/Podfile with permission_handler defaults '
+          '(camera/photos only).');
+      return;
+    }
+
+    const addition =
+        'permission_handler GCC_PREPROCESSOR_DEFINITIONS (camera/photos only)';
+    if (dryRun) {
+      _logger.info('  Would add $addition to ios/Podfile');
+      return;
+    }
+
+    final content = await podfileFile.readAsString();
+    final patched = PodfileUtils.ensurePermissionHandlerDefinitions(
+      content,
+      camera: wantsMedia,
+      photos: wantsMedia,
+    );
+    if (patched == content) return;
+    await podfileFile.writeAsString(patched);
+    _logger.info('  Updated ios/Podfile with $addition.');
   }
 
   Future<void> _buildCore(String libPath, Set<String> stack) async {
