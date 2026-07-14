@@ -182,7 +182,7 @@ class App extends ConsumerWidget {
                   // scales don't break fixed layouts.
                   textScaler: MediaQuery.textScalerOf(
                     context,
-                  ).clamp(minScaleFactor: 1.0, maxScaleFactor: 1.35),
+                  ).clamp(maxScaleFactor: 1.35),
                   alwaysUse24HourFormat: true,
                 ),
           //   ProviderScope(key: ValueKey(sessionKey), child: child!)
@@ -261,7 +261,7 @@ $localizationConfig      debugShowCheckedModeBanner: false,
           data: MediaQuery.of(context).copyWith(
             textScaler: MediaQuery.textScalerOf(
               context,
-            ).clamp(minScaleFactor: 1.0, maxScaleFactor: 1.35),
+            ).clamp(maxScaleFactor: 1.35),
             alwaysUse24HourFormat: true,
           ),
           //   ProviderScope(key: ValueKey(sessionKey), child: child!)
