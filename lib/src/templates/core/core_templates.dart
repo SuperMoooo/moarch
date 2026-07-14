@@ -244,6 +244,13 @@ class App extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     $localizationWatch
+
+    // To reset ALL app state on logout, key a ProviderScope by your session.
+    // Once you have an auth feature, uncomment and adapt:
+    // final sessionKey = ref.watch(
+    //   authNotifierProvider.select((s) => s.value?.authenticated ?? ''),
+    // );
+
     return MaterialApp(
       title: 'App',
       theme: AppTheme.light,
@@ -257,6 +264,7 @@ $localizationConfig      debugShowCheckedModeBanner: false,
             ).clamp(minScaleFactor: 1.0, maxScaleFactor: 1.35),
             alwaysUse24HourFormat: true,
           ),
+          //   ProviderScope(key: ValueKey(sessionKey), child: child!)
           child: child!,
         );
       },

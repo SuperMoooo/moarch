@@ -1,5 +1,5 @@
-# [1.7.10]
+# [1.7.11]
 
 ## Features
 
-- Podfile
+- main file fix
