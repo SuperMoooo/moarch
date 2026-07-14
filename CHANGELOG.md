@@ -1,5 +1,5 @@
-# [1.7.11]
+# [1.8.0]
 
 ## Features
 
-- main file fix
+- deps for gradle and other fixes

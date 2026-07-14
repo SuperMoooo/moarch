@@ -86,12 +86,22 @@ final routerProvider = Provider<GoRouter>((ref) {
 // }
 //
 // String? _redirect(Ref ref, GoRouterState state) {
-//   final authState = ref.read(authNotifierProvider).requireValue;
+//   final authAsync = ref.read(authNotifierProvider);
+
+//     if (!authAsync.hasValue) return null;
+
+ //    final authState = authAsync.value!;
+
 //   final publicRoutes = {AppRoutes.login};
+
 //   final onPublicRoute = publicRoutes.contains(state.matchedLocation);
+
 //   final isAuthenticated = authState?.authenticated ?? false;
+
 //   if (!isAuthenticated && !onPublicRoute) return AppRoutes.login;
+
 //   if (isAuthenticated && onPublicRoute) return AppRoutes.home;
+
 //   return null;
 // }
 //

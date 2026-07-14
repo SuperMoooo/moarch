@@ -19,6 +19,7 @@ import '../templates/config/config_templates.dart';
 import '../templates/core/core_templates.dart';
 import '../templates/ui/shared_templates.dart';
 import '../utils/file_utils.dart';
+import '../utils/gradle_utils.dart';
 import '../utils/plist_utils.dart';
 import '../utils/podfile_utils.dart';
 import '../utils/pubspec_utils.dart';
@@ -246,10 +247,15 @@ class InitCommand extends Command<int> {
         ? await appDelegateFile.readAsString()
         : null;
 
-    final podfileFile =
-        File(p.join(p.absolute(targetPath), 'ios', 'Podfile'));
+    final podfileFile = File(p.join(p.absolute(targetPath), 'ios', 'Podfile'));
     final podfileBackup =
         podfileFile.existsSync() ? await podfileFile.readAsString() : null;
+
+    final buildGradleFile = File(
+        p.join(p.absolute(targetPath), 'android', 'app', 'build.gradle.kts'));
+    final buildGradleBackup = buildGradleFile.existsSync()
+        ? await buildGradleFile.readAsString()
+        : null;
 
     // Caret-pinned to the versions the templates were written against, so a
     // breaking major release of a package can't silently break a fresh
@@ -561,6 +567,7 @@ class InitCommand extends Command<int> {
       await _patchInfoPlist(infoPlistFile, stack, dryRun: dryRun);
       await _patchAppDelegate(appDelegateFile, stack, dryRun: dryRun);
       await _patchPodfile(podfileFile, stack, dryRun: dryRun);
+      await _patchBuildGradle(buildGradleFile, stack, dryRun: dryRun);
 
       progress.complete('Done');
     } catch (e) {
@@ -580,6 +587,9 @@ class InitCommand extends Command<int> {
         }
         if (podfileBackup != null) {
           await podfileFile.writeAsString(podfileBackup);
+        }
+        if (buildGradleBackup != null) {
+          await buildGradleFile.writeAsString(buildGradleBackup);
         }
         _logger.info('  Rolled back partially generated files.');
       }
@@ -767,6 +777,38 @@ class InitCommand extends Command<int> {
     if (patched == content) return;
     await podfileFile.writeAsString(patched);
     _logger.info('  Updated ios/Podfile with $addition.');
+  }
+
+  /// flutter_local_notifications needs Java 8+ core library desugaring
+  /// enabled on Android, or `flutter build apk`/`appbundle` fails the first
+  /// time it runs with the notifications service enabled.
+  Future<void> _patchBuildGradle(
+    File buildGradleFile,
+    Set<String> stack, {
+    required bool dryRun,
+  }) async {
+    if (!stack.contains(_kNotificationsService)) return;
+
+    const addition =
+        'core library desugaring (isCoreLibraryDesugaringEnabled + desugar_jdk_libs)';
+
+    if (!buildGradleFile.existsSync()) {
+      _logger.info('  Note: android/app/build.gradle.kts not found — enable '
+          'core library desugaring manually once the android folder exists '
+          '(flutter_local_notifications requires it).');
+      return;
+    }
+
+    if (dryRun) {
+      _logger.info('  Would add $addition to android/app/build.gradle.kts');
+      return;
+    }
+
+    final content = await buildGradleFile.readAsString();
+    final patched = GradleUtils.ensureCoreLibraryDesugaring(content);
+    if (patched == content) return;
+    await buildGradleFile.writeAsString(patched);
+    _logger.info('  Updated android/app/build.gradle.kts with $addition.');
   }
 
   Future<void> _buildCore(String libPath, Set<String> stack) async {
