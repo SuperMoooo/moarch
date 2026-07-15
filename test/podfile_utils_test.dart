@@ -110,8 +110,7 @@ end
     });
 
     test('comments camera/photos out when MediaService is not selected', () {
-      final output =
-          PodfileUtils.defaultPodfile(camera: false, photos: false);
+      final output = PodfileUtils.defaultPodfile(camera: false, photos: false);
 
       expect(output, contains("# 'PERMISSION_CAMERA=1',"));
       expect(output, contains("# 'PERMISSION_PHOTOS=1',"));

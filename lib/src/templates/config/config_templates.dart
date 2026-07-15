@@ -59,7 +59,8 @@ final routerProvider = Provider<GoRouter>((ref) {
     //      extra: recipe, // qualquer objeto
     //   );
  
-    // Example with redirect (e.g. auth guard):
+    // Per-route redirect example (for the app-wide auth guard with a splash
+    // screen — no login/home flash on startup — see the bottom of this file):
     // GoRoute(
     //   path: AppRoutes.home,
     //   redirect: (context, state) {
@@ -73,9 +74,28 @@ final routerProvider = Provider<GoRouter>((ref) {
 );
 });
 
-// ── Auth guard example ────────────────────────────────────────────────────────
-// Once you have an auth feature with a notifier exposing an `authenticated`
-// bool, wire it up like this:
+// ── Auth guard example (with splash — no wrong-screen flash) ─────────────────
+// While AuthNotifier.build() restores the session, the auth state is still
+// loading. If the router renders any real route during that window, the user
+// sees login (or home) for a frame and is then bounced to the right screen.
+// Fix: park the router on a splash route until auth resolves.
+//
+// 1. Uncomment `splash` and `login` in app_routes.dart.
+//
+// 2. Add the imports:
+//    import '../../features/auth/presentation/notifiers/auth_notifier.dart';
+//    import '../../shared/widgets/loadings/app_loading_data.dart';
+//
+// 3. Add the splash route to the routes list above:
+//    GoRoute(
+//      path: AppRoutes.splash,
+//      builder: (_, _) => const AppLoadingData(),
+//    ),
+//
+// 4. Update the GoRouter above:
+//      initialLocation: AppRoutes.splash,
+//      refreshListenable: GoRouterRefreshNotifier(ref),
+//      redirect: (context, state) => _redirect(ref, state),
 //
 // class GoRouterRefreshNotifier extends ChangeNotifier {
 //   GoRouterRefreshNotifier(Ref ref) {
@@ -87,28 +107,24 @@ final routerProvider = Provider<GoRouter>((ref) {
 //
 // String? _redirect(Ref ref, GoRouterState state) {
 //   final authAsync = ref.read(authNotifierProvider);
-
-//     if (!authAsync.hasValue) return null;
-
- //    final authState = authAsync.value!;
-
+//   final onSplash = state.matchedLocation == AppRoutes.splash;
+//
+//   // Session restore still running: stay on splash so login/home never
+//   // flash. When it completes, the refreshListenable re-runs this redirect.
+//   if (authAsync.isLoading) return onSplash ? null : AppRoutes.splash;
+//
+//   final isAuthenticated = authAsync.value?.authenticated ?? false;
+//
+//   // Auth resolved: leave splash for the right destination.
+//   if (onSplash) return isAuthenticated ? AppRoutes.home : AppRoutes.login;
+//
 //   final publicRoutes = {AppRoutes.login};
-
 //   final onPublicRoute = publicRoutes.contains(state.matchedLocation);
-
-//   final isAuthenticated = authState?.authenticated ?? false;
-
+//
 //   if (!isAuthenticated && !onPublicRoute) return AppRoutes.login;
-
 //   if (isAuthenticated && onPublicRoute) return AppRoutes.home;
-
 //   return null;
 // }
-//
-// Then add to the GoRouter above:
-//   refreshListenable: GoRouterRefreshNotifier(ref),
-//   redirect: (context, state) => _redirect(ref, state),
-// And add `login` back to AppRoutes in app_routes.dart.
 
 ''';
 
@@ -119,6 +135,7 @@ final routerProvider = Provider<GoRouter>((ref) {
  
 abstract final class AppRoutes {
   static const home   = '/';
+  // static const splash = '/splash';
   // static const login  = '/login';
   // static const detail = '/detail/:id';
 

@@ -38,7 +38,8 @@ void main() {
     expect(output, contains('EasyLocalization('));
     expect(output, contains("path: 'assets/translations'"));
     expect(output, contains('locale: context.locale'));
-    expect(output, contains('localizationsDelegates: context.localizationDelegates'));
+    expect(output,
+        contains('localizationsDelegates: context.localizationDelegates'));
     // Must not pull in the flutter_localizations wiring.
     expect(output, isNot(contains('flutter_localizations')));
     expect(output, isNot(contains('AppLocalizations.delegate')));

@@ -32,8 +32,8 @@ void main() {
   test('ensureLocalizations leaves an existing key untouched', () {
     final withKey = PlistUtils.ensureLocalizations(_samplePlist, ['en']);
 
-    expect(PlistUtils.ensureLocalizations(withKey, ['en', 'pt']),
-        equals(withKey));
+    expect(
+        PlistUtils.ensureLocalizations(withKey, ['en', 'pt']), equals(withKey));
   });
 
   test('ensureLocalizations returns content unchanged without a dict', () {

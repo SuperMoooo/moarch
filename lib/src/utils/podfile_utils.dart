@@ -49,8 +49,7 @@ class PodfileUtils {
   /// [ensurePermissionHandlerDefinitions] would patch it.
   static String defaultPodfile({required bool camera, required bool photos}) {
     final definitions =
-        _definitionLines('        ', camera: camera, photos: photos)
-            .join('\n');
+        _definitionLines('        ', camera: camera, photos: photos).join('\n');
 
     return '''
 # Uncomment this line to define a global platform for your project

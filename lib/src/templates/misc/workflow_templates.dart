@@ -337,7 +337,8 @@ jobs:
 
 ''';
 
-    const mid = r'''            - name: Build iOS (no codesign step, just compile)
+    const mid =
+        r'''            - name: Build iOS (no codesign step, just compile)
               run: flutter build ios --release --no-codesign
 
             - name: Archive and export IPA
