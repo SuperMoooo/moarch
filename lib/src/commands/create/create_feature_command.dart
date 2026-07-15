@@ -192,6 +192,13 @@ class CreateFeatureCommand extends Command<int> {
     _logger.info('🧱 Creating feature: $className');
     _logger.info('');
 
+    // The model is only used by the datasources, and the entity only by the
+    // repository/use case layers (and the model) — skip both when no data
+    // layer was selected.
+    final needsDataLayer = selected.contains(_kRemoteDatasource) ||
+        selected.contains(_kLocalDatasource) ||
+        selected.contains(_kRepository);
+
     final progress = _logger.progress('Scaffolding');
     FileUtils.beginSession();
 
@@ -219,8 +226,10 @@ class CreateFeatureCommand extends Command<int> {
           hasLocal: selected.contains(_kLocalDatasource),
         );
       }
-      await _writeModel(featurePath, featureName, className);
-      await _writeEntity(featurePath, featureName, className);
+      if (needsDataLayer) {
+        await _writeModel(featurePath, featureName, className);
+        await _writeEntity(featurePath, featureName, className);
+      }
       if (selected.contains(_kUseCases)) {
         await _writeUsecase(featurePath, featureName, className, varName);
       }
@@ -385,26 +394,36 @@ class CreateFeatureCommand extends Command<int> {
 
     void line(String s) => _logger.info('  $s');
 
+    final hasDataLayer = selected.contains(_kRemoteDatasource) ||
+        selected.contains(_kLocalDatasource) ||
+        selected.contains(_kRepository);
+
     if (!testsOnly) {
-      line('domain/');
-      line('├── entities/${name}_entity.dart');
-      if (selected.contains(_kRepository)) {
-        line('├── repositories/${name}_repository.dart');
-      }
-      if (selected.contains(_kUseCases)) {
-        line('└── usecases/get_$name.dart');
+      if (hasDataLayer || selected.contains(_kUseCases)) {
+        line('domain/');
+        if (hasDataLayer) {
+          line('├── entities/${name}_entity.dart');
+        }
+        if (selected.contains(_kRepository)) {
+          line('├── repositories/${name}_repository.dart');
+        }
+        if (selected.contains(_kUseCases)) {
+          line('└── usecases/get_$name.dart');
+        }
       }
 
-      line('data/');
-      if (selected.contains(_kRemoteDatasource)) {
-        line('├── datasources/${name}_remote_datasource.dart');
-      }
-      if (selected.contains(_kLocalDatasource)) {
-        line('├── datasources/${name}_local_datasource.dart');
-      }
-      line('├── models/${name}_model.dart');
-      if (selected.contains(_kRepository)) {
-        line('└── repositories/${name}_repository_impl.dart');
+      if (hasDataLayer) {
+        line('data/');
+        if (selected.contains(_kRemoteDatasource)) {
+          line('├── datasources/${name}_remote_datasource.dart');
+        }
+        if (selected.contains(_kLocalDatasource)) {
+          line('├── datasources/${name}_local_datasource.dart');
+        }
+        line('├── models/${name}_model.dart');
+        if (selected.contains(_kRepository)) {
+          line('└── repositories/${name}_repository_impl.dart');
+        }
       }
 
       line('presentation/');

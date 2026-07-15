@@ -1,5 +1,5 @@
-# [1.8.0]
+# [1.8.1]
 
 ## Features
 
-- deps for gradle and other fixes
+- added flags for datasource
