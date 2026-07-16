@@ -35,6 +35,7 @@ class LanguageService extends Notifier<LanguageState> {
   static String notificationsService() => r'''
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import '../../core/utils/app_logger.dart';
@@ -68,10 +69,18 @@ void _backgroundHandler(NotificationResponse response) {
 enum NotificationPriority { defaultPriority, high }
 
 
-class NotificationService {
-  NotificationService._();
+/// Read this to reach the service: `ref.read(notificationServiceProvider)`.
+final notificationServiceProvider = Provider<NotificationService>((ref) {
+  return NotificationService(ref);
+});
 
-  static final NotificationService instance = NotificationService._();
+class NotificationService {
+  NotificationService(this._ref);
+
+  /// Kept for reading other providers when needed (e.g. navigate on tap:
+  /// `_ref.read(routerProvider).go(...)`).
+  // ignore: unused_field
+  final Ref _ref;
 
   bool _initialized = false;
 
@@ -454,7 +463,7 @@ class NotificationService {
     if (!_initialized) {
       throw StateError(
         'NotificationService not initialized. '
-        'Call NotificationService.instance.init() first.',
+        'Call ref.read(notificationServiceProvider).init() first.',
       );
     }
   }
@@ -466,6 +475,7 @@ class NotificationService {
   static String firebaseNotificationsService() => r'''
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/utils/app_logger.dart';
 
 /// Firebase Cloud Messaging (FCM) push notifications.
@@ -487,11 +497,20 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   appLogger.i('[FCM] Background message | id: ${message.messageId}');
 }
 
-class FirebaseNotificationsService {
-  FirebaseNotificationsService._();
+/// Read this to reach the service:
+/// `ref.read(firebaseNotificationsServiceProvider)`.
+final firebaseNotificationsServiceProvider =
+    Provider<FirebaseNotificationsService>((ref) {
+  return FirebaseNotificationsService(ref);
+});
 
-  static final FirebaseNotificationsService instance =
-      FirebaseNotificationsService._();
+class FirebaseNotificationsService {
+  FirebaseNotificationsService(this._ref);
+
+  /// Kept for reading other providers when needed (e.g. navigate on tap:
+  /// `_ref.read(routerProvider).go(...)`).
+  // ignore: unused_field
+  final Ref _ref;
 
   bool _initialized = false;
 
@@ -562,7 +581,7 @@ class FirebaseNotificationsService {
     );
     // Android shows no system notification for foreground messages.
     // If you also generated the local NotificationService, display one manually:
-    // NotificationService.instance.show(
+    // _ref.read(notificationServiceProvider).show(
     //   title: message.notification?.title ?? '',
     //   body: message.notification?.body ?? '',
     //   payload: message.data.toString(),

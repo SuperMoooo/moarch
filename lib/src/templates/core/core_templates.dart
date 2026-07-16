@@ -26,22 +26,36 @@ class CoreTemplates {
         ? '\n  await EasyLocalization.ensureInitialized();\n'
         : '';
 
+    // The notification services are Riverpod providers that hold a `Ref`, so
+    // they must be initialized through a container that also backs the widget
+    // tree. When either is enabled we build that container in main() and hand
+    // it to an UncontrolledProviderScope.
+    final needsContainer = withNotificationsService || withFirebaseNotifications;
+
+    final rootScope = needsContainer
+        ? 'UncontrolledProviderScope(container: container, child: const App())'
+        : 'const ProviderScope(child: App())';
+
     final runAppCall = withEasyLocalization
         ? '''runApp(
     EasyLocalization(
       supportedLocales: const [Locale('en'), Locale('pt')],
       path: 'assets/translations',
       fallbackLocale: const Locale('en'),
-      child: const ProviderScope(child: App()),
+      child: $rootScope,
     ),
   );'''
-        : 'runApp(const ProviderScope(child: App()));';
+        : 'runApp($rootScope);';
+
+    final containerSetup =
+        needsContainer ? '\n  final container = ProviderContainer();\n' : '';
+
     final notificationImport = withNotificationsService
         ? "\nimport 'core/services/notifications_service.dart';"
         : '';
 
     final notificationInit = withNotificationsService
-        ? "\n await NotificationService.instance.init();"
+        ? '\n  await container.read(notificationServiceProvider).init();'
         : '';
 
     final firebaseNotificationImport = withFirebaseNotifications
@@ -52,7 +66,7 @@ class CoreTemplates {
     // Firebase.initializeApp() runs first; the FCM service only initializes
     // Firebase itself when no one else has.
     final firebaseNotificationInit = withFirebaseNotifications
-        ? '\n  await FirebaseNotificationsService.instance.init();'
+        ? '\n  await container.read(firebaseNotificationsServiceProvider).init();'
         : '';
 
     final crashlyticsImports = withCrashlytics
@@ -124,8 +138,7 @@ Future<void> main() async {
   // Preserve the splash BEFORE anything else runs
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-$easyLocalizationInit
-  $notificationInit
+$easyLocalizationInit$containerSetup$notificationInit
 $crashlyticsInit$firebaseNotificationInit
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
@@ -208,8 +221,7 @@ Future<void> main() async {
   // Preserve the splash BEFORE anything else runs
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-$easyLocalizationInit
-  $notificationInit
+$easyLocalizationInit$containerSetup$notificationInit
 $crashlyticsInit$firebaseNotificationInit
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {

@@ -14,7 +14,13 @@ void main() {
 
     expect(
         output, contains("import 'core/services/notifications_service.dart';"));
-    expect(output, contains('await NotificationService.instance.init();'));
+    expect(output,
+        contains('await container.read(notificationServiceProvider).init();'));
+    expect(output, contains('final container = ProviderContainer();'));
+    expect(
+        output,
+        contains(
+            'UncontrolledProviderScope(container: container, child: const App())'));
   });
 
   test('mainDart omits notification initialization by default', () {
@@ -23,7 +29,10 @@ void main() {
     expect(output,
         isNot(contains("import 'core/services/notifications_service.dart';")));
     expect(
-        output, isNot(contains('await NotificationService.instance.init();')));
+        output,
+        isNot(contains(
+            'await container.read(notificationServiceProvider).init();')));
+    expect(output, isNot(contains('final container = ProviderContainer();')));
   });
 
   test('mainDart wires easy_localization when requested', () {
@@ -75,8 +84,15 @@ void main() {
         output,
         contains(
             "import 'core/services/firebase_notifications_service.dart';"));
-    expect(output,
-        contains('await FirebaseNotificationsService.instance.init();'));
+    expect(
+        output,
+        contains(
+            'await container.read(firebaseNotificationsServiceProvider).init();'));
+    expect(output, contains('final container = ProviderContainer();'));
+    expect(
+        output,
+        contains(
+            'UncontrolledProviderScope(container: container, child: const App())'));
   });
 
   test('mainDart omits Firebase notification initialization by default', () {
@@ -86,8 +102,10 @@ void main() {
         output,
         isNot(contains(
             "import 'core/services/firebase_notifications_service.dart';")));
-    expect(output,
-        isNot(contains('await FirebaseNotificationsService.instance.init();')));
+    expect(
+        output,
+        isNot(contains(
+            'await container.read(firebaseNotificationsServiceProvider).init();')));
   });
 
   test('mainDart wires Crashlytics into error handlers when requested', () {
