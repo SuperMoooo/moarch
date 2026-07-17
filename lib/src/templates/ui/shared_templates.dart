@@ -430,7 +430,7 @@ class AppInputStyle {
       prefixIconColor: enabled ? accent : disabledColor,
       suffixIconColor: enabled ? accent : disabledColor,
       hintStyle: theme.textTheme.bodyMedium?.copyWith(
-        color: theme.colorScheme.onSurface.withValues(alpha: _hintOpacity),
+        color: accent.withValues(alpha: _hintOpacity),
       ),
       contentPadding: EdgeInsets.symmetric(
         vertical: (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
@@ -611,7 +611,10 @@ class _AppInputState extends State<AppInput> {
             autofocus: widget.autoFocus,
             readOnly: widget.readOnly,
             controller: widget.controller,
-            style: theme.textTheme.bodyMedium,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppInputStyle.accentOf(context, widget.variant),
+              fontWeight: FontWeight.bold,
+            ),
             initialValue: widget.controller == null
                 ? widget.initialValue
                 : null,
@@ -734,7 +737,10 @@ class _AppDateInputState extends State<AppDateInput> {
             autofocus: widget.autoFocus,
             readOnly: true,
             controller: widget.controller,
-            style: theme.textTheme.bodyMedium,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppInputStyle.accentOf(context, widget.variant),
+              fontWeight: FontWeight.bold,
+            ),
             cursorColor: AppInputStyle.accentOf(context, widget.variant),
             decoration: AppInputStyle.decoration(
               context,
@@ -847,7 +853,10 @@ class _AppTimeInputState extends State<AppTimeInput> {
             autofocus: widget.autoFocus,
             readOnly: true,
             controller: widget.controller,
-            style: theme.textTheme.bodyMedium,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppInputStyle.accentOf(context, widget.variant),
+              fontWeight: FontWeight.bold,
+            ),
             cursorColor: AppInputStyle.accentOf(context, widget.variant),
             decoration: AppInputStyle.decoration(
               context,
@@ -935,7 +944,10 @@ class AppDropdownInput<T> extends StatelessWidget {
           ignoring: !enabled,
           child: DropdownButtonFormField<String>(
             initialValue: selectedId,
-            style: theme.textTheme.bodyMedium,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppInputStyle.accentOf(context, widget.variant),
+              fontWeight: FontWeight.bold,
+            ),
             decoration: AppInputStyle.decoration(
               context,
               variant: variant,
