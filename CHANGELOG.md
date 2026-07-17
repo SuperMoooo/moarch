@@ -1,5 +1,5 @@
-# [1.8.3]
+# [1.8.4]
 
 ## Features
 
-- copy with for entitys
+- notifications tap handling reaches flutter

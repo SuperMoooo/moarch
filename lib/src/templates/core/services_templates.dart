@@ -54,6 +54,10 @@ import 'dart:io';
 ///   if #available(iOS 10.0, *) {
 ///     UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate
 ///   }
+/// Do not override userNotificationCenter(_:didReceive:) in AppDelegate without
+/// calling super — FlutterAppDelegate forwards notification taps to the plugins
+/// (flutter_local_notifications / firebase_messaging) and an override that
+/// skips super blocks them.
 
 
 

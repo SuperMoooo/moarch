@@ -21,6 +21,10 @@ class SwiftUtils {
 
     final indent = RegExp(r'^\s*').firstMatch(lines[anchor])!.group(0)!;
     lines.insertAll(anchor, [
+      '$indent// Do not add a userNotificationCenter(_:didReceive:) override here',
+      '$indent// without calling super: FlutterAppDelegate forwards notification taps',
+      '$indent// to the plugins (flutter_local_notifications / firebase_messaging),',
+      '$indent// and an override that skips super blocks them.',
       '${indent}if #available(iOS 10.0, *) {',
       '$indent  UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate',
       '$indent}',
