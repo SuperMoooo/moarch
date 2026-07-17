@@ -32,6 +32,7 @@ moarch create feature <featureName>
 moarch create model <featureName> <modelName> # generate the model and entity
 moarch create model --empty <featureName> <modelName> # Inject a .empty() factory into an existing entity.
 moarch create empty-factories # generate .empty() in all entities
+moarch create entity-copys <featureName> # inject copyWith into the feature's entities (omit name for all features)
 ```
 
 ## What it generates

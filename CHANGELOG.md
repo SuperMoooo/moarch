@@ -1,5 +1,5 @@
-# [1.8.3]
+# [1.8.4]
 
 ## Features
 
-- notifications adjustments
+- copy with for entitys

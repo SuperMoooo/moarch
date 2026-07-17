@@ -45,6 +45,36 @@ $args
 ''';
   }
 
+  /// Builds the `copyWith` method string to inject.
+  static String buildCopyWith(String className, List<ModelField> fields) {
+    if (fields.isEmpty) {
+      return '\n  $className copyWith() => $className();\n';
+    }
+
+    final params = fields
+        .map((f) => '    ${_nullableTypeFor(f)} ${f.name},')
+        .join('\n');
+    final args = fields
+        .map((f) => '      ${f.name}: ${f.name} ?? this.${f.name},')
+        .join('\n');
+    return '''
+
+  $className copyWith({
+$params
+  }) {
+    return $className(
+$args
+    );
+  }
+''';
+  }
+
+  static String _nullableTypeFor(ModelField f) {
+    final t = (f.type ?? 'dynamic').trim();
+    if (t == 'dynamic' || t.endsWith('?')) return t;
+    return '$t?';
+  }
+
   static String _defaultFor(ModelField f) {
     final t = (f.type ?? '').replaceAll(' ', '');
 
