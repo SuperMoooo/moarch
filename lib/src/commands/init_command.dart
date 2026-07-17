@@ -1007,6 +1007,10 @@ class InitCommand extends Command<int> {
     );
 
     await FileUtils.writeFile(
+      p.join(s, 'inputs', 'app_input_style.dart'),
+      SharedTemplates.appInputStyle(),
+    );
+    await FileUtils.writeFile(
       p.join(s, 'inputs', 'input_title.dart'),
       SharedTemplates.inputTitle(),
     );

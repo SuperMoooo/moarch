@@ -1,5 +1,5 @@
-# [1.8.4]
+# [1.8.5]
 
 ## Features
 
-- notifications tap handling reaches flutter
+- input type and variant

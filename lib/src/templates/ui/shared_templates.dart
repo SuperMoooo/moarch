@@ -321,17 +321,145 @@ class AppButton extends StatelessWidget {
 }
 ''';
 
-  /// Returns the generated inputTitle template.
-  static String inputTitle() => r'''
+  /// Returns the generated appInputStyle template.
+  static String appInputStyle() => r'''
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
+/// Color role of an input. Every color the input paints — border, focus ring,
+/// cursor, icons, fill tint and the required asterisk — is derived from the
+/// variant, so an [AppInputVariant.secondary] input is secondary all over.
+enum AppInputVariant { primary, secondary, tertiary, error }
+
+/// Border shape of an input.
+///
+/// - [filled]: filled, rounded, borderless until focused.
+/// - [outlined]: transparent with a visible border at rest.
+/// - [underline]: bottom border only, no fill.
+/// - [rounded]: like [filled], with a pill radius.
+enum AppInputType { filled, outlined, underline, rounded }
+
+/// Resolves [AppInputVariant] + [AppInputType] into a concrete [InputDecoration].
+///
+/// This overrides the global `inputDecorationTheme` on purpose: the theme can
+/// only describe one variant, and inputs need all four.
+class AppInputStyle {
+  const AppInputStyle._();
+
+  static const double _idleBorderWidth = 1;
+  static const double _focusedBorderWidth = 1.5;
+  static const double _idleBorderOpacity = 0.4;
+  static const double _fillOpacity = 0.06;
+  static const double _disabledOpacity = 0.38;
+  static const double _hintOpacity = 0.35;
+
+  /// The variant's color — the single source every other color derives from.
+  static Color accentOf(BuildContext context, AppInputVariant variant) {
+    final colorScheme = context.theme.colorScheme;
+    return switch (variant) {
+      AppInputVariant.primary => colorScheme.primary,
+      AppInputVariant.secondary => colorScheme.secondary,
+      AppInputVariant.tertiary => colorScheme.tertiary,
+      AppInputVariant.error => colorScheme.error,
+    };
+  }
+
+  static bool _isFilled(AppInputType type) =>
+      type == AppInputType.filled || type == AppInputType.rounded;
+
+  static BorderRadius _radiusOf(AppInputType type) => switch (type) {
+        AppInputType.filled || AppInputType.outlined =>
+          AppConstants.borderRadius12,
+        AppInputType.rounded => AppConstants.borderRadiusFull,
+        AppInputType.underline => BorderRadius.zero,
+      };
+
+  static InputBorder _border(AppInputType type, Color color, double width) {
+    final side = BorderSide(color: color, width: width);
+    if (type == AppInputType.underline) {
+      return UnderlineInputBorder(borderSide: side);
+    }
+    return OutlineInputBorder(borderRadius: _radiusOf(type), borderSide: side);
+  }
+
+  /// Builds the decoration for an input of [variant] and [type].
+  static InputDecoration decoration(
+    BuildContext context, {
+    required AppInputVariant variant,
+    required AppInputType type,
+    String? hint,
+    Widget? prefixIcon,
+    Widget? suffixIcon,
+    bool enabled = true,
+  }) {
+    final theme = context.theme;
+    final accent = accentOf(context, variant);
+    final errorColor = theme.colorScheme.error;
+    final filled = _isFilled(type);
+
+    // Filled inputs carry their color in the fill, so they stay borderless
+    // until focused. Outlined and underline inputs need a visible resting edge.
+    final idleColor = filled
+        ? Colors.transparent
+        : accent.withValues(alpha: _idleBorderOpacity);
+    final disabledColor = theme.colorScheme.onSurface.withValues(
+      alpha: _disabledOpacity / 2,
+    );
+
+    // Tint the theme's fill with the variant instead of replacing it, so the
+    // input still sits correctly on the surface in both light and dark themes.
+    final baseFill =
+        theme.inputDecorationTheme.fillColor ?? theme.colorScheme.surface;
+
+    return InputDecoration(
+      hintText: hint,
+      prefixIcon: prefixIcon,
+      suffixIcon: suffixIcon,
+      enabled: enabled,
+      filled: filled,
+      fillColor: filled
+          ? Color.alphaBlend(accent.withValues(alpha: _fillOpacity), baseFill)
+          : Colors.transparent,
+      border: _border(type, idleColor, _idleBorderWidth),
+      enabledBorder: _border(type, idleColor, _idleBorderWidth),
+      focusedBorder: _border(type, accent, _focusedBorderWidth),
+      disabledBorder: _border(type, disabledColor, _idleBorderWidth),
+      errorBorder: _border(type, errorColor, _idleBorderWidth),
+      focusedErrorBorder: _border(type, errorColor, _focusedBorderWidth),
+      prefixIconColor: enabled ? accent : disabledColor,
+      suffixIconColor: enabled ? accent : disabledColor,
+      hintStyle: theme.textTheme.bodyMedium?.copyWith(
+        color: theme.colorScheme.onSurface.withValues(alpha: _hintOpacity),
+      ),
+      contentPadding: EdgeInsets.symmetric(
+        vertical: (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
+        horizontal: type == AppInputType.underline
+            ? 0
+            : AppConstants.space12,
+      ),
+    );
+  }
+}
+''';
+
+  /// Returns the generated inputTitle template.
+  static String inputTitle() => r'''
+import 'package:flutter/material.dart';
+import './app_input_style.dart';
+import '../../../core/utils/extensions.dart';
+
 class InputTitle extends StatelessWidget {
-  const InputTitle({super.key, required this.label, required this.required});
+  const InputTitle({
+    super.key,
+    required this.label,
+    required this.required,
+    this.variant = AppInputVariant.primary,
+  });
 
   final String label;
   final bool required;
+  final AppInputVariant variant;
 
   @override
   Widget build(BuildContext context) {
@@ -339,13 +467,13 @@ class InputTitle extends StatelessWidget {
     return Text.rich(
       TextSpan(
         text: label,
-        style: textTheme.bodyLarge?.copyWith(letterSpacing: 1.25),
+        style: textTheme.bodyLarge,
         children: required
             ? [
                 TextSpan(
                   text: ' *',
                   style: textTheme.bodyLarge?.copyWith(
-                    color: AppConstants.error,
+                    color: AppInputStyle.accentOf(context, variant),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -362,6 +490,7 @@ class InputTitle extends StatelessWidget {
   /// Returns the generated appInput template.
   static String appInput() => r'''
 import 'package:flutter/material.dart';
+import './app_input_style.dart';
 import './input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/security/validation_service.dart';
@@ -386,6 +515,8 @@ class AppInput extends StatefulWidget {
     this.autoFocus = false,
     this.required = false,
     this.onChanged,
+    this.variant = AppInputVariant.primary,
+    this.type = AppInputType.filled,
   });
 
   final TextEditingController? controller;
@@ -404,6 +535,8 @@ class AppInput extends StatefulWidget {
   final bool autoFocus;
   final bool required;
   final Function(String c)? onChanged;
+  final AppInputVariant variant;
+  final AppInputType type;
 
   @override
   State<AppInput> createState() => _AppInputState();
@@ -447,7 +580,11 @@ class _AppInputState extends State<AppInput> {
       spacing: AppConstants.space8,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        InputTitle(label: widget.label, required: widget.required),
+        InputTitle(
+          label: widget.label,
+          required: widget.required,
+          variant: widget.variant,
+        ),
         IgnorePointer(
           ignoring: widget.readOnly,
           child: TextFormField(
@@ -482,9 +619,12 @@ class _AppInputState extends State<AppInput> {
             obscureText: widget.hidePassword,
             keyboardType: widget.keyboardType,
             textInputAction: widget.textInputAction,
-            cursorColor: theme.colorScheme.primary,
-            decoration: InputDecoration(
-              hintText: widget.hint,
+            cursorColor: AppInputStyle.accentOf(context, widget.variant),
+            decoration: AppInputStyle.decoration(
+              context,
+              variant: widget.variant,
+              type: widget.type,
+              hint: widget.hint,
               prefixIcon: widget.prefixIcon,
               suffixIcon: widget.suffixIcon,
             ),
@@ -500,6 +640,7 @@ class _AppInputState extends State<AppInput> {
   /// Returns the generated dateInput template.
   static String dateInput() => r'''
 import 'package:flutter/material.dart';
+import './app_input_style.dart';
 import './input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
@@ -517,6 +658,8 @@ class AppDateInput extends StatefulWidget {
     this.focusNode,
     this.autoFocus = false,
     this.required = false,
+    this.variant = AppInputVariant.primary,
+    this.type = AppInputType.filled,
   });
 
   final TextEditingController? controller;
@@ -529,12 +672,15 @@ class AppDateInput extends StatefulWidget {
   final FocusNode? focusNode;
   final bool autoFocus;
   final bool required;
+  final AppInputVariant variant;
+  final AppInputType type;
 
   @override
   State<AppDateInput> createState() => _AppDateInputState();
 }
 
 class _AppDateInputState extends State<AppDateInput> {
+  DateTime _lastSelectedDate = DateTime.now();
   @override
   void initState() {
     super.initState();
@@ -546,7 +692,7 @@ class _AppDateInputState extends State<AppDateInput> {
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: _lastSelectedDate,
       firstDate: DateTime.now().subtract(const Duration(days: 365 * 100)),
       lastDate: DateTime.now().add(const Duration(days: 365 * 100)),
       builder: (context, child) {
@@ -561,6 +707,7 @@ class _AppDateInputState extends State<AppDateInput> {
     );
     if (picked != null) {
       setState(() {
+      _lastSelectedDate = picked;
         widget.controller?.text = picked.formattedDate;
       });
     }
@@ -574,7 +721,11 @@ class _AppDateInputState extends State<AppDateInput> {
       spacing: AppConstants.space8,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        InputTitle(label: widget.label, required: widget.required),
+        InputTitle(
+          label: widget.label,
+          required: widget.required,
+          variant: widget.variant,
+        ),
         IgnorePointer(
           ignoring: widget.readOnly,
           child: TextFormField(
@@ -584,9 +735,12 @@ class _AppDateInputState extends State<AppDateInput> {
             readOnly: true,
             controller: widget.controller,
             style: theme.textTheme.bodyMedium,
-            cursorColor: theme.colorScheme.primary,
-            decoration: InputDecoration(
-              hintText: widget.hint,
+            cursorColor: AppInputStyle.accentOf(context, widget.variant),
+            decoration: AppInputStyle.decoration(
+              context,
+              variant: widget.variant,
+              type: widget.type,
+              hint: widget.hint,
               prefixIcon: widget.prefixIcon,
               suffixIcon: widget.suffixIcon,
             ),
@@ -601,6 +755,7 @@ class _AppDateInputState extends State<AppDateInput> {
   /// Returns the generated timeInput template.
   static String timeInput() => r'''
 import 'package:flutter/material.dart';
+import './app_input_style.dart';
 import './input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
@@ -618,6 +773,8 @@ class AppTimeInput extends StatefulWidget {
     this.focusNode,
     this.autoFocus = false,
     this.required = false,
+    this.variant = AppInputVariant.primary,
+    this.type = AppInputType.filled,
   });
 
   final TextEditingController? controller;
@@ -630,12 +787,15 @@ class AppTimeInput extends StatefulWidget {
   final FocusNode? focusNode;
   final bool autoFocus;
   final bool required;
+  final AppInputVariant variant;
+  final AppInputType type;
 
   @override
   State<AppTimeInput> createState() => _AppTimeInputState();
 }
 
 class _AppTimeInputState extends State<AppTimeInput> {
+  TimeOfDay _lastSelectedTime = TimeOfDay.now();
   @override
   void initState() {
     super.initState();
@@ -647,7 +807,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
   Future<void> _selectTime(BuildContext context) async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.now(),
+      initialTime: _lastSelectedTime,
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
@@ -660,6 +820,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
     );
     if (picked != null) {
       setState(() {
+        _lastSelectedTime = picked;
         widget.controller?.text = picked.formattedTime;
       });
     }
@@ -673,7 +834,11 @@ class _AppTimeInputState extends State<AppTimeInput> {
       spacing: AppConstants.space8,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        InputTitle(label: widget.label, required: widget.required),
+        InputTitle(
+          label: widget.label,
+          required: widget.required,
+          variant: widget.variant,
+        ),
         IgnorePointer(
           ignoring: widget.readOnly,
           child: TextFormField(
@@ -683,9 +848,12 @@ class _AppTimeInputState extends State<AppTimeInput> {
             readOnly: true,
             controller: widget.controller,
             style: theme.textTheme.bodyMedium,
-            cursorColor: theme.colorScheme.primary,
-            decoration: InputDecoration(
-              hintText: widget.hint,
+            cursorColor: AppInputStyle.accentOf(context, widget.variant),
+            decoration: AppInputStyle.decoration(
+              context,
+              variant: widget.variant,
+              type: widget.type,
+              hint: widget.hint,
               prefixIcon: widget.prefixIcon,
               suffixIcon: widget.suffixIcon,
             ),
@@ -700,6 +868,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
   /// Returns the generated appDropdown template.
   static String appDropdown() => r'''
 import 'package:flutter/material.dart';
+import './app_input_style.dart';
 import './input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
@@ -727,6 +896,8 @@ class AppDropdownInput<T> extends StatelessWidget {
     this.required = false,
     this.prefixIcon,
     this.suffixIcon,
+    this.variant = AppInputVariant.primary,
+    this.type = AppInputType.filled,
   });
 
   final String label;
@@ -747,30 +918,38 @@ class AppDropdownInput<T> extends StatelessWidget {
   final bool required;
   final Widget? prefixIcon;
   final Widget? suffixIcon;
+  final AppInputVariant variant;
+  final AppInputType type;
 
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
+    final accent = AppInputStyle.accentOf(context, variant);
 
     return Column(
       spacing: AppConstants.space8,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        InputTitle(label: label, required: required),
+        InputTitle(label: label, required: required, variant: variant),
         IgnorePointer(
           ignoring: !enabled,
           child: DropdownButtonFormField<String>(
             initialValue: selectedId,
             style: theme.textTheme.bodyMedium,
-            decoration: InputDecoration(
-              hintText: hint,
+            decoration: AppInputStyle.decoration(
+              context,
+              variant: variant,
+              type: type,
+              hint: hint,
               prefixIcon: prefixIcon,
               suffixIcon: suffixIcon,
+              enabled: enabled,
             ),
             isExpanded: true,
             onChanged: (value) {
               if (value != null) onChanged(value);
             },
+            iconEnabledColor: accent,
             icon: enabled ? const Icon(Icons.keyboard_arrow_down) : null,
             items: items
                 .map(
@@ -1045,6 +1224,9 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
 import '../widgets/buttons/app_button.dart';
 import '../widgets/error_view.dart';
+import '../widgets/inputs/app_dropdown_input.dart';
+import '../widgets/inputs/app_input.dart';
+import '../widgets/inputs/app_input_style.dart';
 import '../widgets/loadings/app_loading_data.dart';
 
 /// Design system preview screen.
@@ -1218,43 +1400,64 @@ class _DesignSystemViewState extends State<DesignSystemView> {
 
               // ── Inputs ────────────────────────────────────────────────────
               _Section(
-                title: 'Inputs',
+                title: 'AppInput — types',
                 child: Column(
                   children: [
-                    const TextField(
-                      decoration: InputDecoration(hintText: 'Default input'),
-                    ),
-                    const SizedBox(height: AppConstants.space12),
-                    const TextField(
-                      decoration: InputDecoration(
-                        hintText: 'With prefix icon',
-                        prefixIcon: Icon(Icons.search),
+                    for (final type in AppInputType.values) ...[
+                      AppInput(
+                        label: type.name,
+                        hint: 'Type: ${type.name}',
+                        type: type,
+                        prefixIcon: const Icon(Icons.search),
                       ),
-                    ),
-                    const SizedBox(height: AppConstants.space12),
-                    const TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Error state',
-                        errorText: 'This field is required',
+                      const SizedBox(height: AppConstants.space12),
+                    ],
+                  ],
+                ),
+              ),
+
+              _Section(
+                title: 'AppInput — variants',
+                child: Column(
+                  children: [
+                    for (final variant in AppInputVariant.values) ...[
+                      AppInput(
+                        label: variant.name,
+                        hint: 'Variant: ${variant.name}',
+                        required: true,
+                        variant: variant,
+                        prefixIcon: const Icon(Icons.person_outline),
                       ),
+                      const SizedBox(height: AppConstants.space12),
+                    ],
+                    // Variant and type compose freely.
+                    AppInput(
+                      label: 'secondary + underline',
+                      hint: 'Composed',
+                      variant: AppInputVariant.secondary,
+                      type: AppInputType.underline,
                     ),
                     const SizedBox(height: AppConstants.space12),
-                    const TextField(
-                      enabled: false,
-                      decoration: InputDecoration(hintText: 'Disabled'),
-                    ),
-                    const SizedBox(height: AppConstants.space12),
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedDropdown,
-                      hint: const Text('Dropdown'),
-                      items: const [
-                        DropdownMenuItem(value: 'a', child: Text('Option A')),
-                        DropdownMenuItem(value: 'b', child: Text('Option B')),
-                        DropdownMenuItem(value: 'c', child: Text('Option C')),
-                      ],
-                      onChanged: (v) => setState(() => _selectedDropdown = v),
+                    AppInput(
+                      label: 'tertiary + rounded',
+                      hint: 'Composed',
+                      variant: AppInputVariant.tertiary,
+                      type: AppInputType.rounded,
                     ),
                   ],
+                ),
+              ),
+
+              _Section(
+                title: 'AppDropdownInput',
+                child: AppDropdownInput<String>(
+                  label: 'Dropdown',
+                  items: const ['a', 'b', 'c'],
+                  idOf: (item) => item,
+                  labelOf: (item) => 'Option ${item.toUpperCase()}',
+                  selectedId: _selectedDropdown,
+                  variant: AppInputVariant.secondary,
+                  onChanged: (v) => setState(() => _selectedDropdown = v),
                 ),
               ),
 
