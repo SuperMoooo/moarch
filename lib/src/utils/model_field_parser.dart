@@ -69,6 +69,44 @@ $args
 ''';
   }
 
+  /// Builds the `==` / `hashCode` overrides string to inject.
+  ///
+  /// Equality is keyed on `id` when the class declares one, otherwise on
+  /// every parsed field.
+  static String buildEquality(String className, List<ModelField> fields) {
+    final hasId = fields.any((f) => f.name == 'id');
+    final keys = hasId
+        ? const ['id']
+        : fields.map((f) => f.name).toList(growable: false);
+
+    if (keys.isEmpty) {
+      return '''
+
+  @override
+  bool operator ==(Object other) => other is $className;
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+''';
+    }
+
+    final comparisons =
+        keys.map((k) => 'other.$k == $k').join(' &&\n          ');
+    final hash = keys.length == 1
+        ? '${keys.first}.hashCode'
+        : 'Object.hash(\n        ${keys.join(',\n        ')},\n      )';
+
+    return '''
+
+  @override
+  bool operator ==(Object other) =>
+      other is $className && $comparisons;
+
+  @override
+  int get hashCode => $hash;
+''';
+  }
+
   static String _nullableTypeFor(ModelField f) {
     final t = (f.type ?? 'dynamic').trim();
     if (t == 'dynamic' || t.endsWith('?')) return t;

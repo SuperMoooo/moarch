@@ -7,9 +7,11 @@ import 'package:path/path.dart' as p;
 import '../../utils/model_field_parser.dart';
 import '../../utils/string_utils.dart';
 
-/// Injects `copyWith` methods into every entity file in a feature (or all features).
+/// Injects `copyWith`, `==` and `hashCode` into every entity file in a feature
+/// (or all features).
 class CreateEntityCopysCommand extends Command<int> {
-  /// Injects `copyWith` methods into every entity file in a feature (or all features).
+  /// Injects `copyWith`, `==` and `hashCode` into every entity file in a
+  /// feature (or all features).
   CreateEntityCopysCommand({required Logger logger}) : _logger = logger {
     argParser.addOption(
       'path',
@@ -32,7 +34,7 @@ class CreateEntityCopysCommand extends Command<int> {
 
   @override
   String get description =>
-      'Inject copyWith methods into every *_entity.dart in a feature (or all features).';
+      'Inject copyWith, == and hashCode into every *_entity.dart in a feature (or all features).';
 
   @override
   String get invocation => 'moarch create entity-copys [feature_name]';
@@ -134,6 +136,7 @@ class CreateEntityCopysCommand extends Command<int> {
 
       final fields = ModelFieldParser.parse(source, className);
       final newCopyWith = ModelFieldParser.buildCopyWith(className, fields);
+      final newEquality = ModelFieldParser.buildEquality(className, fields);
 
       // Regex to find an existing copyWith method (block or arrow body)
       final copyWithPattern = RegExp(
@@ -142,20 +145,28 @@ class CreateEntityCopysCommand extends Command<int> {
         dotAll: true,
       );
 
+      final actions = <String>[];
+
       String updated;
       if (copyWithPattern.hasMatch(source)) {
         // Replace existing
         updated = source.replaceFirst(copyWithPattern, newCopyWith.trim());
-        _logger.info('  🔄  $relativePath (replaced existing copyWith)');
+        actions.add('replaced copyWith');
       } else {
-        // Append new
-        final lastBrace = source.lastIndexOf('}');
-        if (lastBrace == -1) throw Exception('Could not find closing brace');
-        updated = source.substring(0, lastBrace) +
-            newCopyWith +
-            source.substring(lastBrace);
-        _logger.info('  ✨  $relativePath (injected new copyWith)');
+        updated = _appendToClass(source, newCopyWith);
+        actions.add('injected copyWith');
       }
+
+      // Strip any existing == / hashCode, then append the freshly built pair.
+      final hadEquality = _equalityPattern.hasMatch(updated) ||
+          _hashCodePattern.hasMatch(updated);
+      updated = updated
+          .replaceAll(_equalityPattern, '')
+          .replaceAll(_hashCodePattern, '');
+      updated = _appendToClass(updated, newEquality);
+      actions.add(hadEquality ? 'replaced ==/hashCode' : 'injected ==/hashCode');
+
+      _logger.info('  ✨  $relativePath (${actions.join(', ')})');
 
       if (dryRun) return _Result.patched;
 
@@ -166,6 +177,28 @@ class CreateEntityCopysCommand extends Command<int> {
       return _Result.failed;
     }
   }
+  /// Inserts [member] just before the last closing brace of the file.
+  static String _appendToClass(String source, String member) {
+    final lastBrace = source.lastIndexOf('}');
+    if (lastBrace == -1) throw Exception('Could not find closing brace');
+    return source.substring(0, lastBrace) +
+        member +
+        source.substring(lastBrace);
+  }
 }
+
+/// Matches an existing `operator ==` (arrow or block body), with its
+/// `@override` annotation when present.
+final _equalityPattern = RegExp(
+  r'\n*[ \t]*(?:@override\s*\n[ \t]*)?bool\s+operator\s*==\s*\(\s*Object\s+\w+\s*\)\s*(?:=>[^;]*;|\{.*?\n[ \t]*\})',
+  dotAll: true,
+);
+
+/// Matches an existing `hashCode` getter (arrow or block body), with its
+/// `@override` annotation when present.
+final _hashCodePattern = RegExp(
+  r'\n*[ \t]*(?:@override\s*\n[ \t]*)?int\s+get\s+hashCode\s*(?:=>[^;]*;|\{.*?\n[ \t]*\})',
+  dotAll: true,
+);
 
 enum _Result { patched, failed }

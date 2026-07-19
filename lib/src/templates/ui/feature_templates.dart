@@ -7,9 +7,20 @@ class FeatureTemplates {
   /// Returns the generated entity template.
   static String entity(String name, String cls) => '''
 class ${cls}Entity {
+  const ${cls}Entity({
+    required this.id,
+  });
 
+  final int id;
 
-  // TODO: add copyWith, ==, hashCode if needed
+  // TODO: add copyWith if needed
+
+  @override
+  bool operator ==(Object other) =>
+      other is ${cls}Entity && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
 ''';
 
@@ -58,25 +69,32 @@ class Get$cls {
 import '../../domain/entities/${name}_entity.dart';
 
 class ${cls}Model extends ${cls}Entity{
-   ${cls}Model();
+   const ${cls}Model({
+    required super.id,
+  });
 
   factory ${cls}Model.fromJson(Map<String, dynamic> json) {
     return ${cls}Model(
-      // TODO: parse your fields
+      id: json['id'] as int,
+      // TODO: parse your other fields
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      // TODO: add your fields
+      'id': id,
+      // TODO: add your other fields
     };
   }
 
   factory ${cls}Model.fromEntity(${cls}Entity entity) => ${cls}Model(
+    id: entity.id,
   );
 
   ${cls}Entity toEntity() =>
-      ${cls}Entity();
+      ${cls}Entity(
+        id: id,
+      );
 }
 ''';
 

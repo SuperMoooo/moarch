@@ -1,5 +1,5 @@
-# [1.8.6]
+# [1.8.7]
 
 ## Features
 
-- input size and textAlign
+- override in entity for ==
