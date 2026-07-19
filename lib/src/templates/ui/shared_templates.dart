@@ -344,7 +344,7 @@ enum AppInputType { filled, outlined, underline, rounded }
 /// vertical padding together so the field grows as one.
 enum AppInputSize { small, medium, large }
 
-typedef _InputSizeConfig = ({
+typedef InputSizeConfig = ({
   double fontSize,
   double iconSize,
   double verticalPadding,
@@ -377,21 +377,21 @@ class AppInputStyle {
 
   /// Font, icon and padding metrics for a size. Font sizes match [AppButton]'s
   /// scale so a button and an input of the same size read as a matched pair.
-  static _InputSizeConfig configOf(AppInputSize size) => switch (size) {
+   static InputSizeConfig configOf(AppInputSize size) => switch (size) {
         AppInputSize.small => (
-            fontSize: 14,
-            iconSize: 18,
+            fontSize: AppConstants.fontSize14,
+            iconSize: AppConstants.iconSmall,
             verticalPadding: AppConstants.space8,
           ),
         AppInputSize.medium => (
             fontSize: AppConstants.fontSize16,
-            iconSize: 22,
+            iconSize: AppConstants.iconMedium,
             verticalPadding:
                 (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
           ),
         AppInputSize.large => (
-            fontSize: 18,
-            iconSize: 26,
+            fontSize: AppConstants.fontSize34,
+            iconSize: AppConstants.iconLarge,
             verticalPadding: AppConstants.space16,
           ),
       };
