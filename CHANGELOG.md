@@ -1,5 +1,5 @@
-# [1.8.5]
+# [1.8.6]
 
 ## Features
 
-- input type and variant
+- input size and textAlign

@@ -340,6 +340,16 @@ enum AppInputVariant { primary, secondary, tertiary, error }
 /// - [rounded]: like [filled], with a pill radius.
 enum AppInputType { filled, outlined, underline, rounded }
 
+/// Text scale of an input — drives the value text, the hint, the icons and the
+/// vertical padding together so the field grows as one.
+enum AppInputSize { small, medium, large }
+
+typedef _InputSizeConfig = ({
+  double fontSize,
+  double iconSize,
+  double verticalPadding,
+});
+
 /// Resolves [AppInputVariant] + [AppInputType] into a concrete [InputDecoration].
 ///
 /// This overrides the global `inputDecorationTheme` on purpose: the theme can
@@ -365,6 +375,45 @@ class AppInputStyle {
     };
   }
 
+  /// Font, icon and padding metrics for a size. Font sizes match [AppButton]'s
+  /// scale so a button and an input of the same size read as a matched pair.
+  static _InputSizeConfig configOf(AppInputSize size) => switch (size) {
+        AppInputSize.small => (
+            fontSize: 14,
+            iconSize: 18,
+            verticalPadding: AppConstants.space8,
+          ),
+        AppInputSize.medium => (
+            fontSize: AppConstants.fontSize16,
+            iconSize: 22,
+            verticalPadding:
+                (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
+          ),
+        AppInputSize.large => (
+            fontSize: 18,
+            iconSize: 26,
+            verticalPadding: AppConstants.space16,
+          ),
+      };
+
+  /// Style for the text the user types. Pair with [decoration] of the same size.
+  static TextStyle? textStyle(
+    BuildContext context, {
+    required AppInputSize size,
+  }) =>
+      context.theme.textTheme.bodyMedium?.copyWith(
+        fontSize: configOf(size).fontSize,
+      );
+
+  /// [TextAlign] as an [AlignmentGeometry], for widgets that align a child box
+  /// rather than a run of text — the dropdown's items and hint.
+  static AlignmentGeometry alignmentOf(TextAlign textAlign) =>
+      switch (textAlign) {
+        TextAlign.center => Alignment.center,
+        TextAlign.right || TextAlign.end => AlignmentDirectional.centerEnd,
+        _ => AlignmentDirectional.centerStart,
+      };
+
   static bool _isFilled(AppInputType type) =>
       type == AppInputType.filled || type == AppInputType.rounded;
 
@@ -383,11 +432,12 @@ class AppInputStyle {
     return OutlineInputBorder(borderRadius: _radiusOf(type), borderSide: side);
   }
 
-  /// Builds the decoration for an input of [variant] and [type].
+  /// Builds the decoration for an input of [variant], [type] and [size].
   static InputDecoration decoration(
     BuildContext context, {
     required AppInputVariant variant,
     required AppInputType type,
+    AppInputSize size = AppInputSize.medium,
     String? hint,
     Widget? prefixIcon,
     Widget? suffixIcon,
@@ -397,6 +447,16 @@ class AppInputStyle {
     final accent = accentOf(context, variant);
     final errorColor = theme.colorScheme.error;
     final filled = _isFilled(type);
+    final sizeConfig = configOf(size);
+
+    // Size the icons through an IconTheme so callers can still override with an
+    // explicit `Icon(..., size: x)`.
+    Widget? sized(Widget? icon) => icon == null
+        ? null
+        : IconTheme.merge(
+            data: IconThemeData(size: sizeConfig.iconSize),
+            child: icon,
+          );
 
     // Filled inputs carry their color in the fill, so they stay borderless
     // until focused. Outlined and underline inputs need a visible resting edge.
@@ -414,8 +474,8 @@ class AppInputStyle {
 
     return InputDecoration(
       hintText: hint,
-      prefixIcon: prefixIcon,
-      suffixIcon: suffixIcon,
+      prefixIcon: sized(prefixIcon),
+      suffixIcon: sized(suffixIcon),
       enabled: enabled,
       filled: filled,
       fillColor: filled
@@ -431,9 +491,10 @@ class AppInputStyle {
       suffixIconColor: enabled ? accent : disabledColor,
       hintStyle: theme.textTheme.bodyMedium?.copyWith(
         color: accent.withValues(alpha: _hintOpacity),
+        fontSize: sizeConfig.fontSize,
       ),
       contentPadding: EdgeInsets.symmetric(
-        vertical: (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
+        vertical: sizeConfig.verticalPadding,
         horizontal: type == AppInputType.underline
             ? 0
             : AppConstants.space12,
@@ -455,19 +516,29 @@ class InputTitle extends StatelessWidget {
     required this.label,
     required this.required,
     this.variant = AppInputVariant.primary,
+    this.size = AppInputSize.medium,
+    this.textAlign = TextAlign.start,
   });
 
   final String label;
   final bool required;
   final AppInputVariant variant;
+  final AppInputSize size;
+
+  /// Kept in step with the field's own alignment so the label sits over the
+  /// text it describes.
+  final TextAlign textAlign;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = context.textTheme;
     return Text.rich(
+      textAlign: textAlign,
       TextSpan(
         text: label,
-        style: textTheme.bodyLarge,
+        style: textTheme.bodyLarge?.copyWith(
+          fontSize: AppInputStyle.configOf(size).fontSize,
+        ),
         children: required
             ? [
                 TextSpan(
@@ -475,6 +546,7 @@ class InputTitle extends StatelessWidget {
                   style: textTheme.bodyLarge?.copyWith(
                     color: AppInputStyle.accentOf(context, variant),
                     fontWeight: FontWeight.bold,
+                    fontSize: AppInputStyle.configOf(size).fontSize,
                   ),
                 ),
               ]
@@ -494,7 +566,6 @@ import './app_input_style.dart';
 import './input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/security/validation_service.dart';
-import '../../../core/utils/extensions.dart';
 
 class AppInput extends StatefulWidget {
   const AppInput({
@@ -517,6 +588,8 @@ class AppInput extends StatefulWidget {
     this.onChanged,
     this.variant = AppInputVariant.primary,
     this.type = AppInputType.filled,
+    this.size = AppInputSize.medium,
+    this.textAlign = TextAlign.start,
   });
 
   final TextEditingController? controller;
@@ -537,6 +610,10 @@ class AppInput extends StatefulWidget {
   final Function(String c)? onChanged;
   final AppInputVariant variant;
   final AppInputType type;
+  final AppInputSize size;
+
+  /// Alignment of the typed value and the hint. The label follows it too.
+  final TextAlign textAlign;
 
   @override
   State<AppInput> createState() => _AppInputState();
@@ -574,16 +651,17 @@ class _AppInputState extends State<AppInput> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
-
     return Column(
       spacing: AppConstants.space8,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      // Stretch so the label can align itself against the field's full width.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         InputTitle(
           label: widget.label,
           required: widget.required,
           variant: widget.variant,
+          size: widget.size,
+          textAlign: widget.textAlign,
         ),
         IgnorePointer(
           ignoring: widget.readOnly,
@@ -611,10 +689,11 @@ class _AppInputState extends State<AppInput> {
             autofocus: widget.autoFocus,
             readOnly: widget.readOnly,
             controller: widget.controller,
-            style: theme.textTheme.bodyMedium?.copyWith(
+            style: AppInputStyle.textStyle(context, size: widget.size)?.copyWith(
               color: AppInputStyle.accentOf(context, widget.variant),
               fontWeight: FontWeight.bold,
             ),
+            textAlign: widget.textAlign,
             initialValue: widget.controller == null
                 ? widget.initialValue
                 : null,
@@ -627,6 +706,7 @@ class _AppInputState extends State<AppInput> {
               context,
               variant: widget.variant,
               type: widget.type,
+              size: widget.size,
               hint: widget.hint,
               prefixIcon: widget.prefixIcon,
               suffixIcon: widget.suffixIcon,
@@ -663,6 +743,8 @@ class AppDateInput extends StatefulWidget {
     this.required = false,
     this.variant = AppInputVariant.primary,
     this.type = AppInputType.filled,
+    this.size = AppInputSize.medium,
+    this.textAlign = TextAlign.start,
   });
 
   final TextEditingController? controller;
@@ -677,6 +759,10 @@ class AppDateInput extends StatefulWidget {
   final bool required;
   final AppInputVariant variant;
   final AppInputType type;
+  final AppInputSize size;
+
+  /// Alignment of the displayed date and the hint. The label follows it too.
+  final TextAlign textAlign;
 
   @override
   State<AppDateInput> createState() => _AppDateInputState();
@@ -718,16 +804,17 @@ class _AppDateInputState extends State<AppDateInput> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
-
     return Column(
       spacing: AppConstants.space8,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      // Stretch so the label can align itself against the field's full width.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         InputTitle(
           label: widget.label,
           required: widget.required,
           variant: widget.variant,
+          size: widget.size,
+          textAlign: widget.textAlign,
         ),
         IgnorePointer(
           ignoring: widget.readOnly,
@@ -737,15 +824,17 @@ class _AppDateInputState extends State<AppDateInput> {
             autofocus: widget.autoFocus,
             readOnly: true,
             controller: widget.controller,
-            style: theme.textTheme.bodyMedium?.copyWith(
+            style: AppInputStyle.textStyle(context, size: widget.size)?.copyWith(
               color: AppInputStyle.accentOf(context, widget.variant),
               fontWeight: FontWeight.bold,
             ),
+            textAlign: widget.textAlign,
             cursorColor: AppInputStyle.accentOf(context, widget.variant),
             decoration: AppInputStyle.decoration(
               context,
               variant: widget.variant,
               type: widget.type,
+              size: widget.size,
               hint: widget.hint,
               prefixIcon: widget.prefixIcon,
               suffixIcon: widget.suffixIcon,
@@ -781,6 +870,8 @@ class AppTimeInput extends StatefulWidget {
     this.required = false,
     this.variant = AppInputVariant.primary,
     this.type = AppInputType.filled,
+    this.size = AppInputSize.medium,
+    this.textAlign = TextAlign.start,
   });
 
   final TextEditingController? controller;
@@ -795,6 +886,10 @@ class AppTimeInput extends StatefulWidget {
   final bool required;
   final AppInputVariant variant;
   final AppInputType type;
+  final AppInputSize size;
+
+  /// Alignment of the displayed time and the hint. The label follows it too.
+  final TextAlign textAlign;
 
   @override
   State<AppTimeInput> createState() => _AppTimeInputState();
@@ -834,16 +929,17 @@ class _AppTimeInputState extends State<AppTimeInput> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
-
     return Column(
       spacing: AppConstants.space8,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      // Stretch so the label can align itself against the field's full width.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         InputTitle(
           label: widget.label,
           required: widget.required,
           variant: widget.variant,
+          size: widget.size,
+          textAlign: widget.textAlign,
         ),
         IgnorePointer(
           ignoring: widget.readOnly,
@@ -853,15 +949,17 @@ class _AppTimeInputState extends State<AppTimeInput> {
             autofocus: widget.autoFocus,
             readOnly: true,
             controller: widget.controller,
-            style: theme.textTheme.bodyMedium?.copyWith(
+            style: AppInputStyle.textStyle(context, size: widget.size)?.copyWith(
               color: AppInputStyle.accentOf(context, widget.variant),
               fontWeight: FontWeight.bold,
             ),
+            textAlign: widget.textAlign,
             cursorColor: AppInputStyle.accentOf(context, widget.variant),
             decoration: AppInputStyle.decoration(
               context,
               variant: widget.variant,
               type: widget.type,
+              size: widget.size,
               hint: widget.hint,
               prefixIcon: widget.prefixIcon,
               suffixIcon: widget.suffixIcon,
@@ -880,7 +978,6 @@ import 'package:flutter/material.dart';
 import './app_input_style.dart';
 import './input_title.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/utils/extensions.dart';
 
 // Usage with an entity:
 //  AppDropdownInput<CategoryEntity>(
@@ -907,6 +1004,8 @@ class AppDropdownInput<T> extends StatelessWidget {
     this.suffixIcon,
     this.variant = AppInputVariant.primary,
     this.type = AppInputType.filled,
+    this.size = AppInputSize.medium,
+    this.textAlign = TextAlign.start,
   });
 
   final String label;
@@ -929,35 +1028,49 @@ class AppDropdownInput<T> extends StatelessWidget {
   final Widget? suffixIcon;
   final AppInputVariant variant;
   final AppInputType type;
+  final AppInputSize size;
+
+  /// Alignment of the selected value and the hint. The label follows it too.
+  final TextAlign textAlign;
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
     final accent = AppInputStyle.accentOf(context, variant);
+    final alignment = AppInputStyle.alignmentOf(textAlign);
 
     return Column(
       spacing: AppConstants.space8,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      // Stretch so the label can align itself against the field's full width.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        InputTitle(label: label, required: required, variant: variant),
+        InputTitle(
+          label: label,
+          required: required,
+          variant: variant,
+          size: size,
+          textAlign: textAlign,
+        ),
         IgnorePointer(
           ignoring: !enabled,
           child: DropdownButtonFormField<String>(
             initialValue: selectedId,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppInputStyle.accentOf(context, widget.variant),
+            style: AppInputStyle.textStyle(context, size: size)?.copyWith(
+              color: accent,
               fontWeight: FontWeight.bold,
             ),
             decoration: AppInputStyle.decoration(
               context,
               variant: variant,
               type: type,
+              size: size,
               hint: hint,
               prefixIcon: prefixIcon,
               suffixIcon: suffixIcon,
               enabled: enabled,
             ),
             isExpanded: true,
+            // A dropdown has no textAlign, so align the item boxes instead.
+            alignment: alignment,
             onChanged: (value) {
               if (value != null) onChanged(value);
             },
@@ -967,7 +1080,8 @@ class AppDropdownInput<T> extends StatelessWidget {
                 .map(
                   (item) => DropdownMenuItem<String>(
                     value: idOf(item),
-                    child: Text(labelOf(item)),
+                    alignment: alignment,
+                    child: Text(labelOf(item), textAlign: textAlign),
                   ),
                 )
                 .toList(),
@@ -1456,6 +1570,44 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                       variant: AppInputVariant.tertiary,
                       type: AppInputType.rounded,
                     ),
+                  ],
+                ),
+              ),
+
+              _Section(
+                title: 'AppInput — sizes',
+                child: Column(
+                  children: [
+                    for (final size in AppInputSize.values) ...[
+                      AppInput(
+                        label: size.name,
+                        hint: 'Size: ${size.name}',
+                        size: size,
+                        prefixIcon: const Icon(Icons.tag),
+                      ),
+                      const SizedBox(height: AppConstants.space12),
+                    ],
+                  ],
+                ),
+              ),
+
+              _Section(
+                title: 'AppInput — text alignment',
+                child: Column(
+                  children: [
+                    for (final align in [
+                      TextAlign.start,
+                      TextAlign.center,
+                      TextAlign.end,
+                    ]) ...[
+                      AppInput(
+                        label: align.name,
+                        hint: 'Aligned ${align.name}',
+                        required: true,
+                        textAlign: align,
+                      ),
+                      const SizedBox(height: AppConstants.space12),
+                    ],
                   ],
                 ),
               ),
