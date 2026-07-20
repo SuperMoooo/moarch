@@ -190,15 +190,23 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
-/// Visual style of [AppButton].
+/// Color role of [AppButton] — what the button is *about*, never how it is
+/// filled. Every color the button paints derives from this, so a
+/// [AppButtonVariant.danger] button is danger-colored whatever its type.
+enum AppButtonVariant { primary, secondary, tertiary, danger }
+
+/// Fill treatment of [AppButton] — how the [AppButtonVariant] color is applied.
 ///
-/// - [primary] / [secondary]: filled, theme-colored backgrounds.
-/// - [outlined]: transparent background, colored border + text
-///   (previously named `tertiary`).
-/// - [ghost]: transparent background, no border, onSurface text
-///   (previously named `transparent`).
-/// - [danger]: filled, error-colored background, for destructive actions.
-enum AppButtonVariant { primary, secondary, outlined, ghost, danger }
+/// - [filled]: solid variant background, contrasting label.
+/// - [outlined]: transparent background, variant-colored border + label.
+/// - [ghost]: transparent background, no border, variant-colored label.
+///
+/// Orthogonal to [AppButtonVariant] and [AppButtonShape]: any color combines
+/// with any fill and any shape.
+enum AppButtonType { filled, outlined, ghost }
+
+/// Corner shape of [AppButton].
+enum AppButtonShape { rounded, pill }
 
 enum AppButtonSize { large, medium, small }
 
@@ -215,6 +223,8 @@ class AppButton extends StatelessWidget {
     required this.variant,
     required this.label,
     required this.onPressed,
+    this.type = AppButtonType.filled,
+    this.shape = AppButtonShape.rounded,
     this.prefixIcon,
     this.suffixIcon,
     this.width,
@@ -224,6 +234,8 @@ class AppButton extends StatelessWidget {
   final AppButtonVariant variant;
   final String label;
   final VoidCallback onPressed;
+  final AppButtonType type;
+  final AppButtonShape shape;
   final IconData? prefixIcon;
   final IconData? suffixIcon;
   final double? width;
@@ -250,31 +262,39 @@ class AppButton extends StatelessWidget {
           ),
       };
 
+  /// The variant's color, plus the color that reads on top of it. Single
+  /// source for every color the button paints.
+  (Color, Color) _colorsOf(ThemeData theme) => switch (variant) {
+        AppButtonVariant.primary => (
+            theme.colorScheme.primary,
+            theme.colorScheme.onPrimary,
+          ),
+        AppButtonVariant.secondary => (
+            theme.colorScheme.secondary,
+            theme.colorScheme.onSecondary,
+          ),
+        AppButtonVariant.tertiary => (
+            theme.colorScheme.tertiary,
+            theme.colorScheme.onTertiary,
+          ),
+        AppButtonVariant.danger => (
+            theme.colorScheme.error,
+            theme.colorScheme.onError,
+          ),
+      };
+
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
     final sizeConfig = _getSizeConfig();
+    final (accent, onAccent) = _colorsOf(theme);
 
-    final (backgroundColor, foregroundColor) = switch (variant) {
-      AppButtonVariant.primary => (
-          theme.colorScheme.primary,
-          theme.colorScheme.onPrimary,
-        ),
-      AppButtonVariant.secondary => (
-          theme.colorScheme.secondary,
-          theme.colorScheme.onSecondary,
-        ),
-      AppButtonVariant.outlined => (
+    // Variant chooses the color; type only decides how that color is applied.
+    final (backgroundColor, foregroundColor) = switch (type) {
+      AppButtonType.filled => (accent, onAccent),
+      AppButtonType.outlined || AppButtonType.ghost => (
           Colors.transparent,
-          theme.colorScheme.primary,
-        ),
-      AppButtonVariant.ghost => (
-          Colors.transparent,
-          theme.colorScheme.onSurface,
-        ),
-      AppButtonVariant.danger => (
-          theme.colorScheme.error,
-          theme.colorScheme.onError,
+          accent,
         ),
     };
 
@@ -289,9 +309,12 @@ class AppButton extends StatelessWidget {
           backgroundColor: backgroundColor,
           foregroundColor: foregroundColor,
           shape: RoundedRectangleBorder(
-            borderRadius: AppConstants.borderRadius12,
-            side: variant == AppButtonVariant.outlined
-                ? BorderSide(color: foregroundColor, width: 2)
+            borderRadius: switch (shape) {
+              AppButtonShape.rounded => AppConstants.borderRadius12,
+              AppButtonShape.pill => AppConstants.borderRadiusFull,
+            },
+            side: type == AppButtonType.outlined
+                ? BorderSide(color: accent, width: 2)
                 : BorderSide.none,
           ),
         ),
@@ -330,15 +353,22 @@ import '../../../core/utils/extensions.dart';
 /// Color role of an input. Every color the input paints — border, focus ring,
 /// cursor, icons, fill tint and the required asterisk — is derived from the
 /// variant, so an [AppInputVariant.secondary] input is secondary all over.
-enum AppInputVariant { primary, secondary, tertiary, error }
-
-/// Border shape of an input.
 ///
-/// - [filled]: filled, rounded, borderless until focused.
+/// Mirrors [AppButtonVariant] so the two widgets share one vocabulary.
+enum AppInputVariant { primary, secondary, tertiary, danger }
+
+/// Fill treatment of an input — how the [AppInputVariant] color is applied.
+///
+/// - [filled]: filled, borderless until focused.
 /// - [outlined]: transparent with a visible border at rest.
 /// - [underline]: bottom border only, no fill.
-/// - [rounded]: like [filled], with a pill radius.
-enum AppInputType { filled, outlined, underline, rounded }
+///
+/// Orthogonal to [AppInputVariant] and [AppInputShape].
+enum AppInputType { filled, outlined, underline }
+
+/// Corner shape of an input. Ignored by [AppInputType.underline], which has no
+/// corners to round.
+enum AppInputShape { rounded, pill }
 
 /// Text scale of an input — drives the value text, the hint, the icons and the
 /// vertical padding together so the field grows as one.
@@ -371,7 +401,7 @@ class AppInputStyle {
       AppInputVariant.primary => colorScheme.primary,
       AppInputVariant.secondary => colorScheme.secondary,
       AppInputVariant.tertiary => colorScheme.tertiary,
-      AppInputVariant.error => colorScheme.error,
+      AppInputVariant.danger => colorScheme.error,
     };
   }
 
@@ -414,22 +444,31 @@ class AppInputStyle {
         _ => AlignmentDirectional.centerStart,
       };
 
-  static bool _isFilled(AppInputType type) =>
-      type == AppInputType.filled || type == AppInputType.rounded;
+  static bool _isFilled(AppInputType type) => type == AppInputType.filled;
 
-  static BorderRadius _radiusOf(AppInputType type) => switch (type) {
-        AppInputType.filled || AppInputType.outlined =>
-          AppConstants.borderRadius12,
-        AppInputType.rounded => AppConstants.borderRadiusFull,
+  static BorderRadius _radiusOf(AppInputType type, AppInputShape shape) =>
+      switch (type) {
         AppInputType.underline => BorderRadius.zero,
+        _ => switch (shape) {
+            AppInputShape.rounded => AppConstants.borderRadius12,
+            AppInputShape.pill => AppConstants.borderRadiusFull,
+          },
       };
 
-  static InputBorder _border(AppInputType type, Color color, double width) {
+  static InputBorder _border(
+    AppInputType type,
+    AppInputShape shape,
+    Color color,
+    double width,
+  ) {
     final side = BorderSide(color: color, width: width);
     if (type == AppInputType.underline) {
       return UnderlineInputBorder(borderSide: side);
     }
-    return OutlineInputBorder(borderRadius: _radiusOf(type), borderSide: side);
+    return OutlineInputBorder(
+      borderRadius: _radiusOf(type, shape),
+      borderSide: side,
+    );
   }
 
   /// Builds the decoration for an input of [variant], [type] and [size].
@@ -437,6 +476,7 @@ class AppInputStyle {
     BuildContext context, {
     required AppInputVariant variant,
     required AppInputType type,
+    AppInputShape shape = AppInputShape.rounded,
     AppInputSize size = AppInputSize.medium,
     String? hint,
     Widget? prefixIcon,
@@ -481,12 +521,12 @@ class AppInputStyle {
       fillColor: filled
           ? Color.alphaBlend(accent.withValues(alpha: _fillOpacity), baseFill)
           : Colors.transparent,
-      border: _border(type, idleColor, _idleBorderWidth),
-      enabledBorder: _border(type, idleColor, _idleBorderWidth),
-      focusedBorder: _border(type, accent, _focusedBorderWidth),
-      disabledBorder: _border(type, disabledColor, _idleBorderWidth),
-      errorBorder: _border(type, errorColor, _idleBorderWidth),
-      focusedErrorBorder: _border(type, errorColor, _focusedBorderWidth),
+      border: _border(type, shape, idleColor, _idleBorderWidth),
+      enabledBorder: _border(type, shape, idleColor, _idleBorderWidth),
+      focusedBorder: _border(type, shape, accent, _focusedBorderWidth),
+      disabledBorder: _border(type, shape, disabledColor, _idleBorderWidth),
+      errorBorder: _border(type, shape, errorColor, _idleBorderWidth),
+      focusedErrorBorder: _border(type, shape, errorColor, _focusedBorderWidth),
       prefixIconColor: enabled ? accent : disabledColor,
       suffixIconColor: enabled ? accent : disabledColor,
       hintStyle: theme.textTheme.bodyMedium?.copyWith(
@@ -588,6 +628,7 @@ class AppInput extends StatefulWidget {
     this.onChanged,
     this.variant = AppInputVariant.primary,
     this.type = AppInputType.filled,
+    this.shape = AppInputShape.rounded,
     this.size = AppInputSize.medium,
     this.textAlign = TextAlign.start,
   });
@@ -610,6 +651,7 @@ class AppInput extends StatefulWidget {
   final Function(String c)? onChanged;
   final AppInputVariant variant;
   final AppInputType type;
+  final AppInputShape shape;
   final AppInputSize size;
 
   /// Alignment of the typed value and the hint. The label follows it too.
@@ -706,6 +748,7 @@ class _AppInputState extends State<AppInput> {
               context,
               variant: widget.variant,
               type: widget.type,
+              shape: widget.shape,
               size: widget.size,
               hint: widget.hint,
               prefixIcon: widget.prefixIcon,
@@ -743,6 +786,7 @@ class AppDateInput extends StatefulWidget {
     this.required = false,
     this.variant = AppInputVariant.primary,
     this.type = AppInputType.filled,
+    this.shape = AppInputShape.rounded,
     this.size = AppInputSize.medium,
     this.textAlign = TextAlign.start,
   });
@@ -759,6 +803,7 @@ class AppDateInput extends StatefulWidget {
   final bool required;
   final AppInputVariant variant;
   final AppInputType type;
+  final AppInputShape shape;
   final AppInputSize size;
 
   /// Alignment of the displayed date and the hint. The label follows it too.
@@ -834,6 +879,7 @@ class _AppDateInputState extends State<AppDateInput> {
               context,
               variant: widget.variant,
               type: widget.type,
+              shape: widget.shape,
               size: widget.size,
               hint: widget.hint,
               prefixIcon: widget.prefixIcon,
@@ -870,6 +916,7 @@ class AppTimeInput extends StatefulWidget {
     this.required = false,
     this.variant = AppInputVariant.primary,
     this.type = AppInputType.filled,
+    this.shape = AppInputShape.rounded,
     this.size = AppInputSize.medium,
     this.textAlign = TextAlign.start,
   });
@@ -886,6 +933,7 @@ class AppTimeInput extends StatefulWidget {
   final bool required;
   final AppInputVariant variant;
   final AppInputType type;
+  final AppInputShape shape;
   final AppInputSize size;
 
   /// Alignment of the displayed time and the hint. The label follows it too.
@@ -959,6 +1007,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
               context,
               variant: widget.variant,
               type: widget.type,
+              shape: widget.shape,
               size: widget.size,
               hint: widget.hint,
               prefixIcon: widget.prefixIcon,
@@ -1004,6 +1053,7 @@ class AppDropdownInput<T> extends StatelessWidget {
     this.suffixIcon,
     this.variant = AppInputVariant.primary,
     this.type = AppInputType.filled,
+    this.shape = AppInputShape.rounded,
     this.size = AppInputSize.medium,
     this.textAlign = TextAlign.start,
   });
@@ -1028,6 +1078,7 @@ class AppDropdownInput<T> extends StatelessWidget {
   final Widget? suffixIcon;
   final AppInputVariant variant;
   final AppInputType type;
+  final AppInputShape shape;
   final AppInputSize size;
 
   /// Alignment of the selected value and the hint. The label follows it too.
@@ -1062,6 +1113,7 @@ class AppDropdownInput<T> extends StatelessWidget {
               context,
               variant: variant,
               type: type,
+              shape: shape,
               size: size,
               hint: hint,
               prefixIcon: prefixIcon,
@@ -1499,16 +1551,36 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    AppButton(variant: AppButtonVariant.primary,   label: 'Primary',   onPressed: () {}),
+                    // Variant sets the color, type sets the fill — every
+                    // combination is valid.
+                    for (final variant in AppButtonVariant.values) ...[
+                      for (final type in AppButtonType.values) ...[
+                        AppButton(
+                          variant: variant,
+                          type: type,
+                          label: '${variant.name} / ${type.name}',
+                          onPressed: () {},
+                        ),
+                        const SizedBox(height: AppConstants.space8),
+                      ],
+                    ],
+                    const Text('Shapes:'),
                     const SizedBox(height: AppConstants.space8),
-                    AppButton(variant: AppButtonVariant.secondary, label: 'Secondary', onPressed: () {}),
+                    AppButton(
+                      variant: AppButtonVariant.danger,
+                      type: AppButtonType.outlined,
+                      shape: AppButtonShape.pill,
+                      label: 'Danger / outlined / pill',
+                      onPressed: () {},
+                    ),
                     const SizedBox(height: AppConstants.space8),
-                    AppButton(variant: AppButtonVariant.outlined,  label: 'Outlined',  onPressed: () {}),
-                    const SizedBox(height: AppConstants.space8),
-                    AppButton(variant: AppButtonVariant.ghost, label: 'Ghost', onPressed: () {}),
-                    const SizedBox(height: AppConstants.space8),
-                    AppButton(variant: AppButtonVariant.danger,    label: 'Danger',    onPressed: () {}),
-                    const SizedBox(height: AppConstants.space8),
+                    AppButton(
+                      variant: AppButtonVariant.tertiary,
+                      shape: AppButtonShape.pill,
+                      label: 'Tertiary / filled / pill',
+                      onPressed: () {},
+                    ),
+                    const SizedBox(height: AppConstants.space16),
                     AppButton(variant: AppButtonVariant.primary,   label: 'With prefix icon', onPressed: () {}, prefixIcon: Icons.add),
                     const SizedBox(height: AppConstants.space8),
                     AppButton(variant: AppButtonVariant.primary,   label: 'With suffix icon', onPressed: () {}, suffixIcon: Icons.arrow_forward),
@@ -1556,7 +1628,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                       ),
                       const SizedBox(height: AppConstants.space12),
                     ],
-                    // Variant and type compose freely.
+                    // Variant, type and shape compose freely.
                     AppInput(
                       label: 'secondary + underline',
                       hint: 'Composed',
@@ -1565,10 +1637,18 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                     ),
                     const SizedBox(height: AppConstants.space12),
                     AppInput(
-                      label: 'tertiary + rounded',
+                      label: 'tertiary + outlined + pill',
                       hint: 'Composed',
                       variant: AppInputVariant.tertiary,
-                      type: AppInputType.rounded,
+                      type: AppInputType.outlined,
+                      shape: AppInputShape.pill,
+                    ),
+                    const SizedBox(height: AppConstants.space12),
+                    AppInput(
+                      label: 'danger + filled + pill',
+                      hint: 'Composed',
+                      variant: AppInputVariant.danger,
+                      shape: AppInputShape.pill,
                     ),
                   ],
                 ),
