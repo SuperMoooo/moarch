@@ -344,6 +344,129 @@ class AppButton extends StatelessWidget {
 }
 ''';
 
+  /// Returns the generated appLeadingIcon template.
+  static String appLeadingIcon() => r'''
+import 'package:flutter/material.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+
+/// Color role of [AppLeadingIcon]. Mirrors [AppButtonVariant] so a leading
+/// icon, a button and an input all speak the same color vocabulary.
+enum AppLeadingIconVariant { primary, secondary, tertiary, danger }
+
+/// Fill treatment of [AppLeadingIcon] — how the [AppLeadingIconVariant] color
+/// is applied to the container.
+///
+/// - [filled]: solid variant background, contrasting icon.
+/// - [tonal]: soft variant-tinted background, variant-colored icon.
+/// - [outlined]: transparent background, variant-colored border + icon.
+enum AppLeadingIconType { filled, tonal, outlined }
+
+/// Corner shape of the container.
+enum AppLeadingIconShape { rounded, circle }
+
+enum AppLeadingIconSize { small, medium, large }
+
+typedef _LeadingIconSizeConfig = ({double container, double icon});
+
+/// A Material-style icon container: a colored, rounded (or circular) box
+/// with a single icon centered in it. Meant as a leading visual for list
+/// tiles, cards and dialogs — not a tappable control on its own.
+class AppLeadingIcon extends StatelessWidget {
+  const AppLeadingIcon({
+    super.key,
+    required this.icon,
+    this.variant = AppLeadingIconVariant.primary,
+    this.type = AppLeadingIconType.tonal,
+    this.shape = AppLeadingIconShape.rounded,
+    this.size = AppLeadingIconSize.medium,
+  });
+
+  final IconData icon;
+  final AppLeadingIconVariant variant;
+  final AppLeadingIconType type;
+  final AppLeadingIconShape shape;
+  final AppLeadingIconSize size;
+
+  static const double _tonalFillOpacity = 0.12;
+  static const double _outlinedBorderWidth = 1.5;
+
+  _LeadingIconSizeConfig _sizeConfig() => switch (size) {
+        AppLeadingIconSize.small => (
+            container: 32.0,
+            icon: AppConstants.iconSmall,
+          ),
+        AppLeadingIconSize.medium => (
+            container: AppConstants.touchTarget,
+            icon: AppConstants.iconMedium,
+          ),
+        AppLeadingIconSize.large => (
+            container: AppConstants.touchTarget + 16,
+            icon: AppConstants.iconLarge,
+          ),
+      };
+
+  /// The variant's color, plus the color that reads on top of it. Single
+  /// source for every color the container paints.
+  (Color, Color) _colorsOf(ThemeData theme) => switch (variant) {
+        AppLeadingIconVariant.primary => (
+            theme.colorScheme.primary,
+            theme.colorScheme.onPrimary,
+          ),
+        AppLeadingIconVariant.secondary => (
+            theme.colorScheme.secondary,
+            theme.colorScheme.onSecondary,
+          ),
+        AppLeadingIconVariant.tertiary => (
+            theme.colorScheme.tertiary,
+            theme.colorScheme.onTertiary,
+          ),
+        AppLeadingIconVariant.danger => (
+            theme.colorScheme.error,
+            theme.colorScheme.onError,
+          ),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    final sizeConfig = _sizeConfig();
+    final (accent, onAccent) = _colorsOf(theme);
+
+    // Variant chooses the color; type only decides how that color is applied.
+    final (backgroundColor, iconColor) = switch (type) {
+      AppLeadingIconType.filled => (accent, onAccent),
+      AppLeadingIconType.tonal => (
+          Color.alphaBlend(
+            accent.withValues(alpha: _tonalFillOpacity),
+            theme.colorScheme.surface,
+          ),
+          accent,
+        ),
+      AppLeadingIconType.outlined => (Colors.transparent, accent),
+    };
+
+    final isCircle = shape == AppLeadingIconShape.circle;
+
+    return Container(
+      width: sizeConfig.container,
+      height: sizeConfig.container,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
+        borderRadius: isCircle ? null : AppConstants.borderRadius12,
+        border: type == AppLeadingIconType.outlined
+            ? Border.all(color: accent, width: _outlinedBorderWidth)
+            : null,
+      ),
+      child: Icon(icon, size: sizeConfig.icon, color: iconColor),
+    );
+  }
+}
+''';
+
   /// Returns the generated appInputStyle template.
   static String appInputStyle() => r'''
 import 'package:flutter/material.dart';
@@ -1145,6 +1268,160 @@ class AppDropdownInput<T> extends StatelessWidget {
 }
 ''';
 
+  /// Returns the generated appCheckbox template.
+  static String appCheckbox() => r'''
+import 'package:flutter/material.dart';
+import './app_input_style.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+
+/// A [Checkbox] colored and sized from [AppInputVariant] and [AppInputSize],
+/// so it reads as part of the same input family.
+class AppCheckbox extends StatelessWidget {
+  const AppCheckbox({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.variant = AppInputVariant.primary,
+    this.size = AppInputSize.medium,
+    this.shape = AppInputShape.rounded,
+    this.tristate = false,
+  });
+
+  final bool? value;
+  final ValueChanged<bool?>? onChanged;
+  final AppInputVariant variant;
+  final AppInputSize size;
+
+  /// [AppInputShape.pill] renders as a circular checkbox; any other shape
+  /// renders as a rounded square.
+  final AppInputShape shape;
+  final bool tristate;
+
+  static const double _borderWidth = 1.5;
+  static const double _idleBorderOpacity = 0.6;
+
+  double _scaleOf(AppInputSize size) => switch (size) {
+        AppInputSize.small => 0.85,
+        AppInputSize.medium => 1,
+        AppInputSize.large => 1.15,
+      };
+
+  /// The color that reads on top of the checked fill — mirrors the
+  /// foreground half of [AppButton]'s variant colors.
+  Color _onAccentOf(ColorScheme colorScheme) => switch (variant) {
+        AppInputVariant.primary => colorScheme.onPrimary,
+        AppInputVariant.secondary => colorScheme.onSecondary,
+        AppInputVariant.tertiary => colorScheme.onTertiary,
+        AppInputVariant.danger => colorScheme.onError,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = context.colorScheme;
+    final accent = AppInputStyle.accentOf(context, variant);
+
+    return Transform.scale(
+      scale: _scaleOf(size),
+      child: Checkbox(
+        value: value,
+        tristate: tristate,
+        onChanged: onChanged,
+        activeColor: accent,
+        checkColor: _onAccentOf(colorScheme),
+        side: BorderSide(
+          color: accent.withValues(alpha: _idleBorderOpacity),
+          width: _borderWidth,
+        ),
+        shape: shape == AppInputShape.pill
+            ? const CircleBorder()
+            : RoundedRectangleBorder(borderRadius: AppConstants.borderRadius4),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+}
+''';
+
+  /// Returns the generated appCheckboxLabel template.
+  static String appCheckboxLabel() => r'''
+import 'package:flutter/material.dart';
+import './app_checkbox.dart';
+import './app_input_style.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+
+/// [AppCheckbox] paired with a tappable label (and optional subtitle), the
+/// whole row toggling the value — not just the checkbox square.
+class AppCheckboxLabel extends StatelessWidget {
+  const AppCheckboxLabel({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    this.subtitle,
+    this.variant = AppInputVariant.primary,
+    this.size = AppInputSize.medium,
+    this.shape = AppInputShape.rounded,
+  });
+
+  final String label;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final AppInputVariant variant;
+  final AppInputSize size;
+  final AppInputShape shape;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = context.textTheme;
+    final fontSize = AppInputStyle.configOf(size).fontSize;
+
+    return InkWell(
+      borderRadius: AppConstants.borderRadius8,
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppConstants.space4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            AppCheckbox(
+              value: value,
+              onChanged: (v) => onChanged(v ?? false),
+              variant: variant,
+              size: size,
+              shape: shape,
+            ),
+            const SizedBox(width: AppConstants.space8),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: textTheme.bodyLarge?.copyWith(fontSize: fontSize),
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle!,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: context.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+''';
+
   /// Returns the generated appLoadingData template.
   static String appLoadingData() => r'''
 import 'package:flutter/material.dart';
@@ -1402,10 +1679,13 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
 import '../widgets/buttons/app_button.dart';
 import '../widgets/error_view.dart';
+import '../widgets/icons/app_leading_icon.dart';
+import '../widgets/inputs/app_checkbox_label.dart';
 import '../widgets/inputs/app_dropdown_input.dart';
 import '../widgets/inputs/app_input.dart';
 import '../widgets/inputs/app_input_style.dart';
 import '../widgets/loadings/app_loading_data.dart';
+import '../widgets/overlays/app_confirm_dialog.dart';
 
 /// Design system preview screen.
 /// Shows all shared widgets rendered with your current theme.
@@ -1426,6 +1706,7 @@ class DesignSystemView extends StatefulWidget {
 class _DesignSystemViewState extends State<DesignSystemView> {
   ThemeMode _mode = ThemeMode.light;
   String? _selectedDropdown;
+  final Map<AppInputVariant, bool> _checkboxValues = {};
 
   void _toggleTheme() => setState(() {
         _mode = _mode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
@@ -1702,6 +1983,106 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                   selectedId: _selectedDropdown,
                   variant: AppInputVariant.secondary,
                   onChanged: (v) => setState(() => _selectedDropdown = v),
+                ),
+              ),
+
+              // ── AppCheckbox ───────────────────────────────────────────────
+              _Section(
+                title: 'AppCheckbox / AppCheckboxLabel',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final variant in AppInputVariant.values)
+                      AppCheckboxLabel(
+                        label: 'Notify me (${variant.name})',
+                        subtitle: variant == AppInputVariant.primary
+                            ? 'With a subtitle'
+                            : null,
+                        value: _checkboxValues[variant] ?? false,
+                        variant: variant,
+                        onChanged: (v) =>
+                            setState(() => _checkboxValues[variant] = v),
+                      ),
+                  ],
+                ),
+              ),
+
+              // ── AppLeadingIcon ────────────────────────────────────────────
+              _Section(
+                title: 'AppLeadingIcon',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Variants:'),
+                    const SizedBox(height: AppConstants.space8),
+                    Wrap(
+                      spacing: AppConstants.space12,
+                      runSpacing: AppConstants.space12,
+                      children: [
+                        for (final variant in AppLeadingIconVariant.values)
+                          AppLeadingIcon(
+                            icon: Icons.star_outline,
+                            variant: variant,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    const Text('Types:'),
+                    const SizedBox(height: AppConstants.space8),
+                    Wrap(
+                      spacing: AppConstants.space12,
+                      runSpacing: AppConstants.space12,
+                      children: [
+                        for (final type in AppLeadingIconType.values)
+                          AppLeadingIcon(
+                            icon: Icons.notifications_outlined,
+                            type: type,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    const Text('Shapes & sizes:'),
+                    const SizedBox(height: AppConstants.space8),
+                    Wrap(
+                      spacing: AppConstants.space12,
+                      runSpacing: AppConstants.space12,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        for (final size in AppLeadingIconSize.values)
+                          AppLeadingIcon(
+                            icon: Icons.person_outline,
+                            shape: AppLeadingIconShape.circle,
+                            size: size,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppConfirmDialog ──────────────────────────────────────────
+              _Section(
+                title: 'AppConfirmDialog',
+                child: AppButton(
+                  variant: AppButtonVariant.danger,
+                  label: 'Show confirm dialog',
+                  onPressed: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => const AppConfirmDialog(
+                        title: 'Delete item?',
+                        message: 'This action cannot be undone.',
+                        icon: Icons.delete_outline,
+                        variant: AppButtonVariant.danger,
+                        confirmLabel: 'Delete',
+                      ),
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Confirmed: ${confirmed ?? false}')),
+                      );
+                    }
+                  },
                 ),
               ),
 

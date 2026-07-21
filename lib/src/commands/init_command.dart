@@ -983,6 +983,10 @@ class InitCommand extends Command<int> {
       p.join(s, 'overlays', 'app_bottom_modals.dart'),
       ModalsTemplates.appBottomModals(),
     );
+    await FileUtils.writeFile(
+      p.join(s, 'overlays', 'app_confirm_dialog.dart'),
+      DialogsTemplates.confirmDialog(),
+    );
 
     await FileUtils.writeFile(
       p.join(s, 'error_view.dart'),
@@ -996,6 +1000,10 @@ class InitCommand extends Command<int> {
     await FileUtils.writeFile(
       p.join(s, 'buttons', 'app_button.dart'),
       SharedTemplates.appButton(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'icons', 'app_leading_icon.dart'),
+      SharedTemplates.appLeadingIcon(),
     );
     await FileUtils.writeFile(
       p.join(s, 'loadings', 'app_loading_data.dart'),
@@ -1029,6 +1037,14 @@ class InitCommand extends Command<int> {
     await FileUtils.writeFile(
       p.join(s, 'inputs', 'app_dropdown_input.dart'),
       SharedTemplates.appDropdown(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'inputs', 'app_checkbox.dart'),
+      SharedTemplates.appCheckbox(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'inputs', 'app_checkbox_label.dart'),
+      SharedTemplates.appCheckboxLabel(),
     );
     await FileUtils.writeFile(p.join(s, 'design_system_view.dart'),
         SharedTemplates.designSystemView());
