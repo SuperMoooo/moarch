@@ -20,6 +20,8 @@ import '../templates/core/core_templates.dart';
 import '../templates/ui/shared_templates.dart';
 import '../utils/file_utils.dart';
 import '../utils/gradle_utils.dart';
+import '../utils/kotlin_utils.dart';
+import '../utils/manifest_utils.dart';
 import '../utils/plist_utils.dart';
 import '../utils/podfile_utils.dart';
 import '../utils/pubspec_utils.dart';
@@ -44,6 +46,7 @@ const _kLaunchUrlService = 'Url launcher for links';
 const _kDebouncerService = 'Debouncer for actions';
 const _kNotificationsService = 'Notifications service';
 const _kFirebaseNotifications = 'Firebase push notifications (FCM)';
+const _kBiometricAuth = 'Biometric authentication';
 const _kLocalizations = 'Localization (l10n)';
 const _kEasyLocalization = 'Localization (easy_localization)';
 
@@ -105,6 +108,7 @@ class InitCommand extends Command<int> {
         _kLaunchUrlService,
         _kDebouncerService,
         _kNotificationsService,
+        _kBiometricAuth,
         _kLocalizations,
       };
     } else {
@@ -187,6 +191,12 @@ class InitCommand extends Command<int> {
                   'Remote push notifications via Firebase Cloud Messaging (requires Firebase setup).',
             ),
             const ChecklistItem(
+              _kBiometricAuth,
+              defaultOn: false,
+              description:
+                  'Face ID / fingerprint via local_auth, wired into AppButton through beforePressed.',
+            ),
+            const ChecklistItem(
               _kLocalizations,
               defaultOn: false,
               description:
@@ -257,6 +267,20 @@ class InitCommand extends Command<int> {
         ? await buildGradleFile.readAsString()
         : null;
 
+    final androidManifestFile = File(p.join(p.absolute(targetPath), 'android',
+        'app', 'src', 'main', 'AndroidManifest.xml'));
+    final androidManifestBackup = androidManifestFile.existsSync()
+        ? await androidManifestFile.readAsString()
+        : null;
+
+    // MainActivity.kt sits under a package-name folder that varies per
+    // project, so it can't be addressed by a fixed path like the files above.
+    final mainActivityFile = _findMainActivityFile(p.absolute(targetPath));
+    final mainActivityBackup =
+        mainActivityFile != null && mainActivityFile.existsSync()
+            ? await mainActivityFile.readAsString()
+            : null;
+
     // Caret-pinned to the versions the templates were written against, so a
     // breaking major release of a package can't silently break a fresh
     // scaffold. Bump these alongside template changes.
@@ -290,6 +314,9 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kNotificationsService))
         'flutter_local_notifications: ',
       if (stack.contains(_kNotificationsService)) 'timezone: ',
+      if (stack.contains(_kBiometricAuth)) 'local_auth: ',
+      if (stack.contains(_kBiometricAuth)) 'local_auth_android: ',
+      if (stack.contains(_kBiometricAuth)) 'local_auth_darwin: ',
       if (stack.contains(_kLocalizations))
         'flutter_localizations:\n    sdk: flutter',
       if (stack.contains(_kEasyLocalization)) 'easy_localization: ',
@@ -306,7 +333,7 @@ class InitCommand extends Command<int> {
     try {
       await _buildCore(libPath, stack);
       await _buildConfig(libPath, stack);
-      await _buildShared(libPath);
+      await _buildShared(libPath, stack);
       await FileUtils.createDir(p.join(libPath, 'features'));
       if (stack.contains(_kAuthFeature)) {
         await _buildAuthFeature(libPath);
@@ -568,6 +595,8 @@ class InitCommand extends Command<int> {
       await _patchAppDelegate(appDelegateFile, stack, dryRun: dryRun);
       await _patchPodfile(podfileFile, stack, dryRun: dryRun);
       await _patchBuildGradle(buildGradleFile, stack, dryRun: dryRun);
+      await _patchAndroidManifest(androidManifestFile, stack, dryRun: dryRun);
+      await _patchMainActivity(mainActivityFile, stack, dryRun: dryRun);
 
       progress.complete('Done');
     } catch (e) {
@@ -590,6 +619,12 @@ class InitCommand extends Command<int> {
         }
         if (buildGradleBackup != null) {
           await buildGradleFile.writeAsString(buildGradleBackup);
+        }
+        if (androidManifestBackup != null) {
+          await androidManifestFile.writeAsString(androidManifestBackup);
+        }
+        if (mainActivityFile != null && mainActivityBackup != null) {
+          await mainActivityFile.writeAsString(mainActivityBackup);
         }
         _logger.info('  Rolled back partially generated files.');
       }
@@ -640,7 +675,12 @@ class InitCommand extends Command<int> {
     final wantsMedia = stack.contains(_kMediaService);
     final wantsUrlLauncher = stack.contains(_kLaunchUrlService);
     final wantsFcm = stack.contains(_kFirebaseNotifications);
-    if (!wantsLocales && !wantsMedia && !wantsUrlLauncher && !wantsFcm) {
+    final wantsBiometrics = stack.contains(_kBiometricAuth);
+    if (!wantsLocales &&
+        !wantsMedia &&
+        !wantsUrlLauncher &&
+        !wantsFcm &&
+        !wantsBiometrics) {
       return;
     }
 
@@ -649,6 +689,7 @@ class InitCommand extends Command<int> {
       if (wantsMedia) 'camera/photo library/microphone usage descriptions',
       if (wantsUrlLauncher) 'LSApplicationQueriesSchemes',
       if (wantsFcm) 'UIBackgroundModes (remote-notification)',
+      if (wantsBiometrics) 'NSFaceIDUsageDescription',
     ].join(' and ');
 
     if (dryRun) {
@@ -674,6 +715,14 @@ class InitCommand extends Command<int> {
             'This app accesses your photo library so you can pick images.',
         'NSMicrophoneUsageDescription':
             'This app uses the microphone when recording videos.',
+      });
+    }
+    if (wantsBiometrics) {
+      // Face ID requires an explicit usage description on iOS; Touch ID does
+      // not, but the key is harmless to include either way.
+      content = PlistUtils.ensureEntries(content, {
+        'NSFaceIDUsageDescription':
+            'This app uses Face ID to verify your identity.',
       });
     }
     if (wantsUrlLauncher) {
@@ -811,6 +860,92 @@ class InitCommand extends Command<int> {
     _logger.info('  Updated android/app/build.gradle.kts with $addition.');
   }
 
+  /// local_auth needs the `USE_BIOMETRIC` permission declared, or biometric
+  /// prompts silently fail to appear on Android.
+  Future<void> _patchAndroidManifest(
+    File manifestFile,
+    Set<String> stack, {
+    required bool dryRun,
+  }) async {
+    if (!stack.contains(_kBiometricAuth)) return;
+
+    const addition = 'USE_BIOMETRIC permission';
+
+    if (!manifestFile.existsSync()) {
+      _logger.info(
+          '  Note: android/app/src/main/AndroidManifest.xml not found — add '
+          'the $addition manually once the android folder exists.');
+      return;
+    }
+
+    if (dryRun) {
+      _logger.info(
+          '  Would add $addition to android/app/src/main/AndroidManifest.xml');
+      return;
+    }
+
+    final content = await manifestFile.readAsString();
+    final patched = ManifestUtils.ensurePermissions(
+      content,
+      ['android.permission.USE_BIOMETRIC'],
+    );
+    if (patched == content) return;
+    await manifestFile.writeAsString(patched);
+    _logger.info(
+        '  Updated android/app/src/main/AndroidManifest.xml with $addition.');
+  }
+
+  /// local_auth's biometric prompt is shown by the native Android side as a
+  /// dialog fragment, which requires the hosting activity to be a
+  /// FragmentActivity — the default FlutterActivity template isn't one.
+  Future<void> _patchMainActivity(
+    File? mainActivityFile,
+    Set<String> stack, {
+    required bool dryRun,
+  }) async {
+    if (!stack.contains(_kBiometricAuth)) return;
+
+    const addition = 'FlutterFragmentActivity (required by local_auth)';
+
+    if (mainActivityFile == null || !mainActivityFile.existsSync()) {
+      _logger.info(
+          '  Note: MainActivity.kt not found — make MainActivity extend '
+          'FlutterFragmentActivity manually once the android folder exists '
+          '(local_auth requires it).');
+      return;
+    }
+
+    if (dryRun) {
+      _logger.info('  Would update MainActivity to use $addition');
+      return;
+    }
+
+    final content = await mainActivityFile.readAsString();
+    final patched = KotlinUtils.ensureFragmentActivity(content);
+    if (patched == content) return;
+    await mainActivityFile.writeAsString(patched);
+    _logger.info('  Updated MainActivity to use $addition.');
+  }
+
+  /// MainActivity.kt/.java lives under a package-name folder that varies per
+  /// project (e.g. android/app/src/main/kotlin/com/example/app/), so it can't
+  /// be addressed by a fixed path like AndroidManifest.xml.
+  File? _findMainActivityFile(String projectRoot) {
+    for (final base in ['kotlin', 'java']) {
+      final dir =
+          Directory(p.join(projectRoot, 'android', 'app', 'src', 'main', base));
+      if (!dir.existsSync()) continue;
+      for (final entity in dir.listSync(recursive: true)) {
+        if (entity is File &&
+            (entity.path.endsWith('MainActivity.kt') ||
+                entity.path.endsWith('MainActivity.java'))) {
+          return entity;
+        }
+      }
+    }
+    return null;
+  }
+
   Future<void> _buildCore(String libPath, Set<String> stack) async {
     final c = p.join(libPath, 'core');
 
@@ -862,6 +997,12 @@ class InitCommand extends Command<int> {
       p.join(c, 'security', 'validation_service.dart'),
       SecurityTemplates.validationService(),
     );
+    if (stack.contains(_kBiometricAuth)) {
+      await FileUtils.writeFile(
+        p.join(c, 'security', 'biometric_service.dart'),
+        SecurityTemplates.biometricService(),
+      );
+    }
 
     if (stack.contains(_kMediaService)) {
       await FileUtils.writeFile(
@@ -972,7 +1113,7 @@ class InitCommand extends Command<int> {
     }
   }
 
-  Future<void> _buildShared(String libPath) async {
+  Future<void> _buildShared(String libPath, Set<String> stack) async {
     final s = p.join(libPath, 'shared', 'widgets');
 
     await FileUtils.writeFile(
@@ -999,7 +1140,9 @@ class InitCommand extends Command<int> {
 
     await FileUtils.writeFile(
       p.join(s, 'buttons', 'app_button.dart'),
-      SharedTemplates.appButton(),
+      SharedTemplates.appButton(
+        hasBiometricAuth: stack.contains(_kBiometricAuth),
+      ),
     );
     await FileUtils.writeFile(
       p.join(s, 'icons', 'app_leading_icon.dart'),

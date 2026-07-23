@@ -73,6 +73,77 @@ class TokenStorage {
 }
 ''';
 
+  /// Returns the generated biometricService template.
+  static String biometricService() => r'''
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:local_auth_android/local_auth_android.dart';
+import 'package:local_auth_darwin/types/auth_messages_ios.dart';
+
+import '../utils/app_logger.dart';
+
+final biometricServiceProvider = Provider<BiometricService>((ref) {
+  return BiometricService(LocalAuthentication());
+});
+
+class BiometricService {
+  BiometricService(this._auth);
+
+  final LocalAuthentication _auth;
+
+  // True if the device can fall back to its own lock screen
+  // (PIN/pattern/password), even without biometrics enrolled.
+  Future<bool> canAuthenticate() => _auth.isDeviceSupported();
+
+  Future<bool> authenticate() {
+    return _auth.authenticate(
+      localizedReason: 'Please authenticate to continue',
+      biometricOnly: false,
+      authMessages: const <AuthMessages>[
+        AndroidAuthMessages(
+          signInTitle: 'Authentication required',
+          cancelButton: 'Cancel',
+        ),
+        IOSAuthMessages(cancelButton: 'Cancel'),
+      ],
+    );
+  }
+
+  /// Runs local authentication and reports failure as a snackbar rather than
+  /// throwing, so callers (e.g. AppButton's requireAuth) only need the bool.
+  Future<bool> verifyUserLocalAuth(BuildContext context) async {
+    try {
+      final didAuthenticate = await authenticate();
+      if (!didAuthenticate) {
+        _showFeedback(context, 'Authentication failed');
+        return false;
+      }
+      return true;
+    } on LocalAuthException catch (e) {
+      appLogger.e('LocalAuthException: ${e.code.name} - ${e.description}');
+      // Device has neither biometrics nor a PIN/pattern/password set up, so
+      // there is no local credential to fall back to.
+      final message = e.code == LocalAuthExceptionCode.noCredentialsSet
+          ? 'Device has no lock method configured'
+          : e.description ?? 'Authentication error';
+      _showFeedback(context, message);
+      return false;
+    } on PlatformException catch (e) {
+      appLogger.e('PlatformException: ${e.message}');
+      _showFeedback(context, e.message ?? 'Authentication error');
+      return false;
+    }
+  }
+
+  void _showFeedback(BuildContext context, String message) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+''';
+
   /// Returns the generated validationService template.
   static String validationService() => r'''
 import 'package:flutter_riverpod/flutter_riverpod.dart';

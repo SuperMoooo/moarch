@@ -184,8 +184,47 @@ class AppImage extends StatelessWidget {
 ''';
 
   /// Returns the generated appButton template.
-  static String appButton() => r'''
-import 'package:flutter/material.dart';
+  ///
+  /// When [hasBiometricAuth] is true, adds a `requireAuth` flag that runs
+  /// BiometricService.verifyUserLocalAuth before [onPressed]; the import and
+  /// flag are left out otherwise, since core/security/biometric_service.dart
+  /// is only generated when that feature is selected.
+  static String appButton({bool hasBiometricAuth = false}) {
+    final biometricImports = hasBiometricAuth
+        ? "\nimport 'package:flutter_riverpod/flutter_riverpod.dart';"
+            "\nimport '../../../core/security/biometric_service.dart';"
+        : '';
+
+    final classDeclaration = hasBiometricAuth
+        ? 'class AppButton extends ConsumerWidget {'
+        : 'class AppButton extends StatelessWidget {';
+
+    final requireAuthParam =
+        hasBiometricAuth ? '\n    this.requireAuth = false,' : '';
+
+    final requireAuthField = !hasBiometricAuth
+        ? ''
+        : '\n\n  /// Runs biometric verification before [onPressed]; the press\n'
+            '  /// is cancelled when it fails.\n'
+            '  final bool requireAuth;';
+
+    final buildSignature = hasBiometricAuth
+        ? 'Widget build(BuildContext context, WidgetRef ref) {'
+        : 'Widget build(BuildContext context) {';
+
+    final onPressedWiring = !hasBiometricAuth
+        ? 'onPressed'
+        : '!requireAuth\n'
+            '            ? onPressed\n'
+            '            : () async {\n'
+            '                final verified = await ref\n'
+            '                    .read(biometricServiceProvider)\n'
+            '                    .verifyUserLocalAuth(context);\n'
+            '                if (verified) onPressed();\n'
+            '              }';
+
+    return '''
+import 'package:flutter/material.dart';$biometricImports
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
@@ -217,7 +256,7 @@ typedef _ButtonSizeConfig = ({
   EdgeInsets padding,
 });
 
-class AppButton extends StatelessWidget {
+$classDeclaration
   const AppButton({
     super.key,
     required this.variant,
@@ -228,7 +267,7 @@ class AppButton extends StatelessWidget {
     this.prefixIcon,
     this.suffixIcon,
     this.width,
-    this.size = AppButtonSize.medium,
+    this.size = AppButtonSize.medium,$requireAuthParam
   });
 
   final AppButtonVariant variant;
@@ -239,7 +278,7 @@ class AppButton extends StatelessWidget {
   final IconData? prefixIcon;
   final IconData? suffixIcon;
   final double? width;
-  final AppButtonSize size;
+  final AppButtonSize size;$requireAuthField
 
   _ButtonSizeConfig _getSizeConfig() => switch (size) {
         AppButtonSize.small => (
@@ -284,7 +323,7 @@ class AppButton extends StatelessWidget {
       };
 
   @override
-  Widget build(BuildContext context) {
+  $buildSignature
     final theme = context.theme;
     final sizeConfig = _getSizeConfig();
     final (accent, onAccent) = _colorsOf(theme);
@@ -302,7 +341,7 @@ class AppButton extends StatelessWidget {
       width: width ?? double.infinity,
       height: sizeConfig.height,
       child: ElevatedButton(
-        onPressed: onPressed,
+        onPressed: $onPressedWiring,
         style: ElevatedButton.styleFrom(
           elevation: 0,
           padding: sizeConfig.padding,
@@ -343,6 +382,7 @@ class AppButton extends StatelessWidget {
   }
 }
 ''';
+  }
 
   /// Returns the generated appLeadingIcon template.
   static String appLeadingIcon() => r'''
