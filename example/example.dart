@@ -31,14 +31,16 @@ void main(List<String> args) async {
   logger.info('     - Localization (l10n or easy_localization)');
   logger.info('     - Test folder and deployment checklists');
   logger.info('');
-  logger.info('   UI kit (lib/shared/widgets/) — init generates the common set:');
+  logger
+      .info('   UI kit (lib/shared/widgets/) — init generates the common set:');
   logger.info(
       '     - Inputs: AppInput (+ password eye), AppInputStyle, InputTitle');
   logger.info('     - AppButton (loading + disabled), AppLeadingIcon');
   logger.info('     - State screens: ErrorView, EmptyView, AppLoadingData');
   logger.info(
       '     - Overlays: AppToast, AppConfirmDialog, dialog/bottom-sheet helpers');
-  logger.info('     - Theme tokens & TextTheme (config/theme + core/constants)');
+  logger
+      .info('     - Theme tokens & TextTheme (config/theme + core/constants)');
   logger.info('     - docs/UI_KIT.md catalogues the whole kit');
   logger.info('');
   logger.info('   Add any other widget on demand:');
@@ -46,7 +48,8 @@ void main(List<String> args) async {
       '     moarch create widget <name>   (e.g. switch, otp, list-tile, card, slider)');
   logger.info(
       '     moarch create widget all      -> whole kit + DesignSystemView preview');
-  logger.info('     moarch create widget --list   -> list every available widget');
+  logger.info(
+      '     moarch create widget --list   -> list every available widget');
   logger.info('');
   logger.info('2) Feature generation (Clean Architecture layers)');
   logger.info('   moarch create feature auth --all');

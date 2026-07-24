@@ -145,6 +145,7 @@ class CreateWidgetCommand extends Command<int> {
       }
       _logger.info('');
     }
-    _logger.info('  moarch create widget all   → generate the whole kit + preview');
+    _logger.info(
+        '  moarch create widget all   → generate the whole kit + preview');
   }
 }

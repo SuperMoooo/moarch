@@ -473,7 +473,8 @@ enum AppLeadingIconVariant { primary, secondary, tertiary, danger }
 /// - [filled]: solid variant background, contrasting icon.
 /// - [tonal]: soft variant-tinted background, variant-colored icon.
 /// - [outlined]: transparent background, variant-colored border + icon.
-enum AppLeadingIconType { filled, tonal, outlined }
+/// - [plain]: no container at all — just the variant-colored icon.
+enum AppLeadingIconType { filled, tonal, outlined, plain }
 
 /// Corner shape of the container.
 enum AppLeadingIconShape { rounded, circle }
@@ -546,6 +547,11 @@ class AppLeadingIcon extends StatelessWidget {
     final sizeConfig = _sizeConfig();
     final (accent, onAccent) = _colorsOf(theme);
 
+    // No container: render the bare icon at the variant's color.
+    if (type == AppLeadingIconType.plain) {
+      return Icon(icon, size: sizeConfig.icon, color: accent);
+    }
+
     // Variant chooses the color; type only decides how that color is applied.
     final (backgroundColor, iconColor) = switch (type) {
       AppLeadingIconType.filled => (accent, onAccent),
@@ -557,6 +563,7 @@ class AppLeadingIcon extends StatelessWidget {
           accent,
         ),
       AppLeadingIconType.outlined => (Colors.transparent, accent),
+      AppLeadingIconType.plain => (Colors.transparent, accent),
     };
 
     final isCircle = shape == AppLeadingIconShape.circle;
@@ -1947,8 +1954,12 @@ class AppListTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style:
-                        theme.textTheme.bodyLarge?.copyWith(color: titleColor),
+                    softWrap: true,
+                    maxLines: 2,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: titleColor,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
@@ -1995,12 +2006,18 @@ class AppCard extends StatelessWidget {
     this.type = AppCardType.filled,
     this.padding = AppConstants.padding16,
     this.onTap,
+    this.clipBehavior = Clip.antiAlias,
   });
 
   final Widget child;
   final AppCardType type;
   final EdgeInsetsGeometry padding;
   final VoidCallback? onTap;
+
+  /// How the child is clipped to the card's rounded corners. Defaults to
+  /// [Clip.antiAlias] so an interactive child (e.g. an AppListTile with
+  /// [padding] set to [EdgeInsets.zero]) keeps its ripple inside the corners.
+  final Clip clipBehavior;
 
   @override
   Widget build(BuildContext context) {
@@ -2030,7 +2047,8 @@ class AppCard extends StatelessWidget {
         ),
     };
 
-    final content = DecoratedBox(
+    final content = Container(
+      clipBehavior: clipBehavior,
       decoration: decoration,
       child: Padding(padding: padding, child: child),
     );
@@ -2043,6 +2061,65 @@ class AppCard extends StatelessWidget {
         onTap!();
       },
       child: content,
+    );
+  }
+}
+''';
+
+  /// Returns the generated appCardTile template.
+  static String appCardTile() => r'''
+import 'package:flutter/material.dart';
+import '../cards/app_card.dart';
+import 'app_list_tile.dart';
+
+/// An [AppListTile] on its own [AppCard] surface — a standalone, card-backed
+/// row. Saves nesting the two by hand every time you want a single tappable
+/// row that isn't part of a larger list. The whole card is the tap target.
+class AppCardTile extends StatelessWidget {
+  const AppCardTile({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.leading,
+    this.trailing,
+    this.onTap,
+    this.showChevron = false,
+    this.danger = false,
+    this.cardType = AppCardType.filled,
+  });
+
+  final String title;
+  final String? subtitle;
+  final Widget? leading;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  /// Appends a trailing chevron when [trailing] is null — the usual "drills
+  /// into another screen" affordance.
+  final bool showChevron;
+
+  /// Tints the title in the error color, for destructive rows.
+  final bool danger;
+
+  /// Surface treatment of the enclosing card.
+  final AppCardType cardType;
+
+  @override
+  Widget build(BuildContext context) {
+    // onTap lives on the card so the whole surface is the tap target; the
+    // tile stays passive (its padding still shapes the content).
+    return AppCard(
+      type: cardType,
+      padding: EdgeInsets.zero,
+      onTap: onTap,
+      child: AppListTile(
+        title: title,
+        subtitle: subtitle,
+        leading: leading,
+        trailing: trailing,
+        showChevron: showChevron,
+        danger: danger,
+      ),
     );
   }
 }
