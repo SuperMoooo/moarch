@@ -47,10 +47,12 @@ Future<T?> showAppBottomModal<T>({
     enableDrag: enableDrag,
     isDismissible: isDismissible,
     builder: (_) {
+      // Wrap [child] in an AppBottomSheetScaffold to get a drag handle,
+      // surface background and optional title for free.
       return ClipRRect(
         borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(AppConstants.radius16),
-          topRight: Radius.circular(AppConstants.radius16),
+          topLeft: Radius.circular(AppConstants.radius24),
+          topRight: Radius.circular(AppConstants.radius24),
         ),
         child: child,
       );

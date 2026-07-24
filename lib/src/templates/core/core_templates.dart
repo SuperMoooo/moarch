@@ -158,7 +158,7 @@ $crashlyticsInit$firebaseNotificationInit
 
   ErrorWidget.builder = (details) {
     if (kDebugMode) return ErrorWidget(details.exception); // red screen in dev
-    return const ErrorView(); // your nice screen in prod
+    return const Scaffold(body: ErrorView()); // your nice screen in prod
   };
 
   // OR REMOVE AFTER SOME ASYNC INIT IN A ROOT WIDGET
@@ -241,7 +241,7 @@ $crashlyticsInit$firebaseNotificationInit
 
   ErrorWidget.builder = (details) {
     if (kDebugMode) return ErrorWidget(details.exception); // red screen in dev
-    return const ErrorView(); // your nice screen in prod
+    return const Scaffold(body: ErrorView()); // your nice screen in prod
   };
 
   // OR REMOVE AFTER SOME ASYNC INIT IN A ROOT WIDGET
@@ -495,10 +495,30 @@ static const Color onSurfaceDark = Color(0xFFFFFFFF);
 static const Color outlineDark   = Color(0xFFFFFFFF);
 static const Color errorDark = Color(0xFFffb4ab);
 
+// ── Status colors (feedback: toasts, banners, tags) ───────────
+// Kept apart from the variant palette so success/warning/info read the same
+// whatever the brand colors become.
+static const Color success = Color(0xFF2E7D32);
+static const Color warning = Color(0xFFED6C02);
+static const Color info    = Color(0xFF0288D1);
+
+static const Color successDark = Color(0xFF66BB6A);
+static const Color warningDark = Color(0xFFFFA726);
+static const Color infoDark    = Color(0xFF29B6F6);
+
 // ── Accent tokens ────────────────────────────────────────────
 static const Color accentActive      = Color(0xFF000000);
 static const Color accentRestorative = Color(0xFF000000);
 static const Color accentEnergetic   = Color(0xFF000000);
+
+// ── Type ──────────────────────────────────────────────────────
+// App-wide font family used by [AppTheme]'s TextTheme. Leave null for the
+// platform default (Roboto / SF). To use a custom font, declare it under
+// `flutter: fonts:` in pubspec.yaml and set its family name here, e.g.
+// `static const String? fontFamily = 'Inter';`. For Google Fonts, add the
+// google_fonts package and swap AppTheme's textTheme for
+// GoogleFonts.interTextTheme(...).
+static const String? fontFamily = null;
 
 
 // ── Surface layers (tonal depth — no borders) ───────────────

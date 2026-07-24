@@ -204,9 +204,34 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
 
 abstract final class AppTheme {
+  static const String? _fontFamily = AppConstants.fontFamily;
+
+  // Type scale wired to the AppConstants font-size tokens and the app font
+  // family. Colors are left null on purpose so each style inherits the correct
+  // on-surface color per brightness and stays legible on colored surfaces.
+  static const TextTheme _textTheme = TextTheme(
+    displayLarge: TextStyle(fontFamily: _fontFamily, fontSize: 57, height: 1.12, fontWeight: FontWeight.w400, letterSpacing: -0.25),
+    displayMedium: TextStyle(fontFamily: _fontFamily, fontSize: 45, height: 1.16, fontWeight: FontWeight.w400),
+    displaySmall: TextStyle(fontFamily: _fontFamily, fontSize: 36, height: 1.22, fontWeight: FontWeight.w400),
+    headlineLarge: TextStyle(fontFamily: _fontFamily, fontSize: AppConstants.fontSize28 + 4, height: 1.25, fontWeight: FontWeight.w600),
+    headlineMedium: TextStyle(fontFamily: _fontFamily, fontSize: AppConstants.fontSize28, height: 1.29, fontWeight: FontWeight.w600),
+    headlineSmall: TextStyle(fontFamily: _fontFamily, fontSize: 24, height: 1.33, fontWeight: FontWeight.w600),
+    titleLarge: TextStyle(fontFamily: _fontFamily, fontSize: AppConstants.fontSize22, height: 1.27, fontWeight: FontWeight.w600),
+    titleMedium: TextStyle(fontFamily: _fontFamily, fontSize: AppConstants.fontSize16, height: 1.50, fontWeight: FontWeight.w600, letterSpacing: 0.15),
+    titleSmall: TextStyle(fontFamily: _fontFamily, fontSize: AppConstants.fontSize14, height: 1.43, fontWeight: FontWeight.w600, letterSpacing: 0.1),
+    bodyLarge: TextStyle(fontFamily: _fontFamily, fontSize: AppConstants.fontSize16, height: 1.50, fontWeight: FontWeight.w400, letterSpacing: 0.5),
+    bodyMedium: TextStyle(fontFamily: _fontFamily, fontSize: AppConstants.fontSize14, height: 1.43, fontWeight: FontWeight.w400, letterSpacing: 0.25),
+    bodySmall: TextStyle(fontFamily: _fontFamily, fontSize: AppConstants.fontSize12, height: 1.33, fontWeight: FontWeight.w400, letterSpacing: 0.4),
+    labelLarge: TextStyle(fontFamily: _fontFamily, fontSize: AppConstants.fontSize14, height: 1.43, fontWeight: FontWeight.w600, letterSpacing: 0.1),
+    labelMedium: TextStyle(fontFamily: _fontFamily, fontSize: AppConstants.fontSize12, height: 1.33, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+    labelSmall: TextStyle(fontFamily: _fontFamily, fontSize: AppConstants.fontSize11, height: 1.45, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+  );
+
   static ThemeData get light => ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
+    textTheme: _textTheme,
+    fontFamily: AppConstants.fontFamily,
     colorScheme: ColorScheme.light(
       primary: AppConstants.primary,
       onPrimary: AppConstants.surface,
@@ -258,15 +283,11 @@ abstract final class AppTheme {
           vertical: (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
         ),
       ),
-      textStyle: const WidgetStatePropertyAll(
-        TextStyle(
-          fontSize: AppConstants.fontSize16,
-          color: AppConstants.onSurface,
-        ),
+      textStyle: WidgetStatePropertyAll(
+        _textTheme.bodyLarge?.copyWith(color: AppConstants.onSurface),
       ),
       hintStyle: WidgetStatePropertyAll(
-        TextStyle(
-          fontSize: AppConstants.fontSize16,
+        _textTheme.bodyLarge?.copyWith(
           color: AppConstants.onSurface.withValues(alpha: 0.35),
         ),
       ),
@@ -287,14 +308,15 @@ abstract final class AppTheme {
       indicatorColor: AppConstants.primary,
     ),
 
-    tabBarTheme: const TabBarThemeData(
+    tabBarTheme: TabBarThemeData(
       indicatorColor: AppConstants.accentActive,
       tabAlignment: TabAlignment.fill,
       indicatorSize: TabBarIndicatorSize.tab,
       indicatorAnimation: TabIndicatorAnimation.elastic,
-      labelStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-      unselectedLabelColor: Colors.grey,
-      unselectedLabelStyle: TextStyle(color: Colors.blueGrey),
+      labelColor: AppConstants.onSurface,
+      labelStyle: _textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+      unselectedLabelColor: AppConstants.onSurface.withValues(alpha: 0.5),
+      unselectedLabelStyle: _textTheme.labelLarge,
     ),
 
     inputDecorationTheme: InputDecorationTheme(
@@ -323,8 +345,7 @@ abstract final class AppTheme {
         horizontal: AppConstants.space12,
       ),
 
-      hintStyle: TextStyle(
-        fontSize: AppConstants.fontSize16,
+      hintStyle: _textTheme.bodyLarge?.copyWith(
         color: AppConstants.onSurface.withValues(alpha: 0.35),
       ),
     ),
@@ -393,11 +414,97 @@ abstract final class AppTheme {
       side: BorderSide.none,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     ),
+
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith(
+        (s) => s.contains(WidgetState.selected)
+            ? AppConstants.surface
+            : AppConstants.outline,
+      ),
+      trackColor: WidgetStateProperty.resolveWith(
+        (s) => s.contains(WidgetState.selected)
+            ? AppConstants.primary
+            : AppConstants.surfaceContainerHighest,
+      ),
+      trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+    ),
+
+    radioTheme: RadioThemeData(
+      fillColor: WidgetStateProperty.resolveWith(
+        (s) => s.contains(WidgetState.selected)
+            ? AppConstants.primary
+            : AppConstants.outline,
+      ),
+    ),
+
+    sliderTheme: SliderThemeData(
+      activeTrackColor: AppConstants.primary,
+      inactiveTrackColor: AppConstants.primary.withValues(alpha: 0.15),
+      thumbColor: AppConstants.primary,
+      overlayColor: AppConstants.primary.withValues(alpha: 0.12),
+      trackHeight: 4,
+    ),
+
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: AppConstants.primary,
+      linearMinHeight: 6,
+    ),
+
+    listTileTheme: const ListTileThemeData(
+      iconColor: AppConstants.onSurface,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: AppConstants.space16,
+        vertical: AppConstants.space4,
+      ),
+    ),
+
+    badgeTheme: const BadgeThemeData(
+      backgroundColor: AppConstants.error,
+      textColor: AppConstants.surface,
+    ),
+
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        side: const WidgetStatePropertyAll(BorderSide.none),
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected)
+              ? AppConstants.primary
+              : AppConstants.surfaceContainerLowest,
+        ),
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected)
+              ? AppConstants.surface
+              : AppConstants.onSurface,
+        ),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: AppConstants.borderRadius8),
+        ),
+      ),
+    ),
+
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: AppConstants.surfaceContainerHighest,
+      contentTextStyle: _textTheme.bodyMedium?.copyWith(
+        color: AppConstants.onSurface,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
+      insetPadding: AppConstants.padding16,
+      elevation: 0,
+    ),
+
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+    ),
   );
 
   static ThemeData get dark => ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
+    textTheme: _textTheme,
+    fontFamily: AppConstants.fontFamily,
     colorScheme: ColorScheme.dark(
       primary: AppConstants.primaryDark,
       onPrimary: AppConstants.surfaceDark,
@@ -449,15 +556,11 @@ abstract final class AppTheme {
           vertical: (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
         ),
       ),
-      textStyle: const WidgetStatePropertyAll(
-        TextStyle(
-          fontSize: AppConstants.fontSize16,
-          color: AppConstants.onSurfaceDark,
-        ),
+      textStyle: WidgetStatePropertyAll(
+        _textTheme.bodyLarge?.copyWith(color: AppConstants.onSurfaceDark),
       ),
       hintStyle: WidgetStatePropertyAll(
-        TextStyle(
-          fontSize: AppConstants.fontSize16,
+        _textTheme.bodyLarge?.copyWith(
           color: AppConstants.onSurfaceDark.withValues(alpha: 0.35),
         ),
       ),
@@ -478,17 +581,15 @@ abstract final class AppTheme {
       indicatorColor: AppConstants.primaryDark,
     ),
 
-    tabBarTheme: const TabBarThemeData(
+    tabBarTheme: TabBarThemeData(
       indicatorColor: AppConstants.accentActive,
       tabAlignment: TabAlignment.fill,
       indicatorSize: TabBarIndicatorSize.tab,
       indicatorAnimation: TabIndicatorAnimation.elastic,
-      labelStyle: TextStyle(
-        color: AppConstants.onSurfaceDark,
-        fontWeight: FontWeight.bold,
-      ),
-      unselectedLabelColor: Colors.grey,
-      unselectedLabelStyle: TextStyle(color: Colors.blueGrey),
+      labelColor: AppConstants.onSurfaceDark,
+      labelStyle: _textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+      unselectedLabelColor: AppConstants.onSurfaceDark.withValues(alpha: 0.5),
+      unselectedLabelStyle: _textTheme.labelLarge,
     ),
 
     inputDecorationTheme: InputDecorationTheme(
@@ -520,8 +621,7 @@ abstract final class AppTheme {
         horizontal: AppConstants.space12,
       ),
 
-      hintStyle: TextStyle(
-        fontSize: AppConstants.fontSize16,
+      hintStyle: _textTheme.bodyLarge?.copyWith(
         color: AppConstants.onSurfaceDark.withValues(alpha: 0.35),
       ),
     ),
@@ -589,6 +689,90 @@ abstract final class AppTheme {
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
       side: BorderSide.none,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    ),
+
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith(
+        (s) => s.contains(WidgetState.selected)
+            ? AppConstants.surfaceDark
+            : AppConstants.outlineDark,
+      ),
+      trackColor: WidgetStateProperty.resolveWith(
+        (s) => s.contains(WidgetState.selected)
+            ? AppConstants.primaryDark
+            : AppConstants.surfaceContainerHighestDark,
+      ),
+      trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+    ),
+
+    radioTheme: RadioThemeData(
+      fillColor: WidgetStateProperty.resolveWith(
+        (s) => s.contains(WidgetState.selected)
+            ? AppConstants.primaryDark
+            : AppConstants.outlineDark,
+      ),
+    ),
+
+    sliderTheme: SliderThemeData(
+      activeTrackColor: AppConstants.primaryDark,
+      inactiveTrackColor: AppConstants.primaryDark.withValues(alpha: 0.15),
+      thumbColor: AppConstants.primaryDark,
+      overlayColor: AppConstants.primaryDark.withValues(alpha: 0.12),
+      trackHeight: 4,
+    ),
+
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: AppConstants.primaryDark,
+      linearMinHeight: 6,
+    ),
+
+    listTileTheme: const ListTileThemeData(
+      iconColor: AppConstants.onSurfaceDark,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: AppConstants.space16,
+        vertical: AppConstants.space4,
+      ),
+    ),
+
+    badgeTheme: const BadgeThemeData(
+      backgroundColor: AppConstants.errorDark,
+      textColor: AppConstants.surfaceDark,
+    ),
+
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        side: const WidgetStatePropertyAll(BorderSide.none),
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected)
+              ? AppConstants.primaryDark
+              : AppConstants.surfaceContainerLowestDark,
+        ),
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected)
+              ? AppConstants.surfaceDark
+              : AppConstants.onSurfaceDark,
+        ),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: AppConstants.borderRadius8),
+        ),
+      ),
+    ),
+
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: AppConstants.surfaceContainerHighestDark,
+      contentTextStyle: _textTheme.bodyMedium?.copyWith(
+        color: AppConstants.onSurfaceDark,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
+      insetPadding: AppConstants.padding16,
+      elevation: 0,
+    ),
+
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
     ),
   );
 }

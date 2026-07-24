@@ -291,6 +291,7 @@ class InitCommand extends Command<int> {
       'envied: ',
       'skeletonizer: ',
       'cached_network_image: ',
+      'mo_2fa_code: ',
       'intl:',
       'logger: ',
       'connectivity_plus: ',
@@ -1189,6 +1190,67 @@ class InitCommand extends Command<int> {
       p.join(s, 'inputs', 'app_checkbox_label.dart'),
       SharedTemplates.appCheckboxLabel(),
     );
+    await FileUtils.writeFile(
+      p.join(s, 'inputs', 'app_switch.dart'),
+      SharedTemplates.appSwitch(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'inputs', 'app_segmented.dart'),
+      SharedTemplates.appSegmented(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'inputs', 'app_choice_chip.dart'),
+      SharedTemplates.appChoiceChip(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'inputs', 'app_radio_group.dart'),
+      SharedTemplates.appRadioGroup(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'inputs', 'app_slider.dart'),
+      SharedTemplates.appSlider(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'inputs', 'app_otp_input.dart'),
+      SharedTemplates.appOtpInput(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'lists', 'app_list_tile.dart'),
+      SharedTemplates.appListTile(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'cards', 'app_card.dart'),
+      SharedTemplates.appCard(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'indicators', 'app_badge.dart'),
+      SharedTemplates.appBadge(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'indicators', 'app_tag.dart'),
+      SharedTemplates.appTag(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'loadings', 'app_skeleton_list.dart'),
+      SharedTemplates.appSkeletonList(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'loadings', 'app_screen_lock.dart'),
+      SharedTemplates.appScreenLock(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'navigation', 'app_bottom_nav.dart'),
+      SharedTemplates.appBottomNav(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'overlays', 'app_toast.dart'),
+      SharedTemplates.appToast(),
+    );
+    await FileUtils.writeFile(
+      p.join(s, 'overlays', 'app_bottom_sheet_scaffold.dart'),
+      SharedTemplates.appBottomSheetScaffold(),
+    );
+
     await FileUtils.writeFile(p.join(s, 'design_system_view.dart'),
         SharedTemplates.designSystemView());
 

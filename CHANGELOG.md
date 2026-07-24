@@ -1,5 +1,5 @@
-# [1.8.10]
+# [2.0.0]
 
 ## Features
 
-- biometric service
+- UI kit, UX improvements, app theme improvements
