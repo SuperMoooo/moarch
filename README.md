@@ -33,6 +33,9 @@ moarch create model <featureName> <modelName> # generate the model and entity
 moarch create model --empty <featureName> <modelName> # Inject a .empty() factory into an existing entity.
 moarch create empty-factories # generate .empty() in all entities
 moarch create entity-copys <featureName> # inject copyWith into the feature's entities (omit name for all features)
+moarch create widget <name>        # add a UI-kit widget on demand (e.g. switch, otp, list-tile)
+moarch create widget all           # generate the whole UI kit + the preview screen
+moarch create widget --list        # list every available widget
 ```
 
 ## What it generates
@@ -46,25 +49,35 @@ moarch create entity-copys <featureName> # inject copyWith into the feature's en
 
 ## Design system
 
-`moarch init` scaffolds a themed widget library under `lib/shared/widgets/`, plus
-design tokens (spacing, radius, a wired-up type scale, colors) in
-`core/constants/app_constants.dart` and a light/dark `AppTheme`. Every control
-shares one vocabulary — `variant` (primary/secondary/tertiary/danger), `type`,
-`shape` and `size`.
+`moarch init` sets up the design foundation — tokens (spacing, radius, a wired-up
+type scale, colors) in `core/constants/app_constants.dart`, a light/dark `AppTheme`,
+and a **lean common set** of widgets under `lib/shared/widgets/`: inputs (`AppInput`,
+`AppInputStyle`, `InputTitle`), `AppButton`, `AppLeadingIcon`, the state screens
+(`ErrorView`, `EmptyView`, `AppLoadingData`) and overlays (`AppToast`,
+`AppConfirmDialog`, dialog/bottom-sheet helpers).
 
-- **Buttons** — `AppButton` with filled/outlined/ghost types, plus loading + disabled states
-- **Inputs** — `AppInput` (with a built-in password eye), date/time pickers, dropdown,
-  `AppCheckbox`, `AppSwitch`, `AppRadioGroup`, `AppSlider`, `AppSegmented`,
-  `AppChoiceChip`, and `AppOtpInput` (powered by [mo_2fa_code](https://pub.dev/packages/mo_2fa_code))
-- **Layout & content** — `AppListTile`, `AppCard`, `AppLeadingIcon`, `AppAvatar`,
-  `AppImage`, `AppTag`, `AppBadge`
-- **Feedback & overlays** — `AppToast`, confirm dialog, bottom sheet with a drag handle,
-  `AppScreenLock` (PopScope + AbsorbPointer), loading overlay, skeleton list, error/empty views
-- **Navigation** — `AppBottomNav`
+Everything else in the kit is one command away, catalogued in the generated
+`docs/UI_KIT.md`:
 
-A `DesignSystemView` screen is generated too — add it to your router to preview
-every widget in light and dark. Set `AppConstants.fontFamily` (or swap in
-`google_fonts`) to restyle the whole app's typography from one place.
+```bash
+moarch create widget switch        # AppSwitch (+ any widgets it depends on)
+moarch create widget otp           # AppOtpInput (adds the mo_2fa_code package)
+moarch create widget all           # the whole kit + the DesignSystemView preview
+moarch create widget --list        # print the catalog in the terminal
+```
+
+Widget dependencies are pulled in automatically, and any pub package a widget needs
+([mo_2fa_code](https://pub.dev/packages/mo_2fa_code) for OTP, `cached_network_image`
+for avatars/images) is added to `pubspec.yaml`.
+
+The kit covers inputs (switch, segmented, choice chips, radio group, slider,
+date/time, dropdown, checkbox, OTP), layout (`AppListTile`, `AppCard`, `AppTag`,
+`AppBadge`), feedback (`AppScreenLock`, skeleton list, loading overlay), media
+(`AppAvatar`, `AppImage`) and navigation (`AppBottomNav`). Every control shares one
+vocabulary — `variant`, `type`, `shape`, `size` — and `moarch create widget
+design-system` (or `all`) generates a screen previewing them all in light/dark. Set
+`AppConstants.fontFamily` (or swap in `google_fonts`) to restyle the whole app's
+typography from one place.
 
 ## Local development
 

@@ -31,23 +31,22 @@ void main(List<String> args) async {
   logger.info('     - Localization (l10n or easy_localization)');
   logger.info('     - Test folder and deployment checklists');
   logger.info('');
+  logger.info('   UI kit (lib/shared/widgets/) — init generates the common set:');
   logger.info(
-      '   Generated shared UI kit / design system (lib/shared/widgets/):');
+      '     - Inputs: AppInput (+ password eye), AppInputStyle, InputTitle');
+  logger.info('     - AppButton (loading + disabled), AppLeadingIcon');
+  logger.info('     - State screens: ErrorView, EmptyView, AppLoadingData');
   logger.info(
-      '     - Buttons: AppButton (variant/type/shape/size, loading + disabled)');
+      '     - Overlays: AppToast, AppConfirmDialog, dialog/bottom-sheet helpers');
+  logger.info('     - Theme tokens & TextTheme (config/theme + core/constants)');
+  logger.info('     - docs/UI_KIT.md catalogues the whole kit');
+  logger.info('');
+  logger.info('   Add any other widget on demand:');
   logger.info(
-      '     - Inputs: AppInput (+ password eye), date/time, dropdown, checkbox,');
+      '     moarch create widget <name>   (e.g. switch, otp, list-tile, card, slider)');
   logger.info(
-      '       AppSwitch, AppRadioGroup, AppSlider, AppSegmented, AppChoiceChip, AppOtpInput');
-  logger.info(
-      '     - Layout: AppListTile, AppCard, AppLeadingIcon, AppAvatar, AppImage, AppTag, AppBadge');
-  logger.info(
-      '     - Feedback/overlays: AppToast, confirm dialog, bottom sheet (drag handle),');
-  logger.info(
-      '       AppScreenLock (PopScope + AbsorbPointer), loading overlay, skeleton list, error/empty');
-  logger.info('     - Navigation: AppBottomNav');
-  logger.info(
-      '     - DesignSystemView preview screen + theme tokens & TextTheme (config + core)');
+      '     moarch create widget all      -> whole kit + DesignSystemView preview');
+  logger.info('     moarch create widget --list   -> list every available widget');
   logger.info('');
   logger.info('2) Feature generation (Clean Architecture layers)');
   logger.info('   moarch create feature auth --all');

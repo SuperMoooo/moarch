@@ -7,7 +7,6 @@ class ConfigTemplates {
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../shared/widgets/design_system_view.dart';
 import './app_routes.dart';
 
 // ── Navigator key ─────────────────────────────────────────────────────────────
@@ -30,12 +29,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         body: Center(child: Text('Home — replace me!')),
       ),
     ),
-    GoRoute(
-      path: AppRoutes.designView,
-      builder: (_, __) => const DesignSystemView(),
-    )
-    
- 
+    // Design-system preview — generate it with:
+    //   moarch create widget design-system
+    // then add `import '../../shared/widgets/design_system_view.dart';` above
+    // and uncomment this route:
+    // GoRoute(
+    //   path: AppRoutes.designView,
+    //   builder: (_, __) => const DesignSystemView(),
+    // ),
+
     // Example with path parameter:
     // GoRoute(
     //   path: AppRoutes.detail,

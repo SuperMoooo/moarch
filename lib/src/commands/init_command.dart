@@ -10,8 +10,6 @@ import 'package:moarch/src/templates/misc/docs_templates.dart';
 import 'package:moarch/src/templates/misc/ios_templates.dart';
 import 'package:moarch/src/templates/misc/workflow_templates.dart';
 import 'package:moarch/src/templates/ui/auth_templates.dart';
-import 'package:moarch/src/templates/ui/dialogs_templates.dart';
-import 'package:moarch/src/templates/ui/modals_templates.dart';
 import 'package:moarch/src/utils/checklist.dart';
 import 'package:path/path.dart' as p;
 
@@ -26,6 +24,7 @@ import '../utils/plist_utils.dart';
 import '../utils/podfile_utils.dart';
 import '../utils/pubspec_utils.dart';
 import '../utils/swift_utils.dart';
+import '../utils/widget_catalog.dart';
 
 // ── Stack options ─────────────────────────────────────────────────────────────
 // Add a new const + ChecklistItem + if block to support a new option.
@@ -290,8 +289,6 @@ class InitCommand extends Command<int> {
       'flutter_native_splash: ',
       'envied: ',
       'skeletonizer: ',
-      'cached_network_image: ',
-      'mo_2fa_code: ',
       'intl:',
       'logger: ',
       'connectivity_plus: ',
@@ -1116,148 +1113,29 @@ class InitCommand extends Command<int> {
 
   Future<void> _buildShared(String libPath, Set<String> stack) async {
     final s = p.join(libPath, 'shared', 'widgets');
+    final hasRouter = stack.contains(_kRouter);
+    final hasBiometric = stack.contains(_kBiometricAuth);
 
-    await FileUtils.writeFile(
-      p.join(s, 'overlays', 'app_dialogs.dart'),
-      DialogsTemplates.appDialog(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'overlays', 'app_bottom_modals.dart'),
-      ModalsTemplates.appBottomModals(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'overlays', 'app_confirm_dialog.dart'),
-      DialogsTemplates.confirmDialog(),
-    );
+    // Only the common set (see WidgetCatalog) is scaffolded here; the rest of
+    // the kit is added on demand with `moarch create widget <name>`.
+    for (final spec in WidgetCatalog.common) {
+      if (spec.needsRouter && !hasRouter) {
+        _logger.info(
+          '  Skipped ${spec.title} (needs the GoRouter option) — add it later '
+          'with: moarch create widget ${spec.name}',
+        );
+        continue;
+      }
+      final content = spec.name == 'button'
+          ? SharedTemplates.appButton(hasBiometricAuth: hasBiometric)
+          : spec.template();
+      await FileUtils.writeFile(p.join(s, spec.file), content);
+    }
 
+    // A catalog of the whole UI kit and how to scaffold the rest on demand.
     await FileUtils.writeFile(
-      p.join(s, 'error_view.dart'),
-      SharedTemplates.errorView(),
+      p.join(p.dirname(libPath), 'docs', 'UI_KIT.md'),
+      WidgetCatalog.markdown(),
     );
-    await FileUtils.writeFile(
-      p.join(s, 'empty_view.dart'),
-      SharedTemplates.emptyView(),
-    );
-
-    await FileUtils.writeFile(
-      p.join(s, 'buttons', 'app_button.dart'),
-      SharedTemplates.appButton(
-        hasBiometricAuth: stack.contains(_kBiometricAuth),
-      ),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'icons', 'app_leading_icon.dart'),
-      SharedTemplates.appLeadingIcon(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'loadings', 'app_loading_data.dart'),
-      SharedTemplates.appLoadingData(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'loadings', 'app_loading_action_overlay.dart'),
-      SharedTemplates.appLoadingAction(),
-    );
-
-    await FileUtils.writeFile(
-      p.join(s, 'inputs', 'app_input_style.dart'),
-      SharedTemplates.appInputStyle(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'inputs', 'input_title.dart'),
-      SharedTemplates.inputTitle(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'inputs', 'app_input.dart'),
-      SharedTemplates.appInput(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'inputs', 'app_date_input.dart'),
-      SharedTemplates.dateInput(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'inputs', 'app_time_input.dart'),
-      SharedTemplates.timeInput(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'inputs', 'app_dropdown_input.dart'),
-      SharedTemplates.appDropdown(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'inputs', 'app_checkbox.dart'),
-      SharedTemplates.appCheckbox(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'inputs', 'app_checkbox_label.dart'),
-      SharedTemplates.appCheckboxLabel(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'inputs', 'app_switch.dart'),
-      SharedTemplates.appSwitch(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'inputs', 'app_segmented.dart'),
-      SharedTemplates.appSegmented(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'inputs', 'app_choice_chip.dart'),
-      SharedTemplates.appChoiceChip(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'inputs', 'app_radio_group.dart'),
-      SharedTemplates.appRadioGroup(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'inputs', 'app_slider.dart'),
-      SharedTemplates.appSlider(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'inputs', 'app_otp_input.dart'),
-      SharedTemplates.appOtpInput(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'lists', 'app_list_tile.dart'),
-      SharedTemplates.appListTile(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'cards', 'app_card.dart'),
-      SharedTemplates.appCard(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'indicators', 'app_badge.dart'),
-      SharedTemplates.appBadge(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'indicators', 'app_tag.dart'),
-      SharedTemplates.appTag(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'loadings', 'app_skeleton_list.dart'),
-      SharedTemplates.appSkeletonList(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'loadings', 'app_screen_lock.dart'),
-      SharedTemplates.appScreenLock(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'navigation', 'app_bottom_nav.dart'),
-      SharedTemplates.appBottomNav(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'overlays', 'app_toast.dart'),
-      SharedTemplates.appToast(),
-    );
-    await FileUtils.writeFile(
-      p.join(s, 'overlays', 'app_bottom_sheet_scaffold.dart'),
-      SharedTemplates.appBottomSheetScaffold(),
-    );
-
-    await FileUtils.writeFile(p.join(s, 'design_system_view.dart'),
-        SharedTemplates.designSystemView());
-
-    await FileUtils.writeFile(
-        p.join(s, 'media', 'app_avatar.dart'), SharedTemplates.appAvatar());
-
-    await FileUtils.writeFile(
-        p.join(s, 'media', 'app_image.dart'), SharedTemplates.appImage());
   }
 }
