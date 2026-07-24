@@ -164,7 +164,8 @@ class CreateEntityCopysCommand extends Command<int> {
           .replaceAll(_equalityPattern, '')
           .replaceAll(_hashCodePattern, '');
       updated = _appendToClass(updated, newEquality);
-      actions.add(hadEquality ? 'replaced ==/hashCode' : 'injected ==/hashCode');
+      actions
+          .add(hadEquality ? 'replaced ==/hashCode' : 'injected ==/hashCode');
 
       _logger.info('  ✨  $relativePath (${actions.join(', ')})');
 
@@ -177,6 +178,7 @@ class CreateEntityCopysCommand extends Command<int> {
       return _Result.failed;
     }
   }
+
   /// Inserts [member] just before the last closing brace of the file.
   static String _appendToClass(String source, String member) {
     final lastBrace = source.lastIndexOf('}');

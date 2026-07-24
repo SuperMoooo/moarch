@@ -1,96 +1,96 @@
 {
-	"version": "2.0.0",
-	"tasks": [
-		{
-			"label": "Check Python",
-			"type": "shell",
-			"command": "python --version",
-			"isBackground": false,
-			"problemMatcher": []
-		},
-		{
-			"label": "Add docs",
-			"type": "shell",
-			"command": "python add_docs.py",
-			"isBackground": false,
-			"problemMatcher": []
-		},
-		{
-			"label": "Analyze docs",
-			"type": "shell",
-			"command": "dart analyze",
-			"isBackground": false,
-			"problemMatcher": []
-		},
-		{
-			"label": "Show lines runner",
-			"type": "shell",
-			"command": "nl -ba lib/src/runner.dart | sed -n '1,60p'",
-			"isBackground": false,
-			"problemMatcher": []
-		},
-		{
-			"label": "Show lines runner",
-			"type": "shell",
-			"command": "python -c \"from pathlib import Path; lines=Path('lib/src/runner.dart').read_text().splitlines(); [print(f'{i+1}: {line}') for i,line in enumerate(lines)]\"",
-			"isBackground": false,
-			"problemMatcher": []
-		},
-		{
-			"label": "Show runner lines",
-			"type": "shell",
-			"command": "python -c \"from pathlib import Path; lines=Path('lib/src/runner.dart').read_text().splitlines(); [print(f'{i+1}: {line}') for i,line in enumerate(lines)]\"",
-			"isBackground": false,
-			"problemMatcher": []
-		},
-		{
-			"label": "Show checklist lines",
-			"type": "shell",
-			"command": "python -c \"from pathlib import Path; lines=Path('lib/src/utils/checklist.dart').read_text().splitlines(); [print(f'{i+1}: {line}') for i,line in enumerate(lines)]\"",
-			"isBackground": false,
-			"problemMatcher": []
-		},
-		{
-			"label": "Show create lines",
-			"type": "shell",
-			"command": "python -c \"from pathlib import Path; lines=Path('lib/src/commands/create_command.dart').read_text().splitlines(); [print(f'{i+1}: {line}') for i,line in enumerate(lines)]\"",
-			"isBackground": false,
-			"problemMatcher": []
-		},
-		{
-			"label": "Show create lines utf8",
-			"type": "shell",
-			"command": "python -c \"from pathlib import Path; lines=Path('lib/src/commands/create_command.dart').read_text(encoding='utf-8').splitlines(); [print(f'{i+1}: {line}') for i,line in enumerate(lines)]\"",
-			"isBackground": false,
-			"problemMatcher": []
-		},
-		{
-			"label": "Show init lines utf8",
-			"type": "shell",
-			"command": "python -c \"from pathlib import Path; lines=Path('lib/src/commands/init_command.dart').read_text(encoding='utf-8').splitlines(); [print(f'{i+1}: {line}') for i,line in enumerate(lines)]\"",
-			"isBackground": false,
-			"problemMatcher": []
-		},
-		{
-			"label": "Analyze docs final",
-			"type": "shell",
-			"command": "dart analyze",
-			"isBackground": false,
-			"problemMatcher": []
-		},
-		{
-			"label": "Remove temp script",
-			"type": "shell",
-			"command": "del add_docs.py",
-			"isBackground": false,
-			"problemMatcher": []
-		},
-		{
-			"label": "Verify final docs",
-			"type": "shell",
-			"command": "dart analyze",
-			"isBackground": false,
-			"problemMatcher": []
-		}
-	]
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Check Python",
+            "type": "shell",
+            "command": "python --version",
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Add docs",
+            "type": "shell",
+            "command": "python add_docs.py",
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Analyze docs",
+            "type": "shell",
+            "command": "dart analyze",
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Show lines runner",
+            "type": "shell",
+            "command": "nl -ba lib/src/runner.dart | sed -n '1,60p'",
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Show lines runner",
+            "type": "shell",
+            "command": "python -c \"from pathlib import Path; lines=Path('lib/src/runner.dart').read_text().splitlines(); [print(f'{i+1}: {line}') for i,line in enumerate(lines)]\"",
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Show runner lines",
+            "type": "shell",
+            "command": "python -c \"from pathlib import Path; lines=Path('lib/src/runner.dart').read_text().splitlines(); [print(f'{i+1}: {line}') for i,line in enumerate(lines)]\"",
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Show checklist lines",
+            "type": "shell",
+            "command": "python -c \"from pathlib import Path; lines=Path('lib/src/utils/checklist.dart').read_text().splitlines(); [print(f'{i+1}: {line}') for i,line in enumerate(lines)]\"",
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Show create lines",
+            "type": "shell",
+            "command": "python -c \"from pathlib import Path; lines=Path('lib/src/commands/create_command.dart').read_text().splitlines(); [print(f'{i+1}: {line}') for i,line in enumerate(lines)]\"",
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Show create lines utf8",
+            "type": "shell",
+            "command": "python -c \"from pathlib import Path; lines=Path('lib/src/commands/create_command.dart').read_text(encoding='utf-8').splitlines(); [print(f'{i+1}: {line}') for i,line in enumerate(lines)]\"",
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Show init lines utf8",
+            "type": "shell",
+            "command": "python -c \"from pathlib import Path; lines=Path('lib/src/commands/init_command.dart').read_text(encoding='utf-8').splitlines(); [print(f'{i+1}: {line}') for i,line in enumerate(lines)]\"",
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Analyze docs final",
+            "type": "shell",
+            "command": "dart analyze",
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Remove temp script",
+            "type": "shell",
+            "command": "del add_docs.py",
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Verify final docs",
+            "type": "shell",
+            "command": "dart analyze",
+            "isBackground": false,
+            "problemMatcher": []
+        }
+    ]
 }

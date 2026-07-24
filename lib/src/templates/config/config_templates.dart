@@ -32,7 +32,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     ),
     GoRoute(
       path: AppRoutes.designView,
-      builder: (_, _) => const DesignSystemView(),
+      builder: (_, __) => const DesignSystemView(),
     )
     
  
@@ -89,7 +89,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 // 3. Add the splash route to the routes list above:
 //    GoRoute(
 //      path: AppRoutes.splash,
-//      builder: (_, _) => const AppLoadingData(),
+//      builder: (_, __) => const AppLoadingData(),
 //    ),
 //
 // 4. Update the GoRouter above:

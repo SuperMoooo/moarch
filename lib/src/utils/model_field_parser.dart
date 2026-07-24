@@ -51,9 +51,8 @@ $args
       return '\n  $className copyWith() => $className();\n';
     }
 
-    final params = fields
-        .map((f) => '    ${_nullableTypeFor(f)} ${f.name},')
-        .join('\n');
+    final params =
+        fields.map((f) => '    ${_nullableTypeFor(f)} ${f.name},').join('\n');
     final args = fields
         .map((f) => '      ${f.name}: ${f.name} ?? this.${f.name},')
         .join('\n');

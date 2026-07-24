@@ -26,11 +26,13 @@ void main(List<String> args) async {
   logger.info('     - Debouncer service');
   logger.info('     - Notifications service');
   logger.info('     - Firebase push notifications (FCM)');
-  logger.info('     - Biometric authentication (local_auth, wired into AppButton)');
+  logger.info(
+      '     - Biometric authentication (local_auth, wired into AppButton)');
   logger.info('     - Localization (l10n or easy_localization)');
   logger.info('     - Test folder and deployment checklists');
   logger.info('');
-  logger.info('   Generated shared UI kit / design system (lib/shared/widgets/):');
+  logger.info(
+      '   Generated shared UI kit / design system (lib/shared/widgets/):');
   logger.info(
       '     - Buttons: AppButton (variant/type/shape/size, loading + disabled)');
   logger.info(

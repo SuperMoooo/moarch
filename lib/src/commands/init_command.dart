@@ -909,10 +909,10 @@ class InitCommand extends Command<int> {
     const addition = 'FlutterFragmentActivity (required by local_auth)';
 
     if (mainActivityFile == null || !mainActivityFile.existsSync()) {
-      _logger.info(
-          '  Note: MainActivity.kt not found — make MainActivity extend '
-          'FlutterFragmentActivity manually once the android folder exists '
-          '(local_auth requires it).');
+      _logger
+          .info('  Note: MainActivity.kt not found — make MainActivity extend '
+              'FlutterFragmentActivity manually once the android folder exists '
+              '(local_auth requires it).');
       return;
     }
 

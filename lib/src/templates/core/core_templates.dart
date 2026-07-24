@@ -30,7 +30,8 @@ class CoreTemplates {
     // they must be initialized through a container that also backs the widget
     // tree. When either is enabled we build that container in main() and hand
     // it to an UncontrolledProviderScope.
-    final needsContainer = withNotificationsService || withFirebaseNotifications;
+    final needsContainer =
+        withNotificationsService || withFirebaseNotifications;
 
     final rootScope = needsContainer
         ? 'UncontrolledProviderScope(container: container, child: const App())'
