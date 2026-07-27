@@ -114,10 +114,16 @@ class BiometricService {
   /// Runs local authentication and reports failure as a snackbar rather than
   /// throwing, so callers (e.g. AppButton's requireAuth) only need the bool.
   Future<bool> verifyUserLocalAuth(BuildContext context) async {
+    // The messenger is resolved up front, before any await: the biometric
+    // prompt can outlive the calling widget, and reading an inherited widget
+    // off a stale BuildContext afterwards is exactly what
+    // use_build_context_synchronously guards against.
+    final messenger = ScaffoldMessenger.of(context);
+
     try {
       final didAuthenticate = await authenticate();
       if (!didAuthenticate) {
-        _showFeedback(context, 'Authentication failed');
+        _showFeedback(messenger, 'Authentication failed');
         return false;
       }
       return true;
@@ -128,18 +134,19 @@ class BiometricService {
       final message = e.code == LocalAuthExceptionCode.noCredentialsSet
           ? 'Device has no lock method configured'
           : e.description ?? 'Authentication error';
-      _showFeedback(context, message);
+      _showFeedback(messenger, message);
       return false;
     } on PlatformException catch (e) {
       appLogger.e('PlatformException: ${e.message}');
-      _showFeedback(context, e.message ?? 'Authentication error');
+      _showFeedback(messenger, e.message ?? 'Authentication error');
       return false;
     }
   }
 
-  void _showFeedback(BuildContext context, String message) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  void _showFeedback(ScaffoldMessengerState messenger, String message) {
+    // The screen may have been popped while the prompt was up.
+    if (!messenger.mounted) return;
+    messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 }
 ''';

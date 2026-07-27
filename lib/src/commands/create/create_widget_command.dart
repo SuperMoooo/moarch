@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:path/path.dart' as p;
 
+import '../../templates/ui/shared_templates.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/pubspec_utils.dart';
 import '../../utils/widget_catalog.dart';
@@ -74,6 +75,13 @@ class CreateWidgetCommand extends Command<int> {
     final widgetsRoot = p.join(libPath, 'shared', 'widgets');
     final packages = <String>{for (final spec in specs) ...spec.packages};
 
+    // AppButton has a biometric-aware variant that `moarch init` generates when
+    // the biometric option is selected. Match that here so re-adding the button
+    // to such a project doesn't hand back a version without `requireAuth`.
+    final hasBiometric = File(
+      p.join(libPath, 'core', 'security', 'biometric_service.dart'),
+    ).existsSync();
+
     _logger.info('');
     _logger.info('🧱 Generating ${specs.length} widget(s)');
     _logger.info('');
@@ -81,12 +89,17 @@ class CreateWidgetCommand extends Command<int> {
     final progress = _logger.progress('Scaffolding widgets');
     FileUtils.beginSession();
 
+    final created = <WidgetSpec>[];
+    final skipped = <WidgetSpec>[];
+
     try {
       for (final spec in specs) {
-        await FileUtils.writeFile(
-          p.join(widgetsRoot, spec.file),
-          spec.template(),
-        );
+        final content = spec.name == 'button'
+            ? SharedTemplates.appButton(hasBiometricAuth: hasBiometric)
+            : spec.template();
+        final wrote =
+            await FileUtils.writeFile(p.join(widgetsRoot, spec.file), content);
+        (wrote ? created : skipped).add(spec);
       }
       if (packages.isNotEmpty) {
         await PubspecUtils.ensureDependencies(
@@ -103,8 +116,19 @@ class CreateWidgetCommand extends Command<int> {
     }
 
     _logger.success('');
-    for (final spec in specs) {
+    for (final spec in created) {
       _logger.info('  + shared/widgets/${spec.file}');
+    }
+    // Existing files are never overwritten, so say so instead of claiming a
+    // write that didn't happen — the caller may be re-running to pull in a
+    // dependency and needs to know their edits were kept.
+    if (skipped.isNotEmpty) {
+      _logger.info('');
+      _logger.info('  Already present, left untouched:');
+      for (final spec in skipped) {
+        _logger.info('    · shared/widgets/${spec.file}');
+      }
+      _logger.info('    Delete a file and re-run to regenerate it.');
     }
 
     if (packages.isNotEmpty) {

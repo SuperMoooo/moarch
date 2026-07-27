@@ -2,7 +2,7 @@
 class SharedTemplates {
   SharedTemplates._();
 
-  /// Returns the generated appImage template.
+  /// Returns the generated appAvatar template.
   static String appAvatar() => r'''
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -56,8 +56,8 @@ class AppAvatar extends StatelessWidget {
           ? CachedNetworkImage(
               imageUrl: avatar!,
               fit: BoxFit.cover,
-              placeholder: (context, _) => _placeholder(context),
-              errorWidget: (_, __, ___) => _fallback(),
+              placeholder: (context, url) => _placeholder(context),
+              errorWidget: (context, url, error) => _fallback(),
             )
           : _fallback(),
     );
@@ -146,8 +146,8 @@ class AppImage extends StatelessWidget {
           ? CachedNetworkImage(
               imageUrl: imageUrl!,
               fit: fit,
-              placeholder: (context, _) => _placeholder(context),
-              errorWidget: (_, __, ___) => _fallback(),
+              placeholder: (context, url) => _placeholder(context),
+              errorWidget: (context, url, error) => _fallback(),
             )
           : _localOrFallback(),
     );
@@ -167,19 +167,34 @@ class AppImage extends StatelessWidget {
         child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
 
- Widget _localOrFallback() {
+  Widget _localOrFallback() {
     final path = assetPath;
     if (path != null && path.isNotEmpty) {
       return Image.asset(
         path,
         fit: fit,
-        errorBuilder: (_, __, ___) => _fallback(),
+        errorBuilder: (context, error, stackTrace) => _fallback(),
       );
     }
     return _fallback();
   }
 
-  Widget _fallback() => Image.asset(placeholderAsset, fit: fit);
+  /// Last resort. The placeholder asset has to be declared in pubspec.yaml to
+  /// exist at all, so it gets an errorBuilder of its own — a missing
+  /// placeholder should degrade to a neutral box, never throw.
+  Widget _fallback() => Image.asset(
+        placeholderAsset,
+        fit: fit,
+        errorBuilder: (context, error, stackTrace) => Builder(
+          builder: (context) => ColoredBox(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: Icon(
+              Icons.image_not_supported_outlined,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
 }
 ''';
 
@@ -416,11 +431,18 @@ $classDeclaration
                         size: sizeConfig.iconSize, color: foregroundColor),
                     const SizedBox(width: AppConstants.space4),
                   ],
-                  Text(
-                    label,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: foregroundColor,
-                      fontSize: sizeConfig.fontSize,
+                  // Flexible + ellipsis so a label longer than an explicit
+                  // [width] truncates instead of overflowing the button.
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: foregroundColor,
+                        fontSize: sizeConfig.fontSize,
+                      ),
                     ),
                   ),
                   if (suffixIcon != null) ...[
@@ -1046,6 +1068,7 @@ class AppDateInput extends StatefulWidget {
     this.shape = AppInputShape.rounded,
     this.size = AppInputSize.medium,
     this.textAlign = TextAlign.start,
+    this.onChanged,
   });
 
   final TextEditingController? controller;
@@ -1066,16 +1089,22 @@ class AppDateInput extends StatefulWidget {
   /// Alignment of the displayed date and the hint. The label follows it too.
   final TextAlign textAlign;
 
+  /// Fires with the picked date. Without it the only way to read the value is
+  /// to pass your own [controller] and parse its text back.
+  final ValueChanged<DateTime>? onChanged;
+
   @override
   State<AppDateInput> createState() => _AppDateInputState();
 }
 
 class _AppDateInputState extends State<AppDateInput> {
   DateTime _lastSelectedDate = DateTime.now();
+
   @override
   void initState() {
     super.initState();
     if (widget.initialValue != null) {
+      _lastSelectedDate = widget.initialValue!;
       widget.controller?.text = widget.initialValue!.formattedDate;
     }
   }
@@ -1098,9 +1127,10 @@ class _AppDateInputState extends State<AppDateInput> {
     );
     if (picked != null) {
       setState(() {
-      _lastSelectedDate = picked;
+        _lastSelectedDate = picked;
         widget.controller?.text = picked.formattedDate;
       });
+      widget.onChanged?.call(picked);
     }
   }
 
@@ -1176,6 +1206,7 @@ class AppTimeInput extends StatefulWidget {
     this.shape = AppInputShape.rounded,
     this.size = AppInputSize.medium,
     this.textAlign = TextAlign.start,
+    this.onChanged,
   });
 
   final TextEditingController? controller;
@@ -1196,16 +1227,22 @@ class AppTimeInput extends StatefulWidget {
   /// Alignment of the displayed time and the hint. The label follows it too.
   final TextAlign textAlign;
 
+  /// Fires with the picked time. Without it the only way to read the value is
+  /// to pass your own [controller] and parse its text back.
+  final ValueChanged<TimeOfDay>? onChanged;
+
   @override
   State<AppTimeInput> createState() => _AppTimeInputState();
 }
 
 class _AppTimeInputState extends State<AppTimeInput> {
   TimeOfDay _lastSelectedTime = TimeOfDay.now();
+
   @override
   void initState() {
     super.initState();
     if (widget.initialValue != null) {
+      _lastSelectedTime = widget.initialValue!;
       widget.controller?.text = widget.initialValue!.formattedTime;
     }
   }
@@ -1229,6 +1266,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
         _lastSelectedTime = picked;
         widget.controller?.text = picked.formattedTime;
       });
+      widget.onChanged?.call(picked);
     }
   }
 
@@ -1561,7 +1599,6 @@ class AppCheckboxLabel extends StatelessWidget {
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import './app_input_style.dart';
-import '../../../core/utils/extensions.dart';
 
 /// A [Switch] colored from [AppInputVariant], for on/off settings. Pair it with
 /// a label by dropping it into an [AppListTile] as the trailing widget.
@@ -1608,12 +1645,14 @@ import '../../../core/utils/extensions.dart';
 /// [AppInputVariant]. Ideal for Day/Week/Month-style switches.
 ///
 /// Usage:
-///   AppSegmented<Range>(
-///     segments: Range.values,
-///     selected: _range,
-///     labelOf: (r) => r.name,
-///     onChanged: (r) => setState(() => _range = r),
-///   )
+/// ```dart
+/// AppSegmented<Range>(
+///   segments: Range.values,
+///   selected: _range,
+///   labelOf: (r) => r.name,
+///   onChanged: (r) => setState(() => _range = r),
+/// )
+/// ```
 class AppSegmented<T> extends StatelessWidget {
   const AppSegmented({
     super.key,
@@ -1829,7 +1868,6 @@ class AppRadioGroup<T> extends StatelessWidget {
   static String appSlider() => r'''
 import 'package:flutter/material.dart';
 import './app_input_style.dart';
-import '../../../core/utils/extensions.dart';
 
 /// A [Slider] colored from [AppInputVariant], with an optional value label
 /// shown while dragging (set [divisions] to snap to steps).
@@ -2260,9 +2298,9 @@ class AppSkeletonList extends StatelessWidget {
       child: ListView.separated(
         padding: padding,
         itemCount: itemCount,
-        separatorBuilder: (_, __) =>
+        separatorBuilder: (context, index) =>
             const SizedBox(height: AppConstants.space12),
-        itemBuilder: (_, __) => ListTile(
+        itemBuilder: (context, index) => ListTile(
           contentPadding: EdgeInsets.zero,
           leading: hasLeading ? const CircleAvatar(radius: 24) : null,
           title: const Text('Loading item title here'),
@@ -2938,32 +2976,1157 @@ class ErrorView extends StatelessWidget {
 
 ''';
 
+  /// Returns the generated appIconButton template.
+  static String appIconButton() => r'''
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+
+/// Color role of [AppIconButton]. Mirrors [AppButtonVariant] and
+/// [AppLeadingIconVariant] so every control speaks the same color vocabulary.
+enum AppIconButtonVariant { primary, secondary, tertiary, danger }
+
+/// Fill treatment of [AppIconButton] — how the variant color is applied.
+///
+/// - [filled]: solid variant background, contrasting icon.
+/// - [tonal]: soft variant-tinted background, variant-colored icon.
+/// - [outlined]: transparent background, variant-colored border + icon.
+/// - [ghost]: no container at all — just the variant-colored icon.
+enum AppIconButtonType { filled, tonal, outlined, ghost }
+
+/// Corner shape of the tap target.
+enum AppIconButtonShape { rounded, circle }
+
+enum AppIconButtonSize { small, medium, large }
+
+typedef _IconButtonSizeConfig = ({double container, double icon});
+
+/// A tappable icon — [AppLeadingIcon]'s interactive sibling. Same color
+/// vocabulary, but with a ripple, haptics, a loading state and a real touch
+/// target. Use [AppLeadingIcon] when the icon is decoration, this when it does
+/// something.
+class AppIconButton extends StatelessWidget {
+  const AppIconButton({
+    super.key,
+    required this.icon,
+    this.onPressed,
+    this.variant = AppIconButtonVariant.primary,
+    this.type = AppIconButtonType.ghost,
+    this.shape = AppIconButtonShape.circle,
+    this.size = AppIconButtonSize.medium,
+    this.tooltip,
+    this.isLoading = false,
+  });
+
+  final IconData icon;
+
+  /// Tap handler. Pass null to render the button in its disabled state.
+  final VoidCallback? onPressed;
+  final AppIconButtonVariant variant;
+  final AppIconButtonType type;
+  final AppIconButtonShape shape;
+  final AppIconButtonSize size;
+
+  /// Long-press label. Worth setting on every icon button — an icon on its own
+  /// rarely names itself, and screen readers have nothing else to read.
+  final String? tooltip;
+
+  /// Replaces the icon with a spinner and ignores taps, keeping the same size
+  /// so the surrounding layout doesn't jump.
+  final bool isLoading;
+
+  static const double _tonalFillOpacity = 0.12;
+  static const double _outlinedBorderWidth = 1.5;
+  static const double _disabledOpacity = 0.38;
+
+  _IconButtonSizeConfig _sizeConfig() => switch (size) {
+        AppIconButtonSize.small => (
+            container: 32.0,
+            icon: AppConstants.iconSmall,
+          ),
+        AppIconButtonSize.medium => (
+            container: AppConstants.touchTarget,
+            icon: AppConstants.iconMedium,
+          ),
+        AppIconButtonSize.large => (
+            container: AppConstants.touchTarget + 16,
+            icon: AppConstants.iconLarge,
+          ),
+      };
+
+  /// The variant's color, plus the color that reads on top of it.
+  (Color, Color) _colorsOf(ThemeData theme) => switch (variant) {
+        AppIconButtonVariant.primary => (
+            theme.colorScheme.primary,
+            theme.colorScheme.onPrimary,
+          ),
+        AppIconButtonVariant.secondary => (
+            theme.colorScheme.secondary,
+            theme.colorScheme.onSecondary,
+          ),
+        AppIconButtonVariant.tertiary => (
+            theme.colorScheme.tertiary,
+            theme.colorScheme.onTertiary,
+          ),
+        AppIconButtonVariant.danger => (
+            theme.colorScheme.error,
+            theme.colorScheme.onError,
+          ),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    final sizeConfig = _sizeConfig();
+    final (accent, onAccent) = _colorsOf(theme);
+    final enabled = onPressed != null && !isLoading;
+
+    // Variant chooses the color; type only decides how that color is applied.
+    final (backgroundColor, foregroundColor) = switch (type) {
+      AppIconButtonType.filled => (accent, onAccent),
+      AppIconButtonType.tonal => (
+          Color.alphaBlend(
+            accent.withValues(alpha: _tonalFillOpacity),
+            theme.colorScheme.surface,
+          ),
+          accent,
+        ),
+      AppIconButtonType.outlined || AppIconButtonType.ghost => (
+          Colors.transparent,
+          accent,
+        ),
+    };
+
+    // A disabled button stays its variant, just faded — never a generic grey.
+    final resolvedForeground = enabled
+        ? foregroundColor
+        : foregroundColor.withValues(alpha: _disabledOpacity);
+    final resolvedBackground = enabled
+        ? backgroundColor
+        : backgroundColor.withValues(alpha: _disabledOpacity);
+
+    final border = type == AppIconButtonType.outlined
+        ? BorderSide(color: resolvedForeground, width: _outlinedBorderWidth)
+        : BorderSide.none;
+
+    final button = Material(
+      color: resolvedBackground,
+      clipBehavior: Clip.antiAlias,
+      shape: shape == AppIconButtonShape.circle
+          ? CircleBorder(side: border)
+          : RoundedRectangleBorder(
+              borderRadius: AppConstants.borderRadius12,
+              side: border,
+            ),
+      child: InkWell(
+        onTap: enabled
+            ? () {
+                HapticFeedback.selectionClick();
+                onPressed!();
+              }
+            : null,
+        child: SizedBox.square(
+          dimension: sizeConfig.container,
+          child: isLoading
+              ? Center(
+                  child: SizedBox.square(
+                    dimension: sizeConfig.icon,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: resolvedForeground,
+                    ),
+                  ),
+                )
+              : Icon(icon, size: sizeConfig.icon, color: resolvedForeground),
+        ),
+      ),
+    );
+
+    if (tooltip == null) return button;
+    return Tooltip(message: tooltip!, child: button);
+  }
+}
+''';
+
+  /// Returns the generated appAppBar template.
+  static String appAppBar() => r'''
+import 'package:flutter/material.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+
+/// The app's [AppBar]: one title treatment, an optional supporting line, and
+/// a back button that only appears when there is something to go back to.
+///
+/// Implements [PreferredSizeWidget], so it drops straight into
+/// `Scaffold(appBar: AppAppBar(title: 'Settings'))`.
+class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const AppAppBar({
+    super.key,
+    this.title,
+    this.subtitle,
+    this.leading,
+    this.actions = const [],
+    this.centerTitle = false,
+    this.showBack = true,
+    this.onBack,
+    this.bottom,
+    this.backgroundColor,
+  });
+
+  final String? title;
+
+  /// Small supporting line under [title] — a count, a status, a date.
+  final String? subtitle;
+
+  /// Replaces the automatic back button entirely.
+  final Widget? leading;
+  final List<Widget> actions;
+  final bool centerTitle;
+
+  /// Shows a back button when the route can actually pop. Leave it on: it is
+  /// already a no-op on a root route. Set false for tab roots that can pop but
+  /// shouldn't offer to.
+  final bool showBack;
+
+  /// Overrides the default `Navigator.maybePop` — e.g. to confirm unsaved work.
+  final VoidCallback? onBack;
+
+  /// A [TabBar] or any other bar below the toolbar.
+  final PreferredSizeWidget? bottom;
+  final Color? backgroundColor;
+
+  @override
+  Size get preferredSize => Size.fromHeight(
+        kToolbarHeight +
+            (subtitle == null ? 0 : AppConstants.space12) +
+            (bottom?.preferredSize.height ?? 0),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    final canPop = Navigator.of(context).canPop();
+
+    return AppBar(
+      backgroundColor: backgroundColor ?? theme.colorScheme.surface,
+      surfaceTintColor: Colors.transparent,
+      scrolledUnderElevation: 0.5,
+      centerTitle: centerTitle,
+      toolbarHeight: preferredSize.height - (bottom?.preferredSize.height ?? 0),
+      // The leading slot is resolved here, so `automaticallyImplyLeading`
+      // would only ever fight it.
+      automaticallyImplyLeading: false,
+      leading: leading ??
+          (showBack && canPop
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: onBack ?? () => Navigator.maybePop(context),
+                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                )
+              : null),
+      title: title == null
+          ? null
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: centerTitle
+                  ? CrossAxisAlignment.center
+                  : CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontSize: AppConstants.fontSize20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+      actions: actions,
+      bottom: bottom,
+    );
+  }
+}
+''';
+
+  /// Returns the generated appBanner template.
+  static String appBanner() => r'''
+import 'package:flutter/material.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+import '../indicators/app_tag.dart';
+
+/// An inline status message — the calm, persistent counterpart to AppToast.
+/// Use a banner for something that stays true while the screen is open
+/// ("You're offline", "Verify your email"), and a toast for something that
+/// just happened.
+///
+/// Colors come from [AppTagStatus], shared with [AppTag], so a banner and a
+/// pill about the same thing read as the same thing.
+class AppBanner extends StatelessWidget {
+  const AppBanner({
+    super.key,
+    required this.message,
+    this.title,
+    this.status = AppTagStatus.info,
+    this.icon,
+    this.actionLabel,
+    this.onAction,
+    this.onDismiss,
+  });
+
+  final String message;
+
+  /// Optional bold first line. Skip it for one-sentence banners.
+  final String? title;
+  final AppTagStatus status;
+
+  /// Overrides the status's default icon.
+  final IconData? icon;
+
+  /// Inline text action — "Retry", "Verify now". Shown only when [onAction]
+  /// is also set.
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  /// Shows a close button when set. Leave it null for a banner the user
+  /// shouldn't be able to wave away.
+  final VoidCallback? onDismiss;
+
+  static const double _fillOpacity = 0.10;
+  static const double _borderOpacity = 0.35;
+
+  Color _colorOf(ThemeData theme) => switch (status) {
+        AppTagStatus.neutral => theme.colorScheme.onSurfaceVariant,
+        AppTagStatus.success => AppConstants.success,
+        AppTagStatus.warning => AppConstants.warning,
+        AppTagStatus.error => theme.colorScheme.error,
+        AppTagStatus.info => AppConstants.info,
+      };
+
+  IconData _iconOf() => switch (status) {
+        AppTagStatus.neutral => Icons.info_outline,
+        AppTagStatus.success => Icons.check_circle_outline,
+        AppTagStatus.warning => Icons.warning_amber_outlined,
+        AppTagStatus.error => Icons.error_outline,
+        AppTagStatus.info => Icons.info_outline,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    final color = _colorOf(theme);
+
+    return Container(
+      padding: AppConstants.padding12,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: _fillOpacity),
+        borderRadius: AppConstants.borderRadius12,
+        border: Border.all(color: color.withValues(alpha: _borderOpacity)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon ?? _iconOf(), color: color, size: AppConstants.iconMedium),
+          const SizedBox(width: AppConstants.space12),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (title != null) ...[
+                  Text(
+                    title!,
+                    style: theme.textTheme.titleSmall?.copyWith(color: color),
+                  ),
+                  const SizedBox(height: 2),
+                ],
+                Text(
+                  message,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                if (actionLabel != null && onAction != null) ...[
+                  const SizedBox(height: AppConstants.space4),
+                  // A bare text action keeps the banner quiet: it is
+                  // information first, a call to action second.
+                  TextButton(
+                    onPressed: onAction,
+                    style: TextButton.styleFrom(
+                      foregroundColor: color,
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(actionLabel!),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (onDismiss != null)
+            IconButton(
+              onPressed: onDismiss,
+              icon: const Icon(Icons.close),
+              iconSize: AppConstants.iconSmall,
+              color: color,
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Dismiss',
+            ),
+        ],
+      ),
+    );
+  }
+}
+''';
+
+  /// Returns the generated appProgressBar template.
+  static String appProgressBar() => r'''
+import 'package:flutter/material.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+import '../inputs/app_input_style.dart';
+
+/// Thickness of [AppProgressBar].
+enum AppProgressBarSize { small, medium, large }
+
+/// A linear progress bar colored from [AppInputVariant].
+///
+/// Pass a [value] between 0 and 1 for determinate progress (an upload, a
+/// wizard); leave it null for the indeterminate sweep. Prefer a determinate
+/// bar whenever you can actually measure the work — it is the difference
+/// between "this is going somewhere" and "this is stuck".
+class AppProgressBar extends StatelessWidget {
+  const AppProgressBar({
+    super.key,
+    this.value,
+    this.label,
+    this.variant = AppInputVariant.primary,
+    this.size = AppProgressBarSize.medium,
+    this.showPercent = false,
+  });
+
+  /// 0..1 (clamped), or null for an indeterminate bar.
+  final double? value;
+
+  /// Caption above the bar, e.g. "Uploading photo".
+  final String? label;
+  final AppInputVariant variant;
+  final AppProgressBarSize size;
+
+  /// Shows the rounded percentage at the end of the caption row. Ignored while
+  /// [value] is null — an indeterminate bar has no percentage to show.
+  final bool showPercent;
+
+  static const double _trackOpacity = 0.15;
+
+  double get _thickness => switch (size) {
+        AppProgressBarSize.small => 4,
+        AppProgressBarSize.medium => 8,
+        AppProgressBarSize.large => 12,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    final accent = AppInputStyle.accentOf(context, variant);
+    final progress = value?.clamp(0.0, 1.0).toDouble();
+    final percent = progress == null ? null : (progress * 100).round();
+
+    final bar = ClipRRect(
+      borderRadius: AppConstants.borderRadiusFull,
+      child: LinearProgressIndicator(
+        value: progress,
+        minHeight: _thickness,
+        color: accent,
+        backgroundColor: accent.withValues(alpha: _trackOpacity),
+      ),
+    );
+
+    final showsCaption = label != null || (showPercent && percent != null);
+    if (!showsCaption) return bar;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            if (label != null)
+              Expanded(
+                child: Text(
+                  label!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            if (showPercent && percent != null)
+              Text(
+                '$percent%',
+                style: theme.textTheme.labelMedium?.copyWith(color: accent),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppConstants.space4),
+        bar,
+      ],
+    );
+  }
+}
+''';
+
+  /// Returns the generated appSearchField template.
+  static String appSearchField() => r'''
+import 'package:flutter/material.dart';
+
+import './app_input_style.dart';
+
+/// A search field: leading search icon, plus a clear button that appears only
+/// once there is something to clear.
+///
+/// Wire [onChanged] straight to your filter for a local list. For a remote
+/// search, put a debouncer between them (see
+/// core/services/debouncer_service.dart) so you aren't firing a request per
+/// keystroke.
+class AppSearchField extends StatefulWidget {
+  const AppSearchField({
+    super.key,
+    this.controller,
+    this.hint = 'Search',
+    this.onChanged,
+    this.onSubmitted,
+    this.variant = AppInputVariant.primary,
+    this.type = AppInputType.filled,
+    this.shape = AppInputShape.pill,
+    this.size = AppInputSize.medium,
+    this.autofocus = false,
+    this.enabled = true,
+  });
+
+  /// Optional external controller — pass one to read or clear the query from
+  /// outside. When omitted, the field owns (and disposes) its own.
+  final TextEditingController? controller;
+  final String hint;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final AppInputVariant variant;
+  final AppInputType type;
+  final AppInputShape shape;
+  final AppInputSize size;
+  final bool autofocus;
+  final bool enabled;
+
+  @override
+  State<AppSearchField> createState() => _AppSearchFieldState();
+}
+
+class _AppSearchFieldState extends State<AppSearchField> {
+  late final TextEditingController _controller =
+      widget.controller ?? TextEditingController();
+
+  /// Only dispose what this widget created — an injected controller belongs to
+  /// the caller and may well outlive the field.
+  late final bool _ownsController = widget.controller == null;
+
+  bool _hasText = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _hasText = _controller.text.isNotEmpty;
+    _controller.addListener(_onTextChanged);
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_onTextChanged);
+    if (_ownsController) _controller.dispose();
+    super.dispose();
+  }
+
+  /// Rebuilds only when the clear button has to appear or disappear, not on
+  /// every keystroke.
+  void _onTextChanged() {
+    final hasText = _controller.text.isNotEmpty;
+    if (hasText != _hasText) setState(() => _hasText = hasText);
+  }
+
+  void _clear() {
+    _controller.clear();
+    widget.onChanged?.call('');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      enabled: widget.enabled,
+      autofocus: widget.autofocus,
+      textInputAction: TextInputAction.search,
+      style: AppInputStyle.textStyle(context, size: widget.size),
+      onChanged: widget.onChanged,
+      onSubmitted: widget.onSubmitted,
+      decoration: AppInputStyle.decoration(
+        context,
+        variant: widget.variant,
+        type: widget.type,
+        shape: widget.shape,
+        size: widget.size,
+        hint: widget.hint,
+        enabled: widget.enabled,
+        prefixIcon: const Icon(Icons.search),
+        suffixIcon: _hasText
+            ? IconButton(
+                onPressed: _clear,
+                icon: const Icon(Icons.close),
+                tooltip: 'Clear',
+              )
+            : null,
+      ),
+    );
+  }
+}
+''';
+
+  /// Returns the generated appStepper template.
+  static String appStepper() => r'''
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+import './app_input_style.dart';
+
+/// A quantity stepper — "− 2 +". For picking a small count, where a slider
+/// would be imprecise and a text field is overkill.
+///
+/// The buttons disable themselves at [min] and [max], so the value can never
+/// leave the range you allow.
+class AppStepper extends StatelessWidget {
+  const AppStepper({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.min = 0,
+    this.max = 99,
+    this.step = 1,
+    this.variant = AppInputVariant.primary,
+    this.size = AppInputSize.medium,
+  });
+
+  final int value;
+
+  /// Pass null to render the whole stepper disabled.
+  final ValueChanged<int>? onChanged;
+  final int min;
+  final int max;
+
+  /// How much one tap moves the value.
+  final int step;
+  final AppInputVariant variant;
+  final AppInputSize size;
+
+  static const double _fillOpacity = 0.06;
+  static const double _borderOpacity = 0.25;
+  static const double _disabledOpacity = 0.35;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    final accent = AppInputStyle.accentOf(context, variant);
+    final sizeConfig = AppInputStyle.configOf(size);
+    final enabled = onChanged != null;
+
+    void emit(int next) {
+      HapticFeedback.selectionClick();
+      onChanged!(next.clamp(min, max));
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: _fillOpacity),
+        borderRadius: AppConstants.borderRadiusFull,
+        border: Border.all(color: accent.withValues(alpha: _borderOpacity)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _StepButton(
+            icon: Icons.remove,
+            color: accent,
+            iconSize: sizeConfig.iconSize,
+            disabledOpacity: _disabledOpacity,
+            onTap: enabled && value > min ? () => emit(value - step) : null,
+          ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: AppConstants.space32),
+            child: Text(
+              '$value',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontSize: sizeConfig.fontSize,
+                color: enabled
+                    ? theme.colorScheme.onSurface
+                    : theme.colorScheme.onSurface
+                        .withValues(alpha: _disabledOpacity),
+              ),
+            ),
+          ),
+          _StepButton(
+            icon: Icons.add,
+            color: accent,
+            iconSize: sizeConfig.iconSize,
+            disabledOpacity: _disabledOpacity,
+            onTap: enabled && value < max ? () => emit(value + step) : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepButton extends StatelessWidget {
+  const _StepButton({
+    required this.icon,
+    required this.color,
+    required this.iconSize,
+    required this.disabledOpacity,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final double iconSize;
+  final double disabledOpacity;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      customBorder: const CircleBorder(),
+      onTap: onTap,
+      child: Padding(
+        padding: AppConstants.padding8,
+        child: Icon(
+          icon,
+          size: iconSize,
+          color:
+              onTap == null ? color.withValues(alpha: disabledOpacity) : color,
+        ),
+      ),
+    );
+  }
+}
+''';
+
+  /// Returns the generated appSectionHeader template.
+  static String appSectionHeader() => r'''
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+
+/// A heading above a group of rows or cards: a title, an optional supporting
+/// line, and an optional text action on the right ("See all", "Edit").
+class AppSectionHeader extends StatelessWidget {
+  const AppSectionHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.actionLabel,
+    this.onAction,
+    this.padding = const EdgeInsets.symmetric(vertical: AppConstants.space8),
+  });
+
+  final String title;
+  final String? subtitle;
+
+  /// Trailing text action. Shown only when [onAction] is also set.
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+
+    return Padding(
+      padding: padding,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (actionLabel != null && onAction != null)
+            TextButton(
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                onAction!();
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: theme.colorScheme.primary,
+                visualDensity: VisualDensity.compact,
+              ),
+              child: Text(actionLabel!),
+            ),
+        ],
+      ),
+    );
+  }
+}
+''';
+
+  /// Returns the generated appExpansionTile template.
+  static String appExpansionTile() => r'''
+import 'package:flutter/material.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+
+/// A collapsible section, themed to match [AppListTile] and [AppCard].
+///
+/// The stock [ExpansionTile] draws its own top and bottom rules from the
+/// ambient divider color; this one is borderless, so it can sit inside an
+/// [AppCard] without doubling up on edges.
+class AppExpansionTile extends StatelessWidget {
+  const AppExpansionTile({
+    super.key,
+    required this.title,
+    required this.children,
+    this.subtitle,
+    this.leading,
+    this.initiallyExpanded = false,
+    this.onExpansionChanged,
+    this.childrenPadding = AppConstants.padding12,
+  });
+
+  final String title;
+  final List<Widget> children;
+  final String? subtitle;
+
+  /// Usually an AppLeadingIcon.
+  final Widget? leading;
+  final bool initiallyExpanded;
+  final ValueChanged<bool>? onExpansionChanged;
+  final EdgeInsetsGeometry childrenPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    final shape = RoundedRectangleBorder(
+      borderRadius: AppConstants.borderRadius12,
+    );
+
+    return Theme(
+      // ExpansionTile reads dividerColor off the ambient theme; blanking it
+      // here is the only way to drop its rules.
+      data: theme.copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        title: Text(title, style: theme.textTheme.bodyLarge),
+        subtitle: subtitle == null
+            ? null
+            : Text(
+                subtitle!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+        leading: leading,
+        initiallyExpanded: initiallyExpanded,
+        onExpansionChanged: onExpansionChanged,
+        shape: shape,
+        collapsedShape: shape,
+        iconColor: theme.colorScheme.primary,
+        collapsedIconColor: theme.colorScheme.onSurfaceVariant,
+        tilePadding: const EdgeInsets.symmetric(
+          horizontal: AppConstants.space12,
+        ),
+        childrenPadding: childrenPadding,
+        expandedCrossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
+}
+''';
+
+  /// Returns the generated appStepIndicator template.
+  static String appStepIndicator() => r'''
+import 'package:flutter/material.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+import '../inputs/app_input_style.dart';
+
+/// Shape of [AppStepIndicator].
+///
+/// - [dots]: a row of dots — compact, for carousels and onboarding.
+/// - [bars]: filled segments — reads as progress, best for wizards.
+/// - [numbered]: numbered circles with optional captions, for named steps.
+enum AppStepIndicatorType { dots, bars, numbered }
+
+/// Shows where the user is in a multi-step flow. Steps before [currentStep]
+/// render as done, the current one is highlighted, and later steps stay muted.
+class AppStepIndicator extends StatelessWidget {
+  const AppStepIndicator({
+    super.key,
+    required this.currentStep,
+    required this.stepCount,
+    this.labels = const [],
+    this.type = AppStepIndicatorType.bars,
+    this.variant = AppInputVariant.primary,
+  });
+
+  /// Zero-based index of the active step.
+  final int currentStep;
+  final int stepCount;
+
+  /// Per-step captions. Only used by [AppStepIndicatorType.numbered]; a short
+  /// or empty list just means fewer captions, never an error.
+  final List<String> labels;
+  final AppStepIndicatorType type;
+  final AppInputVariant variant;
+
+  static const double _mutedOpacity = 0.2;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = AppInputStyle.accentOf(context, variant);
+
+    Color colorFor(int index) => index <= currentStep
+        ? accent
+        : accent.withValues(alpha: _mutedOpacity);
+
+    return switch (type) {
+      AppStepIndicatorType.dots => Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < stepCount; i++)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppConstants.space4,
+                ),
+                child: AnimatedContainer(
+                  duration: AppConstants.duration200,
+                  height: AppConstants.space8,
+                  // The active dot stretches rather than growing, so the row
+                  // keeps its rhythm.
+                  width: i == currentStep
+                      ? AppConstants.space24
+                      : AppConstants.space8,
+                  decoration: BoxDecoration(
+                    color: colorFor(i),
+                    borderRadius: AppConstants.borderRadiusFull,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      AppStepIndicatorType.bars => Row(
+          children: [
+            for (var i = 0; i < stepCount; i++) ...[
+              if (i > 0) const SizedBox(width: AppConstants.space4),
+              Expanded(
+                child: AnimatedContainer(
+                  duration: AppConstants.duration200,
+                  height: AppConstants.space4,
+                  decoration: BoxDecoration(
+                    color: colorFor(i),
+                    borderRadius: AppConstants.borderRadiusFull,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      AppStepIndicatorType.numbered => Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < stepCount; i++) ...[
+              if (i > 0)
+                Expanded(
+                  child: Container(
+                    height: 2,
+                    margin: const EdgeInsets.only(
+                      top: AppConstants.space12,
+                      left: AppConstants.space4,
+                      right: AppConstants.space4,
+                    ),
+                    color: colorFor(i),
+                  ),
+                ),
+              _NumberedStep(
+                index: i,
+                currentStep: currentStep,
+                accent: accent,
+                label: i < labels.length ? labels[i] : null,
+              ),
+            ],
+          ],
+        ),
+    };
+  }
+}
+
+class _NumberedStep extends StatelessWidget {
+  const _NumberedStep({
+    required this.index,
+    required this.currentStep,
+    required this.accent,
+    required this.label,
+  });
+
+  final int index;
+  final int currentStep;
+  final Color accent;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    final isDone = index < currentStep;
+    final isCurrent = index == currentStep;
+    final reached = isDone || isCurrent;
+
+    // The accent can be any variant color, so the label inside the filled
+    // circle is picked from the accent's own brightness rather than assuming
+    // onPrimary.
+    final onAccent =
+        ThemeData.estimateBrightnessForColor(accent) == Brightness.dark
+            ? Colors.white
+            : Colors.black;
+
+    return SizedBox(
+      width: 64,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: AppConstants.space24,
+            height: AppConstants.space24,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: reached ? accent : Colors.transparent,
+              border: Border.all(
+                color: reached ? accent : accent.withValues(alpha: 0.3),
+                width: 1.5,
+              ),
+            ),
+            child: isDone
+                ? Icon(Icons.check, size: 14, color: onAccent)
+                : Text(
+                    '${index + 1}',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: isCurrent
+                          ? onAccent
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+          ),
+          if (label != null) ...[
+            const SizedBox(height: AppConstants.space4),
+            Text(
+              label!,
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: reached
+                    ? theme.colorScheme.onSurface
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+''';
+
   /// Returns the generated designSystemView template.
   static String designSystemView() => r'''
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../widgets/buttons/app_button.dart';
+import '../widgets/buttons/app_icon_button.dart';
 import '../widgets/cards/app_card.dart';
+import '../widgets/empty_view.dart';
 import '../widgets/error_view.dart';
+import '../widgets/feedback/app_banner.dart';
+import '../widgets/feedback/app_progress_bar.dart';
 import '../widgets/icons/app_leading_icon.dart';
 import '../widgets/indicators/app_badge.dart';
 import '../widgets/indicators/app_tag.dart';
+import '../widgets/inputs/app_checkbox.dart';
 import '../widgets/inputs/app_checkbox_label.dart';
 import '../widgets/inputs/app_choice_chip.dart';
+import '../widgets/inputs/app_date_input.dart';
 import '../widgets/inputs/app_dropdown_input.dart';
 import '../widgets/inputs/app_input.dart';
 import '../widgets/inputs/app_input_style.dart';
 import '../widgets/inputs/app_otp_input.dart';
 import '../widgets/inputs/app_radio_group.dart';
+import '../widgets/inputs/app_search_field.dart';
 import '../widgets/inputs/app_segmented.dart';
 import '../widgets/inputs/app_slider.dart';
+import '../widgets/inputs/app_stepper.dart';
 import '../widgets/inputs/app_switch.dart';
+import '../widgets/inputs/app_time_input.dart';
+import '../widgets/lists/app_card_tile.dart';
+import '../widgets/lists/app_expansion_tile.dart';
 import '../widgets/lists/app_list_tile.dart';
+import '../widgets/lists/app_section_header.dart';
+import '../widgets/loadings/app_loading_action_overlay.dart';
 import '../widgets/loadings/app_loading_data.dart';
 import '../widgets/loadings/app_screen_lock.dart';
 import '../widgets/loadings/app_skeleton_list.dart';
+import '../widgets/media/app_avatar.dart';
+import '../widgets/media/app_image.dart';
+import '../widgets/navigation/app_app_bar.dart';
 import '../widgets/navigation/app_bottom_nav.dart';
+import '../widgets/navigation/app_step_indicator.dart';
 import '../widgets/overlays/app_bottom_sheet_scaffold.dart';
 import '../widgets/overlays/app_confirm_dialog.dart';
 import '../widgets/overlays/app_toast.dart';
@@ -2996,6 +4159,13 @@ class _DesignSystemViewState extends State<DesignSystemView> {
   bool _buttonLoading = false;
   bool _locked = false;
   int _navIndex = 0;
+  bool _plainCheckbox = true;
+  int _quantity = 1;
+  int _wizardStep = 1;
+  double _progress = 0.45;
+  bool _bannerVisible = true;
+  bool _overlayLoading = false;
+  String _query = '';
 
   void _toggleTheme() => setState(() {
         _mode = _mode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
@@ -3011,18 +4181,21 @@ class _DesignSystemViewState extends State<DesignSystemView> {
       darkTheme: ThemeData(useMaterial3: true, brightness: Brightness.dark),
       home: Builder(
         builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: const Text('Design System'),
+          // The screen's own chrome is AppAppBar, so this doubles as its
+          // preview — subtitle, actions and all.
+          appBar: AppAppBar(
+            title: 'Design System',
+            subtitle: 'Every shared widget, in your theme',
+            showBack: false,
             actions: [
-              IconButton(
+              AppIconButton(
+                icon: _mode == ThemeMode.light
+                    ? Icons.dark_mode_outlined
+                    : Icons.light_mode_outlined,
                 onPressed: _toggleTheme,
-                icon: Icon(
-                  _mode == ThemeMode.light
-                      ? Icons.dark_mode_outlined
-                      : Icons.light_mode_outlined,
-                ),
                 tooltip: 'Toggle theme',
               ),
+              const SizedBox(width: AppConstants.space8),
             ],
           ),
           body: ListView(
@@ -3083,7 +4256,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
               ),
 
               // ── Spacing ───────────────────────────────────────────────────
-              _Section(
+              const _Section(
                 title: 'Spacing Scale',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3100,7 +4273,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
               ),
 
               // ── Border Radius ─────────────────────────────────────────────
-              _Section(
+              const _Section(
                 title: 'Border Radius',
                 child: Wrap(
                   spacing: AppConstants.space12,
@@ -3206,14 +4379,14 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                       const SizedBox(height: AppConstants.space12),
                     ],
                     // Variant, type and shape compose freely.
-                    AppInput(
+                    const AppInput(
                       label: 'secondary + underline',
                       hint: 'Composed',
                       variant: AppInputVariant.secondary,
                       type: AppInputType.underline,
                     ),
                     const SizedBox(height: AppConstants.space12),
-                    AppInput(
+                    const AppInput(
                       label: 'tertiary + outlined + pill',
                       hint: 'Composed',
                       variant: AppInputVariant.tertiary,
@@ -3221,7 +4394,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                       shape: AppInputShape.pill,
                     ),
                     const SizedBox(height: AppConstants.space12),
-                    AppInput(
+                    const AppInput(
                       label: 'danger + filled + pill',
                       hint: 'Composed',
                       variant: AppInputVariant.danger,
@@ -3383,7 +4556,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
               ),
 
               // ── Loading ───────────────────────────────────────────────────
-              _Section(
+              const _Section(
                 title: 'AppLoadingData',
                 child: SizedBox(
                   height: 80,
@@ -3395,7 +4568,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
               _Section(
                 title: 'ErrorView',
                 child: SizedBox(
-                  height: 220,
+                  height: 320,
                   child: ErrorView(
                     message: 'Something went wrong. Please try again.',
                     onRetry: () {},
@@ -3690,12 +4863,12 @@ class _DesignSystemViewState extends State<DesignSystemView> {
               ),
 
               // ── AppTag & AppBadge ─────────────────────────────────────────
-              _Section(
+              const _Section(
                 title: 'AppTag & AppBadge',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Wrap(
+                    Wrap(
                       spacing: AppConstants.space8,
                       runSpacing: AppConstants.space8,
                       children: [
@@ -3710,8 +4883,8 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                         AppTag(label: 'Info', status: AppTagStatus.info),
                       ],
                     ),
-                    const SizedBox(height: AppConstants.space16),
-                    const Row(
+                    SizedBox(height: AppConstants.space16),
+                    Row(
                       children: [
                         AppBadge(
                           count: 3,
@@ -3779,7 +4952,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
               ),
 
               // ── AppSkeletonList ───────────────────────────────────────────
-              _Section(
+              const _Section(
                 title: 'AppSkeletonList',
                 child: SizedBox(
                   height: 240,
@@ -3874,6 +5047,452 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                     ),
                   ),
                   child: const Text('Show sheet with handle'),
+                ),
+              ),
+
+              // ── AppIconButton ─────────────────────────────────────────────
+              _Section(
+                title: 'AppIconButton',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Types (primary):'),
+                    const SizedBox(height: AppConstants.space8),
+                    Wrap(
+                      spacing: AppConstants.space12,
+                      runSpacing: AppConstants.space12,
+                      children: [
+                        for (final type in AppIconButtonType.values)
+                          AppIconButton(
+                            icon: Icons.favorite_outline,
+                            type: type,
+                            tooltip: type.name,
+                            onPressed: () {},
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    const Text('Variants (tonal):'),
+                    const SizedBox(height: AppConstants.space8),
+                    Wrap(
+                      spacing: AppConstants.space12,
+                      runSpacing: AppConstants.space12,
+                      children: [
+                        for (final variant in AppIconButtonVariant.values)
+                          AppIconButton(
+                            icon: Icons.share_outlined,
+                            variant: variant,
+                            type: AppIconButtonType.tonal,
+                            tooltip: variant.name,
+                            onPressed: () {},
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    const Text('Sizes, shape & states:'),
+                    const SizedBox(height: AppConstants.space8),
+                    Wrap(
+                      spacing: AppConstants.space12,
+                      runSpacing: AppConstants.space12,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        for (final size in AppIconButtonSize.values)
+                          AppIconButton(
+                            icon: Icons.edit_outlined,
+                            type: AppIconButtonType.filled,
+                            size: size,
+                            tooltip: size.name,
+                            onPressed: () {},
+                          ),
+                        AppIconButton(
+                          icon: Icons.delete_outline,
+                          variant: AppIconButtonVariant.danger,
+                          type: AppIconButtonType.outlined,
+                          shape: AppIconButtonShape.rounded,
+                          tooltip: 'rounded',
+                          onPressed: () {},
+                        ),
+                        const AppIconButton(
+                          icon: Icons.cloud_upload_outlined,
+                          type: AppIconButtonType.tonal,
+                          isLoading: true,
+                        ),
+                        const AppIconButton(
+                          icon: Icons.block,
+                          type: AppIconButtonType.filled,
+                          tooltip: 'disabled',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppSearchField ────────────────────────────────────────────
+              _Section(
+                title: 'AppSearchField',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppSearchField(
+                      hint: 'Search transactions',
+                      onChanged: (v) => setState(() => _query = v),
+                    ),
+                    const SizedBox(height: AppConstants.space8),
+                    Text(
+                      _query.isEmpty ? 'Query: (empty)' : 'Query: $_query',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: AppConstants.space12),
+                    const AppSearchField(
+                      hint: 'Outlined + rounded',
+                      variant: AppInputVariant.secondary,
+                      type: AppInputType.outlined,
+                      shape: AppInputShape.rounded,
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppStepper ────────────────────────────────────────────────
+              _Section(
+                title: 'AppStepper',
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Quantity'),
+                    AppStepper(
+                      value: _quantity,
+                      min: 1,
+                      max: 10,
+                      onChanged: (v) => setState(() => _quantity = v),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppCheckbox ───────────────────────────────────────────────
+              _Section(
+                title: 'AppCheckbox — shapes',
+                child: Row(
+                  children: [
+                    AppCheckbox(
+                      value: _plainCheckbox,
+                      onChanged: (v) =>
+                          setState(() => _plainCheckbox = v ?? false),
+                    ),
+                    const SizedBox(width: AppConstants.space16),
+                    AppCheckbox(
+                      value: _plainCheckbox,
+                      shape: AppInputShape.pill,
+                      variant: AppInputVariant.tertiary,
+                      onChanged: (v) =>
+                          setState(() => _plainCheckbox = v ?? false),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Date & time inputs ────────────────────────────────────────
+              _Section(
+                title: 'AppDateInput / AppTimeInput',
+                child: Column(
+                  children: [
+                    AppDateInput(
+                      label: 'Date of birth',
+                      hint: 'Pick a date',
+                      required: true,
+                      onChanged: (_) {},
+                    ),
+                    const SizedBox(height: AppConstants.space12),
+                    AppTimeInput(
+                      label: 'Reminder',
+                      hint: 'Pick a time',
+                      variant: AppInputVariant.secondary,
+                      onChanged: (_) {},
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppSectionHeader ──────────────────────────────────────────
+              _Section(
+                title: 'AppSectionHeader',
+                child: AppSectionHeader(
+                  title: 'Recent activity',
+                  subtitle: 'Last 30 days',
+                  actionLabel: 'See all',
+                  onAction: () {},
+                ),
+              ),
+
+              // ── AppCardTile ───────────────────────────────────────────────
+              _Section(
+                title: 'AppCardTile',
+                child: Column(
+                  children: [
+                    AppCardTile(
+                      leading: const AppLeadingIcon(
+                        icon: Icons.credit_card_outlined,
+                      ),
+                      title: 'Payment method',
+                      subtitle: 'Visa ending 4242',
+                      showChevron: true,
+                      onTap: () {},
+                    ),
+                    const SizedBox(height: AppConstants.space8),
+                    AppCardTile(
+                      cardType: AppCardType.outlined,
+                      leading: const AppLeadingIcon(
+                        icon: Icons.receipt_long_outlined,
+                        variant: AppLeadingIconVariant.tertiary,
+                      ),
+                      title: 'Billing history',
+                      showChevron: true,
+                      onTap: () {},
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppExpansionTile ──────────────────────────────────────────
+              const _Section(
+                title: 'AppExpansionTile',
+                child: AppCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      AppExpansionTile(
+                        title: 'Shipping options',
+                        subtitle: 'Standard, express, pickup',
+                        leading: AppLeadingIcon(
+                          icon: Icons.local_shipping_outlined,
+                        ),
+                        initiallyExpanded: true,
+                        children: [
+                          Text('Standard — 3-5 business days, free.'),
+                          SizedBox(height: AppConstants.space8),
+                          Text('Express — next business day.'),
+                        ],
+                      ),
+                      AppExpansionTile(
+                        title: 'Returns',
+                        children: [Text('30 days, no questions asked.')],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // ── AppBanner ─────────────────────────────────────────────────
+              _Section(
+                title: 'AppBanner',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_bannerVisible) ...[
+                      AppBanner(
+                        title: 'Verify your email',
+                        message:
+                            'We sent a link to jane@example.com. Verify to enable payouts.',
+                        status: AppTagStatus.warning,
+                        actionLabel: 'Resend link',
+                        onAction: () {},
+                        onDismiss: () =>
+                            setState(() => _bannerVisible = false),
+                      ),
+                      const SizedBox(height: AppConstants.space8),
+                    ] else ...[
+                      AppButton(
+                        variant: AppButtonVariant.secondary,
+                        type: AppButtonType.ghost,
+                        label: 'Bring the dismissed banner back',
+                        onPressed: () =>
+                            setState(() => _bannerVisible = true),
+                      ),
+                      const SizedBox(height: AppConstants.space8),
+                    ],
+                    const AppBanner(
+                      message: 'Your changes were saved.',
+                      status: AppTagStatus.success,
+                    ),
+                    const SizedBox(height: AppConstants.space8),
+                    const AppBanner(
+                      message: 'We could not reach the server.',
+                      status: AppTagStatus.error,
+                    ),
+                    const SizedBox(height: AppConstants.space8),
+                    const AppBanner(
+                      message: 'Read-only mode — you are offline.',
+                      status: AppTagStatus.neutral,
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppProgressBar ────────────────────────────────────────────
+              _Section(
+                title: 'AppProgressBar',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AppProgressBar(
+                      value: _progress,
+                      label: 'Uploading photo',
+                      showPercent: true,
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    AppSlider(
+                      value: _progress,
+                      label: 'Drag to change progress',
+                      onChanged: (v) => setState(() => _progress = v),
+                    ),
+                    const SizedBox(height: AppConstants.space8),
+                    for (final size in AppProgressBarSize.values) ...[
+                      AppProgressBar(value: 0.6, size: size),
+                      const SizedBox(height: AppConstants.space8),
+                    ],
+                    const AppProgressBar(
+                      variant: AppInputVariant.tertiary,
+                      label: 'Indeterminate (no value)',
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppStepIndicator ──────────────────────────────────────────
+              _Section(
+                title: 'AppStepIndicator',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AppStepIndicator(currentStep: _wizardStep, stepCount: 4),
+                    const SizedBox(height: AppConstants.space16),
+                    AppStepIndicator(
+                      currentStep: _wizardStep,
+                      stepCount: 4,
+                      type: AppStepIndicatorType.dots,
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    AppStepIndicator(
+                      currentStep: _wizardStep,
+                      stepCount: 4,
+                      type: AppStepIndicatorType.numbered,
+                      labels: const ['Account', 'Profile', 'Payment', 'Done'],
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        AppIconButton(
+                          icon: Icons.chevron_left,
+                          type: AppIconButtonType.tonal,
+                          tooltip: 'Previous step',
+                          onPressed: _wizardStep == 0
+                              ? null
+                              : () => setState(() => _wizardStep--),
+                        ),
+                        const SizedBox(width: AppConstants.space16),
+                        AppIconButton(
+                          icon: Icons.chevron_right,
+                          type: AppIconButtonType.tonal,
+                          tooltip: 'Next step',
+                          onPressed: _wizardStep == 3
+                              ? null
+                              : () => setState(() => _wizardStep++),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppAvatar & AppImage ──────────────────────────────────────
+              const _Section(
+                title: 'AppAvatar & AppImage',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Initials fallback (no URL):'),
+                    SizedBox(height: AppConstants.space8),
+                    Wrap(
+                      spacing: AppConstants.space12,
+                      runSpacing: AppConstants.space12,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        AppAvatar(name: 'Jane Doe', size: AppAvatarSize.chat),
+                        AppAvatar(name: 'Ada Lovelace'),
+                        AppAvatar(
+                          name: 'Grace Hopper',
+                          size: AppAvatarSize.detail,
+                        ),
+                        AppAvatar(
+                          name: 'Alan Turing',
+                          size: AppAvatarSize.detail,
+                          roundedSquare: true,
+                        ),
+                        AppAvatar(),
+                      ],
+                    ),
+                    SizedBox(height: AppConstants.space16),
+                    Text(
+                      'AppImage falls back to assets/images/placeholder_image.jpg — '
+                      'add one, or point placeholderAsset at your own.',
+                    ),
+                    SizedBox(height: AppConstants.space8),
+                    Wrap(
+                      spacing: AppConstants.space12,
+                      runSpacing: AppConstants.space12,
+                      children: [
+                        AppImage(size: AppImageSize.small),
+                        AppImage(
+                          size: AppImageSize.small,
+                          shape: AppImageShape.circle,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── EmptyView ─────────────────────────────────────────────────
+              _Section(
+                title: 'EmptyView',
+                child: SizedBox(
+                  height: 320,
+                  child: EmptyView(
+                    title: 'No transactions yet',
+                    message: 'Your payments will show up here.',
+                    actionLabel: 'Add one',
+                    onAction: () {},
+                  ),
+                ),
+              ),
+
+              // ── AppLoadingActionOverlay ───────────────────────────────────
+              _Section(
+                title: 'AppLoadingActionOverlay',
+                child: AppLoadingActionOverlay(
+                  isLoading: _overlayLoading,
+                  child: Container(
+                    height: 140,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerLowest,
+                      borderRadius: AppConstants.borderRadius12,
+                    ),
+                    child: AppButton(
+                      variant: AppButtonVariant.primary,
+                      width: 220,
+                      label: 'Cover this box for 3s',
+                      onPressed: () async {
+                        setState(() => _overlayLoading = true);
+                        await Future<void>.delayed(const Duration(seconds: 3));
+                        if (mounted) setState(() => _overlayLoading = false);
+                      },
+                    ),
+                  ),
                 ),
               ),
 

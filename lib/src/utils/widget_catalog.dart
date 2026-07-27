@@ -66,7 +66,26 @@ abstract final class WidgetCatalog {
   ];
 
   /// Every widget in the kit, grouped by [categories] order.
+  ///
+  /// The preview screen is appended separately so its dependency list can be
+  /// derived from [_kit] rather than hand-maintained — it claims to pull in
+  /// the whole kit, and that stays true as widgets are added.
   static final List<WidgetSpec> all = [
+    ..._kit,
+    WidgetSpec(
+      name: 'design-system',
+      title: 'DesignSystemView',
+      file: 'design_system_view.dart',
+      template: SharedTemplates.designSystemView,
+      category: 'Preview',
+      needsRouter: true,
+      deps: [for (final spec in _kit) spec.name],
+      description:
+          'A screen previewing the kit in light/dark. Pulls in every other widget.',
+    ),
+  ];
+
+  static final List<WidgetSpec> _kit = [
     // ── Inputs ────────────────────────────────────────────────────────────────
     WidgetSpec(
       name: 'input-style',
@@ -201,6 +220,26 @@ abstract final class WidgetCatalog {
       packages: ['mo_2fa_code: '],
       description: 'One-time-code / OTP field powered by mo_2fa_code.',
     ),
+    WidgetSpec(
+      name: 'search-field',
+      title: 'AppSearchField',
+      file: 'inputs/app_search_field.dart',
+      template: SharedTemplates.appSearchField,
+      category: 'Inputs',
+      deps: ['input-style'],
+      description:
+          'Search input with a leading icon and a clear button that appears when there is text.',
+    ),
+    WidgetSpec(
+      name: 'stepper',
+      title: 'AppStepper',
+      file: 'inputs/app_stepper.dart',
+      template: SharedTemplates.appStepper,
+      category: 'Inputs',
+      deps: ['input-style'],
+      description:
+          'Quantity stepper (− value +) that clamps itself to a min/max range.',
+    ),
 
     // ── Buttons & icons ───────────────────────────────────────────────────────
     WidgetSpec(
@@ -222,6 +261,15 @@ abstract final class WidgetCatalog {
       common: true,
       description:
           'Colored icon-in-a-box building block for list tiles, dialogs and cards.',
+    ),
+    WidgetSpec(
+      name: 'icon-button',
+      title: 'AppIconButton',
+      file: 'buttons/app_icon_button.dart',
+      template: SharedTemplates.appIconButton,
+      category: 'Buttons & icons',
+      description:
+          "AppLeadingIcon's tappable sibling: ripple, haptics, tooltip, loading and disabled states.",
     ),
 
     // ── Layout & content ──────────────────────────────────────────────────────
@@ -267,6 +315,24 @@ abstract final class WidgetCatalog {
       template: SharedTemplates.appTag,
       category: 'Layout & content',
       description: 'Small status pill — Active / Pending / Failed.',
+    ),
+    WidgetSpec(
+      name: 'section-header',
+      title: 'AppSectionHeader',
+      file: 'lists/app_section_header.dart',
+      template: SharedTemplates.appSectionHeader,
+      category: 'Layout & content',
+      description:
+          'Heading above a group of rows: title, optional subtitle, optional "See all" action.',
+    ),
+    WidgetSpec(
+      name: 'expansion-tile',
+      title: 'AppExpansionTile',
+      file: 'lists/app_expansion_tile.dart',
+      template: SharedTemplates.appExpansionTile,
+      category: 'Layout & content',
+      description:
+          'Borderless collapsible section that nests cleanly inside an AppCard.',
     ),
 
     // ── Feedback & loading ────────────────────────────────────────────────────
@@ -323,6 +389,26 @@ abstract final class WidgetCatalog {
       category: 'Feedback & loading',
       common: true,
       description: 'Inline empty state with icon, message and optional action.',
+    ),
+    WidgetSpec(
+      name: 'banner',
+      title: 'AppBanner',
+      file: 'feedback/app_banner.dart',
+      template: SharedTemplates.appBanner,
+      category: 'Feedback & loading',
+      deps: ['tag'],
+      description:
+          'Inline status message for state that persists — the calm counterpart to AppToast. Shares AppTagStatus with AppTag.',
+    ),
+    WidgetSpec(
+      name: 'progress-bar',
+      title: 'AppProgressBar',
+      file: 'feedback/app_progress_bar.dart',
+      template: SharedTemplates.appProgressBar,
+      category: 'Feedback & loading',
+      deps: ['input-style'],
+      description:
+          'Determinate or indeterminate linear progress, with an optional caption and percentage.',
     ),
 
     // ── Overlays ──────────────────────────────────────────────────────────────
@@ -409,43 +495,24 @@ abstract final class WidgetCatalog {
       category: 'Navigation',
       description: 'Themed NavigationBar wrapper with typed destinations.',
     ),
-
-    // ── Preview ───────────────────────────────────────────────────────────────
     WidgetSpec(
-      name: 'design-system',
-      title: 'DesignSystemView',
-      file: 'design_system_view.dart',
-      template: SharedTemplates.designSystemView,
-      category: 'Preview',
-      needsRouter: true,
-      deps: [
-        'button',
-        'card',
-        'error-view',
-        'leading-icon',
-        'badge',
-        'tag',
-        'checkbox-label',
-        'choice-chip',
-        'dropdown',
-        'input',
-        'input-style',
-        'otp',
-        'radio-group',
-        'segmented',
-        'slider',
-        'switch',
-        'list-tile',
-        'loading-data',
-        'screen-lock',
-        'skeleton-list',
-        'bottom-nav',
-        'bottom-sheet',
-        'confirm-dialog',
-        'toast',
-      ],
+      name: 'app-bar',
+      title: 'AppAppBar',
+      file: 'navigation/app_app_bar.dart',
+      template: SharedTemplates.appAppBar,
+      category: 'Navigation',
       description:
-          'A screen previewing every widget in light/dark. Pulls in the whole kit.',
+          'PreferredSizeWidget AppBar with an optional subtitle and a back button that only shows when the route can pop.',
+    ),
+    WidgetSpec(
+      name: 'step-indicator',
+      title: 'AppStepIndicator',
+      file: 'navigation/app_step_indicator.dart',
+      template: SharedTemplates.appStepIndicator,
+      category: 'Navigation',
+      deps: ['input-style'],
+      description:
+          'Progress through a multi-step flow, as dots, bars or numbered steps.',
     ),
   ];
 

@@ -19,6 +19,8 @@ If `moarch` is not found, make sure your Pub bin folder is on your `PATH`.
 flutter create my_app
 cd my_app
 moarch init
+flutter pub get
+dart run build_runner build --delete-conflicting-outputs  # generates app_env.g.dart
 moarch create feature auth
 moarch create model auth login_response
 ```
@@ -70,14 +72,22 @@ Widget dependencies are pulled in automatically, and any pub package a widget ne
 ([mo_2fa_code](https://pub.dev/packages/mo_2fa_code) for OTP, `cached_network_image`
 for avatars/images) is added to `pubspec.yaml`.
 
-The kit covers inputs (switch, segmented, choice chips, radio group, slider,
-date/time, dropdown, checkbox, OTP), layout (`AppListTile`, `AppCard`, `AppTag`,
-`AppBadge`), feedback (`AppScreenLock`, skeleton list, loading overlay), media
-(`AppAvatar`, `AppImage`) and navigation (`AppBottomNav`). Every control shares one
-vocabulary — `variant`, `type`, `shape`, `size` — and `moarch create widget
-design-system` (or `all`) generates a screen previewing them all in light/dark. Set
-`AppConstants.fontFamily` (or swap in `google_fonts`) to restyle the whole app's
-typography from one place.
+The kit covers:
+
+- **inputs** — switch, segmented, choice chips, radio group, slider, date/time,
+  dropdown, checkbox, OTP, `AppSearchField`, `AppStepper` (quantity −/+)
+- **buttons & icons** — `AppButton`, `AppLeadingIcon`, `AppIconButton`
+- **layout** — `AppListTile`, `AppCard`, `AppCardTile`, `AppTag`, `AppBadge`,
+  `AppSectionHeader`, `AppExpansionTile`
+- **feedback** — `AppBanner`, `AppProgressBar`, `AppScreenLock`, skeleton list,
+  loading overlay, `ErrorView`, `EmptyView`
+- **media** — `AppAvatar`, `AppImage`
+- **navigation** — `AppAppBar`, `AppBottomNav`, `AppStepIndicator`
+
+Every control shares one vocabulary — `variant`, `type`, `shape`, `size` — and
+`moarch create widget design-system` (or `all`) generates a screen previewing them
+all in light/dark. Set `AppConstants.fontFamily` (or swap in `google_fonts`) to
+restyle the whole app's typography from one place.
 
 ## Local development
 

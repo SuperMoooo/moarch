@@ -45,7 +45,13 @@ void main(List<String> args) async {
   logger.info('');
   logger.info('   Add any other widget on demand:');
   logger.info(
-      '     moarch create widget <name>   (e.g. switch, otp, list-tile, card, slider)');
+      '     moarch create widget <name>   (e.g. switch, otp, list-tile, card, slider,');
+  logger.info(
+      '                                    icon-button, app-bar, banner, progress-bar,');
+  logger.info(
+      '                                    search-field, stepper, section-header,');
+  logger.info(
+      '                                    expansion-tile, step-indicator)');
   logger.info(
       '     moarch create widget all      -> whole kit + DesignSystemView preview');
   logger.info(

@@ -33,33 +33,30 @@ class LanguageService extends Notifier<LanguageState> {
 
   /// Returns a notification service scaffold.
   static String notificationsService() => r'''
+import 'dart:io';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+
 import '../../core/utils/app_logger.dart';
-import 'dart:io';
 
-/// Android: add to android/app/src/main/AndroidManifest.xml inside <manifest>:
-///   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-///   <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
-///   <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
-///   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-///
-
-
-/// iOS: moarch init adds this to ios/Runner/AppDelegate.swift when the iOS
-/// folder exists; otherwise add it before GeneratedPluginRegistrant.register:
-///   if #available(iOS 10.0, *) {
-///     UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate
-///   }
-/// Do not override userNotificationCenter(_:didReceive:) in AppDelegate without
-/// calling super — FlutterAppDelegate forwards notification taps to the plugins
-/// (flutter_local_notifications / firebase_messaging) and an override that
-/// skips super blocks them.
-
-
+// Android: add to android/app/src/main/AndroidManifest.xml inside <manifest>:
+//   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+//   <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+//   <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+//   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+//
+// iOS: moarch init adds this to ios/Runner/AppDelegate.swift when the iOS
+// folder exists; otherwise add it before GeneratedPluginRegistrant.register:
+//   if #available(iOS 10.0, *) {
+//     UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate
+//   }
+// Do not override userNotificationCenter(_:didReceive:) in AppDelegate without
+// calling super — FlutterAppDelegate forwards notification taps to the plugins
+// (flutter_local_notifications / firebase_messaging) and an override that
+// skips super blocks them.
 
 // ─── Background handler (must be top-level) ──────────────────────────────────
 @pragma('vm:entry-point')

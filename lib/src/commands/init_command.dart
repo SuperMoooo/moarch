@@ -245,6 +245,14 @@ class InitCommand extends Command<int> {
     final pubspecBackup =
         pubspecExisted ? await pubspecFile.readAsString() : null;
 
+    // analysis_options.yaml is the one file FileUtils overwrites rather than
+    // skips, so it needs a backup like the platform files below.
+    final analysisOptionsFile =
+        File(p.join(p.absolute(targetPath), 'analysis_options.yaml'));
+    final analysisOptionsBackup = analysisOptionsFile.existsSync()
+        ? await analysisOptionsFile.readAsString()
+        : null;
+
     final infoPlistFile =
         File(p.join(p.absolute(targetPath), 'ios', 'Runner', 'Info.plist'));
     final infoPlistBackup =
@@ -606,6 +614,9 @@ class InitCommand extends Command<int> {
         } else if (!pubspecExisted && pubspecFile.existsSync()) {
           await pubspecFile.delete();
         }
+        if (analysisOptionsBackup != null) {
+          await analysisOptionsFile.writeAsString(analysisOptionsBackup);
+        }
         if (infoPlistBackup != null) {
           await infoPlistFile.writeAsString(infoPlistBackup);
         }
@@ -646,6 +657,13 @@ class InitCommand extends Command<int> {
     _logger.info(
         '  The selected scaffold dependencies were added to pubspec.yaml.');
     _logger.info('  Run: flutter pub get');
+    // config/env/app_env.dart is a `part` of an envied-generated file, so the
+    // project does not analyze cleanly until build_runner has produced
+    // app_env.g.dart. Say so here rather than letting it look like a bug.
+    _logger.info(
+        '  Then:  dart run build_runner build --delete-conflicting-outputs');
+    _logger.info(
+        '         (generates config/env/app_env.g.dart from .env — required)');
     _logger.info('');
     if (stack.contains(_kAuthFeature)) {
       _logger

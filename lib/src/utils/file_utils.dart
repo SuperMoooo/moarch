@@ -47,19 +47,31 @@ class FileUtils {
     }
   }
 
-  /// Returns the generated writeFile template.
-  static Future<void> writeFile(String filePath, String content) async {
+  /// Writes [content] to [filePath], creating parent directories as needed.
+  ///
+  /// Existing files are never clobbered — a hand-edited widget or feature
+  /// survives a re-run of the generator. `analysis_options.yaml` is the one
+  /// exception: it is the scaffold's own lint contract, so it is refreshed.
+  ///
+  /// Returns true when the file was written, false when an existing file was
+  /// left untouched, so callers can report "created" and "skipped" honestly.
+  /// In dry-run mode it records the path and reports true without touching disk.
+  static Future<bool> writeFile(String filePath, String content) async {
     if (_dryRun) {
       _plannedWrites.add(filePath);
-      return;
+      return true;
     }
     await createDir(p.dirname(filePath));
     final file = File(filePath);
     if (!file.existsSync()) {
       await file.writeAsString(content);
       _createdFiles.add(filePath);
-    } else if (file.path.contains("analysis_options")) {
-      await file.writeAsString(content);
+      return true;
     }
+    if (p.basename(filePath) == 'analysis_options.yaml') {
+      await file.writeAsString(content);
+      return true;
+    }
+    return false;
   }
 }

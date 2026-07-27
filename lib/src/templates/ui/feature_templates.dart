@@ -361,7 +361,7 @@ class _${cls}ViewState extends ConsumerState<${cls}View> {
         enabled: true,
         child: mainWidget(null),
       ),
-      error: (_, __) =>
+      error: (error, stackTrace) =>
           const Scaffold(body: ErrorView(message: 'Failed to load $cls')),
     );
   }
