@@ -226,9 +226,9 @@ abstract final class WidgetCatalog {
       file: 'inputs/app_search_field.dart',
       template: SharedTemplates.appSearchField,
       category: 'Inputs',
-      deps: ['input-style'],
+      deps: ['input-style', 'icon-button'],
       description:
-          'Search input with a leading icon and a clear button that appears when there is text.',
+          'Search input with a leading icon and a styleable clear button that appears when there is text.',
     ),
     WidgetSpec(
       name: 'stepper',
@@ -396,7 +396,7 @@ abstract final class WidgetCatalog {
       file: 'feedback/app_banner.dart',
       template: SharedTemplates.appBanner,
       category: 'Feedback & loading',
-      deps: ['tag'],
+      deps: ['tag', 'icon-button'],
       description:
           'Inline status message for state that persists — the calm counterpart to AppToast. Shares AppTagStatus with AppTag.',
     ),
@@ -463,7 +463,7 @@ abstract final class WidgetCatalog {
       category: 'Overlays',
       common: true,
       description:
-          'Bottom-sheet inside: drag handle, optional title, content padding.',
+          'Bottom-sheet inside: styleable drag handle, optional title and close button, content padding.',
     ),
 
     // ── Media ─────────────────────────────────────────────────────────────────
@@ -501,8 +501,9 @@ abstract final class WidgetCatalog {
       file: 'navigation/app_app_bar.dart',
       template: SharedTemplates.appAppBar,
       category: 'Navigation',
+      deps: ['icon-button'],
       description:
-          'PreferredSizeWidget AppBar with an optional subtitle and a back button that only shows when the route can pop.',
+          'PreferredSizeWidget AppBar with an optional subtitle and an AppIconButton back button — tonal by default — that only shows when the route can pop.',
     ),
     WidgetSpec(
       name: 'step-indicator',

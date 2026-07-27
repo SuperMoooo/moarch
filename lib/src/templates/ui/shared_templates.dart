@@ -2475,11 +2475,22 @@ class AppToast {
   /// Returns the generated appBottomSheetScaffold template.
   static String appBottomSheetScaffold() => r'''
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
+/// Fill treatment of the sheet's close button.
+///
+/// Mirrors `AppIconButtonType`'s naming so it reads like the rest of the kit.
+/// It is redeclared here rather than imported because this widget ships with
+/// `moarch init` and AppIconButton does not — an init widget can only lean on
+/// other init widgets.
+enum AppSheetCloseType { filled, tonal, outlined, ghost }
+
 /// The standard inside of a bottom sheet: a rounded surface panel with a drag
-/// handle (grabber) at the top, an optional centered [title], and your [child].
+/// handle (grabber) at the top, an optional [title], an optional close button,
+/// and your [child].
 /// Pass this as the `child` to `AppBottomModals.showAppBottomModal`.
 class AppBottomSheetScaffold extends StatelessWidget {
   const AppBottomSheetScaffold({
@@ -2488,12 +2499,106 @@ class AppBottomSheetScaffold extends StatelessWidget {
     this.title,
     this.showHandle = true,
     this.padding = AppConstants.paddingPage,
+    this.titleAlign = TextAlign.center,
+    this.handleWidth = 40,
+    this.handleHeight = 4,
+    this.handleColor,
+    this.showClose = false,
+    this.onClose,
+    this.closeIcon = Icons.close,
+    this.closeType = AppSheetCloseType.tonal,
+    this.closeColor,
   });
 
   final Widget child;
   final String? title;
   final bool showHandle;
   final EdgeInsetsGeometry padding;
+
+  /// Centered reads as a modal, [TextAlign.start] as a panel. Pick one per app
+  /// and keep to it.
+  final TextAlign titleAlign;
+
+  final double handleWidth;
+  final double handleHeight;
+
+  /// Defaults to a muted `onSurfaceVariant`. Worth overriding only when the
+  /// sheet sits on a colored surface.
+  final Color? handleColor;
+
+  /// Shows a close button in the sheet's top corner. The drag handle already
+  /// says "dismissable" — add this when the sheet is tall enough that the
+  /// handle scrolls out of reach, or when dismissal needs to be obvious.
+  final bool showClose;
+
+  /// Overrides the default `Navigator.maybePop` — e.g. to confirm unsaved work.
+  final VoidCallback? onClose;
+
+  final IconData closeIcon;
+
+  /// How the close button wears [closeColor]. Tonal gives the soft grey circle
+  /// most sheets want; [AppSheetCloseType.ghost] is a bare glyph.
+  final AppSheetCloseType closeType;
+
+  /// Defaults to `onSurfaceVariant` — a close button is chrome, not an action,
+  /// so it stays neutral unless you say otherwise.
+  final Color? closeColor;
+
+  /// Matches AppIconButton's `small` tap target, so a sheet close and an icon
+  /// button elsewhere in the app are the same size.
+  static const double _closeDimension = 32;
+  static const double _closeTonalOpacity = 0.12;
+  static const double _closeBorderWidth = 1.5;
+  static const double _handleOpacity = 0.4;
+
+  Widget _buildClose(BuildContext context, ThemeData theme) {
+    final accent = closeColor ?? theme.colorScheme.onSurfaceVariant;
+    final (background, foreground) = switch (closeType) {
+      AppSheetCloseType.filled => (accent, theme.colorScheme.surface),
+      AppSheetCloseType.tonal => (
+          Color.alphaBlend(
+            accent.withValues(alpha: _closeTonalOpacity),
+            theme.colorScheme.surface,
+          ),
+          accent,
+        ),
+      AppSheetCloseType.outlined || AppSheetCloseType.ghost => (
+          Colors.transparent,
+          accent,
+        ),
+    };
+
+    return Tooltip(
+      message: MaterialLocalizations.of(context).closeButtonTooltip,
+      child: Material(
+        color: background,
+        clipBehavior: Clip.antiAlias,
+        shape: CircleBorder(
+          side: closeType == AppSheetCloseType.outlined
+              ? BorderSide(color: accent, width: _closeBorderWidth)
+              : BorderSide.none,
+        ),
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            if (onClose != null) {
+              onClose!();
+            } else {
+              Navigator.maybePop(context);
+            }
+          },
+          child: SizedBox.square(
+            dimension: _closeDimension,
+            child: Icon(
+              closeIcon,
+              size: AppConstants.iconSmall,
+              color: foreground,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2515,11 +2620,12 @@ class AppBottomSheetScaffold extends StatelessWidget {
               Center(
                 child: Container(
                   margin: const EdgeInsets.only(top: AppConstants.space12),
-                  width: 40,
-                  height: 4,
+                  width: handleWidth,
+                  height: handleHeight,
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.onSurfaceVariant
-                        .withValues(alpha: 0.4),
+                    color: handleColor ??
+                        theme.colorScheme.onSurfaceVariant
+                            .withValues(alpha: _handleOpacity),
                     borderRadius: AppConstants.borderRadiusFull,
                   ),
                 ),
@@ -2530,11 +2636,31 @@ class AppBottomSheetScaffold extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (title != null) ...[
-                    Text(
-                      title!,
-                      style: theme.textTheme.titleLarge,
-                      textAlign: TextAlign.center,
+                  if (title != null || showClose) ...[
+                    // A Stack rather than a Row: it keeps a centered title
+                    // centered on the sheet instead of on the space left over
+                    // beside the close button.
+                    Stack(
+                      alignment: AlignmentDirectional.centerEnd,
+                      children: [
+                        if (title != null)
+                          Padding(
+                            // Reserve the close button's width on both sides so
+                            // a centered title doesn't drift left to avoid it.
+                            padding: EdgeInsets.symmetric(
+                              horizontal: showClose ? _closeDimension : 0,
+                            ),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: Text(
+                                title!,
+                                style: theme.textTheme.titleLarge,
+                                textAlign: titleAlign,
+                              ),
+                            ),
+                          ),
+                        if (showClose) _buildClose(context, theme),
+                      ],
                     ),
                     const SizedBox(height: AppConstants.space16),
                   ],
@@ -3018,6 +3144,7 @@ class AppIconButton extends StatelessWidget {
     this.size = AppIconButtonSize.medium,
     this.tooltip,
     this.isLoading = false,
+    this.color,
   });
 
   final IconData icon;
@@ -3037,44 +3164,65 @@ class AppIconButton extends StatelessWidget {
   /// so the surrounding layout doesn't jump.
   final bool isLoading;
 
+  /// Overrides [variant]'s accent color. For the control that has to match a
+  /// color the variant vocabulary doesn't name — a status tint, say. Reach for
+  /// a [variant] first; this is the escape hatch.
+  final Color? color;
+
   static const double _tonalFillOpacity = 0.12;
   static const double _outlinedBorderWidth = 1.5;
   static const double _disabledOpacity = 0.38;
 
-  _IconButtonSizeConfig _sizeConfig() => switch (size) {
-        AppIconButtonSize.small => (
-            container: 32.0,
-            icon: AppConstants.iconSmall,
-          ),
-        AppIconButtonSize.medium => (
-            container: AppConstants.touchTarget,
-            icon: AppConstants.iconMedium,
-          ),
-        AppIconButtonSize.large => (
-            container: AppConstants.touchTarget + 16,
-            icon: AppConstants.iconLarge,
-          ),
+  /// The tap target's outer dimension for [size]. Public so a layout that has
+  /// to reserve room for the button — an AppBar's leading slot, say — can size
+  /// that slot instead of guessing at it.
+  static double dimensionOf(AppIconButtonSize size) => switch (size) {
+        AppIconButtonSize.small => 32.0,
+        AppIconButtonSize.medium => AppConstants.touchTarget,
+        AppIconButtonSize.large => AppConstants.touchTarget + 16,
       };
 
-  /// The variant's color, plus the color that reads on top of it.
-  (Color, Color) _colorsOf(ThemeData theme) => switch (variant) {
-        AppIconButtonVariant.primary => (
-            theme.colorScheme.primary,
-            theme.colorScheme.onPrimary,
-          ),
-        AppIconButtonVariant.secondary => (
-            theme.colorScheme.secondary,
-            theme.colorScheme.onSecondary,
-          ),
-        AppIconButtonVariant.tertiary => (
-            theme.colorScheme.tertiary,
-            theme.colorScheme.onTertiary,
-          ),
-        AppIconButtonVariant.danger => (
-            theme.colorScheme.error,
-            theme.colorScheme.onError,
-          ),
-      };
+  _IconButtonSizeConfig _sizeConfig() => (
+        container: dimensionOf(size),
+        icon: switch (size) {
+          AppIconButtonSize.small => AppConstants.iconSmall,
+          AppIconButtonSize.medium => AppConstants.iconMedium,
+          AppIconButtonSize.large => AppConstants.iconLarge,
+        },
+      );
+
+  /// The accent color, plus the color that reads on top of it.
+  (Color, Color) _colorsOf(ThemeData theme) {
+    final override = color;
+    if (override != null) {
+      // No colorScheme pair exists for an arbitrary color, so pick whichever
+      // of black/white keeps the filled treatment legible.
+      return (
+        override,
+        ThemeData.estimateBrightnessForColor(override) == Brightness.dark
+            ? Colors.white
+            : Colors.black,
+      );
+    }
+    return switch (variant) {
+      AppIconButtonVariant.primary => (
+          theme.colorScheme.primary,
+          theme.colorScheme.onPrimary,
+        ),
+      AppIconButtonVariant.secondary => (
+          theme.colorScheme.secondary,
+          theme.colorScheme.onSecondary,
+        ),
+      AppIconButtonVariant.tertiary => (
+          theme.colorScheme.tertiary,
+          theme.colorScheme.onTertiary,
+        ),
+      AppIconButtonVariant.danger => (
+          theme.colorScheme.error,
+          theme.colorScheme.onError,
+        ),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3156,9 +3304,15 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
+import '../buttons/app_icon_button.dart';
 
 /// The app's [AppBar]: one title treatment, an optional supporting line, and
 /// a back button that only appears when there is something to go back to.
+///
+/// The back button is an [AppIconButton], so it takes the same
+/// variant/type/shape/size vocabulary as every other control in the kit —
+/// `backType: AppIconButtonType.ghost` for a bare arrow, `.filled` for a solid
+/// one. It defaults to a tonal circle.
 ///
 /// Implements [PreferredSizeWidget], so it drops straight into
 /// `Scaffold(appBar: AppAppBar(title: 'Settings'))`.
@@ -3174,6 +3328,11 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.onBack,
     this.bottom,
     this.backgroundColor,
+    this.backIcon = Icons.arrow_back,
+    this.backVariant = AppIconButtonVariant.primary,
+    this.backType = AppIconButtonType.tonal,
+    this.backShape = AppIconButtonShape.circle,
+    this.backSize = AppIconButtonSize.medium,
   });
 
   final String? title;
@@ -3181,7 +3340,8 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// Small supporting line under [title] — a count, a status, a date.
   final String? subtitle;
 
-  /// Replaces the automatic back button entirely.
+  /// Replaces the automatic back button entirely. When set, every `back*`
+  /// option below is ignored — you own the slot.
   final Widget? leading;
   final List<Widget> actions;
   final bool centerTitle;
@@ -3198,6 +3358,19 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
   final PreferredSizeWidget? bottom;
   final Color? backgroundColor;
 
+  /// Swap for `Icons.arrow_back_ios_new` on an iOS-leaning design, or
+  /// `Icons.close` when the screen reads as a dismissable sheet.
+  final IconData backIcon;
+
+  /// Color role of the back button.
+  final AppIconButtonVariant backVariant;
+
+  /// How the back button wears its color. [AppIconButtonType.tonal] gives the
+  /// soft tinted container; [AppIconButtonType.ghost] the bare arrow.
+  final AppIconButtonType backType;
+  final AppIconButtonShape backShape;
+  final AppIconButtonSize backSize;
+
   @override
   Size get preferredSize => Size.fromHeight(
         kToolbarHeight +
@@ -3209,6 +3382,7 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final theme = context.theme;
     final canPop = Navigator.of(context).canPop();
+    final showsOwnBack = leading == null && showBack && canPop;
 
     return AppBar(
       backgroundColor: backgroundColor ?? theme.colorScheme.surface,
@@ -3219,12 +3393,24 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
       // The leading slot is resolved here, so `automaticallyImplyLeading`
       // would only ever fight it.
       automaticallyImplyLeading: false,
+      // The default 56pt slot clips a container-bearing button at the larger
+      // sizes, so the slot is measured from the button rather than assumed.
+      leadingWidth: showsOwnBack
+          ? AppIconButton.dimensionOf(backSize) + AppConstants.space16
+          : null,
       leading: leading ??
-          (showBack && canPop
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: onBack ?? () => Navigator.maybePop(context),
-                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+          (showsOwnBack
+              ? Center(
+                  child: AppIconButton(
+                    icon: backIcon,
+                    onPressed: onBack ?? () => Navigator.maybePop(context),
+                    variant: backVariant,
+                    type: backType,
+                    shape: backShape,
+                    size: backSize,
+                    tooltip:
+                        MaterialLocalizations.of(context).backButtonTooltip,
+                  ),
                 )
               : null),
       title: title == null
@@ -3268,6 +3454,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
+import '../buttons/app_icon_button.dart';
 import '../indicators/app_tag.dart';
 
 /// An inline status message — the calm, persistent counterpart to AppToast.
@@ -3287,6 +3474,9 @@ class AppBanner extends StatelessWidget {
     this.actionLabel,
     this.onAction,
     this.onDismiss,
+    this.dismissIcon = Icons.close,
+    this.dismissType = AppIconButtonType.ghost,
+    this.dismissShape = AppIconButtonShape.circle,
   });
 
   final String message;
@@ -3306,6 +3496,14 @@ class AppBanner extends StatelessWidget {
   /// Shows a close button when set. Leave it null for a banner the user
   /// shouldn't be able to wave away.
   final VoidCallback? onDismiss;
+
+  final IconData dismissIcon;
+
+  /// How the dismiss button wears the [status] color. Ghost keeps the banner
+  /// quiet; [AppIconButtonType.tonal] gives the close a soft container of its
+  /// own, which helps when the banner is long enough to hunt for it.
+  final AppIconButtonType dismissType;
+  final AppIconButtonShape dismissShape;
 
   static const double _fillOpacity = 0.10;
   static const double _borderOpacity = 0.35;
@@ -3379,15 +3577,20 @@ class AppBanner extends StatelessWidget {
               ],
             ),
           ),
-          if (onDismiss != null)
-            IconButton(
+          if (onDismiss != null) ...[
+            const SizedBox(width: AppConstants.space4),
+            AppIconButton(
+              icon: dismissIcon,
               onPressed: onDismiss,
-              icon: const Icon(Icons.close),
-              iconSize: AppConstants.iconSmall,
+              // The banner's color comes from AppTagStatus, which the variant
+              // vocabulary doesn't name — hence the explicit override.
               color: color,
-              visualDensity: VisualDensity.compact,
+              type: dismissType,
+              shape: dismissShape,
+              size: AppIconButtonSize.small,
               tooltip: 'Dismiss',
             ),
+          ],
         ],
       ),
     );
@@ -3496,6 +3699,7 @@ class AppProgressBar extends StatelessWidget {
   static String appSearchField() => r'''
 import 'package:flutter/material.dart';
 
+import '../buttons/app_icon_button.dart';
 import './app_input_style.dart';
 
 /// A search field: leading search icon, plus a clear button that appears only
@@ -3518,6 +3722,11 @@ class AppSearchField extends StatefulWidget {
     this.size = AppInputSize.medium,
     this.autofocus = false,
     this.enabled = true,
+    this.searchIcon = Icons.search,
+    this.clearIcon = Icons.close,
+    this.clearVariant = AppIconButtonVariant.primary,
+    this.clearType = AppIconButtonType.ghost,
+    this.clearShape = AppIconButtonShape.circle,
   });
 
   /// Optional external controller — pass one to read or clear the query from
@@ -3532,6 +3741,19 @@ class AppSearchField extends StatefulWidget {
   final AppInputSize size;
   final bool autofocus;
   final bool enabled;
+
+  /// The leading icon. `Icons.search` reads as "find"; swap it for
+  /// `Icons.filter_list` when the field narrows a list you're already looking
+  /// at.
+  final IconData searchIcon;
+
+  final IconData clearIcon;
+  final AppIconButtonVariant clearVariant;
+
+  /// How the clear button wears its color. [AppIconButtonType.tonal] turns it
+  /// into a small filled chip, which is easier to hit on a busy toolbar.
+  final AppIconButtonType clearType;
+  final AppIconButtonShape clearShape;
 
   @override
   State<AppSearchField> createState() => _AppSearchFieldState();
@@ -3591,11 +3813,15 @@ class _AppSearchFieldState extends State<AppSearchField> {
         size: widget.size,
         hint: widget.hint,
         enabled: widget.enabled,
-        prefixIcon: const Icon(Icons.search),
+        prefixIcon: Icon(widget.searchIcon),
         suffixIcon: _hasText
-            ? IconButton(
+            ? AppIconButton(
+                icon: widget.clearIcon,
                 onPressed: _clear,
-                icon: const Icon(Icons.close),
+                variant: widget.clearVariant,
+                type: widget.clearType,
+                shape: widget.clearShape,
+                size: AppIconButtonSize.small,
                 tooltip: 'Clear',
               )
             : null,
