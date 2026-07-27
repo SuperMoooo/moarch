@@ -341,6 +341,7 @@ class _${cls}ViewState extends ConsumerState<${cls}View> {
   Widget build(BuildContext context) {
     final ${varName}Async = ref.watch(${varName}NotifierProvider);
     ref.listen(${varName}NotifierProvider, (_, next) {
+      if (next.isLoading) return;
       final value = next.value;
       if (value == null) return;
       if (value.error != null) {
