@@ -1,5 +1,5 @@
-# [2.2.0]
+# [2.2.1]
 
 ## Features
 
-- input formatters, extensions, validation service refactor
+- input config

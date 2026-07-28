@@ -104,6 +104,38 @@ AppInput(label: 'Expiry', format: AppInputFormat.cardExpiry) // 12/25
 AppInputFormat.money.unformat(controller.text)               // '1234.50'
 ```
 
+### One file decides how every input looks
+
+`shared/widgets/inputs/app_input_config.dart` is the whole family's answer to
+"where does the label go, and what does a field look like by default?" — read by
+`AppInput`, the date/time/dropdown/OTP fields, and the checkbox, switch,
+segmented, chips, radio, slider, stepper and search widgets alike.
+
+Edit the literal in that file and you are done — no wiring, no `main()`:
+
+```dart
+// app_input_config.dart
+static AppInputConfig defaults = const AppInputConfig(
+  labelMode: AppInputLabelMode.floating,   // above | floating | placeholder | none
+  type: AppInputType.outlined,
+  shape: AppInputShape.pill,
+  requiredMarker: ' (required)',
+  autovalidateMode: AutovalidateMode.onUserInteraction,
+);
+```
+
+It stays assignable for what a literal can't do — a flavor or white-label build
+picking at startup (`AppInputConfig.defaults = ...` before `runApp`).
+
+Any field still overrides it: `AppInput(label: 'Email', labelMode: AppInputLabelMode.above)`.
+
+It also owns the numbers that used to be private constants — border widths, the
+resting-border and fill opacities, and the font/icon/padding metrics behind
+`small` / `medium` / `large`. What it deliberately does **not** own is color:
+that comes from `ColorScheme` so it can differ between light and dark, and the
+fill tint blends into the theme's `inputDecorationTheme.fillColor`. Raw sizes
+stay in `AppConstants`; the config decides which token each input size picks.
+
 Everything else in the kit is one command away, catalogued in the generated
 `docs/UI_KIT.md`:
 

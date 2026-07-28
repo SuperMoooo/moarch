@@ -608,14 +608,14 @@ class AppLeadingIcon extends StatelessWidget {
 }
 ''';
 
-  /// Returns the generated appInputStyle template.
-  static String appInputStyle() => r'''
+  /// Returns the generated appInputConfig template.
+  static String appInputConfig() => r'''
 import 'package:flutter/material.dart';
+
 import '../../../core/constants/app_constants.dart';
-import '../../../core/utils/extensions.dart';
 
 /// Color role of an input. Every color the input paints — border, focus ring,
-/// cursor, icons, fill tint and the required asterisk — is derived from the
+/// cursor, icons, fill tint and the required marker — is derived from the
 /// variant, so an [AppInputVariant.secondary] input is secondary all over.
 ///
 /// Mirrors [AppButtonVariant] so the two widgets share one vocabulary.
@@ -638,30 +638,236 @@ enum AppInputShape { rounded, pill }
 /// vertical padding together so the field grows as one.
 enum AppInputSize { small, medium, large }
 
+/// Where a field's label goes.
+///
+/// - [above]: its own line over the field, with the required marker.
+/// - [floating]: inside the field, rising into the border on focus (Material).
+/// - [placeholder]: no label; it is used as the hint until the user types.
+/// - [none]: no label at all — the field is described by something else.
+enum AppInputLabelMode { above, floating, placeholder, none }
+
+/// Font, icon and padding metrics for one [AppInputSize].
 typedef InputSizeConfig = ({
   double fontSize,
   double iconSize,
   double verticalPadding,
 });
 
-/// Resolves [AppInputVariant] + [AppInputType] into a concrete [InputDecoration].
+/// The one place the input family's look and behaviour is decided.
+///
+/// Every input in the kit reads [defaults] at build time for anything the call
+/// site left unset. **Edit the [defaults] literal below** — that is the whole
+/// point of this file, and nothing else in the app needs touching:
+///
+///   static AppInputConfig defaults = const AppInputConfig(
+///     labelMode: AppInputLabelMode.floating,
+///     type: AppInputType.outlined,
+///     shape: AppInputShape.pill,
+///   );
+///
+/// A single field still wins over the config when it says so:
+///
+///   AppInput(label: 'Email', labelMode: AppInputLabelMode.above)
+///
+/// **What belongs here and what does not.** Colors are not here on purpose:
+/// they come from `ColorScheme` so they can differ between light and dark, and
+/// the fill tint blends into `inputDecorationTheme.fillColor` from the theme.
+/// The raw sizes are not here either — they are tokens in [AppConstants]. What
+/// this file owns is how the inputs *use* those two: which token each size
+/// picks, how strong the borders and tints are, and how a field is labelled.
+class AppInputConfig {
+  const AppInputConfig({
+    this.labelMode = AppInputLabelMode.above,
+    this.variant = AppInputVariant.primary,
+    this.type = AppInputType.filled,
+    this.shape = AppInputShape.rounded,
+    this.size = AppInputSize.medium,
+    this.showRequiredMarker = true,
+    this.requiredMarker = ' *',
+    this.labelGap = AppConstants.space8,
+    this.floatingLabelBehavior = FloatingLabelBehavior.auto,
+    this.showCounter = false,
+    this.autovalidateMode,
+    this.idleBorderWidth = 1,
+    this.focusedBorderWidth = 1.5,
+    this.idleBorderOpacity = 0.4,
+    this.fillOpacity = 0.06,
+    this.disabledOpacity = 0.38,
+    this.hintOpacity = 0.35,
+    this.smallMetrics = const (
+      fontSize: AppConstants.fontSize14,
+      iconSize: AppConstants.iconSmall,
+      verticalPadding: AppConstants.space8,
+    ),
+    this.mediumMetrics = const (
+      fontSize: AppConstants.fontSize16,
+      iconSize: AppConstants.iconMedium,
+      verticalPadding: (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
+    ),
+    this.largeMetrics = const (
+      fontSize: AppConstants.fontSize34,
+      iconSize: AppConstants.iconLarge,
+      verticalPadding: AppConstants.space16,
+    ),
+  });
+
+  /// The config every input falls back to — edit this literal to restyle the
+  /// app's inputs. Every argument is optional; what you leave out keeps the
+  /// default shown in the constructor below.
+  ///
+  ///   static AppInputConfig defaults = const AppInputConfig(
+  ///     labelMode: AppInputLabelMode.floating,
+  ///   );
+  ///
+  /// It stays assignable for the cases a literal cannot cover — a flavor or a
+  /// white-label build choosing at startup, or a test swapping it out. Do that
+  /// before `runApp`: it is read during build, not watched, so a later change
+  /// will not rebuild inputs already on screen.
+  static AppInputConfig defaults = const AppInputConfig();
+
+  // ── Labels ─────────────────────────────────────────────────────────────────
+
+  /// Where labels go by default.
+  final AppInputLabelMode labelMode;
+
+  /// Whether a `required: true` field is marked at all.
+  final bool showRequiredMarker;
+
+  /// What marks a required field — `' *'`, `' (required)'`, anything.
+  final String requiredMarker;
+
+  /// Space between an [AppInputLabelMode.above] label and its field.
+  final double labelGap;
+
+  /// Whether an [AppInputLabelMode.floating] label starts inside the field and
+  /// rises on focus ([FloatingLabelBehavior.auto]), sits above it always
+  /// ([FloatingLabelBehavior.always]), or never floats.
+  final FloatingLabelBehavior floatingLabelBehavior;
+
+  // ── Defaults every input starts from ───────────────────────────────────────
+
+  final AppInputVariant variant;
+  final AppInputType type;
+  final AppInputShape shape;
+  final AppInputSize size;
+
+  /// Whether a field with a `maxLength` shows its counter.
+  final bool showCounter;
+
+  /// When fields validate themselves. Null keeps Flutter's default — validate
+  /// on submit only. [AutovalidateMode.onUserInteraction] is the usual choice
+  /// for a form that should correct itself as it is filled in.
+  final AutovalidateMode? autovalidateMode;
+
+  // ── Border and fill ────────────────────────────────────────────────────────
+
+  final double idleBorderWidth;
+  final double focusedBorderWidth;
+
+  /// How visible a resting border is, as a fraction of the variant color.
+  final double idleBorderOpacity;
+
+  /// How much of the variant color tints a filled input's background. If light
+  /// and dark need different strengths, set `inputDecorationTheme.fillColor`
+  /// per theme instead — this tint is blended into it.
+  final double fillOpacity;
+
+  final double disabledOpacity;
+  final double hintOpacity;
+
+  // ── Size metrics ───────────────────────────────────────────────────────────
+
+  final InputSizeConfig smallMetrics;
+  final InputSizeConfig mediumMetrics;
+  final InputSizeConfig largeMetrics;
+
+  /// The metrics behind one [AppInputSize].
+  InputSizeConfig metricsOf(AppInputSize size) => switch (size) {
+    AppInputSize.small => smallMetrics,
+    AppInputSize.medium => mediumMetrics,
+    AppInputSize.large => largeMetrics,
+  };
+
+  AppInputConfig copyWith({
+    AppInputLabelMode? labelMode,
+    AppInputVariant? variant,
+    AppInputType? type,
+    AppInputShape? shape,
+    AppInputSize? size,
+    bool? showRequiredMarker,
+    String? requiredMarker,
+    double? labelGap,
+    FloatingLabelBehavior? floatingLabelBehavior,
+    bool? showCounter,
+    AutovalidateMode? autovalidateMode,
+    double? idleBorderWidth,
+    double? focusedBorderWidth,
+    double? idleBorderOpacity,
+    double? fillOpacity,
+    double? disabledOpacity,
+    double? hintOpacity,
+    InputSizeConfig? smallMetrics,
+    InputSizeConfig? mediumMetrics,
+    InputSizeConfig? largeMetrics,
+  }) {
+    return AppInputConfig(
+      labelMode: labelMode ?? this.labelMode,
+      variant: variant ?? this.variant,
+      type: type ?? this.type,
+      shape: shape ?? this.shape,
+      size: size ?? this.size,
+      showRequiredMarker: showRequiredMarker ?? this.showRequiredMarker,
+      requiredMarker: requiredMarker ?? this.requiredMarker,
+      labelGap: labelGap ?? this.labelGap,
+      floatingLabelBehavior:
+          floatingLabelBehavior ?? this.floatingLabelBehavior,
+      showCounter: showCounter ?? this.showCounter,
+      autovalidateMode: autovalidateMode ?? this.autovalidateMode,
+      idleBorderWidth: idleBorderWidth ?? this.idleBorderWidth,
+      focusedBorderWidth: focusedBorderWidth ?? this.focusedBorderWidth,
+      idleBorderOpacity: idleBorderOpacity ?? this.idleBorderOpacity,
+      fillOpacity: fillOpacity ?? this.fillOpacity,
+      disabledOpacity: disabledOpacity ?? this.disabledOpacity,
+      hintOpacity: hintOpacity ?? this.hintOpacity,
+      smallMetrics: smallMetrics ?? this.smallMetrics,
+      mediumMetrics: mediumMetrics ?? this.mediumMetrics,
+      largeMetrics: largeMetrics ?? this.largeMetrics,
+    );
+  }
+}
+''';
+
+  /// Returns the generated appInputStyle template.
+  static String appInputStyle() => r'''
+import 'package:flutter/material.dart';
+
+import './app_input_config.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+
+// The vocabulary (variant, type, shape, size, label mode) lives with the config
+// it configures, but every input reaches for it through this file — so one
+// import still brings the whole set.
+export './app_input_config.dart';
+
+/// Resolves [AppInputVariant] + [AppInputType] into a concrete
+/// [InputDecoration].
 ///
 /// This overrides the global `inputDecorationTheme` on purpose: the theme can
-/// only describe one variant, and inputs need all four.
+/// only describe one variant, and inputs need all four. Colors come from the
+/// [ColorScheme] so they follow light and dark; everything else — border
+/// weights, tint strength, size metrics, where the label goes — comes from
+/// [AppInputConfig.defaults].
 class AppInputStyle {
   const AppInputStyle._();
 
-  static const double _idleBorderWidth = 1;
-  static const double _focusedBorderWidth = 1.5;
-  static const double _idleBorderOpacity = 0.4;
-  static const double _fillOpacity = 0.06;
-  static const double _disabledOpacity = 0.38;
-  static const double _hintOpacity = 0.35;
+  /// The app-wide input config. Every number below is read from it.
+  static AppInputConfig get config => AppInputConfig.defaults;
 
   /// The variant's color — the single source every other color derives from.
-  static Color accentOf(BuildContext context, AppInputVariant variant) {
+  static Color accentOf(BuildContext context, AppInputVariant? variant) {
     final colorScheme = context.theme.colorScheme;
-    return switch (variant) {
+    return switch (variant ?? config.variant) {
       AppInputVariant.primary => colorScheme.primary,
       AppInputVariant.secondary => colorScheme.secondary,
       AppInputVariant.tertiary => colorScheme.tertiary,
@@ -669,32 +875,13 @@ class AppInputStyle {
     };
   }
 
-  /// Font, icon and padding metrics for a size. Font sizes match [AppButton]'s
-  /// scale so a button and an input of the same size read as a matched pair.
-   static InputSizeConfig configOf(AppInputSize size) => switch (size) {
-        AppInputSize.small => (
-            fontSize: AppConstants.fontSize14,
-            iconSize: AppConstants.iconSmall,
-            verticalPadding: AppConstants.space8,
-          ),
-        AppInputSize.medium => (
-            fontSize: AppConstants.fontSize16,
-            iconSize: AppConstants.iconMedium,
-            verticalPadding:
-                (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
-          ),
-        AppInputSize.large => (
-            fontSize: AppConstants.fontSize34,
-            iconSize: AppConstants.iconLarge,
-            verticalPadding: AppConstants.space16,
-          ),
-      };
+  /// Font, icon and padding metrics for a size. Retune the scale in
+  /// [AppInputConfig], not here.
+  static InputSizeConfig configOf(AppInputSize? size) =>
+      config.metricsOf(size ?? config.size);
 
   /// Style for the text the user types. Pair with [decoration] of the same size.
-  static TextStyle? textStyle(
-    BuildContext context, {
-    required AppInputSize size,
-  }) =>
+  static TextStyle? textStyle(BuildContext context, {AppInputSize? size}) =>
       context.theme.textTheme.bodyMedium?.copyWith(
         fontSize: configOf(size).fontSize,
       );
@@ -708,15 +895,25 @@ class AppInputStyle {
         _ => AlignmentDirectional.centerStart,
       };
 
+  /// The label with its required marker appended, when the config shows one.
+  /// Used by the label modes that render inside the field; an above-label is
+  /// drawn by `InputTitle`, which styles the marker instead of inlining it.
+  static String? markedLabel(String? label, {bool required = false}) {
+    if (label == null) return null;
+    return required && config.showRequiredMarker
+        ? '$label${config.requiredMarker}'
+        : label;
+  }
+
   static bool _isFilled(AppInputType type) => type == AppInputType.filled;
 
   static BorderRadius _radiusOf(AppInputType type, AppInputShape shape) =>
       switch (type) {
         AppInputType.underline => BorderRadius.zero,
         _ => switch (shape) {
-            AppInputShape.rounded => AppConstants.borderRadius12,
-            AppInputShape.pill => AppConstants.borderRadiusFull,
-          },
+          AppInputShape.rounded => AppConstants.borderRadius12,
+          AppInputShape.pill => AppConstants.borderRadiusFull,
+        },
       };
 
   static InputBorder _border(
@@ -735,23 +932,38 @@ class AppInputStyle {
     );
   }
 
-  /// Builds the decoration for an input of [variant], [type] and [size].
+  /// Builds the decoration for an input.
+  ///
+  /// Anything left null falls back to [AppInputConfig.defaults], so a field
+  /// that says nothing looks like the rest of the app. [label] is only painted
+  /// here for the label modes that live inside the field —
+  /// [AppInputLabelMode.floating] and [AppInputLabelMode.placeholder].
   static InputDecoration decoration(
     BuildContext context, {
-    required AppInputVariant variant,
-    required AppInputType type,
-    AppInputShape shape = AppInputShape.rounded,
-    AppInputSize size = AppInputSize.medium,
+    AppInputVariant? variant,
+    AppInputType? type,
+    AppInputShape? shape,
+    AppInputSize? size,
+    String? label,
+    AppInputLabelMode? labelMode,
+    bool required = false,
     String? hint,
     Widget? prefixIcon,
     Widget? suffixIcon,
     bool enabled = true,
+    bool? showCounter,
+    bool alignLabelWithHint = false,
   }) {
     final theme = context.theme;
+    final resolvedType = type ?? config.type;
+    final resolvedShape = shape ?? config.shape;
+    final resolvedSize = size ?? config.size;
+    final mode = labelMode ?? config.labelMode;
+
     final accent = accentOf(context, variant);
     final errorColor = theme.colorScheme.error;
-    final filled = _isFilled(type);
-    final sizeConfig = configOf(size);
+    final filled = _isFilled(resolvedType);
+    final sizeConfig = configOf(resolvedSize);
 
     // Size the icons through an IconTheme so callers can still override with an
     // explicit `Icon(..., size: x)`.
@@ -766,9 +978,9 @@ class AppInputStyle {
     // until focused. Outlined and underline inputs need a visible resting edge.
     final idleColor = filled
         ? Colors.transparent
-        : accent.withValues(alpha: _idleBorderOpacity);
+        : accent.withValues(alpha: config.idleBorderOpacity);
     final disabledColor = theme.colorScheme.onSurface.withValues(
-      alpha: _disabledOpacity / 2,
+      alpha: config.disabledOpacity / 2,
     );
 
     // Tint the theme's fill with the variant instead of replacing it, so the
@@ -776,30 +988,84 @@ class AppInputStyle {
     final baseFill =
         theme.inputDecorationTheme.fillColor ?? theme.colorScheme.surface;
 
+    final marked = markedLabel(label, required: required);
+
     return InputDecoration(
-      hintText: hint,
+      // Only the in-field modes draw the label here: `above` is a separate
+      // widget over the field, and `none` drops it entirely.
+      labelText: mode == AppInputLabelMode.floating ? marked : null,
+      floatingLabelBehavior: config.floatingLabelBehavior,
+      alignLabelWithHint: alignLabelWithHint,
+      hintText: mode == AppInputLabelMode.placeholder ? (hint ?? marked) : hint,
       prefixIcon: sized(prefixIcon),
       suffixIcon: sized(suffixIcon),
       enabled: enabled,
       filled: filled,
       fillColor: filled
-          ? Color.alphaBlend(accent.withValues(alpha: _fillOpacity), baseFill)
+          ? Color.alphaBlend(
+              accent.withValues(alpha: config.fillOpacity),
+              baseFill,
+            )
           : Colors.transparent,
-      border: _border(type, shape, idleColor, _idleBorderWidth),
-      enabledBorder: _border(type, shape, idleColor, _idleBorderWidth),
-      focusedBorder: _border(type, shape, accent, _focusedBorderWidth),
-      disabledBorder: _border(type, shape, disabledColor, _idleBorderWidth),
-      errorBorder: _border(type, shape, errorColor, _idleBorderWidth),
-      focusedErrorBorder: _border(type, shape, errorColor, _focusedBorderWidth),
+      border: _border(
+        resolvedType,
+        resolvedShape,
+        idleColor,
+        config.idleBorderWidth,
+      ),
+      enabledBorder: _border(
+        resolvedType,
+        resolvedShape,
+        idleColor,
+        config.idleBorderWidth,
+      ),
+      focusedBorder: _border(
+        resolvedType,
+        resolvedShape,
+        accent,
+        config.focusedBorderWidth,
+      ),
+      disabledBorder: _border(
+        resolvedType,
+        resolvedShape,
+        disabledColor,
+        config.idleBorderWidth,
+      ),
+      errorBorder: _border(
+        resolvedType,
+        resolvedShape,
+        errorColor,
+        config.idleBorderWidth,
+      ),
+      focusedErrorBorder: _border(
+        resolvedType,
+        resolvedShape,
+        errorColor,
+        config.focusedBorderWidth,
+      ),
       prefixIconColor: enabled ? accent : disabledColor,
       suffixIconColor: enabled ? accent : disabledColor,
-      hintStyle: theme.textTheme.bodyMedium?.copyWith(
-        color: accent.withValues(alpha: _hintOpacity),
+      // At rest a floating label sits where the hint would, so it reads like
+      // one; once it floats it becomes the field's accent.
+      labelStyle: theme.textTheme.bodyMedium?.copyWith(
+        color: enabled
+            ? accent.withValues(alpha: config.hintOpacity)
+            : disabledColor,
         fontSize: sizeConfig.fontSize,
       ),
+      floatingLabelStyle: theme.textTheme.bodyMedium?.copyWith(
+        color: enabled ? accent : disabledColor,
+      ),
+      hintStyle: theme.textTheme.bodyMedium?.copyWith(
+        color: accent.withValues(alpha: config.hintOpacity),
+        fontSize: sizeConfig.fontSize,
+      ),
+      // The counter is opt-in: a maxLength is usually a guard rail, not
+      // something the user needs to watch tick down.
+      counterText: (showCounter ?? config.showCounter) ? null : '',
       contentPadding: EdgeInsets.symmetric(
         vertical: sizeConfig.verticalPadding,
-        horizontal: type == AppInputType.underline
+        horizontal: resolvedType == AppInputType.underline
             ? 0
             : AppConstants.space12,
       ),
@@ -814,20 +1080,27 @@ import 'package:flutter/material.dart';
 import './app_input_style.dart';
 import '../../../core/utils/extensions.dart';
 
+/// The label an [AppInputLabelMode.above] field wears, with its required
+/// marker styled in the field's own accent.
+///
+/// The other label modes never build this — they hand the label to the
+/// decoration instead, so it can sit inside the field.
 class InputTitle extends StatelessWidget {
   const InputTitle({
     super.key,
     required this.label,
     required this.required,
-    this.variant = AppInputVariant.primary,
-    this.size = AppInputSize.medium,
+    this.variant,
+    this.size,
     this.textAlign = TextAlign.start,
   });
 
   final String label;
   final bool required;
-  final AppInputVariant variant;
-  final AppInputSize size;
+
+  /// Null follows [AppInputConfig.defaults].
+  final AppInputVariant? variant;
+  final AppInputSize? size;
 
   /// Kept in step with the field's own alignment so the label sits over the
   /// text it describes.
@@ -836,21 +1109,22 @@ class InputTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = context.textTheme;
+    final config = AppInputStyle.config;
+    final fontSize = AppInputStyle.configOf(size).fontSize;
+
     return Text.rich(
       textAlign: textAlign,
       TextSpan(
         text: label,
-        style: textTheme.bodyLarge?.copyWith(
-          fontSize: AppInputStyle.configOf(size).fontSize,
-        ),
-        children: required
+        style: textTheme.bodyLarge?.copyWith(fontSize: fontSize),
+        children: required && config.showRequiredMarker
             ? [
                 TextSpan(
-                  text: ' *',
+                  text: config.requiredMarker,
                   style: textTheme.bodyLarge?.copyWith(
                     color: AppInputStyle.accentOf(context, variant),
                     fontWeight: FontWeight.bold,
-                    fontSize: AppInputStyle.configOf(size).fontSize,
+                    fontSize: fontSize,
                   ),
                 ),
               ]
@@ -860,7 +1134,58 @@ class InputTitle extends StatelessWidget {
   }
 }
 
+/// Puts a field under its [InputTitle] when labels go [AppInputLabelMode.above],
+/// and returns the field untouched for every other mode — where the label is
+/// already part of the decoration, or gone.
+///
+/// Every labeled input in the kit lays itself out through this, so the label
+/// mode is decided in exactly one place.
+class InputFieldLayout extends StatelessWidget {
+  const InputFieldLayout({
+    super.key,
+    required this.label,
+    required this.required,
+    required this.field,
+    this.labelMode,
+    this.variant,
+    this.size,
+    this.textAlign = TextAlign.start,
+  });
 
+  final String label;
+  final bool required;
+  final Widget field;
+
+  /// Null follows [AppInputConfig.defaults].
+  final AppInputLabelMode? labelMode;
+  final AppInputVariant? variant;
+  final AppInputSize? size;
+  final TextAlign textAlign;
+
+  @override
+  Widget build(BuildContext context) {
+    final config = AppInputStyle.config;
+    if ((labelMode ?? config.labelMode) != AppInputLabelMode.above) {
+      return field;
+    }
+
+    return Column(
+      spacing: config.labelGap,
+      // Stretch so the label can align itself against the field's full width.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InputTitle(
+          label: label,
+          required: required,
+          variant: variant,
+          size: size,
+          textAlign: textAlign,
+        ),
+        field,
+      ],
+    );
+  }
+}
 ''';
 
   /// Returns the generated appInputFormat template.
@@ -1297,7 +1622,6 @@ import 'package:flutter/services.dart';
 import './app_input_format.dart';
 import './app_input_style.dart';
 import './input_title.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/security/validation_service.dart';
 
 /// A labeled text field — the kit's default way to collect a value.
@@ -1316,6 +1640,10 @@ import '../../../core/security/validation_service.dart';
 /// Every decision the format makes can be overridden on the field —
 /// [keyboardType], [inputFormatters], [autofillHints], [textCapitalization],
 /// [obscureText], [maxLength], [validator].
+///
+/// How it *looks* — where the label goes, which variant, type, shape and size —
+/// comes from [AppInputConfig.defaults] unless this field says otherwise, so
+/// the app has one place to change its mind.
 class AppInput extends StatefulWidget {
   const AppInput({
     super.key,
@@ -1332,7 +1660,7 @@ class AppInput extends StatefulWidget {
     this.maxLines = 1,
     this.minLines,
     this.maxLength,
-    this.showCounter = false,
+    this.showCounter,
     this.obscureText,
     this.showPasswordToggle = true,
     this.keyboardType,
@@ -1348,10 +1676,11 @@ class AppInput extends StatefulWidget {
     this.onSubmitted,
     this.onTap,
     this.textAlign = TextAlign.start,
-    this.variant = AppInputVariant.primary,
-    this.type = AppInputType.filled,
-    this.shape = AppInputShape.rounded,
-    this.size = AppInputSize.medium,
+    this.labelMode,
+    this.variant,
+    this.type,
+    this.shape,
+    this.size,
   });
 
   final String label;
@@ -1388,9 +1717,11 @@ class AppInput extends StatefulWidget {
   final int? minLines;
 
   /// Character cap. Defaults to the format's own where it has one (a card
-  /// number, an expiry). The counter stays hidden unless [showCounter].
+  /// number, an expiry).
   final int? maxLength;
-  final bool showCounter;
+
+  /// Whether [maxLength] shows its counter. Null follows the config.
+  final bool? showCounter;
 
   /// Hides the value. Defaults to the format's own answer — only
   /// [AppInputFormat.password] hides by default.
@@ -1422,7 +1753,10 @@ class AppInput extends StatefulWidget {
   /// it to add a rule on top instead of dropping validation.
   final String? Function(String? value)? validator;
 
+  /// When the field validates itself. Null follows the config, which starts at
+  /// Flutter's own default — on submit only.
   final AutovalidateMode? autovalidateMode;
+
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final VoidCallback? onTap;
@@ -1430,10 +1764,15 @@ class AppInput extends StatefulWidget {
   /// Alignment of the typed value and the hint. The label follows it too.
   final TextAlign textAlign;
 
-  final AppInputVariant variant;
-  final AppInputType type;
-  final AppInputShape shape;
-  final AppInputSize size;
+  /// Where this field's label goes. Null follows the config — see
+  /// [AppInputLabelMode].
+  final AppInputLabelMode? labelMode;
+
+  /// Null follows [AppInputConfig.defaults].
+  final AppInputVariant? variant;
+  final AppInputType? type;
+  final AppInputShape? shape;
+  final AppInputSize? size;
 
   /// The rule an [AppInput] applies when no [validator] is given: required
   /// first, then the format's own [ValidationService] check on the unformatted
@@ -1478,6 +1817,10 @@ class _AppInputState extends State<AppInput> {
   /// Whether this field hides its value at all — the eye shows for the whole
   /// life of such a field, not only while the value is hidden.
   bool get _obscurable => widget.obscureText ?? _format.isObscured;
+
+  /// Where this field's label goes: its own answer, else the app's.
+  AppInputLabelMode get _labelMode =>
+      widget.labelMode ?? AppInputStyle.config.labelMode;
 
   @override
   void initState() {
@@ -1545,7 +1888,8 @@ class _AppInputState extends State<AppInput> {
       textAlign: widget.textAlign,
       inputFormatters: widget.inputFormatters ?? format.formatters,
       autofillHints: widget.autofillHints ?? format.autofillHints,
-      autovalidateMode: widget.autovalidateMode,
+      autovalidateMode:
+          widget.autovalidateMode ?? AppInputStyle.config.autovalidateMode,
       validator:
           widget.validator ??
           (value) => AppInput.validate(
@@ -1567,34 +1911,32 @@ class _AppInputState extends State<AppInput> {
         type: widget.type,
         shape: widget.shape,
         size: widget.size,
+        label: widget.label,
+        labelMode: _labelMode,
+        required: widget.required,
         hint: widget.hint,
         enabled: widget.enabled,
+        showCounter: widget.showCounter,
+        // A label floating over several lines of text belongs at the first
+        // line, not centred against the whole box.
+        alignLabelWithHint: _maxLines != 1,
         prefixIcon: widget.prefixIcon,
         suffixIcon: _suffixIcon,
-        // The counter is opt-in: maxLength is usually a guard rail, not
-        // something the user needs to watch tick down.
-      ).copyWith(counterText: widget.showCounter ? null : ''),
+      ),
     );
 
-    return Column(
-      spacing: AppConstants.space8,
-      // Stretch so the label can align itself against the field's full width.
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        InputTitle(
-          label: widget.label,
-          required: widget.required,
-          variant: widget.variant,
-          size: widget.size,
-          textAlign: widget.textAlign,
-        ),
-        // A read-only field with nothing to tap shouldn't take focus or raise a
-        // keyboard either.
-        if (widget.readOnly && widget.onTap == null)
-          IgnorePointer(child: field)
-        else
-          field,
-      ],
+    return InputFieldLayout(
+      label: widget.label,
+      required: widget.required,
+      labelMode: _labelMode,
+      variant: widget.variant,
+      size: widget.size,
+      textAlign: widget.textAlign,
+      // A read-only field with nothing to tap shouldn't take focus or raise a
+      // keyboard either.
+      field: widget.readOnly && widget.onTap == null
+          ? IgnorePointer(child: field)
+          : field,
     );
   }
 }
@@ -1605,7 +1947,6 @@ class _AppInputState extends State<AppInput> {
 import 'package:flutter/material.dart';
 import './app_input_style.dart';
 import './input_title.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
 class AppDateInput extends StatefulWidget {
@@ -1621,10 +1962,11 @@ class AppDateInput extends StatefulWidget {
     this.focusNode,
     this.autoFocus = false,
     this.required = false,
-    this.variant = AppInputVariant.primary,
-    this.type = AppInputType.filled,
-    this.shape = AppInputShape.rounded,
-    this.size = AppInputSize.medium,
+    this.labelMode,
+    this.variant,
+    this.type,
+    this.shape,
+    this.size,
     this.textAlign = TextAlign.start,
     this.onChanged,
   });
@@ -1639,10 +1981,13 @@ class AppDateInput extends StatefulWidget {
   final FocusNode? focusNode;
   final bool autoFocus;
   final bool required;
-  final AppInputVariant variant;
-  final AppInputType type;
-  final AppInputShape shape;
-  final AppInputSize size;
+
+  /// Null follows [AppInputConfig.defaults].
+  final AppInputLabelMode? labelMode;
+  final AppInputVariant? variant;
+  final AppInputType? type;
+  final AppInputShape? shape;
+  final AppInputSize? size;
 
   /// Alignment of the displayed date and the hint. The label follows it too.
   final TextAlign textAlign;
@@ -1694,45 +2039,44 @@ class _AppDateInputState extends State<AppDateInput> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      spacing: AppConstants.space8,
-      // Stretch so the label can align itself against the field's full width.
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        InputTitle(
-          label: widget.label,
-          required: widget.required,
-          variant: widget.variant,
-          size: widget.size,
+    final accent = AppInputStyle.accentOf(context, widget.variant);
+
+    return InputFieldLayout(
+      label: widget.label,
+      required: widget.required,
+      labelMode: widget.labelMode,
+      variant: widget.variant,
+      size: widget.size,
+      textAlign: widget.textAlign,
+      field: IgnorePointer(
+        ignoring: widget.readOnly,
+        child: TextFormField(
+          onTap: () => _selectDate(context),
+          focusNode: widget.focusNode,
+          autofocus: widget.autoFocus,
+          readOnly: true,
+          controller: widget.controller,
+          style: AppInputStyle.textStyle(
+            context,
+            size: widget.size,
+          )?.copyWith(color: accent, fontWeight: FontWeight.bold),
           textAlign: widget.textAlign,
-        ),
-        IgnorePointer(
-          ignoring: widget.readOnly,
-          child: TextFormField(
-            onTap: () => _selectDate(context),
-            focusNode: widget.focusNode,
-            autofocus: widget.autoFocus,
-            readOnly: true,
-            controller: widget.controller,
-            style: AppInputStyle.textStyle(context, size: widget.size)?.copyWith(
-              color: AppInputStyle.accentOf(context, widget.variant),
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: widget.textAlign,
-            cursorColor: AppInputStyle.accentOf(context, widget.variant),
-            decoration: AppInputStyle.decoration(
-              context,
-              variant: widget.variant,
-              type: widget.type,
-              shape: widget.shape,
-              size: widget.size,
-              hint: widget.hint,
-              prefixIcon: widget.prefixIcon,
-              suffixIcon: widget.suffixIcon,
-            ),
+          cursorColor: accent,
+          decoration: AppInputStyle.decoration(
+            context,
+            variant: widget.variant,
+            type: widget.type,
+            shape: widget.shape,
+            size: widget.size,
+            label: widget.label,
+            labelMode: widget.labelMode,
+            required: widget.required,
+            hint: widget.hint,
+            prefixIcon: widget.prefixIcon,
+            suffixIcon: widget.suffixIcon,
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -1743,7 +2087,6 @@ class _AppDateInputState extends State<AppDateInput> {
 import 'package:flutter/material.dart';
 import './app_input_style.dart';
 import './input_title.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
 class AppTimeInput extends StatefulWidget {
@@ -1759,10 +2102,11 @@ class AppTimeInput extends StatefulWidget {
     this.focusNode,
     this.autoFocus = false,
     this.required = false,
-    this.variant = AppInputVariant.primary,
-    this.type = AppInputType.filled,
-    this.shape = AppInputShape.rounded,
-    this.size = AppInputSize.medium,
+    this.labelMode,
+    this.variant,
+    this.type,
+    this.shape,
+    this.size,
     this.textAlign = TextAlign.start,
     this.onChanged,
   });
@@ -1777,10 +2121,13 @@ class AppTimeInput extends StatefulWidget {
   final FocusNode? focusNode;
   final bool autoFocus;
   final bool required;
-  final AppInputVariant variant;
-  final AppInputType type;
-  final AppInputShape shape;
-  final AppInputSize size;
+
+  /// Null follows [AppInputConfig.defaults].
+  final AppInputLabelMode? labelMode;
+  final AppInputVariant? variant;
+  final AppInputType? type;
+  final AppInputShape? shape;
+  final AppInputSize? size;
 
   /// Alignment of the displayed time and the hint. The label follows it too.
   final TextAlign textAlign;
@@ -1830,45 +2177,44 @@ class _AppTimeInputState extends State<AppTimeInput> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      spacing: AppConstants.space8,
-      // Stretch so the label can align itself against the field's full width.
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        InputTitle(
-          label: widget.label,
-          required: widget.required,
-          variant: widget.variant,
-          size: widget.size,
+    final accent = AppInputStyle.accentOf(context, widget.variant);
+
+    return InputFieldLayout(
+      label: widget.label,
+      required: widget.required,
+      labelMode: widget.labelMode,
+      variant: widget.variant,
+      size: widget.size,
+      textAlign: widget.textAlign,
+      field: IgnorePointer(
+        ignoring: widget.readOnly,
+        child: TextFormField(
+          onTap: () => _selectTime(context),
+          focusNode: widget.focusNode,
+          autofocus: widget.autoFocus,
+          readOnly: true,
+          controller: widget.controller,
+          style: AppInputStyle.textStyle(
+            context,
+            size: widget.size,
+          )?.copyWith(color: accent, fontWeight: FontWeight.bold),
           textAlign: widget.textAlign,
-        ),
-        IgnorePointer(
-          ignoring: widget.readOnly,
-          child: TextFormField(
-            onTap: () => _selectTime(context),
-            focusNode: widget.focusNode,
-            autofocus: widget.autoFocus,
-            readOnly: true,
-            controller: widget.controller,
-            style: AppInputStyle.textStyle(context, size: widget.size)?.copyWith(
-              color: AppInputStyle.accentOf(context, widget.variant),
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: widget.textAlign,
-            cursorColor: AppInputStyle.accentOf(context, widget.variant),
-            decoration: AppInputStyle.decoration(
-              context,
-              variant: widget.variant,
-              type: widget.type,
-              shape: widget.shape,
-              size: widget.size,
-              hint: widget.hint,
-              prefixIcon: widget.prefixIcon,
-              suffixIcon: widget.suffixIcon,
-            ),
+          cursorColor: accent,
+          decoration: AppInputStyle.decoration(
+            context,
+            variant: widget.variant,
+            type: widget.type,
+            shape: widget.shape,
+            size: widget.size,
+            label: widget.label,
+            labelMode: widget.labelMode,
+            required: widget.required,
+            hint: widget.hint,
+            prefixIcon: widget.prefixIcon,
+            suffixIcon: widget.suffixIcon,
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -1879,7 +2225,6 @@ class _AppTimeInputState extends State<AppTimeInput> {
 import 'package:flutter/material.dart';
 import './app_input_style.dart';
 import './input_title.dart';
-import '../../../core/constants/app_constants.dart';
 
 // Usage with an entity:
 //  AppDropdownInput<CategoryEntity>(
@@ -1904,10 +2249,11 @@ class AppDropdownInput<T> extends StatelessWidget {
     this.required = false,
     this.prefixIcon,
     this.suffixIcon,
-    this.variant = AppInputVariant.primary,
-    this.type = AppInputType.filled,
-    this.shape = AppInputShape.rounded,
-    this.size = AppInputSize.medium,
+    this.labelMode,
+    this.variant,
+    this.type,
+    this.shape,
+    this.size,
     this.textAlign = TextAlign.start,
   });
 
@@ -1929,10 +2275,13 @@ class AppDropdownInput<T> extends StatelessWidget {
   final bool required;
   final Widget? prefixIcon;
   final Widget? suffixIcon;
-  final AppInputVariant variant;
-  final AppInputType type;
-  final AppInputShape shape;
-  final AppInputSize size;
+
+  /// Null follows [AppInputConfig.defaults].
+  final AppInputLabelMode? labelMode;
+  final AppInputVariant? variant;
+  final AppInputType? type;
+  final AppInputShape? shape;
+  final AppInputSize? size;
 
   /// Alignment of the selected value and the hint. The label follows it too.
   final TextAlign textAlign;
@@ -1942,57 +2291,54 @@ class AppDropdownInput<T> extends StatelessWidget {
     final accent = AppInputStyle.accentOf(context, variant);
     final alignment = AppInputStyle.alignmentOf(textAlign);
 
-    return Column(
-      spacing: AppConstants.space8,
-      // Stretch so the label can align itself against the field's full width.
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        InputTitle(
-          label: label,
-          required: required,
-          variant: variant,
-          size: size,
-          textAlign: textAlign,
-        ),
-        IgnorePointer(
-          ignoring: !enabled,
-          child: DropdownButtonFormField<String>(
-            initialValue: selectedId,
-            style: AppInputStyle.textStyle(context, size: size)?.copyWith(
-              color: accent,
-              fontWeight: FontWeight.bold,
-            ),
-            decoration: AppInputStyle.decoration(
-              context,
-              variant: variant,
-              type: type,
-              shape: shape,
-              size: size,
-              hint: hint,
-              prefixIcon: prefixIcon,
-              suffixIcon: suffixIcon,
-              enabled: enabled,
-            ),
-            isExpanded: true,
-            // A dropdown has no textAlign, so align the item boxes instead.
-            alignment: alignment,
-            onChanged: (value) {
-              if (value != null) onChanged(value);
-            },
-            iconEnabledColor: accent,
-            icon: enabled ? const Icon(Icons.keyboard_arrow_down) : null,
-            items: items
-                .map(
-                  (item) => DropdownMenuItem<String>(
-                    value: idOf(item),
-                    alignment: alignment,
-                    child: Text(labelOf(item), textAlign: textAlign),
-                  ),
-                )
-                .toList(),
+    return InputFieldLayout(
+      label: label,
+      required: required,
+      labelMode: labelMode,
+      variant: variant,
+      size: size,
+      textAlign: textAlign,
+      field: IgnorePointer(
+        ignoring: !enabled,
+        child: DropdownButtonFormField<String>(
+          initialValue: selectedId,
+          style: AppInputStyle.textStyle(
+            context,
+            size: size,
+          )?.copyWith(color: accent, fontWeight: FontWeight.bold),
+          decoration: AppInputStyle.decoration(
+            context,
+            variant: variant,
+            type: type,
+            shape: shape,
+            size: size,
+            label: label,
+            labelMode: labelMode,
+            required: required,
+            hint: hint,
+            prefixIcon: prefixIcon,
+            suffixIcon: suffixIcon,
+            enabled: enabled,
           ),
+          isExpanded: true,
+          // A dropdown has no textAlign, so align the item boxes instead.
+          alignment: alignment,
+          onChanged: (value) {
+            if (value != null) onChanged(value);
+          },
+          iconEnabledColor: accent,
+          icon: enabled ? const Icon(Icons.keyboard_arrow_down) : null,
+          items: items
+              .map(
+                (item) => DropdownMenuItem<String>(
+                  value: idOf(item),
+                  alignment: alignment,
+                  child: Text(labelOf(item), textAlign: textAlign),
+                ),
+              )
+              .toList(),
         ),
-      ],
+      ),
     );
   }
 }
@@ -2012,34 +2358,35 @@ class AppCheckbox extends StatelessWidget {
     super.key,
     required this.value,
     required this.onChanged,
-    this.variant = AppInputVariant.primary,
-    this.size = AppInputSize.medium,
-    this.shape = AppInputShape.rounded,
+    this.variant,
+    this.size,
+    this.shape,
     this.tristate = false,
   });
 
   final bool? value;
   final ValueChanged<bool?>? onChanged;
-  final AppInputVariant variant;
-  final AppInputSize size;
+  final AppInputVariant? variant;
+  final AppInputSize? size;
 
   /// [AppInputShape.pill] renders as a circular checkbox; any other shape
   /// renders as a rounded square.
-  final AppInputShape shape;
+  final AppInputShape? shape;
   final bool tristate;
 
   static const double _borderWidth = 1.5;
   static const double _idleBorderOpacity = 0.6;
 
   double _scaleOf(AppInputSize size) => switch (size) {
-        AppInputSize.small => 0.85,
-        AppInputSize.medium => 1,
-        AppInputSize.large => 1.15,
-      };
+    AppInputSize.small => 0.85,
+    AppInputSize.medium => 1,
+    AppInputSize.large => 1.15,
+  };
 
   /// The color that reads on top of the checked fill — mirrors the
   /// foreground half of [AppButton]'s variant colors.
-  Color _onAccentOf(ColorScheme colorScheme) => switch (variant) {
+  Color _onAccentOf(ColorScheme colorScheme, AppInputVariant variant) =>
+      switch (variant) {
         AppInputVariant.primary => colorScheme.onPrimary,
         AppInputVariant.secondary => colorScheme.onSecondary,
         AppInputVariant.tertiary => colorScheme.onTertiary,
@@ -2048,22 +2395,23 @@ class AppCheckbox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final config = AppInputStyle.config;
     final colorScheme = context.colorScheme;
     final accent = AppInputStyle.accentOf(context, variant);
 
     return Transform.scale(
-      scale: _scaleOf(size),
+      scale: _scaleOf(size ?? config.size),
       child: Checkbox(
         value: value,
         tristate: tristate,
         onChanged: onChanged,
         activeColor: accent,
-        checkColor: _onAccentOf(colorScheme),
+        checkColor: _onAccentOf(colorScheme, variant ?? config.variant),
         side: BorderSide(
           color: accent.withValues(alpha: _idleBorderOpacity),
           width: _borderWidth,
         ),
-        shape: shape == AppInputShape.pill
+        shape: (shape ?? config.shape) == AppInputShape.pill
             ? const CircleBorder()
             : RoundedRectangleBorder(borderRadius: AppConstants.borderRadius4),
         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -2091,18 +2439,18 @@ class AppCheckboxLabel extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.subtitle,
-    this.variant = AppInputVariant.primary,
-    this.size = AppInputSize.medium,
-    this.shape = AppInputShape.rounded,
+    this.variant,
+    this.size,
+    this.shape,
   });
 
   final String label;
   final String? subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
-  final AppInputVariant variant;
-  final AppInputSize size;
-  final AppInputShape shape;
+  final AppInputVariant? variant;
+  final AppInputSize? size;
+  final AppInputShape? shape;
 
   @override
   Widget build(BuildContext context) {
@@ -2165,14 +2513,14 @@ class AppSwitch extends StatelessWidget {
     super.key,
     required this.value,
     required this.onChanged,
-    this.variant = AppInputVariant.primary,
+    this.variant,
   });
 
   final bool value;
 
   /// Pass null to render the switch disabled.
   final ValueChanged<bool>? onChanged;
-  final AppInputVariant variant;
+  final AppInputVariant? variant;
 
   @override
   Widget build(BuildContext context) {
@@ -2219,7 +2567,7 @@ class AppSegmented<T> extends StatelessWidget {
     required this.labelOf,
     required this.onChanged,
     this.iconOf,
-    this.variant = AppInputVariant.primary,
+    this.variant,
   });
 
   final List<T> segments;
@@ -2227,7 +2575,7 @@ class AppSegmented<T> extends StatelessWidget {
   final String Function(T value) labelOf;
   final IconData? Function(T value)? iconOf;
   final ValueChanged<T> onChanged;
-  final AppInputVariant variant;
+  final AppInputVariant? variant;
 
   @override
   Widget build(BuildContext context) {
@@ -2287,14 +2635,14 @@ class AppChoiceChip extends StatelessWidget {
     required this.selected,
     required this.onSelected,
     this.icon,
-    this.variant = AppInputVariant.primary,
+    this.variant,
   });
 
   final String label;
   final bool selected;
   final ValueChanged<bool> onSelected;
   final IconData? icon;
-  final AppInputVariant variant;
+  final AppInputVariant? variant;
 
   @override
   Widget build(BuildContext context) {
@@ -2348,7 +2696,7 @@ class AppRadioGroup<T> extends StatelessWidget {
     required this.labelOf,
     required this.onChanged,
     this.subtitleOf,
-    this.variant = AppInputVariant.primary,
+    this.variant,
   });
 
   final List<T> values;
@@ -2356,7 +2704,7 @@ class AppRadioGroup<T> extends StatelessWidget {
   final String Function(T value) labelOf;
   final String? Function(T value)? subtitleOf;
   final ValueChanged<T> onChanged;
-  final AppInputVariant variant;
+  final AppInputVariant? variant;
 
   @override
   Widget build(BuildContext context) {
@@ -2438,7 +2786,7 @@ class AppSlider extends StatelessWidget {
     this.max = 1,
     this.divisions,
     this.label,
-    this.variant = AppInputVariant.primary,
+    this.variant,
   });
 
   final double value;
@@ -2447,7 +2795,7 @@ class AppSlider extends StatelessWidget {
   final double max;
   final int? divisions;
   final String? label;
-  final AppInputVariant variant;
+  final AppInputVariant? variant;
 
   @override
   Widget build(BuildContext context) {
@@ -3240,7 +3588,6 @@ import 'package:flutter/material.dart';
 import 'package:mo_2fa_code/mo_2fa_code.dart';
 import './app_input_style.dart';
 import './input_title.dart';
-import '../../../core/constants/app_constants.dart';
 
 /// A one-time-code / OTP field wrapping mo_2fa_code's [Mo2FACodeField], styled
 /// from [AppInputVariant] + [AppInputType] so it matches the rest of the input
@@ -3265,8 +3612,9 @@ class AppOtpInput extends StatelessWidget {
     this.autoFocus = true,
     this.obscureText = false,
     this.required = false,
-    this.variant = AppInputVariant.primary,
-    this.type = AppInputType.outlined,
+    this.labelMode,
+    this.variant,
+    this.type,
   });
 
   final String label;
@@ -3278,16 +3626,27 @@ class AppOtpInput extends StatelessWidget {
   final bool autoFocus;
   final bool obscureText;
   final bool required;
-  final AppInputVariant variant;
-  final AppInputType type;
 
-  Mo2FACellShape get _shape => switch (type) {
-        AppInputType.filled => Mo2FACellShape.filled,
-        AppInputType.outlined => Mo2FACellShape.outlined,
-        AppInputType.underline => Mo2FACellShape.underline,
-      };
+  /// Null follows [AppInputConfig.defaults].
+  final AppInputLabelMode? labelMode;
+  final AppInputVariant? variant;
+  final AppInputType? type;
 
-  Mo2FACellVariant get _cellVariant => switch (variant) {
+  /// The code cells have no decoration to host a label inside them, so every
+  /// mode but [AppInputLabelMode.none] puts the title above them.
+  AppInputLabelMode get _labelMode =>
+      (labelMode ?? AppInputStyle.config.labelMode) == AppInputLabelMode.none
+      ? AppInputLabelMode.none
+      : AppInputLabelMode.above;
+
+  Mo2FACellShape get _shape => switch (type ?? AppInputStyle.config.type) {
+    AppInputType.filled => Mo2FACellShape.filled,
+    AppInputType.outlined => Mo2FACellShape.outlined,
+    AppInputType.underline => Mo2FACellShape.underline,
+  };
+
+  Mo2FACellVariant get _cellVariant =>
+      switch (variant ?? AppInputStyle.config.variant) {
         AppInputVariant.primary => Mo2FACellVariant.primary,
         AppInputVariant.secondary => Mo2FACellVariant.secondary,
         AppInputVariant.tertiary => Mo2FACellVariant.tertiary,
@@ -3296,23 +3655,22 @@ class AppOtpInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      spacing: AppConstants.space8,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        InputTitle(label: label, required: required, variant: variant),
-        Mo2FACodeField(
-          length: length,
-          controller: controller,
-          autoFocus: autoFocus,
-          obscureText: obscureText,
-          hapticFeedback: true,
-          onChanged: onChanged,
-          onCompleted: onCompleted,
-          validator: validator,
-          style: Mo2FACodeStyle(variant: _cellVariant, shape: _shape),
-        ),
-      ],
+    return InputFieldLayout(
+      label: label,
+      required: required,
+      labelMode: _labelMode,
+      variant: variant,
+      field: Mo2FACodeField(
+        length: length,
+        controller: controller,
+        autoFocus: autoFocus,
+        obscureText: obscureText,
+        hapticFeedback: true,
+        onChanged: onChanged,
+        onCompleted: onCompleted,
+        validator: validator,
+        style: Mo2FACodeStyle(variant: _cellVariant, shape: _shape),
+      ),
     );
   }
 }
@@ -4178,7 +4536,7 @@ class AppProgressBar extends StatelessWidget {
     super.key,
     this.value,
     this.label,
-    this.variant = AppInputVariant.primary,
+    this.variant,
     this.size = AppProgressBarSize.medium,
     this.showPercent = false,
   });
@@ -4188,7 +4546,7 @@ class AppProgressBar extends StatelessWidget {
 
   /// Caption above the bar, e.g. "Uploading photo".
   final String? label;
-  final AppInputVariant variant;
+  final AppInputVariant? variant;
   final AppProgressBarSize size;
 
   /// Shows the rounded percentage at the end of the caption row. Ignored while
@@ -4274,10 +4632,10 @@ class AppSearchField extends StatefulWidget {
     this.hint = 'Search',
     this.onChanged,
     this.onSubmitted,
-    this.variant = AppInputVariant.primary,
-    this.type = AppInputType.filled,
-    this.shape = AppInputShape.pill,
-    this.size = AppInputSize.medium,
+    this.variant,
+    this.type,
+    this.shape,
+    this.size,
     this.autofocus = false,
     this.enabled = true,
     this.searchIcon = Icons.search,
@@ -4293,10 +4651,10 @@ class AppSearchField extends StatefulWidget {
   final String hint;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
-  final AppInputVariant variant;
-  final AppInputType type;
-  final AppInputShape shape;
-  final AppInputSize size;
+  final AppInputVariant? variant;
+  final AppInputType? type;
+  final AppInputShape? shape;
+  final AppInputSize? size;
   final bool autofocus;
   final bool enabled;
 
@@ -4411,8 +4769,8 @@ class AppStepper extends StatelessWidget {
     this.min = 0,
     this.max = 99,
     this.step = 1,
-    this.variant = AppInputVariant.primary,
-    this.size = AppInputSize.medium,
+    this.variant,
+    this.size,
   });
 
   final int value;
@@ -4424,8 +4782,8 @@ class AppStepper extends StatelessWidget {
 
   /// How much one tap moves the value.
   final int step;
-  final AppInputVariant variant;
-  final AppInputSize size;
+  final AppInputVariant? variant;
+  final AppInputSize? size;
 
   static const double _fillOpacity = 0.06;
   static const double _borderOpacity = 0.25;
@@ -4697,7 +5055,7 @@ class AppStepIndicator extends StatelessWidget {
     required this.stepCount,
     this.labels = const [],
     this.type = AppStepIndicatorType.bars,
-    this.variant = AppInputVariant.primary,
+    this.variant,
   });
 
   /// Zero-based index of the active step.
@@ -4708,7 +5066,7 @@ class AppStepIndicator extends StatelessWidget {
   /// or empty list just means fewer captions, never an error.
   final List<String> labels;
   final AppStepIndicatorType type;
-  final AppInputVariant variant;
+  final AppInputVariant? variant;
 
   static const double _mutedOpacity = 0.2;
 
@@ -5132,6 +5490,26 @@ class _DesignSystemViewState extends State<DesignSystemView> {
               ),
 
               // ── Inputs ────────────────────────────────────────────────────
+              _Section(
+                title: 'AppInput — label modes',
+                child: Column(
+                  children: [
+                    // Whichever of these you like, set it once as
+                    // AppInputConfig.defaults.labelMode and every input in the
+                    // app follows — these four override it per field.
+                    for (final mode in AppInputLabelMode.values) ...[
+                      AppInput(
+                        label: 'Label mode: ${mode.name}',
+                        hint: 'Hint text',
+                        required: true,
+                        labelMode: mode,
+                      ),
+                      const SizedBox(height: AppConstants.space12),
+                    ],
+                  ],
+                ),
+              ),
+
               _Section(
                 title: 'AppInput — formats',
                 child: Column(

@@ -88,12 +88,23 @@ abstract final class WidgetCatalog {
   static final List<WidgetSpec> _kit = [
     // ── Inputs ────────────────────────────────────────────────────────────────
     WidgetSpec(
+      name: 'input-config',
+      title: 'AppInputConfig',
+      file: 'inputs/app_input_config.dart',
+      template: SharedTemplates.appInputConfig,
+      category: 'Inputs',
+      common: true,
+      description:
+          'One file the whole input family reads: label placement, default variant/type/shape/size, border weights, size metrics.',
+    ),
+    WidgetSpec(
       name: 'input-style',
       title: 'AppInputStyle',
       file: 'inputs/app_input_style.dart',
       template: SharedTemplates.appInputStyle,
       category: 'Inputs',
       common: true,
+      deps: ['input-config'],
       description:
           'Resolves variant + type + size into an InputDecoration; the base every input builds on.',
     ),
