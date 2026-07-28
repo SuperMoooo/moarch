@@ -109,15 +109,25 @@ abstract final class WidgetCatalog {
           'Label with an optional required asterisk, shown above a field.',
     ),
     WidgetSpec(
+      name: 'input-format',
+      title: 'AppInputFormat',
+      file: 'inputs/app_input_format.dart',
+      template: SharedTemplates.appInputFormat,
+      category: 'Inputs',
+      common: true,
+      description:
+          'Field formats (email, money, phone, card…) plus the formatters they type with; each one resolves to a keyboard, autofill hints and a validation rule.',
+    ),
+    WidgetSpec(
       name: 'input',
       title: 'AppInput',
       file: 'inputs/app_input.dart',
       template: SharedTemplates.appInput,
       category: 'Inputs',
       common: true,
-      deps: ['input-style', 'input-title'],
+      deps: ['input-style', 'input-title', 'input-format'],
       description:
-          'Text field with validation, a built-in password eye, and variant/type/shape/size.',
+          'Text field driven by an AppInputFormat: live input formatting, validation, a password eye, and variant/type/shape/size.',
     ),
     WidgetSpec(
       name: 'date-input',

@@ -755,9 +755,11 @@ class UrlLauncherService {
 
   /// Launch a URL string.
   Future<void> launch(String url, {LaunchMode? mode}) async {
+    // InputType.url is what gates this: it holds the scheme to http/https, so
+    // a `javascript:` or `file:` link can never reach the platform launcher.
     final ValidationResult res = ValidationService.validate(
       url,
-      inputType: InputType.text,
+      inputType: InputType.url,
     );
 
     if (!res.isValid) return;

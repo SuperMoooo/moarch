@@ -49,14 +49,60 @@ moarch create widget --list        # list every available widget
 - optional services such as notifications (local or Firebase push), URL launcher, media, debounce
 - optional localization: flutter_localizations (`lib/l10n/` + `.arb` files) or easy_localization (`assets/translations/` JSON files) — pick one, the checklist keeps them mutually exclusive
 
+### Input validation
+
+`core/security/validation_service.dart` checks a value against an `InputType`
+(email, url, phone, password, username, number, creditCard, cardExpiry, cvv,
+filePath, text) and hands back the cleaned form. It is what `AppInput` calls, and
+what `AppInputFormat` maps onto.
+
+It deliberately does **not** blocklist SQL keywords and does **not** HTML-escape
+what it returns: `O'Brien` is a name, `Create the report` is a note, and escaping
+on the way in is how `Tom & Jerry` ends up stored as `Tom &amp; Jerry`. Injection
+belongs to parameterised queries on the server; escaping belongs to
+`ValidationService.escapeHtml` at the point you build HTML. What it does enforce
+is scoped: shape per type, control characters stripped everywhere, markup in free
+text, path traversal in a file path, and an http/https allowlist on a URL.
+
+The password rule is one assignment at startup:
+
+```dart
+ValidationService.passwordPolicy = PasswordPolicy.lengthOnly;      // 12+ chars
+ValidationService.passwordPolicy = const PasswordPolicy(minLength: 8);
+```
+
+### Extensions
+
+`core/utils/extensions.dart` carries the small helpers every screen reaches for:
+`context.theme` / `colorScheme` / `isDarkMode` / `isTablet` / `isKeyboardOpen` /
+`unfocus()`, string helpers (`initials`, `capitalizeWords`, `truncate`,
+`withoutDiacritics`, `searchKey`, `matchesSearch`, `isBlank`, `digitsOnly`),
+date and time helpers (`startOfDay`, `endOfMonth`, `isTomorrow`, `yearsSince`,
+`format(pattern)`, `timeAgo()`, `TimeOfDay.onDate`), `Duration.formatted`, and
+number formatting (`formatCurrency`, `formatDecimal`, `formatCompact`,
+`formatPercent`) — alongside the `formattedDateToDatabase` /
+`formatedDateTimeToDatabase` pair the API layer uses.
+
 ## Design system
 
 `moarch init` sets up the design foundation — tokens (spacing, radius, a wired-up
 type scale, colors) in `core/constants/app_constants.dart`, a light/dark `AppTheme`,
 and a **lean common set** of widgets under `lib/shared/widgets/`: inputs (`AppInput`,
-`AppInputStyle`, `InputTitle`), `AppButton`, `AppLeadingIcon`, the state screens
-(`ErrorView`, `EmptyView`, `AppLoadingData`) and overlays (`AppToast`,
+`AppInputFormat`, `AppInputStyle`, `InputTitle`), `AppButton`, `AppLeadingIcon`, the
+state screens (`ErrorView`, `EmptyView`, `AppLoadingData`) and overlays (`AppToast`,
 `AppConfirmDialog`, dialog/bottom-sheet helpers).
+
+`AppInput` is driven by an `AppInputFormat`: one enum that picks the keyboard, the
+input formatters that shape the value as it is typed, the autofill hints and the
+validation rule together.
+
+```dart
+AppInput(label: 'Amount', format: AppInputFormat.money)      // 1,234.50
+AppInput(label: 'Card', format: AppInputFormat.creditCard)   // 4111 1111 1111 1111
+AppInput(label: 'Expiry', format: AppInputFormat.cardExpiry) // 12/25
+
+AppInputFormat.money.unformat(controller.text)               // '1234.50'
+```
 
 Everything else in the kit is one command away, catalogued in the generated
 `docs/UI_KIT.md`:

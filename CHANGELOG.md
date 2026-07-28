@@ -1,5 +1,5 @@
-# [2.1.1]
+# [2.2.0]
 
 ## Features
 
-- added return on listen if loading
+- input formatters, extensions, validation service refactor

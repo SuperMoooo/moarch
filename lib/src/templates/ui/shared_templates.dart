@@ -863,103 +863,719 @@ class InputTitle extends StatelessWidget {
 
 ''';
 
+  /// Returns the generated appInputFormat template.
+  static String appInputFormat() => r'''
+import 'package:flutter/services.dart';
+
+import '../../../core/security/validation_service.dart';
+
+/// Separators the money formatter inserts. Both [MoneyInputFormatter] and
+/// [AppInputFormat.unformat] read them, so switching an app to another locale
+/// is a two-line edit here.
+const String moneyGroupSeparator = ',';
+const String moneyDecimalSeparator = '.';
+
+/// What a field holds — the one knob that decides how it behaves.
+///
+/// A format resolves to a keyboard, the [TextInputFormatter]s that keep junk
+/// out while the user types, autofill hints and the [InputType] the value is
+/// validated against. Set it once and the rest follows:
+///
+///   AppInput(label: 'Amount', format: AppInputFormat.money)
+///
+/// Everything it decides is a plain getter, so a hand-rolled [TextField] can
+/// borrow the same behaviour without going through `AppInput`.
+enum AppInputFormat {
+  /// Free text, unfiltered.
+  text,
+
+  /// Free text over several lines — a notes or description box.
+  multiline,
+
+  /// A person's name: word capitalisation and name autofill.
+  personName,
+
+  /// An email address: lower-cased, no spaces.
+  email,
+
+  /// A secret: obscured by default, password autofill.
+  password,
+
+  /// A handle: letters, digits, `-` and `_` only.
+  username,
+
+  /// A link, no spaces.
+  url,
+
+  /// A phone number: digits and the punctuation phone numbers use.
+  phone,
+
+  /// A whole number.
+  integer,
+
+  /// A number with up to two decimal places.
+  decimal,
+
+  /// An amount: decimals plus thousands grouping as you type.
+  money,
+
+  /// A card number, grouped `#### #### #### ####`.
+  creditCard,
+
+  /// A card expiry, masked `MM/YY`.
+  cardExpiry,
+
+  /// A card security code: 3–4 digits.
+  cvv;
+
+  /// The keyboard to raise.
+  TextInputType get keyboardType => switch (this) {
+    AppInputFormat.multiline => TextInputType.multiline,
+    AppInputFormat.personName => TextInputType.name,
+    AppInputFormat.email => TextInputType.emailAddress,
+    AppInputFormat.url => TextInputType.url,
+    AppInputFormat.phone => TextInputType.phone,
+    AppInputFormat.integer ||
+    AppInputFormat.creditCard ||
+    AppInputFormat.cardExpiry ||
+    AppInputFormat.cvv => TextInputType.number,
+    AppInputFormat.decimal || AppInputFormat.money =>
+      const TextInputType.numberWithOptions(decimal: true),
+    AppInputFormat.text ||
+    AppInputFormat.password ||
+    AppInputFormat.username => TextInputType.text,
+  };
+
+  /// Formatters applied on every keystroke, so the field can only ever hold
+  /// something shaped like its format. Passing `inputFormatters` to an input
+  /// replaces this list.
+  List<TextInputFormatter> get formatters => switch (this) {
+    AppInputFormat.email => [_noSpaces, const LowerCaseInputFormatter()],
+    AppInputFormat.url => [_noSpaces],
+    AppInputFormat.username => [_usernameChars],
+    AppInputFormat.phone => [_phoneChars],
+    AppInputFormat.integer ||
+    AppInputFormat.cvv => [FilteringTextInputFormatter.digitsOnly],
+    AppInputFormat.decimal => [const DecimalInputFormatter()],
+    AppInputFormat.money => [const MoneyInputFormatter()],
+    AppInputFormat.creditCard => [
+      const MaskedInputFormatter('#### #### #### ####'),
+    ],
+    AppInputFormat.cardExpiry => [const MaskedInputFormatter('##/##')],
+    _ => const [],
+  };
+
+  /// The rule [ValidationService] checks the value against.
+  InputType get validationType => switch (this) {
+    AppInputFormat.email => InputType.email,
+    AppInputFormat.password => InputType.password,
+    AppInputFormat.username => InputType.username,
+    AppInputFormat.url => InputType.url,
+    AppInputFormat.phone => InputType.phone,
+    AppInputFormat.creditCard => InputType.creditCard,
+    AppInputFormat.cardExpiry => InputType.cardExpiry,
+    AppInputFormat.cvv => InputType.cvv,
+    AppInputFormat.integer ||
+    AppInputFormat.decimal ||
+    AppInputFormat.money => InputType.number,
+    AppInputFormat.text ||
+    AppInputFormat.multiline ||
+    AppInputFormat.personName => InputType.text,
+  };
+
+  /// Whether the value is hidden until the user asks to see it.
+  bool get isObscured => this == AppInputFormat.password;
+
+  /// Whether the field should grow past one line.
+  bool get isMultiline => this == AppInputFormat.multiline;
+
+  /// The cap the format carries on its own — the mask's own width for cards
+  /// and expiries. `null` means uncapped.
+  int? get maxLength => switch (this) {
+    AppInputFormat.creditCard => 19,
+    AppInputFormat.cardExpiry => 5,
+    AppInputFormat.cvv => 4,
+    _ => null,
+  };
+
+  /// How the keyboard capitalises what is typed.
+  TextCapitalization get textCapitalization => switch (this) {
+    AppInputFormat.personName => TextCapitalization.words,
+    AppInputFormat.multiline => TextCapitalization.sentences,
+    _ => TextCapitalization.none,
+  };
+
+  /// Hints that let the OS offer a saved value — keychain, address book, or
+  /// the card scanner.
+  List<String>? get autofillHints => switch (this) {
+    AppInputFormat.personName => const [AutofillHints.name],
+    AppInputFormat.email => const [AutofillHints.email],
+    AppInputFormat.password => const [AutofillHints.password],
+    AppInputFormat.username => const [AutofillHints.username],
+    AppInputFormat.url => const [AutofillHints.url],
+    AppInputFormat.phone => const [AutofillHints.telephoneNumber],
+    AppInputFormat.creditCard => const [AutofillHints.creditCardNumber],
+    AppInputFormat.cardExpiry => const [AutofillHints.creditCardExpirationDate],
+    AppInputFormat.cvv => const [AutofillHints.creditCardSecurityCode],
+    _ => null,
+  };
+
+  /// The value with the punctuation this format added stripped back out — what
+  /// you send to an API or hand to `num.parse`.
+  ///
+  ///   AppInputFormat.money.unformat('1,234.50')            // 1234.50
+  ///   AppInputFormat.creditCard.unformat('4111 1111 ...')  // 41111111...
+  ///
+  /// Formats that add nothing return the value untouched.
+  String unformat(String value) => switch (this) {
+    AppInputFormat.money =>
+      value
+          .replaceAll(moneyGroupSeparator, '')
+          .replaceAll(moneyDecimalSeparator, '.'),
+    AppInputFormat.creditCard ||
+    AppInputFormat.cardExpiry ||
+    AppInputFormat.cvv => _digitsOnly(value),
+    AppInputFormat.phone => value.replaceAll(RegExp(r'[^\d+]'), ''),
+    _ => value,
+  };
+
+  /// The format a bare [TextInputType] implies — the bridge for fields written
+  /// as `keyboardType:` before formats existed. `null` when nothing matches.
+  static AppInputFormat? forKeyboardType(TextInputType? keyboardType) {
+    if (keyboardType == null) return null;
+    if (keyboardType == TextInputType.emailAddress) return AppInputFormat.email;
+    if (keyboardType == TextInputType.phone) return AppInputFormat.phone;
+    if (keyboardType == TextInputType.url) return AppInputFormat.url;
+    if (keyboardType == TextInputType.name) return AppInputFormat.personName;
+    if (keyboardType == TextInputType.multiline) {
+      return AppInputFormat.multiline;
+    }
+    if (keyboardType == TextInputType.number) return AppInputFormat.integer;
+    if (keyboardType == TextInputType.numberWithOptions(decimal: true)) {
+      return AppInputFormat.decimal;
+    }
+    return null;
+  }
+}
+
+/// Keeps a decimal number well-formed as it is typed: digits, one separator,
+/// and at most [decimalDigits] after it. An edit that would break the shape is
+/// rejected rather than corrected, so the caret never jumps.
+///
+/// Whichever separator key the keyboard offers produces [separator], so the
+/// field behaves the same on a comma keyboard as on a dot one.
+class DecimalInputFormatter extends TextInputFormatter {
+  const DecimalInputFormatter({
+    this.decimalDigits = 2,
+    this.allowNegative = false,
+    this.separator = moneyDecimalSeparator,
+  });
+
+  final int decimalDigits;
+  final bool allowNegative;
+  final String separator;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) return newValue;
+
+    // A 1:1 replacement, so the selection offsets stay valid.
+    final text = newValue.text.replaceAll(RegExp(r'[.,]'), separator);
+    final sign = allowNegative ? '-?' : '';
+    final tail = decimalDigits > 0
+        ? '(${RegExp.escape(separator)}\\d{0,$decimalDigits})?'
+        : '';
+
+    if (!RegExp('^$sign\\d*$tail\$').hasMatch(text)) return oldValue;
+    return newValue.copyWith(text: text);
+  }
+}
+
+/// Groups the whole part of an amount as it is typed — `1234.5` shows as
+/// `1,234.5` — and puts the caret back where the user left it.
+///
+/// [decimalSeparator] is the only key that opens the decimal part; the
+/// grouping punctuation is this formatter's own and is ignored on the way in.
+/// Flip the two for a locale that writes `1.234,50`.
+///
+/// Read the plain number back with `AppInputFormat.money.unformat(text)`.
+class MoneyInputFormatter extends TextInputFormatter {
+  const MoneyInputFormatter({
+    this.decimalDigits = 2,
+    this.allowNegative = false,
+    this.maxIntegerDigits = 12,
+    this.groupSeparator = moneyGroupSeparator,
+    this.decimalSeparator = moneyDecimalSeparator,
+  });
+
+  final int decimalDigits;
+  final bool allowNegative;
+  final int maxIntegerDigits;
+  final String groupSeparator;
+  final String decimalSeparator;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) return newValue;
+
+    // Anchor the caret to the digits that follow it: the separators move
+    // around as the value grows, the digits after the caret don't.
+    final trailingDigits = _digitsAfterCaret(newValue);
+
+    final negative = allowNegative && newValue.text.startsWith('-');
+    // Only [decimalSeparator] opens the decimal part — the other punctuation
+    // is this formatter's own grouping, so it cannot mean both things.
+    final stripped = newValue.text.replaceAll(groupSeparator, '');
+    final split = decimalDigits > 0 ? stripped.indexOf(decimalSeparator) : -1;
+
+    var whole = _digitsOnly(
+      split == -1 ? stripped : stripped.substring(0, split),
+    );
+    var fraction = split == -1
+        ? ''
+        : _digitsOnly(stripped.substring(split + 1));
+
+    if (whole.length > 1) {
+      whole = whole.replaceFirst(RegExp(r'^0+(?=\d)'), '');
+    }
+    if (whole.length > maxIntegerDigits) {
+      whole = whole.substring(0, maxIntegerDigits);
+    }
+    if (fraction.length > decimalDigits) {
+      fraction = fraction.substring(0, decimalDigits);
+    }
+
+    final buffer = StringBuffer(negative ? '-' : '')
+      ..write(_group(whole, groupSeparator));
+    if (split != -1) {
+      buffer
+        ..write(decimalSeparator)
+        ..write(fraction);
+    }
+
+    final text = buffer.toString();
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(
+        offset: _offsetLeaving(text, trailingDigits),
+      ),
+    );
+  }
+}
+
+/// Types the punctuation for the user: `#` is a digit slot, every other
+/// character is a literal the field fills in as the slots around it fill.
+///
+///   MaskedInputFormatter('#### #### #### ####')  // 4111 1111 1111 1111
+///   MaskedInputFormatter('##/##')                // 12/25
+///   MaskedInputFormatter('(###) ###-####')       // (555) 010-9999
+///
+/// Digits past the last slot are dropped, so the mask is also the length cap.
+class MaskedInputFormatter extends TextInputFormatter {
+  const MaskedInputFormatter(this.mask, {this.slot = '#'});
+
+  final String mask;
+  final String slot;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final trailingDigits = _digitsAfterCaret(newValue);
+    final slots = slot.allMatches(mask).length;
+
+    var digits = _digitsOnly(newValue.text);
+    if (digits.length > slots) digits = digits.substring(0, slots);
+
+    // Literals are only written while a digit still needs a slot, so a
+    // half-typed value never ends on a dangling separator.
+    final buffer = StringBuffer();
+    var next = 0;
+    for (var i = 0; i < mask.length && next < digits.length; i++) {
+      buffer.write(mask[i] == slot ? digits[next++] : mask[i]);
+    }
+
+    final text = buffer.toString();
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(
+        offset: _offsetLeaving(text, trailingDigits),
+      ),
+    );
+  }
+}
+
+/// Lower-cases as the user types — emails and handles are case-insensitive, so
+/// a capital from the keyboard's auto-shift shouldn't reach your API.
+class LowerCaseInputFormatter extends TextInputFormatter {
+  const LowerCaseInputFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text.toLowerCase();
+    // A few scripts change length when cased, which would invalidate the
+    // selection; leave those alone.
+    return text.length == newValue.text.length
+        ? newValue.copyWith(text: text)
+        : newValue;
+  }
+}
+
+/// Upper-cases as the user types — coupon codes, plates, reference numbers.
+class UpperCaseInputFormatter extends TextInputFormatter {
+  const UpperCaseInputFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text.toUpperCase();
+    return text.length == newValue.text.length
+        ? newValue.copyWith(text: text)
+        : newValue;
+  }
+}
+
+final _noSpaces = FilteringTextInputFormatter.deny(RegExp(r'\s'));
+final _usernameChars = FilteringTextInputFormatter.allow(
+  RegExp(r'[a-zA-Z0-9_-]'),
+);
+final _phoneChars = FilteringTextInputFormatter.allow(RegExp(r'[\d()+\- ]'));
+final _nonDigits = RegExp(r'\D');
+final _digit = RegExp(r'\d');
+
+String _digitsOnly(String value) => value.replaceAll(_nonDigits, '');
+
+/// Groups [digits] in threes from the right: `1234567` -> `1,234,567`.
+String _group(String digits, String separator) {
+  final buffer = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i != 0 && (digits.length - i) % 3 == 0) buffer.write(separator);
+    buffer.write(digits[i]);
+  }
+  return buffer.toString();
+}
+
+/// How many digits sit after the caret — the part of the value an edit leaves
+/// untouched, and so the anchor a re-formatted string can be measured against.
+int _digitsAfterCaret(TextEditingValue value) {
+  final caret = value.selection.end;
+  if (caret < 0 || caret > value.text.length) return 0;
+  return _digitsOnly(value.text.substring(caret)).length;
+}
+
+/// The offset in [text] that leaves exactly [digits] digits after it.
+int _offsetLeaving(String text, int digits) {
+  if (digits <= 0) return text.length;
+  var seen = 0;
+  for (var i = text.length - 1; i >= 0; i--) {
+    if (_digit.hasMatch(text[i])) {
+      seen++;
+      if (seen == digits) return i;
+    }
+  }
+  return 0;
+}
+''';
+
   /// Returns the generated appInput template.
   static String appInput() => r'''
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import './app_input_format.dart';
 import './app_input_style.dart';
 import './input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/security/validation_service.dart';
 
+/// A labeled text field — the kit's default way to collect a value.
+///
+/// [format] is the knob that matters: it picks the keyboard, the formatters
+/// that keep junk out while typing, the autofill hints and the validation rule
+/// in one go, so a money field only ever holds money.
+///
+///   AppInput(label: 'Email', format: AppInputFormat.email, required: true)
+///   AppInput(label: 'Amount', format: AppInputFormat.money)
+///   AppInput(label: 'Card', format: AppInputFormat.creditCard)
+///
+/// A formatted field still reads back as a plain value:
+/// `AppInputFormat.money.unformat(controller.text)`.
+///
+/// Every decision the format makes can be overridden on the field —
+/// [keyboardType], [inputFormatters], [autofillHints], [textCapitalization],
+/// [obscureText], [maxLength], [validator].
 class AppInput extends StatefulWidget {
   const AppInput({
     super.key,
-    this.controller,
     required this.label,
-    this.hint,
-    this.maxLines = 1,
-    this.hidePassword = false,
-    this.typePassword = false,
+    this.format = AppInputFormat.text,
+    this.controller,
     this.initialValue,
+    this.hint,
+    this.required = false,
+    this.enabled = true,
+    this.readOnly = false,
+    this.autoFocus = false,
+    this.focusNode,
+    this.maxLines = 1,
+    this.minLines,
+    this.maxLength,
+    this.showCounter = false,
+    this.obscureText,
+    this.showPasswordToggle = true,
     this.keyboardType,
     this.textInputAction,
-    this.readOnly = false,
+    this.textCapitalization,
+    this.inputFormatters,
+    this.autofillHints,
     this.prefixIcon,
     this.suffixIcon,
-    this.focusNode,
-    this.autoFocus = false,
-    this.required = false,
+    this.validator,
+    this.autovalidateMode,
     this.onChanged,
+    this.onSubmitted,
+    this.onTap,
+    this.textAlign = TextAlign.start,
     this.variant = AppInputVariant.primary,
     this.type = AppInputType.filled,
     this.shape = AppInputShape.rounded,
     this.size = AppInputSize.medium,
-    this.textAlign = TextAlign.start,
   });
 
-  final TextEditingController? controller;
   final String label;
-  final String? hint;
-  final int? maxLines;
-  final bool hidePassword;
-  final bool typePassword;
+
+  /// What the field holds. Drives keyboard, formatters, autofill and
+  /// validation together — see [AppInputFormat].
+  final AppInputFormat format;
+
+  final TextEditingController? controller;
+
+  /// Seeds the field. With a [controller] it is only used while the controller
+  /// is still empty, so an already-populated controller is never clobbered.
   final String? initialValue;
-  final TextInputType? keyboardType;
-  final TextInputAction? textInputAction;
+
+  final String? hint;
+
+  /// Marks the label with an asterisk and rejects an empty value.
+  final bool required;
+
+  /// A disabled field is greyed out and cannot be focused.
+  final bool enabled;
+
+  /// A read-only field is styled normally but cannot be edited. Without an
+  /// [onTap] it ignores pointers entirely; with one it stays tappable, which is
+  /// how the picker-backed inputs are built.
   final bool readOnly;
+
+  final bool autoFocus;
+  final FocusNode? focusNode;
+
+  /// Lines the field shows. An [AppInputFormat.multiline] field opens at five
+  /// unless you say otherwise; `null` grows without limit.
+  final int? maxLines;
+  final int? minLines;
+
+  /// Character cap. Defaults to the format's own where it has one (a card
+  /// number, an expiry). The counter stays hidden unless [showCounter].
+  final int? maxLength;
+  final bool showCounter;
+
+  /// Hides the value. Defaults to the format's own answer — only
+  /// [AppInputFormat.password] hides by default.
+  final bool? obscureText;
+
+  /// Shows the eye that reveals an obscured value, unless [suffixIcon] takes
+  /// the slot. Turn it off for a value that should never be revealed.
+  final bool showPasswordToggle;
+
+  /// Overrides [AppInputFormat.keyboardType].
+  final TextInputType? keyboardType;
+
+  final TextInputAction? textInputAction;
+
+  /// Overrides [AppInputFormat.textCapitalization].
+  final TextCapitalization? textCapitalization;
+
+  /// Replaces [AppInputFormat.formatters]. To keep them and add your own,
+  /// spread them: `[...AppInputFormat.money.formatters, myFormatter]`.
+  final List<TextInputFormatter>? inputFormatters;
+
+  /// Overrides [AppInputFormat.autofillHints].
+  final List<String>? autofillHints;
+
   final Widget? prefixIcon;
   final Widget? suffixIcon;
-  final FocusNode? focusNode;
-  final bool autoFocus;
-  final bool required;
-  final Function(String c)? onChanged;
+
+  /// Replaces the built-in rule entirely. Call [AppInput.validate] from inside
+  /// it to add a rule on top instead of dropping validation.
+  final String? Function(String? value)? validator;
+
+  final AutovalidateMode? autovalidateMode;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final VoidCallback? onTap;
+
+  /// Alignment of the typed value and the hint. The label follows it too.
+  final TextAlign textAlign;
+
   final AppInputVariant variant;
   final AppInputType type;
   final AppInputShape shape;
   final AppInputSize size;
 
-  /// Alignment of the typed value and the hint. The label follows it too.
-  final TextAlign textAlign;
+  /// The rule an [AppInput] applies when no [validator] is given: required
+  /// first, then the format's own [ValidationService] check on the unformatted
+  /// value. Empty optional fields pass.
+  ///
+  /// Exposed so a custom [validator] can layer on top of it:
+  ///
+  ///   validator: (v) =>
+  ///       AppInput.validate(v, format: AppInputFormat.email, required: true) ??
+  ///       (v!.endsWith('@work.com') ? null : 'Use your work address'),
+  static String? validate(
+    String? value, {
+    AppInputFormat format = AppInputFormat.text,
+    bool required = false,
+  }) {
+    final text = value ?? '';
+    if (required && text.trim().isEmpty) return 'This field is required';
+    if (text.isEmpty) return null;
+
+    final result = ValidationService.validate(
+      format.unformat(text),
+      inputType: format.validationType,
+    );
+    return result.isValid ? null : result.error;
+  }
 
   @override
   State<AppInput> createState() => _AppInputState();
-
-  InputType _getInputType() {
-    if (keyboardType != null) {
-      switch (keyboardType) {
-        case TextInputType.emailAddress:
-          return InputType.email;
-        case TextInputType.number:
-          return InputType.number;
-        case TextInputType.phone:
-          return InputType.phone;
-        case TextInputType.url:
-          return InputType.url;
-        default:
-          return InputType.text;
-      }
-    }
-    if (typePassword) {
-      return InputType.password;
-    }
-    return InputType.text;
-  }
 }
 
 class _AppInputState extends State<AppInput> {
   late bool _obscured;
 
+  /// The format actually in force: an explicit [AppInput.format] wins, then the
+  /// one a bare `keyboardType:` implies — so fields written before formats
+  /// existed keep validating the way they did.
+  AppInputFormat get _format => widget.format != AppInputFormat.text
+      ? widget.format
+      : AppInputFormat.forKeyboardType(widget.keyboardType) ??
+            AppInputFormat.text;
+
+  /// Whether this field hides its value at all — the eye shows for the whole
+  /// life of such a field, not only while the value is hidden.
+  bool get _obscurable => widget.obscureText ?? _format.isObscured;
+
   @override
   void initState() {
     super.initState();
-    _obscured = widget.hidePassword || widget.typePassword;
-    if (widget.initialValue != null) {
-      widget.controller?.text = widget.initialValue!;
+    _obscured = _obscurable;
+
+    final controller = widget.controller;
+    if (controller != null &&
+        controller.text.isEmpty &&
+        widget.initialValue != null) {
+      controller.text = widget.initialValue!;
     }
   }
 
   @override
+  void didUpdateWidget(AppInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.obscureText != oldWidget.obscureText ||
+        widget.format != oldWidget.format) {
+      _obscured = _obscurable;
+    }
+  }
+
+  /// An obscured field is single-line by force; a multiline one opens at five
+  /// lines unless the caller pinned a value.
+  int? get _maxLines {
+    if (_obscured) return 1;
+    if (_format.isMultiline && widget.maxLines == 1) return 5;
+    return widget.maxLines;
+  }
+
+  /// The caller's suffix, else the show/hide eye when there is one to show.
+  Widget? get _suffixIcon {
+    if (widget.suffixIcon != null) return widget.suffixIcon;
+    if (!_obscurable || !widget.showPasswordToggle) return null;
+    return IconButton(
+      onPressed: () => setState(() => _obscured = !_obscured),
+      tooltip: _obscured ? 'Show' : 'Hide',
+      icon: Icon(
+        _obscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final format = _format;
+    final accent = AppInputStyle.accentOf(context, widget.variant);
+
+    final field = TextFormField(
+      controller: widget.controller,
+      initialValue: widget.controller == null ? widget.initialValue : null,
+      focusNode: widget.focusNode,
+      autofocus: widget.autoFocus,
+      enabled: widget.enabled,
+      readOnly: widget.readOnly,
+      obscureText: _obscured,
+      maxLines: _maxLines,
+      minLines: widget.minLines,
+      maxLength: widget.maxLength ?? format.maxLength,
+      keyboardType: widget.keyboardType ?? format.keyboardType,
+      textInputAction: widget.textInputAction,
+      textCapitalization:
+          widget.textCapitalization ?? format.textCapitalization,
+      textAlign: widget.textAlign,
+      inputFormatters: widget.inputFormatters ?? format.formatters,
+      autofillHints: widget.autofillHints ?? format.autofillHints,
+      autovalidateMode: widget.autovalidateMode,
+      validator:
+          widget.validator ??
+          (value) => AppInput.validate(
+            value,
+            format: format,
+            required: widget.required,
+          ),
+      onChanged: widget.onChanged,
+      onFieldSubmitted: widget.onSubmitted,
+      onTap: widget.onTap,
+      cursorColor: accent,
+      style: AppInputStyle.textStyle(
+        context,
+        size: widget.size,
+      )?.copyWith(color: accent, fontWeight: FontWeight.bold),
+      decoration: AppInputStyle.decoration(
+        context,
+        variant: widget.variant,
+        type: widget.type,
+        shape: widget.shape,
+        size: widget.size,
+        hint: widget.hint,
+        enabled: widget.enabled,
+        prefixIcon: widget.prefixIcon,
+        suffixIcon: _suffixIcon,
+        // The counter is opt-in: maxLength is usually a guard rail, not
+        // something the user needs to watch tick down.
+      ).copyWith(counterText: widget.showCounter ? null : ''),
+    );
+
     return Column(
       spacing: AppConstants.space8,
       // Stretch so the label can align itself against the field's full width.
@@ -972,74 +1588,16 @@ class _AppInputState extends State<AppInput> {
           size: widget.size,
           textAlign: widget.textAlign,
         ),
-        IgnorePointer(
-          ignoring: widget.readOnly,
-          child: TextFormField(
-            validator: (value) {
-              if (widget.required && (value == null || value.isEmpty)) {
-                return 'This field is required';
-              }
-              if ((widget.keyboardType == TextInputType.emailAddress ||
-                      widget.typePassword) &&
-                  (value == null || value.isEmpty)) {
-                return 'This field is required';
-              }
-              final result = ValidationService.validate(
-                value ?? '',
-                inputType: widget._getInputType(),
-              );
-              if (!result.isValid) {
-                return result.error;
-              }
-              return null;
-            },
-            onChanged: widget.onChanged,
-            focusNode: widget.focusNode,
-            autofocus: widget.autoFocus,
-            readOnly: widget.readOnly,
-            controller: widget.controller,
-            style: AppInputStyle.textStyle(context, size: widget.size)?.copyWith(
-              color: AppInputStyle.accentOf(context, widget.variant),
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: widget.textAlign,
-            initialValue: widget.controller == null
-                ? widget.initialValue
-                : null,
-            maxLines: widget.maxLines,
-            obscureText: _obscured,
-            keyboardType: widget.keyboardType,
-            textInputAction: widget.textInputAction,
-            cursorColor: AppInputStyle.accentOf(context, widget.variant),
-            decoration: AppInputStyle.decoration(
-              context,
-              variant: widget.variant,
-              type: widget.type,
-              shape: widget.shape,
-              size: widget.size,
-              hint: widget.hint,
-              prefixIcon: widget.prefixIcon,
-              // A password field gets a built-in show/hide eye when the caller
-              // hasn't supplied its own suffix icon.
-              suffixIcon: (widget.typePassword && widget.suffixIcon == null)
-                  ? IconButton(
-                      onPressed: () =>
-                          setState(() => _obscured = !_obscured),
-                      icon: Icon(
-                        _obscured
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                      ),
-                    )
-                  : widget.suffixIcon,
-            ),
-          ),
-        ),
+        // A read-only field with nothing to tap shouldn't take focus or raise a
+        // keyboard either.
+        if (widget.readOnly && widget.onTap == null)
+          IgnorePointer(child: field)
+        else
+          field,
       ],
     );
   }
 }
-
 ''';
 
   /// Returns the generated dateInput template.
@@ -4331,6 +4889,7 @@ import '../widgets/inputs/app_choice_chip.dart';
 import '../widgets/inputs/app_date_input.dart';
 import '../widgets/inputs/app_dropdown_input.dart';
 import '../widgets/inputs/app_input.dart';
+import '../widgets/inputs/app_input_format.dart';
 import '../widgets/inputs/app_input_style.dart';
 import '../widgets/inputs/app_otp_input.dart';
 import '../widgets/inputs/app_radio_group.dart';
@@ -4573,6 +5132,24 @@ class _DesignSystemViewState extends State<DesignSystemView> {
               ),
 
               // ── Inputs ────────────────────────────────────────────────────
+              _Section(
+                title: 'AppInput — formats',
+                child: Column(
+                  children: [
+                    // Each format brings its own keyboard, live formatting and
+                    // validation rule — type into them to see it.
+                    for (final format in AppInputFormat.values) ...[
+                      AppInput(
+                        label: format.name,
+                        hint: 'Format: ${format.name}',
+                        format: format,
+                      ),
+                      const SizedBox(height: AppConstants.space12),
+                    ],
+                  ],
+                ),
+              ),
+
               _Section(
                 title: 'AppInput — types',
                 child: Column(
