@@ -212,7 +212,87 @@ void main() {
     });
   });
 
+  group('adaptive date & time pickers', () {
+    final pickers = {
+      'dateInput': SharedTemplates.dateInput(),
+      'timeInput': SharedTemplates.timeInput(),
+    };
+
+    pickers.forEach((name, output) {
+      test('$name picks its picker off the platform', () {
+        expect(output, contains("import 'dart:io';"));
+        expect(output, contains("import 'package:flutter/cupertino.dart';"));
+        expect(output, contains('Platform.isAndroid'));
+        expect(output, contains('? _showMaterialPicker(context)'));
+        expect(output, contains(': _showCupertinoPicker(context)'));
+        // The context is spent before the await, not carried over it.
+        expect(output, isNot(contains('? await _show')));
+      });
+
+      test('$name opens the shared sheet on the Cupertino side', () {
+        expect(output, contains("import './cupertino_picker_sheet.dart';"));
+        expect(output, contains('showModalBottomSheet<'));
+        expect(output, contains('CupertinoPickerSheet('));
+        expect(output, contains('CupertinoDatePicker('));
+      });
+
+      test('$name only commits what the wheel was showing on Done', () {
+        expect(output, contains('onDone: () => Navigator.pop(sheetContext, '));
+        expect(output, contains('onCancel: () => Navigator.pop(sheetContext)'));
+      });
+
+      test('$name does not touch state after an unmounted await', () {
+        expect(output, contains('if (picked == null || !mounted) return;'));
+      });
+    });
+
+    test('the date picker holds both platforms to one range', () {
+      final output = SharedTemplates.dateInput();
+      expect(output, contains('static final DateTime _firstDate'));
+      expect(output, contains('static final DateTime _lastDate'));
+      expect(output, contains('firstDate: _firstDate'));
+      expect(output, contains('minimumDate: _firstDate'));
+      expect(output, contains('lastDate: _lastDate'));
+      expect(output, contains('maximumDate: _lastDate'));
+    });
+
+    test('both wheels stay on 24-hour time, like the Material dialogs', () {
+      expect(SharedTemplates.timeInput(), contains('use24hFormat: true'));
+      expect(
+        SharedTemplates.cupertinoPickerSheet(),
+        contains('alwaysUse24HourFormat: true'),
+      );
+    });
+
+    test('the sheet wears the app theme, not the Cupertino one', () {
+      final output = SharedTemplates.cupertinoPickerSheet();
+      expect(output, contains('color: theme.colorScheme.surface'));
+      expect(output, contains('brightness: theme.brightness'));
+      expect(output, contains('primaryColor: accent'));
+      // A fixed-height wheel cannot grow with the text scale.
+      expect(output, contains('textScaler: TextScaler.noScaling'));
+      expect(output, contains('localizations.cancelButtonLabel'));
+      expect(output, contains('localizations.okButtonLabel'));
+    });
+  });
+
   group('catalog wiring', () {
+    test('resolving either picker field pulls the sheet in', () {
+      for (final field in ['date-input', 'time-input']) {
+        expect(
+          WidgetCatalog.resolve([field]).map((spec) => spec.name),
+          contains('picker-sheet'),
+          reason: '$field needs the sheet it opens',
+        );
+      }
+      expect(
+        WidgetCatalog.all
+            .firstWhere((spec) => spec.name == 'picker-sheet')
+            .file,
+        'inputs/cupertino_picker_sheet.dart',
+      );
+    });
+
     test('input-config ships with init and everything hangs off it', () {
       final config = WidgetCatalog.all.firstWhere(
         (spec) => spec.name == 'input-config',

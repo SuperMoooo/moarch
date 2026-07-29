@@ -141,13 +141,23 @@ abstract final class WidgetCatalog {
           'Text field driven by an AppInputFormat: live input formatting, validation, a password eye, and variant/type/shape/size.',
     ),
     WidgetSpec(
+      name: 'picker-sheet',
+      title: 'CupertinoPickerSheet',
+      file: 'inputs/cupertino_picker_sheet.dart',
+      template: SharedTemplates.cupertinoPickerSheet,
+      category: 'Inputs',
+      description:
+          'Cancel/Done bottom sheet around an iOS wheel, on the app\'s own surface colors — what the date and time fields open off Android.',
+    ),
+    WidgetSpec(
       name: 'date-input',
       title: 'AppDateInput',
       file: 'inputs/app_date_input.dart',
       template: SharedTemplates.dateInput,
       category: 'Inputs',
-      deps: ['input-style', 'input-title'],
-      description: 'Read-only field that opens a date picker.',
+      deps: ['input-style', 'input-title', 'picker-sheet'],
+      description:
+          'Read-only field that opens the date picker its platform expects: the Material calendar on Android, the iOS wheel in a sheet elsewhere.',
     ),
     WidgetSpec(
       name: 'time-input',
@@ -155,8 +165,9 @@ abstract final class WidgetCatalog {
       file: 'inputs/app_time_input.dart',
       template: SharedTemplates.timeInput,
       category: 'Inputs',
-      deps: ['input-style', 'input-title'],
-      description: 'Read-only field that opens a time picker.',
+      deps: ['input-style', 'input-title', 'picker-sheet'],
+      description:
+          'Read-only field that opens the time picker its platform expects: the Material clock on Android, the iOS wheel in a sheet elsewhere.',
     ),
     WidgetSpec(
       name: 'dropdown',
@@ -294,6 +305,15 @@ abstract final class WidgetCatalog {
     ),
 
     // ── Layout & content ──────────────────────────────────────────────────────
+    WidgetSpec(
+      name: 'single-scroll-view',
+      title: 'AppSingleScrollView',
+      file: 'layouts/app_single_scroll_view.dart',
+      template: SharedTemplates.appSingleScrollView,
+      category: 'Layout & content',
+      description:
+          'Scrollable page body with the safe area, page padding and keyboard dismissal already decided; optional viewport fill and keyboard inset.',
+    ),
     WidgetSpec(
       name: 'list-tile',
       title: 'AppListTile',

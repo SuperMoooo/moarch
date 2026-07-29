@@ -1857,7 +1857,10 @@ class _AppInputState extends State<AppInput> {
     if (widget.suffixIcon != null) return widget.suffixIcon;
     if (!_obscurable || !widget.showPasswordToggle) return null;
     return IconButton(
-      onPressed: () => setState(() => _obscured = !_obscured),
+      onPressed: () {
+        HapticFeedback.selectionClick();
+        setState(() => _obscured = !_obscured);
+      },
       tooltip: _obscured ? 'Show' : 'Hide',
       icon: Icon(
         _obscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
@@ -1942,13 +1945,157 @@ class _AppInputState extends State<AppInput> {
 }
 ''';
 
+  /// Returns the generated cupertinoPickerSheet template.
+  static String cupertinoPickerSheet() => r'''
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+
+/// The iOS convention for a wheel picker: a Cancel / Done bar above the wheel,
+/// on a sheet the caller pops with whatever the wheel was showing.
+///
+/// Used by [AppDateInput] and [AppTimeInput] on every platform but Android, and
+/// reusable for any other wheel — drop a [CupertinoPicker] in as the [child]:
+///
+/// ```dart
+/// showModalBottomSheet<String>(
+///   context: context,
+///   backgroundColor: Colors.transparent,
+///   builder: (sheetContext) => CupertinoPickerSheet(
+///     accent: Theme.of(context).colorScheme.primary,
+///     onCancel: () => Navigator.pop(sheetContext),
+///     onDone: () => Navigator.pop(sheetContext, pending),
+///     child: CupertinoPicker(...),
+///   ),
+/// );
+/// ```
+///
+/// It stays on Material surface colors rather than Cupertino's own, so the
+/// sheet matches the rest of the app instead of the rest of iOS.
+class CupertinoPickerSheet extends StatelessWidget {
+  const CupertinoPickerSheet({
+    super.key,
+    required this.child,
+    required this.accent,
+    required this.onCancel,
+    required this.onDone,
+    this.wheelHeight = _defaultWheelHeight,
+  });
+
+  /// The wheel itself — a [CupertinoDatePicker] or a [CupertinoPicker].
+  final Widget child;
+
+  /// Colors the confirm action. Pass the variant color of the field that
+  /// opened the sheet so the two read as one control.
+  final Color accent;
+
+  /// Dismiss without a value. Pop the sheet with nothing.
+  final VoidCallback onCancel;
+
+  /// Confirm. Pop the sheet with the value the wheel last reported.
+  final VoidCallback onDone;
+
+  /// A wheel is not laid out from its content, so it needs a height. 216 is
+  /// what iOS gives one; raise it for a wheel with more columns.
+  final double wheelHeight;
+
+  static const double _defaultWheelHeight = 216;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    final localizations = MaterialLocalizations.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppConstants.radius24),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                CupertinoButton(
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    onCancel();
+                  },
+                  child: Text(
+                    localizations.cancelButtonLabel,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                CupertinoButton(
+                  // The haptic for a confirmed pick belongs to whoever acts on
+                  // the value, so this one only reports it.
+                  onPressed: onDone,
+                  child: Text(
+                    localizations.okButtonLabel,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: accent,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Divider(height: 1, color: theme.colorScheme.outlineVariant),
+            SizedBox(
+              height: wheelHeight,
+              child: MediaQuery(
+                // The wheel has a fixed height, so a large text scale would
+                // clip its rows instead of growing the sheet.
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: TextScaler.noScaling,
+                  alwaysUse24HourFormat: true,
+                ),
+                child: CupertinoTheme(
+                  // The wheel paints its labels from the Cupertino theme, not
+                  // the Material one — without this they stay dark in dark mode.
+                  data: CupertinoThemeData(
+                    brightness: theme.brightness,
+                    primaryColor: accent,
+                  ),
+                  child: child,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+''';
+
   /// Returns the generated dateInput template.
   static String dateInput() => r'''
+import 'dart:io';
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import './app_input_style.dart';
+import './cupertino_picker_sheet.dart';
 import './input_title.dart';
 import '../../../core/utils/extensions.dart';
 
+/// A read-only field that opens whichever date picker its platform is used to:
+/// the Material calendar dialog on Android, the iOS wheel in a bottom sheet
+/// anywhere else. Both paths share one range and hand back one [DateTime], so
+/// the call site never has to know which one ran.
 class AppDateInput extends StatefulWidget {
   const AppDateInput({
     super.key,
@@ -2003,6 +2150,13 @@ class AppDateInput extends StatefulWidget {
 class _AppDateInputState extends State<AppDateInput> {
   DateTime _lastSelectedDate = DateTime.now();
 
+  /// One range for both pickers, so the two platforms never disagree about
+  /// which dates are selectable.
+  static final DateTime _firstDate =
+      DateTime.now().subtract(const Duration(days: 365 * 100));
+  static final DateTime _lastDate =
+      DateTime.now().add(const Duration(days: 365 * 100));
+
   @override
   void initState() {
     super.initState();
@@ -2013,11 +2167,30 @@ class _AppDateInputState extends State<AppDateInput> {
   }
 
   Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
+    HapticFeedback.selectionClick();
+    // The picker is chosen and opened before anything is awaited, so the
+    // context is never carried across the gap.
+    final picker = Platform.isAndroid
+        ? _showMaterialPicker(context)
+        : _showCupertinoPicker(context);
+
+    final picked = await picker;
+    if (picked == null || !mounted) return;
+
+    HapticFeedback.selectionClick();
+    setState(() {
+      _lastSelectedDate = picked;
+      widget.controller?.text = picked.formattedDate;
+    });
+    widget.onChanged?.call(picked);
+  }
+
+  Future<DateTime?> _showMaterialPicker(BuildContext context) {
+    return showDatePicker(
       context: context,
       initialDate: _lastSelectedDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 365 * 100)),
-      lastDate: DateTime.now().add(const Duration(days: 365 * 100)),
+      firstDate: _firstDate,
+      lastDate: _lastDate,
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
@@ -2028,13 +2201,31 @@ class _AppDateInputState extends State<AppDateInput> {
         );
       },
     );
-    if (picked != null) {
-      setState(() {
-        _lastSelectedDate = picked;
-        widget.controller?.text = picked.formattedDate;
-      });
-      widget.onChanged?.call(picked);
-    }
+  }
+
+  Future<DateTime?> _showCupertinoPicker(BuildContext context) {
+    final accent = AppInputStyle.accentOf(context, widget.variant);
+
+    // The wheel reports every date it rolls past; only the one showing when
+    // Done is tapped counts, so it is parked here until then.
+    var pending = _lastSelectedDate;
+
+    return showModalBottomSheet<DateTime>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => CupertinoPickerSheet(
+        accent: accent,
+        onCancel: () => Navigator.pop(sheetContext),
+        onDone: () => Navigator.pop(sheetContext, pending),
+        child: CupertinoDatePicker(
+          mode: CupertinoDatePickerMode.date,
+          initialDateTime: _lastSelectedDate,
+          minimumDate: _firstDate,
+          maximumDate: _lastDate,
+          onDateTimeChanged: (value) => pending = value,
+        ),
+      ),
+    );
   }
 
   @override
@@ -2084,11 +2275,21 @@ class _AppDateInputState extends State<AppDateInput> {
 
   /// Returns the generated timeInput template.
   static String timeInput() => r'''
+import 'dart:io';
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import './app_input_style.dart';
+import './cupertino_picker_sheet.dart';
 import './input_title.dart';
 import '../../../core/utils/extensions.dart';
 
+/// A read-only field that opens whichever time picker its platform is used to:
+/// the Material clock dialog on Android, the iOS wheel in a bottom sheet
+/// anywhere else. Both paths hand back one [TimeOfDay], so the call site never
+/// has to know which one ran.
 class AppTimeInput extends StatefulWidget {
   const AppTimeInput({
     super.key,
@@ -2153,7 +2354,26 @@ class _AppTimeInputState extends State<AppTimeInput> {
   }
 
   Future<void> _selectTime(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
+    HapticFeedback.selectionClick();
+    // The picker is chosen and opened before anything is awaited, so the
+    // context is never carried across the gap.
+    final picker = Platform.isAndroid
+        ? _showMaterialPicker(context)
+        : _showCupertinoPicker(context);
+
+    final picked = await picker;
+    if (picked == null || !mounted) return;
+
+    HapticFeedback.selectionClick();
+    setState(() {
+      _lastSelectedTime = picked;
+      widget.controller?.text = picked.formattedTime;
+    });
+    widget.onChanged?.call(picked);
+  }
+
+  Future<TimeOfDay?> _showMaterialPicker(BuildContext context) {
+    return showTimePicker(
       context: context,
       initialTime: _lastSelectedTime,
       builder: (context, child) {
@@ -2166,13 +2386,32 @@ class _AppTimeInputState extends State<AppTimeInput> {
         );
       },
     );
-    if (picked != null) {
-      setState(() {
-        _lastSelectedTime = picked;
-        widget.controller?.text = picked.formattedTime;
-      });
-      widget.onChanged?.call(picked);
-    }
+  }
+
+  Future<TimeOfDay?> _showCupertinoPicker(BuildContext context) {
+    final accent = AppInputStyle.accentOf(context, widget.variant);
+
+    // The wheel reports every time it rolls past; only the one showing when
+    // Done is tapped counts, so it is parked here until then.
+    var pending = _lastSelectedTime;
+
+    return showModalBottomSheet<TimeOfDay>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => CupertinoPickerSheet(
+        accent: accent,
+        onCancel: () => Navigator.pop(sheetContext),
+        onDone: () => Navigator.pop(sheetContext, pending),
+        child: CupertinoDatePicker(
+          mode: CupertinoDatePickerMode.time,
+          // The wheel only works in DateTime; which day it sits on is
+          // irrelevant, since only the time is read back out.
+          initialDateTime: _lastSelectedTime.onDate(DateTime.now()),
+          use24hFormat: true,
+          onDateTimeChanged: (value) => pending = TimeOfDay.fromDateTime(value),
+        ),
+      ),
+    );
   }
 
   @override
@@ -2223,6 +2462,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
   /// Returns the generated appDropdown template.
   static String appDropdown() => r'''
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import './app_input_style.dart';
 import './input_title.dart';
 
@@ -2324,7 +2564,9 @@ class AppDropdownInput<T> extends StatelessWidget {
           // A dropdown has no textAlign, so align the item boxes instead.
           alignment: alignment,
           onChanged: (value) {
-            if (value != null) onChanged(value);
+            if (value == null) return;
+            HapticFeedback.selectionClick();
+            onChanged(value);
           },
           iconEnabledColor: accent,
           icon: enabled ? const Icon(Icons.keyboard_arrow_down) : null,
@@ -2347,6 +2589,7 @@ class AppDropdownInput<T> extends StatelessWidget {
   /// Returns the generated appCheckbox template.
   static String appCheckbox() => r'''
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import './app_input_style.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
@@ -2404,7 +2647,12 @@ class AppCheckbox extends StatelessWidget {
       child: Checkbox(
         value: value,
         tristate: tristate,
-        onChanged: onChanged,
+        onChanged: onChanged == null
+            ? null
+            : (v) {
+                HapticFeedback.selectionClick();
+                onChanged!(v);
+              },
         activeColor: accent,
         checkColor: _onAccentOf(colorScheme, variant ?? config.variant),
         side: BorderSide(
@@ -2425,6 +2673,7 @@ class AppCheckbox extends StatelessWidget {
   /// Returns the generated appCheckboxLabel template.
   static String appCheckboxLabel() => r'''
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import './app_checkbox.dart';
 import './app_input_style.dart';
 import '../../../core/constants/app_constants.dart';
@@ -2459,7 +2708,12 @@ class AppCheckboxLabel extends StatelessWidget {
 
     return InkWell(
       borderRadius: AppConstants.borderRadius8,
-      onTap: () => onChanged(!value),
+      // The square has its own haptic in AppCheckbox, so this one only covers
+      // the rest of the row — one buzz either way.
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onChanged(!value);
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: AppConstants.space4),
         child: Row(
@@ -2773,6 +3027,7 @@ class AppRadioGroup<T> extends StatelessWidget {
   /// Returns the generated appSlider template.
   static String appSlider() => r'''
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import './app_input_style.dart';
 
 /// A [Slider] colored from [AppInputVariant], with an optional value label
@@ -2814,7 +3069,20 @@ class AppSlider extends StatelessWidget {
         max: max,
         divisions: divisions,
         label: label,
-        onChanged: onChanged,
+        onChangeStart: onChanged == null
+            ? null
+            : (_) => HapticFeedback.selectionClick(),
+        onChanged: onChanged == null
+            ? null
+            : (v) {
+                // A stepped slider ticks as it snaps. A continuous one would
+                // buzz on every pixel, so for that one the grab is the only
+                // feedback.
+                if (divisions != null && v != value) {
+                  HapticFeedback.selectionClick();
+                }
+                onChanged!(v);
+              },
       ),
     );
   }
@@ -3281,6 +3549,7 @@ class AppBottomNav extends StatelessWidget {
   /// Returns the generated appToast template.
   static String appToast() => r'''
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/constants/app_constants.dart';
 
 /// Feedback status for [AppToast].
@@ -3305,6 +3574,8 @@ class AppToast {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final (accent, icon) = _resolve(type, isDark);
+
+    _feedback(type);
 
     final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
     messenger.showSnackBar(
@@ -3343,7 +3614,10 @@ class AppToast {
             ? SnackBarAction(
                 label: actionLabel,
                 textColor: accent,
-                onPressed: onAction,
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  onAction();
+                },
               )
             : null,
       ),
@@ -3355,6 +3629,16 @@ class AppToast {
 
   static void error(BuildContext context, String message) =>
       show(context, message, type: AppToastType.error);
+
+  /// A toast usually lands while the user is looking somewhere else, so it
+  /// says what happened by feel as well as by color — the worse the news, the
+  /// heavier the tap.
+  static void _feedback(AppToastType type) => switch (type) {
+        AppToastType.success => HapticFeedback.lightImpact(),
+        AppToastType.warning => HapticFeedback.mediumImpact(),
+        AppToastType.error => HapticFeedback.heavyImpact(),
+        AppToastType.info => HapticFeedback.selectionClick(),
+      };
 
   static (Color, IconData) _resolve(AppToastType type, bool isDark) =>
       switch (type) {
@@ -4367,6 +4651,7 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// Returns the generated appBanner template.
   static String appBanner() => r'''
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
@@ -4480,7 +4765,10 @@ class AppBanner extends StatelessWidget {
                   // A bare text action keeps the banner quiet: it is
                   // information first, a call to action second.
                   TextButton(
-                    onPressed: onAction,
+                    onPressed: () {
+                      HapticFeedback.selectionClick();
+                      onAction!();
+                    },
                     style: TextButton.styleFrom(
                       foregroundColor: color,
                       padding: EdgeInsets.zero,
@@ -4960,6 +5248,7 @@ class AppSectionHeader extends StatelessWidget {
   /// Returns the generated appExpansionTile template.
   static String appExpansionTile() => r'''
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
@@ -5014,7 +5303,12 @@ class AppExpansionTile extends StatelessWidget {
               ),
         leading: leading,
         initiallyExpanded: initiallyExpanded,
-        onExpansionChanged: onExpansionChanged,
+        // The header is the tap target, so the haptic goes here whether or not
+        // the caller cares about the new state.
+        onExpansionChanged: (expanded) {
+          HapticFeedback.selectionClick();
+          onExpansionChanged?.call(expanded);
+        },
         shape: shape,
         collapsedShape: shape,
         iconColor: theme.colorScheme.primary,
@@ -5026,6 +5320,164 @@ class AppExpansionTile extends StatelessWidget {
         expandedCrossAxisAlignment: CrossAxisAlignment.start,
         children: children,
       ),
+    );
+  }
+}
+''';
+
+  /// Returns the generated appSingleScrollView template.
+  static String appSingleScrollView() => r'''
+import 'package:flutter/material.dart';
+
+import '../../../core/constants/app_constants.dart';
+
+/// The standard scrollable page body: one [SingleChildScrollView] with the
+/// safe area, the page padding and the keyboard behaviour already decided, so
+/// screens stop re-deciding them one at a time.
+///
+/// ```dart
+/// Scaffold(
+///   appBar: const AppAppBar(title: 'Profile'),
+///   // The app bar already ate the top inset, so the body doesn't inset again.
+///   body: AppSingleScrollView(
+///     safeAreaTop: false,
+///     child: Column(children: [...]),
+///   ),
+/// )
+/// ```
+///
+/// Vertical by design — it is a page scroller, not a general-purpose one. And
+/// it builds its whole [child] whether or not any of it is on screen, so for a
+/// long or repeating list reach for `ListView.builder` instead.
+class AppSingleScrollView extends StatelessWidget {
+  const AppSingleScrollView({
+    super.key,
+    required this.child,
+    this.padding = AppConstants.padding12,
+    this.safeArea = true,
+    this.safeAreaTop = true,
+    this.safeAreaBottom = true,
+    this.safeAreaHorizontal = true,
+    this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.onDrag,
+    this.avoidKeyboard = false,
+    this.fillViewport = false,
+    this.alwaysScrollable = false,
+    this.physics,
+    this.controller,
+    this.reverse = false,
+  });
+
+  final Widget child;
+
+  /// Inset around [child], inside the safe area.
+  final EdgeInsets padding;
+
+  /// Master switch for the safe area. Off means the content runs under the
+  /// notch, the status bar and the home indicator — for a screen that paints
+  /// itself edge to edge and insets whatever needs it by hand.
+  final bool safeArea;
+
+  /// Whether the top inset is honoured. Set false under an [AppBar]: it has
+  /// already consumed the status bar, and insetting twice leaves a gap.
+  final bool safeAreaTop;
+
+  /// Whether the bottom inset is honoured — the home indicator, mainly. Set
+  /// false when a bottom bar or a pinned footer below this one already takes
+  /// it.
+  final bool safeAreaBottom;
+
+  /// Whether the side insets are honoured. They only amount to anything in
+  /// landscape on a notched phone, which is exactly when they matter.
+  final bool safeAreaHorizontal;
+
+  /// What dragging does to an open keyboard.
+  /// [ScrollViewKeyboardDismissBehavior.onDrag] — the default — closes it as
+  /// soon as the user scrolls, which is what a form wants.
+  final ScrollViewKeyboardDismissBehavior keyboardDismissBehavior;
+
+  /// Adds the keyboard's height to the bottom padding, so the content can
+  /// scroll clear of it.
+  ///
+  /// Leave this off inside a normal [Scaffold]: `resizeToAvoidBottomInset`
+  /// already shrinks the body, and doing both leaves a gap the height of the
+  /// keyboard. Turn it on in a bottom sheet, a dialog, or a Scaffold with
+  /// `resizeToAvoidBottomInset: false`.
+  final bool avoidKeyboard;
+
+  /// Stretches [child] to at least the height of the viewport, so a short page
+  /// can still push a footer down with a [Spacer] or an [Expanded] while a
+  /// tall one scrolls as usual.
+  ///
+  /// Costs an [IntrinsicHeight] pass over the child, so leave it off for a
+  /// page that is taller than the screen anyway.
+  final bool fillViewport;
+
+  /// Lets the view scroll — and so bounce, and so drive a [RefreshIndicator] —
+  /// even when the content is shorter than the viewport. Ignored when
+  /// [physics] is set.
+  final bool alwaysScrollable;
+
+  final ScrollPhysics? physics;
+  final ScrollController? controller;
+  final bool reverse;
+
+  Widget _scrollView(Widget content, EdgeInsets resolvedPadding) {
+    return SingleChildScrollView(
+      padding: resolvedPadding,
+      controller: controller,
+      reverse: reverse,
+      keyboardDismissBehavior: keyboardDismissBehavior,
+      physics: physics ??
+          (alwaysScrollable ? const AlwaysScrollableScrollPhysics() : null),
+      child: content,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedPadding = avoidKeyboard
+        ? padding.copyWith(
+            bottom: padding.bottom + MediaQuery.viewInsetsOf(context).bottom,
+          )
+        : padding;
+
+    Widget scrollView = _scrollView(child, resolvedPadding);
+
+    if (fillViewport) {
+      scrollView = LayoutBuilder(
+        builder: (context, constraints) {
+          // Nested inside another scrollable there is no viewport height to
+          // fill, so the child just takes the height it asks for.
+          final available = constraints.hasBoundedHeight
+              ? (constraints.maxHeight - resolvedPadding.vertical)
+                  .clamp(0.0, double.infinity)
+              : 0.0;
+
+          return _scrollView(
+            ConstrainedBox(
+              constraints: BoxConstraints(minHeight: available),
+              // A minimum alone leaves the child's height unbounded, and an
+              // Expanded inside it would throw; this gives it a height to
+              // divide up.
+              child: IntrinsicHeight(child: child),
+            ),
+            resolvedPadding,
+          );
+        },
+      );
+    }
+
+    if (!safeArea) return scrollView;
+
+    return SafeArea(
+      top: safeAreaTop,
+      bottom: safeAreaBottom,
+      left: safeAreaHorizontal,
+      right: safeAreaHorizontal,
+      // Without this the bottom inset collapses the moment the keyboard opens,
+      // and the content jumps by the height of the home indicator.
+      maintainBottomViewPadding: true,
+      child: scrollView,
     );
   }
 }
@@ -5257,6 +5709,7 @@ import '../widgets/inputs/app_slider.dart';
 import '../widgets/inputs/app_stepper.dart';
 import '../widgets/inputs/app_switch.dart';
 import '../widgets/inputs/app_time_input.dart';
+import '../widgets/layouts/app_single_scroll_view.dart';
 import '../widgets/lists/app_card_tile.dart';
 import '../widgets/lists/app_expansion_tile.dart';
 import '../widgets/lists/app_list_tile.dart';
@@ -6040,6 +6493,28 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                       const SizedBox(height: AppConstants.space8),
                     ],
                   ],
+                ),
+              ),
+
+              // ── AppSingleScrollView ───────────────────────────────────────
+              _Section(
+                title: 'AppSingleScrollView',
+                child: SizedBox(
+                  // Boxed and safe-area-free only so it can be previewed
+                  // inside this list; on a real screen it is the whole body.
+                  height: 160,
+                  child: AppCard(
+                    padding: EdgeInsets.zero,
+                    child: AppSingleScrollView(
+                      safeArea: false,
+                      child: Column(
+                        children: [
+                          for (var i = 1; i <= 8; i++)
+                            AppListTile(title: 'Scrollable row $i'),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
 
