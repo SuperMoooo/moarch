@@ -4,6 +4,7 @@ import 'package:mason_logger/mason_logger.dart';
 import 'commands/create_command.dart';
 import 'commands/doctor_command.dart';
 import 'commands/init_command.dart';
+import 'commands/update_command.dart';
 import 'version.dart';
 
 /// Runs the CLI entry point and command parsing.
@@ -18,6 +19,7 @@ class MoarchRunner {
     _runner
       ..addCommand(InitCommand(logger: _logger))
       ..addCommand(CreateCommand(logger: _logger))
+      ..addCommand(UpdateCommand(logger: _logger))
       ..addCommand(DoctorCommand(logger: _logger));
 
     _runner.argParser

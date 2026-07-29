@@ -21,10 +21,12 @@ import '../utils/gradle_utils.dart';
 import '../utils/kotlin_utils.dart';
 import '../utils/manifest_utils.dart';
 import '../utils/plist_utils.dart';
+import '../utils/project_manifest.dart';
 import '../utils/podfile_utils.dart';
 import '../utils/pubspec_utils.dart';
 import '../utils/swift_utils.dart';
 import '../utils/widget_catalog.dart';
+import '../version.dart';
 
 // ── Stack options ─────────────────────────────────────────────────────────────
 // Add a new const + ChecklistItem + if block to support a new option.
@@ -240,6 +242,14 @@ class InitCommand extends Command<int> {
     );
     FileUtils.beginSession(dryRun: dryRun);
 
+    // Records the stack and a hash of every widget written, so `moarch update`
+    // can later tell an untouched generated file from one the user edited.
+    final manifest = ProjectManifest(
+      version: packageVersion,
+      generatedAt: DateTime.now(),
+      stack: stack.toList()..sort(),
+    );
+
     final pubspecFile = File(p.join(p.absolute(targetPath), 'pubspec.yaml'));
     final pubspecExisted = pubspecFile.existsSync();
     final pubspecBackup =
@@ -339,7 +349,7 @@ class InitCommand extends Command<int> {
     try {
       await _buildCore(libPath, stack);
       await _buildConfig(libPath, stack);
-      await _buildShared(libPath, stack);
+      await _buildShared(libPath, stack, manifest);
       await FileUtils.createDir(p.join(libPath, 'features'));
       if (stack.contains(_kAuthFeature)) {
         await _buildAuthFeature(libPath);
@@ -650,6 +660,9 @@ class InitCommand extends Command<int> {
       _logger.info('Run without --dry-run to actually scaffold.');
       return 0;
     }
+
+    // Written last, so it only ever describes a scaffold that completed.
+    await manifest.save(p.absolute(targetPath));
 
     _logger.success('');
     _logger.success('✅  Project scaffolded!');
@@ -1129,8 +1142,13 @@ class InitCommand extends Command<int> {
     }
   }
 
-  Future<void> _buildShared(String libPath, Set<String> stack) async {
+  Future<void> _buildShared(
+    String libPath,
+    Set<String> stack,
+    ProjectManifest manifest,
+  ) async {
     final s = p.join(libPath, 'shared', 'widgets');
+    final projectRoot = p.dirname(libPath);
     final hasRouter = stack.contains(_kRouter);
     final hasBiometric = stack.contains(_kBiometricAuth);
 
@@ -1147,7 +1165,10 @@ class InitCommand extends Command<int> {
       final content = spec.name == 'button'
           ? SharedTemplates.appButton(hasBiometricAuth: hasBiometric)
           : spec.template();
-      await FileUtils.writeFile(p.join(s, spec.file), content);
+      final path = p.join(s, spec.file);
+      if (await FileUtils.writeFile(path, content)) {
+        manifest.record(projectRoot, path, content);
+      }
     }
 
     // A catalog of the whole UI kit and how to scaffold the rest on demand.

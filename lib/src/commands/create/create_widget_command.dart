@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 
 import '../../templates/ui/shared_templates.dart';
 import '../../utils/file_utils.dart';
+import '../../utils/project_manifest.dart';
 import '../../utils/pubspec_utils.dart';
 import '../../utils/widget_catalog.dart';
 
@@ -92,13 +93,19 @@ class CreateWidgetCommand extends Command<int> {
     final created = <WidgetSpec>[];
     final skipped = <WidgetSpec>[];
 
+    // Records what was generated so `moarch update` can later tell these
+    // files apart from ones the user edited. Skipped files are deliberately
+    // left out: their content is the user's, not ours to vouch for.
+    final manifest = ProjectManifest.loadOrCreate(projectRoot);
+
     try {
       for (final spec in specs) {
         final content = spec.name == 'button'
             ? SharedTemplates.appButton(hasBiometricAuth: hasBiometric)
             : spec.template();
-        final wrote =
-            await FileUtils.writeFile(p.join(widgetsRoot, spec.file), content);
+        final path = p.join(widgetsRoot, spec.file);
+        final wrote = await FileUtils.writeFile(path, content);
+        if (wrote) manifest.record(projectRoot, path, content);
         (wrote ? created : skipped).add(spec);
       }
       if (packages.isNotEmpty) {
@@ -107,6 +114,7 @@ class CreateWidgetCommand extends Command<int> {
           dependencies: packages.toList(),
         );
       }
+      if (created.isNotEmpty) await manifest.save(projectRoot);
       progress.complete('Widgets scaffolded');
     } catch (e) {
       progress.fail('Failed: $e');

@@ -38,6 +38,10 @@ moarch create entity-copys <featureName> # inject copyWith into the feature's en
 moarch create widget <name>        # add a UI-kit widget on demand (e.g. switch, otp, list-tile)
 moarch create widget all           # generate the whole UI kit + the preview screen
 moarch create widget --list        # list every available widget
+
+moarch update        # refresh generated widgets against the current templates
+moarch doctor        # check the project for common scaffolding issues
+moarch doctor --fix  # ...and apply the ones that don't need a decision
 ```
 
 ## What it generates
@@ -104,6 +108,59 @@ AppInput(label: 'Expiry', format: AppInputFormat.cardExpiry) // 12/25
 AppInputFormat.money.unformat(controller.text)               // '1234.50'
 ```
 
+### Phone numbers mask themselves, per country
+
+`moarch create widget phone-input` adds `AppPhoneInput`: a field that punctuates
+what is typed the way the selected country writes numbers, with a searchable
+country picker built into its prefix.
+
+```dart
+AppPhoneInput(
+  initialCountry: 'PT',
+  onChanged: (number) => _phone = number.e164,   // '+351912345678'
+)
+```
+
+The field holds only the *national* number — `912 345 678` in Portugal,
+`(555) 010 9999` in the US — so the calling code can never be typed twice or
+deleted by accident. Changing country re-masks what is already there instead of
+clearing it.
+
+It ships a table of **238 countries** (`AppCountry`), each carrying every shape
+its numbering plan allows rather than one mask: Hungary takes 8 or 9 digits,
+Germany 10 through 13, so the mask widens as the number grows. Validation holds
+a number to those exact lengths — Armenia accepts 8 or 10 digits and refuses the
+9 in between, which a generic 7-to-15 check would pass. Flags are derived from
+the ISO code, so there are no assets to ship.
+
+```dart
+AppCountries.byIso('PT')!.format('912345678')  // '912 345 678'
+AppCountries.split('+351912345678')            // (Portugal, '912345678')
+AppCountries.initial = AppCountries.byIso('PT')!;  // move the default
+```
+
+Numbering plans are a good description of how numbers are *written*, not a
+replacement for libphonenumber — validate server-side too if you need
+carrier-level correctness.
+
+### Long lists get a search instead of a menu
+
+Any `AppDropdownInput` becomes searchable with one flag. A menu stops being
+usable somewhere around thirty options; past that the field opens a
+`SearchPickerSheet` — the same field, the same callback, a list you can type
+into.
+
+```dart
+AppDropdownInput<CategoryEntity>(
+  label: 'Category',
+  items: categories,
+  idOf: (c) => c.id,
+  labelOf: (c) => c.name,
+  searchable: true,
+  onChanged: (id) => setState(() => _categoryId = id),
+)
+```
+
 ### One file decides how every input looks
 
 `shared/widgets/inputs/app_input_config.dart` is the whole family's answer to
@@ -153,7 +210,8 @@ for avatars/images) is added to `pubspec.yaml`.
 The kit covers:
 
 - **inputs** — switch, segmented, choice chips, radio group, slider, date/time,
-  dropdown, checkbox, OTP, `AppSearchField`, `AppStepper` (quantity −/+)
+  dropdown (searchable on request), checkbox, OTP, `AppSearchField`,
+  `AppStepper` (quantity −/+), `AppPhoneInput` (per-country masking)
 - **buttons & icons** — `AppButton`, `AppLeadingIcon`, `AppIconButton`
 - **layout** — `AppListTile`, `AppCard`, `AppCardTile`, `AppTag`, `AppBadge`,
   `AppSectionHeader`, `AppExpansionTile`
@@ -166,6 +224,55 @@ Every control shares one vocabulary — `variant`, `type`, `shape`, `size` — a
 `moarch create widget design-system` (or `all`) generates a screen previewing them
 all in light/dark. Set `AppConstants.fontFamily` (or swap in `google_fonts`) to
 restyle the whole app's typography from one place.
+
+## Staying up to date
+
+Generated code goes stale: the UI kit keeps improving, and a project scaffolded
+two versions ago still has the old `app_input.dart`. `moarch update` closes that
+gap without ever gambling with your edits.
+
+```bash
+moarch update                # refresh what's safe, review the rest
+moarch update --dry-run      # report only, write nothing
+moarch update --diff         # show what would change, line by line
+moarch update input button   # limit it to specific widgets
+```
+
+It sorts every generated widget into one of three buckets:
+
+| | |
+| --- | --- |
+| **up to date** | already matches the current template — nothing to do |
+| **can be refreshed** | moarch wrote it, you never touched it, the template has since changed |
+| **needs review** | the template changed *and* so did your copy — listed and diffed, never overwritten |
+
+The distinction comes from `.moarch.yaml`, a manifest written at generation time
+recording the moarch version, your init selections, and a hash of every file the
+CLI wrote. **Commit it.** Without it moarch can't prove a file is untouched, so
+it falls back to treating everything as needing review — safe, just less useful.
+
+Nothing in the third bucket is written unless you pass `--force`, which discards
+those edits. Run `git diff` after any update before committing.
+
+> `update` covers the `lib/shared/widgets/` kit — the part that actually churns
+> between releases. Features, core and config are yours once generated.
+
+## Checking a project
+
+`moarch doctor` looks for the things that break a scaffolded project in practice:
+
+- `build_runner` never run, so `config/env/app_env.g.dart` doesn't exist yet
+  (the most common first-run failure)
+- both localization approaches installed, leaving `MaterialApp` with two
+  competing sets of delegates
+- a generated widget whose dependency or pub package was never added — a
+  broken import either way
+- `go_router` and `config/router/` out of sync
+
+Each finding says what to do about it, and `moarch doctor --fix` applies the
+mechanical ones — generating a missing widget dependency, adding a missing
+package. Anything that's a genuine choice (which localization package to drop)
+is reported and left to you.
 
 ## Local development
 

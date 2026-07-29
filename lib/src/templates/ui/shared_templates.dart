@@ -2459,12 +2459,302 @@ class _AppTimeInputState extends State<AppTimeInput> {
 }
 ''';
 
+  /// Returns the generated searchPickerSheet template.
+  static String searchPickerSheet() => r'''
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import './app_input_style.dart';
+import './app_search_field.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+
+/// A bottom sheet that picks one row out of a long list, with a search field
+/// pinned above it.
+///
+/// A dropdown menu stops being usable somewhere around thirty options, which is
+/// why [AppDropdownInput] opens this once it is told `searchable: true`, and why
+/// the country selector on `AppPhoneInput` — 238 rows — uses nothing else.
+///
+/// Generic over the row type, so callers keep their own entities:
+///
+/// ```dart
+/// final picked = await SearchPickerSheet.show<CategoryEntity>(
+///   context,
+///   title: 'Category',
+///   items: categories,
+///   idOf: (item) => item.id,
+///   labelOf: (item) => item.name,
+///   selectedId: _categoryId,
+/// );
+/// ```
+///
+/// Resolves to the picked item, or null when the sheet is dismissed.
+class SearchPickerSheet<T> extends StatefulWidget {
+  /// Creates the sheet. Prefer [show], which opens it with the modal settings
+  /// a full-height searchable sheet needs.
+  const SearchPickerSheet({
+    super.key,
+    required this.title,
+    required this.items,
+    required this.idOf,
+    required this.labelOf,
+    this.selectedId,
+    this.searchHint = 'Search',
+    this.leadingOf,
+    this.trailingLabelOf,
+    this.filter,
+    this.emptyLabel = 'Nothing matches that search',
+    this.variant,
+  });
+
+  /// Heading over the search field.
+  final String title;
+
+  /// Rows to choose from.
+  final List<T> items;
+
+  /// Extracts the id used to mark the current selection.
+  final String Function(T item) idOf;
+
+  /// Extracts the row's display text — and, unless [matches] says otherwise,
+  /// the text the query is compared against.
+  final String Function(T item) labelOf;
+
+  /// The row to mark as current and to open the list scrolled to.
+  final String? selectedId;
+
+  /// Placeholder in the search field.
+  final String searchHint;
+
+  /// Optional leading widget per row — a flag, an avatar, an icon.
+  final Widget Function(T item)? leadingOf;
+
+  /// Optional dimmed text at the end of a row, for a secondary value like a
+  /// calling code.
+  final String Function(T item)? trailingLabelOf;
+
+  /// Replaces the default filter, which is a case-insensitive `contains` over
+  /// [labelOf].
+  ///
+  /// Returns the rows to show *in the order to show them*, so a caller can
+  /// rank matches as well as select them — which is how the country picker
+  /// keeps Portugal above Egypt for the query `PT`.
+  final List<T> Function(List<T> items, String query)? filter;
+
+  /// Shown in place of the list when nothing matches.
+  final String emptyLabel;
+
+  /// Null follows [AppInputConfig.defaults].
+  final AppInputVariant? variant;
+
+  /// Opens the sheet and resolves to the picked item, or null if dismissed.
+  static Future<T?> show<T>(
+    BuildContext context, {
+    required String title,
+    required List<T> items,
+    required String Function(T item) idOf,
+    required String Function(T item) labelOf,
+    String? selectedId,
+    String searchHint = 'Search',
+    Widget Function(T item)? leadingOf,
+    String Function(T item)? trailingLabelOf,
+    List<T> Function(List<T> items, String query)? filter,
+    String emptyLabel = 'Nothing matches that search',
+    AppInputVariant? variant,
+  }) {
+    return showModalBottomSheet<T>(
+      context: context,
+      // The sheet has to be free to grow past half the screen and to sit above
+      // the keyboard the search field raises.
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SearchPickerSheet<T>(
+        title: title,
+        items: items,
+        idOf: idOf,
+        labelOf: labelOf,
+        selectedId: selectedId,
+        searchHint: searchHint,
+        leadingOf: leadingOf,
+        trailingLabelOf: trailingLabelOf,
+        filter: filter,
+        emptyLabel: emptyLabel,
+        variant: variant,
+      ),
+    );
+  }
+
+  @override
+  State<SearchPickerSheet<T>> createState() => _SearchPickerSheetState<T>();
+}
+
+class _SearchPickerSheetState<T> extends State<SearchPickerSheet<T>> {
+  late final ScrollController _scrollController = ScrollController(
+    initialScrollOffset: _initialOffset,
+  );
+  String _query = '';
+
+  /// Opens the list already showing the current selection, so a picker over a
+  /// long table doesn't start hundreds of rows away from the answer.
+  ///
+  /// Exact rather than estimated because the rows are a fixed [_rowHeight].
+  double get _initialOffset {
+    final selectedId = widget.selectedId;
+    if (selectedId == null) return 0;
+    final index = widget.items.indexWhere(
+      (item) => widget.idOf(item) == selectedId,
+    );
+    return index <= 0 ? 0 : index * _rowHeight;
+  }
+
+  List<T> get _filtered {
+    final filter = widget.filter;
+    if (filter != null) return filter(widget.items, _query);
+
+    final needle = _query.trim().toLowerCase();
+    if (needle.isEmpty) return widget.items;
+    return [
+      for (final item in widget.items)
+        if (widget.labelOf(item).toLowerCase().contains(needle)) item,
+    ];
+  }
+
+  void _onQueryChanged(String query) {
+    setState(() => _query = query);
+    // The previous offset means nothing against a freshly filtered list, and
+    // may well be past its end.
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    final mediaQuery = MediaQuery.of(context);
+    final accent = AppInputStyle.accentOf(context, widget.variant);
+    final rows = _filtered;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: mediaQuery.size.height * _maxHeightFactor,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppConstants.radius24),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: AppConstants.padding16,
+                child: Column(
+                  children: [
+                    Text(
+                      widget.title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: AppConstants.space12),
+                    AppSearchField(
+                      hint: widget.searchHint,
+                      autofocus: true,
+                      variant: widget.variant,
+                      onChanged: _onQueryChanged,
+                    ),
+                  ],
+                ),
+              ),
+              Divider(height: 1, color: theme.colorScheme.outlineVariant),
+              Flexible(
+                child: rows.isEmpty
+                    ? Padding(
+                        padding: AppConstants.padding24,
+                        child: Text(
+                          widget.emptyLabel,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _scrollController,
+                        // A fixed extent is what makes _initialOffset exact,
+                        // and it keeps a 238-row list cheap to scroll.
+                        itemExtent: _rowHeight,
+                        padding: EdgeInsets.zero,
+                        itemCount: rows.length,
+                        itemBuilder: (context, index) {
+                          final item = rows[index];
+                          final id = widget.idOf(item);
+                          final selected = id == widget.selectedId;
+                          final trailing = widget.trailingLabelOf?.call(item);
+
+                          return ListTile(
+                            selected: selected,
+                            selectedColor: accent,
+                            leading: widget.leadingOf?.call(item),
+                            title: Text(
+                              widget.labelOf(item),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: selected
+                                  ? const TextStyle(fontWeight: FontWeight.bold)
+                                  : null,
+                            ),
+                            trailing: trailing == null
+                                ? null
+                                : Text(
+                                    trailing,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: selected
+                                          ? accent
+                                          : theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              Navigator.pop(context, item);
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Rows are a fixed height so the list can be opened at an exact offset.
+const double _rowHeight = 56;
+
+/// How much of the screen the sheet may take before its list scrolls.
+const double _maxHeightFactor = 0.85;
+''';
+
   /// Returns the generated appDropdown template.
   static String appDropdown() => r'''
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import './app_input_style.dart';
 import './input_title.dart';
+import './search_picker_sheet.dart';
+import '../../../core/constants/app_constants.dart';
 
 // Usage with an entity:
 //  AppDropdownInput<CategoryEntity>(
@@ -2475,6 +2765,10 @@ import './input_title.dart';
 //     labelOf: (item) => item.name,
 //     onChanged: (id) => setState(() => _selectedCategoryId = id),
 //  )
+//
+// Past about thirty options a menu becomes a scroll hunt. Pass
+// `searchable: true` and the field opens a [SearchPickerSheet] instead — the
+// same field, the same callback, a list you can type into.
 class AppDropdownInput<T> extends StatelessWidget {
   const AppDropdownInput({
     super.key,
@@ -2487,6 +2781,9 @@ class AppDropdownInput<T> extends StatelessWidget {
     this.hint = 'Select an option',
     this.enabled = true,
     this.required = false,
+    this.searchable = false,
+    this.searchHint = 'Search',
+    this.searchTitle,
     this.prefixIcon,
     this.suffixIcon,
     this.labelMode,
@@ -2513,6 +2810,18 @@ class AppDropdownInput<T> extends StatelessWidget {
   final String hint;
   final bool enabled;
   final bool required;
+
+  /// Swaps the menu for a [SearchPickerSheet] — a bottom sheet with a search
+  /// field over the same options. Turn it on once a list is long enough that
+  /// scrolling a menu is the slow way to find a row.
+  final bool searchable;
+
+  /// Placeholder in the sheet's search field. Only used when [searchable].
+  final String searchHint;
+
+  /// Heading over the sheet. Defaults to [label]. Only used when [searchable].
+  final String? searchTitle;
+
   final Widget? prefixIcon;
   final Widget? suffixIcon;
 
@@ -2525,6 +2834,46 @@ class AppDropdownInput<T> extends StatelessWidget {
 
   /// Alignment of the selected value and the hint. The label follows it too.
   final TextAlign textAlign;
+
+  /// The item [selectedId] points at, or null when nothing is selected.
+  T? get _selected {
+    for (final item in items) {
+      if (idOf(item) == selectedId) return item;
+    }
+    return null;
+  }
+
+  InputDecoration _decoration(BuildContext context, {Widget? suffix}) =>
+      AppInputStyle.decoration(
+        context,
+        variant: variant,
+        type: type,
+        shape: shape,
+        size: size,
+        label: label,
+        labelMode: labelMode,
+        required: required,
+        hint: hint,
+        prefixIcon: prefixIcon,
+        suffixIcon: suffix,
+        enabled: enabled,
+      );
+
+  Future<void> _openSheet(BuildContext context) async {
+    final picked = await SearchPickerSheet.show<T>(
+      context,
+      title: searchTitle ?? label,
+      searchHint: searchHint,
+      items: items,
+      idOf: idOf,
+      labelOf: labelOf,
+      selectedId: selectedId,
+      variant: variant,
+    );
+    if (picked == null) return;
+    HapticFeedback.selectionClick();
+    onChanged(idOf(picked));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2540,47 +2889,88 @@ class AppDropdownInput<T> extends StatelessWidget {
       textAlign: textAlign,
       field: IgnorePointer(
         ignoring: !enabled,
-        child: DropdownButtonFormField<String>(
-          initialValue: selectedId,
-          style: AppInputStyle.textStyle(
-            context,
-            size: size,
-          )?.copyWith(color: accent, fontWeight: FontWeight.bold),
-          decoration: AppInputStyle.decoration(
-            context,
-            variant: variant,
-            type: type,
-            shape: shape,
-            size: size,
-            label: label,
-            labelMode: labelMode,
-            required: required,
-            hint: hint,
-            prefixIcon: prefixIcon,
-            suffixIcon: suffixIcon,
-            enabled: enabled,
-          ),
-          isExpanded: true,
-          // A dropdown has no textAlign, so align the item boxes instead.
-          alignment: alignment,
-          onChanged: (value) {
-            if (value == null) return;
-            HapticFeedback.selectionClick();
-            onChanged(value);
-          },
-          iconEnabledColor: accent,
-          icon: enabled ? const Icon(Icons.keyboard_arrow_down) : null,
-          items: items
-              .map(
-                (item) => DropdownMenuItem<String>(
-                  value: idOf(item),
-                  alignment: alignment,
-                  child: Text(labelOf(item), textAlign: textAlign),
-                ),
-              )
-              .toList(),
-        ),
+        child: searchable
+            ? _searchableField(context, accent, alignment)
+            : _menuField(context, accent, alignment),
       ),
+    );
+  }
+
+  /// The searchable form: the field only *shows* the selection and opens the
+  /// sheet, so there is no menu to lay out and the value still lives with the
+  /// caller.
+  Widget _searchableField(
+    BuildContext context,
+    Color accent,
+    AlignmentGeometry alignment,
+  ) {
+    final selected = _selected;
+
+    return InkWell(
+      onTap: enabled ? () => _openSheet(context) : null,
+      borderRadius: AppConstants.borderRadius12,
+      child: InputDecorator(
+        // The chevron sits inside the border here, where a suffix goes; the
+        // menu form draws its own outside it.
+        decoration: _decoration(
+          context,
+          suffix:
+              suffixIcon ??
+              (enabled ? const Icon(Icons.keyboard_arrow_down) : null),
+        ),
+        // Drives the hint and the floating label the same way an empty text
+        // field would.
+        isEmpty: selected == null,
+        child: selected == null
+            ? null
+            : Align(
+                alignment: alignment,
+                child: Text(
+                  labelOf(selected),
+                  textAlign: textAlign,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppInputStyle.textStyle(
+                    context,
+                    size: size,
+                  )?.copyWith(color: accent, fontWeight: FontWeight.bold),
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _menuField(
+    BuildContext context,
+    Color accent,
+    AlignmentGeometry alignment,
+  ) {
+    return DropdownButtonFormField<String>(
+      initialValue: selectedId,
+      style: AppInputStyle.textStyle(
+        context,
+        size: size,
+      )?.copyWith(color: accent, fontWeight: FontWeight.bold),
+      decoration: _decoration(context, suffix: suffixIcon),
+      isExpanded: true,
+      // A dropdown has no textAlign, so align the item boxes instead.
+      alignment: alignment,
+      onChanged: (value) {
+        if (value == null) return;
+        HapticFeedback.selectionClick();
+        onChanged(value);
+      },
+      iconEnabledColor: accent,
+      icon: enabled ? const Icon(Icons.keyboard_arrow_down) : null,
+      items: items
+          .map(
+            (item) => DropdownMenuItem<String>(
+              value: idOf(item),
+              alignment: alignment,
+              child: Text(labelOf(item), textAlign: textAlign),
+            ),
+          )
+          .toList(),
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'package:moarch/src/templates/ui/phone_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
 import 'package:test/test.dart';
@@ -14,6 +15,8 @@ void main() {
       'timeInput': SharedTemplates.timeInput,
       'cupertinoPickerSheet': SharedTemplates.cupertinoPickerSheet,
       'appDropdown': SharedTemplates.appDropdown,
+      'searchPickerSheet': SharedTemplates.searchPickerSheet,
+      'appPhoneInput': PhoneTemplates.appPhoneInput,
       'appCheckbox': SharedTemplates.appCheckbox,
       'appCheckboxLabel': SharedTemplates.appCheckboxLabel,
       'appSwitch': SharedTemplates.appSwitch,

@@ -1,5 +1,6 @@
 import '../templates/ui/dialogs_templates.dart';
 import '../templates/ui/modals_templates.dart';
+import '../templates/ui/phone_templates.dart';
 import '../templates/ui/shared_templates.dart';
 
 /// One entry in the shared-widget kit: everything needed to generate a widget
@@ -170,13 +171,49 @@ abstract final class WidgetCatalog {
           'Read-only field that opens the time picker its platform expects: the Material clock on Android, the iOS wheel in a sheet elsewhere.',
     ),
     WidgetSpec(
+      name: 'search-sheet',
+      title: 'SearchPickerSheet',
+      file: 'inputs/search_picker_sheet.dart',
+      template: SharedTemplates.searchPickerSheet,
+      category: 'Inputs',
+      deps: ['input-style', 'search-field'],
+      description:
+          'Bottom sheet that picks one row out of a long list, with a search field above it — what a searchable dropdown and the country selector both open.',
+    ),
+    WidgetSpec(
       name: 'dropdown',
       title: 'AppDropdownInput',
       file: 'inputs/app_dropdown_input.dart',
       template: SharedTemplates.appDropdown,
       category: 'Inputs',
-      deps: ['input-style', 'input-title'],
-      description: 'Generic id/label dropdown that reads any entity list.',
+      deps: ['input-style', 'input-title', 'search-sheet'],
+      description:
+          'Generic id/label dropdown that reads any entity list; `searchable: true` swaps the menu for a searchable sheet.',
+    ),
+    WidgetSpec(
+      name: 'country',
+      title: 'AppCountry',
+      file: 'inputs/app_country.dart',
+      template: PhoneTemplates.appCountry,
+      category: 'Inputs',
+      description:
+          'Table of 238 countries — ISO code, calling code and the national number masks each one writes, with flags derived from the ISO code.',
+    ),
+    WidgetSpec(
+      name: 'phone-input',
+      title: 'AppPhoneInput',
+      file: 'inputs/app_phone_input.dart',
+      template: PhoneTemplates.appPhoneInput,
+      category: 'Inputs',
+      deps: [
+        'input',
+        'input-style',
+        'input-format',
+        'country',
+        'search-sheet',
+      ],
+      description:
+          'Phone field that masks what is typed for the country it is set to, with a searchable country picker built into its prefix.',
     ),
     WidgetSpec(
       name: 'checkbox',
