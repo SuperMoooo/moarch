@@ -9,7 +9,10 @@ import 'package:path/path.dart' as p;
 import '../../templates/ui/feature_templates.dart';
 import '../../utils/checklist.dart';
 import '../../utils/file_utils.dart';
+import '../../utils/project_manifest.dart';
+import '../../utils/pubspec_utils.dart';
 import '../../utils/string_utils.dart';
+import '../../utils/widget_catalog.dart';
 
 // Layer labels used in the checklist
 const _kRemoteDatasource = 'Remote Datasource';
@@ -257,6 +260,9 @@ class CreateFeatureCommand extends Command<int> {
           varName,
           hasNotifier: selected.contains(_kStateNotifier),
         );
+        if (selected.contains(_kStateNotifier)) {
+          await _ensureViewWidgets(libPath);
+        }
       }
 
       progress.complete('Feature scaffolded');
@@ -288,6 +294,46 @@ class CreateFeatureCommand extends Command<int> {
   }
 */
   // ── Writers ─────────────────────────────────────────────────────────────────
+
+  /// Writes the kit widgets the generated view imports — [AppAsyncView] and the
+  /// `listenAction` extension — along with everything they import in turn.
+  ///
+  /// They are part of `moarch init`, so a project scaffolded by this version
+  /// already has them and nothing here writes anything ([FileUtils.writeFile]
+  /// never overwrites). A project scaffolded by an older one does not, and a
+  /// view importing a file that was never generated is the one way this command
+  /// can hand back code that does not compile.
+  Future<void> _ensureViewWidgets(String libPath) async {
+    final projectRoot = p.dirname(p.absolute(libPath));
+    final widgetsRoot = p.join(libPath, 'shared', 'widgets');
+    final specs = WidgetCatalog.resolve(['async-view', 'action-listener']);
+    final manifest = ProjectManifest.loadOrCreate(projectRoot);
+
+    var wroteAny = false;
+    final packages = <String>{};
+
+    for (final spec in specs) {
+      final content = spec.template();
+      final path = p.join(widgetsRoot, spec.file);
+      final wrote = await FileUtils.writeFile(path, content);
+      if (!wrote) continue;
+      // Recorded so `moarch update` can tell a file it wrote from one the user
+      // has since edited. A file that was already there is left unrecorded:
+      // its content is the user's, not ours to vouch for.
+      manifest.record(projectRoot, path, content);
+      packages.addAll(spec.packages);
+      wroteAny = true;
+    }
+
+    if (!wroteAny) return;
+    if (packages.isNotEmpty) {
+      await PubspecUtils.ensureDependencies(
+        projectRoot,
+        dependencies: packages.toList(),
+      );
+    }
+    await manifest.save(projectRoot);
+  }
 
   Future<void> _writeRemoteDatasource(
       String fp, String name, String cls, String varName,

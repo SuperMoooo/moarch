@@ -84,7 +84,8 @@ dependencies:
       final envDir = p.join(libPath, 'config', 'env');
       await Directory(envDir).create(recursive: true);
       await File(p.join(envDir, 'app_env.dart')).writeAsString('// envied');
-      await File(p.join(envDir, 'app_env.g.dart')).writeAsString('// generated');
+      await File(p.join(envDir, 'app_env.g.dart'))
+          .writeAsString('// generated');
 
       expect(
         matching(await ProjectInspector.inspect(root), 'app_env.g.dart'),
@@ -148,7 +149,8 @@ dependencies:
 ''');
 
       expect(
-        matching(await ProjectInspector.inspect(root), 'config/router/ is missing'),
+        matching(
+            await ProjectInspector.inspect(root), 'config/router/ is missing'),
         hasLength(1),
       );
     });
@@ -157,7 +159,8 @@ dependencies:
       await scaffoldHealthyProject();
       final routerDir = p.join(libPath, 'config', 'router');
       await Directory(routerDir).create(recursive: true);
-      await File(p.join(routerDir, 'app_router.dart')).writeAsString('// router');
+      await File(p.join(routerDir, 'app_router.dart'))
+          .writeAsString('// router');
 
       expect(
         matching(
@@ -200,7 +203,8 @@ dependencies:
       );
       // And the project is clean afterwards.
       expect(
-        matching(await ProjectInspector.inspect(root), 'AppInputStyle is missing'),
+        matching(
+            await ProjectInspector.inspect(root), 'AppInputStyle is missing'),
         isEmpty,
       );
     });

@@ -44,7 +44,8 @@ void main() {
     });
 
     test('produces a 16-character hex digest', () {
-      expect(ProjectManifest.hashContent('anything'), matches(r'^[0-9a-f]{16}$'));
+      expect(
+          ProjectManifest.hashContent('anything'), matches(r'^[0-9a-f]{16}$'));
     });
 
     test('handles non-ASCII content', () {
@@ -91,9 +92,8 @@ void main() {
         );
 
       await manifest.save(tempDir.path);
-      final raw =
-          await File(p.join(tempDir.path, ProjectManifest.fileName))
-              .readAsString();
+      final raw = await File(p.join(tempDir.path, ProjectManifest.fileName))
+          .readAsString();
 
       expect(raw, contains('lib/shared/widgets/app_card.dart'));
       expect(raw, isNot(contains(r'lib\shared')));
@@ -123,7 +123,8 @@ void main() {
 
       final loaded = ProjectManifest.load(tempDir.path)!;
       expect(
-        loaded.recordedHash(tempDir.path, p.join(tempDir.path, 'lib/mine.dart')),
+        loaded.recordedHash(
+            tempDir.path, p.join(tempDir.path, 'lib/mine.dart')),
         isNull,
       );
     });
@@ -136,8 +137,8 @@ void main() {
       ).save(tempDir.path);
 
       final loaded = ProjectManifest.load(tempDir.path)!;
-      expect(loaded.stack.single,
-          'Media Service (Image Picker and File Picker)');
+      expect(
+          loaded.stack.single, 'Media Service (Image Picker and File Picker)');
     });
   });
 }

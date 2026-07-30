@@ -1,5 +1,28 @@
+import 'package:moarch/src/templates/ui/shared_templates.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
 import 'package:test/test.dart';
+
+/// Widgets the preview screen deliberately does not import, and why.
+///
+/// The design-system screen is hand-written, so a new catalog entry does not
+/// appear in it on its own — this list is what makes that a decision rather
+/// than an oversight. Adding a widget to the catalog fails
+/// `the preview screen covers the kit` until it is either previewed or listed
+/// here.
+const _notPreviewed = {
+  // Read by every field in the family; there is nothing to look at on its own.
+  'input-config': 'configuration, not a widget',
+  'input-title': 'drawn by every labeled field already on the screen',
+  // Opened by the widgets that use them, which the screen does preview.
+  'picker-sheet': 'opened by the date and time fields',
+  'search-sheet': 'opened by the dropdown and multi-select fields',
+  'country': 'a data table, not a widget',
+  'action-listener': 'an extension on WidgetRef — nothing to render',
+  // Context-free helpers: they need a rootNavigatorKey the preview's own
+  // MaterialApp does not install.
+  'dialogs': 'needs the app router\'s navigator key',
+  'modals': 'needs the app router\'s navigator key',
+};
 
 void main() {
   group('WidgetCatalog', () {
@@ -80,6 +103,31 @@ void main() {
                 '${spec.name} is generated on init but depends on "$dep", which is not',
           );
         }
+      }
+    });
+
+    test('the preview screen covers the kit', () {
+      final preview = SharedTemplates.designSystemView();
+      for (final spec in WidgetCatalog.all) {
+        if (spec.name == 'design-system') continue;
+        if (_notPreviewed.containsKey(spec.name)) continue;
+        expect(
+          preview,
+          contains("/${spec.file}'"),
+          reason:
+              '${spec.name} is in the kit but DesignSystemView never imports '
+              'it. Add a preview section, or add it to _notPreviewed with the '
+              'reason.',
+        );
+      }
+    });
+
+    test('nothing is excused from the preview that no longer exists', () {
+      // Otherwise a renamed or dropped widget leaves an excuse behind that
+      // silently covers for the next widget to take its slug.
+      final names = WidgetCatalog.names.toSet();
+      for (final name in _notPreviewed.keys) {
+        expect(names, contains(name), reason: '$name is no longer in the kit');
       }
     });
 

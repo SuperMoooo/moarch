@@ -323,9 +323,9 @@ class ${cls}View extends StatelessWidget {
     return '''
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:skeletonizer/skeletonizer.dart';
 
-import '../../../../shared/widgets/error_view.dart';
+import '../../../../shared/widgets/app_async_view.dart';
+import '../../../../shared/widgets/feedback/action_listener.dart';
 import '../notifiers/${name}_notifier.dart';
 import '../states/${name}_state.dart';
 
@@ -339,32 +339,32 @@ class ${cls}View extends ConsumerStatefulWidget {
 class _${cls}ViewState extends ConsumerState<${cls}View> {
   @override
   Widget build(BuildContext context) {
-    final ${varName}Async = ref.watch(${varName}NotifierProvider);
-    ref.listen(${varName}NotifierProvider, (_, next) {
-      if (next.isLoading) return;
-      final value = next.value;
-      if (value == null) return;
-      if (value.error != null) {
-        // SHOW UI ERROR
-      }
-      if (value.success != null) {
-        // SHOW UI SUCCESS
-      }
-    });
-
-    Widget mainWidget(${cls}State? state) {
-      return const SizedBox.shrink();
-    }
-
-    return ${varName}Async.when(
-      data: (state) => mainWidget(state),
-      loading: () => Skeletonizer(
-        enabled: true,
-        child: mainWidget(null),
-      ),
-      error: (error, stackTrace) =>
-          const Scaffold(body: ErrorView(message: 'Failed to load $cls')),
+    // The notifier's one-shot messages, surfaced once each. Pass onError /
+    // onSuccess to navigate or log instead of toasting.
+    ref.listenAction<${cls}State>(
+      context,
+      ${varName}NotifierProvider,
+      errorOf: (state) => state.error,
+      successOf: (state) => state.success,
     );
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('$cls')),
+      body: AppAsyncView<${cls}State>(
+        value: ref.watch(${varName}NotifierProvider),
+        onRetry: () => ref.invalidate(${varName}NotifierProvider),
+        // Shimmered while the first load runs: the same body, traced from a
+        // state that holds nothing yet.
+        skeleton: _body(context, const ${cls}State()),
+        builder: _body,
+      ),
+    );
+  }
+
+  // TODO: build the screen. It is handed the loaded state, and it is also what
+  // the skeleton above is traced from — so keep it drawable from an empty state.
+  Widget _body(BuildContext context, ${cls}State state) {
+    return const SizedBox.shrink();
   }
 }
 ''';

@@ -1,5 +1,9 @@
+import '../templates/ui/async_templates.dart';
+import '../templates/ui/content_templates.dart';
 import '../templates/ui/dialogs_templates.dart';
+import '../templates/ui/inputs_templates.dart';
 import '../templates/ui/modals_templates.dart';
+import '../templates/ui/navigation_templates.dart';
 import '../templates/ui/phone_templates.dart';
 import '../templates/ui/shared_templates.dart';
 
@@ -191,6 +195,46 @@ abstract final class WidgetCatalog {
           'Generic id/label dropdown that reads any entity list, validates like the rest of the family, and swaps its menu for a searchable sheet once the list is long enough.',
     ),
     WidgetSpec(
+      name: 'multi-select',
+      title: 'AppMultiSelectInput',
+      file: 'inputs/app_multi_select_input.dart',
+      template: InputsTemplates.appMultiSelect,
+      category: 'Inputs',
+      deps: ['input-style', 'input-title', 'search-sheet'],
+      description:
+          'AppDropdownInput\'s plural: any number of the same id/label entities, ticked in the search sheet, shown as removable chips.',
+    ),
+    WidgetSpec(
+      name: 'date-range-input',
+      title: 'AppDateRangeInput',
+      file: 'inputs/app_date_range_input.dart',
+      template: InputsTemplates.appDateRangeInput,
+      category: 'Inputs',
+      deps: ['input-style', 'input-title'],
+      description:
+          'Read-only field holding a start and an end date, with a maxDays rule the picker itself cannot express.',
+    ),
+    WidgetSpec(
+      name: 'file-input',
+      title: 'AppFilePickerField',
+      file: 'inputs/app_file_picker_field.dart',
+      template: InputsTemplates.appFilePickerField,
+      category: 'Inputs',
+      deps: ['input-style', 'input-title'],
+      description:
+          'Attachment field: an area that opens whichever picker the app already uses, and a row per file with a thumbnail and a remove button.',
+    ),
+    WidgetSpec(
+      name: 'rating',
+      title: 'AppRating',
+      file: 'inputs/app_rating.dart',
+      template: InputsTemplates.appRating,
+      category: 'Inputs',
+      deps: ['input-style', 'input-title'],
+      description:
+          'Star rating both ways round — tappable with `onChanged`, a read-only score without it, halves either way.',
+    ),
+    WidgetSpec(
       name: 'country',
       title: 'AppCountry',
       file: 'inputs/app_country.dart',
@@ -341,6 +385,16 @@ abstract final class WidgetCatalog {
       description:
           "AppLeadingIcon's tappable sibling: ripple, haptics, tooltip, loading and disabled states.",
     ),
+    WidgetSpec(
+      name: 'fab',
+      title: 'AppFab',
+      file: 'buttons/app_fab.dart',
+      template: SharedTemplates.appFab,
+      category: 'Buttons & icons',
+      deps: ['button'],
+      description:
+          'The screen\'s one floating action, circular or extended, wearing AppButton\'s variant/type — with a loading state that keeps its size.',
+    ),
 
     // ── Layout & content ──────────────────────────────────────────────────────
     WidgetSpec(
@@ -405,6 +459,16 @@ abstract final class WidgetCatalog {
           'Heading above a group of rows: title, optional subtitle, optional "See all" action.',
     ),
     WidgetSpec(
+      name: 'timeline',
+      title: 'AppTimeline',
+      file: 'lists/app_timeline.dart',
+      template: ContentTemplates.appTimeline,
+      category: 'Layout & content',
+      deps: ['input-style'],
+      description:
+          'Vertical sequence of events joined by a connector — an order\'s progress, an audit trail — with done/current/pending/failed nodes.',
+    ),
+    WidgetSpec(
       name: 'expansion-tile',
       title: 'AppExpansionTile',
       file: 'lists/app_expansion_tile.dart',
@@ -415,6 +479,29 @@ abstract final class WidgetCatalog {
     ),
 
     // ── Feedback & loading ────────────────────────────────────────────────────
+    WidgetSpec(
+      name: 'async-view',
+      title: 'AppAsyncView',
+      file: 'app_async_view.dart',
+      template: AsyncTemplates.appAsyncView,
+      category: 'Feedback & loading',
+      common: true,
+      deps: ['error-view', 'empty-view'],
+      packages: ['skeletonizer: '],
+      description:
+          'Renders one AsyncValue as the four states it can be in — skeleton, error, empty, data — and keeps the old data on screen through a refresh.',
+    ),
+    WidgetSpec(
+      name: 'action-listener',
+      title: 'ActionListener',
+      file: 'feedback/action_listener.dart',
+      template: AsyncTemplates.actionListener,
+      category: 'Feedback & loading',
+      common: true,
+      deps: ['toast'],
+      description:
+          '`ref.listenAction(...)` — turns a notifier\'s one-shot error/success fields into a toast, or into whatever you pass instead.',
+    ),
     WidgetSpec(
       name: 'loading-data',
       title: 'AppLoadingData',
@@ -564,6 +651,16 @@ abstract final class WidgetCatalog {
       packages: ['cached_network_image: '],
       description: 'Network/asset image with placeholder and shape options.',
     ),
+    WidgetSpec(
+      name: 'carousel',
+      title: 'AppCarousel',
+      file: 'media/app_carousel.dart',
+      template: ContentTemplates.appCarousel,
+      category: 'Media',
+      deps: ['input-style'],
+      description:
+          'Swipeable pages with stretching dots, optional peek and auto-advance — which stops for good on the first swipe, and never starts under reduce-motion.',
+    ),
 
     // ── Navigation ────────────────────────────────────────────────────────────
     WidgetSpec(
@@ -583,6 +680,36 @@ abstract final class WidgetCatalog {
       deps: ['icon-button'],
       description:
           'PreferredSizeWidget AppBar with an optional subtitle and an AppIconButton back button — tonal by default — that only shows when the route can pop.',
+    ),
+    WidgetSpec(
+      name: 'tabs',
+      title: 'AppTabs',
+      file: 'navigation/app_tabs.dart',
+      template: NavigationTemplates.appTabs,
+      category: 'Navigation',
+      deps: ['input-style'],
+      description:
+          'AppTabs owns a controller and puts the views under the bar; AppTabBar is the PreferredSizeWidget half that drops into an app bar. Underline or pill.',
+    ),
+    WidgetSpec(
+      name: 'drawer',
+      title: 'AppDrawer',
+      file: 'navigation/app_drawer.dart',
+      template: NavigationTemplates.appDrawer,
+      category: 'Navigation',
+      deps: ['input-style', 'bottom-nav'],
+      description:
+          'Side menu reading AppBottomNav\'s destinations, with a header/footer slot — and it closes itself after a pick.',
+    ),
+    WidgetSpec(
+      name: 'nav-rail',
+      title: 'AppNavRail',
+      file: 'navigation/app_nav_rail.dart',
+      template: NavigationTemplates.appNavRail,
+      category: 'Navigation',
+      deps: ['input-style', 'bottom-nav'],
+      description:
+          'The vertical nav a tablet shows instead of a bottom bar, plus AppAdaptiveNav — the scaffold that picks rail or bar off the 600dp breakpoint.',
     ),
     WidgetSpec(
       name: 'step-indicator',

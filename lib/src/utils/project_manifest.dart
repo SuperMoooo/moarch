@@ -141,8 +141,10 @@ class ProjectManifest {
     final sortedKeys = files.keys.toList()..sort();
     final buffer = StringBuffer()
       ..writeln('# Written by moarch — it records what the CLI generated so')
-      ..writeln('# `moarch update` can tell an untouched file from one you edited.')
-      ..writeln('# Safe to commit. Deleting it only makes `moarch update` more cautious.')
+      ..writeln(
+          '# `moarch update` can tell an untouched file from one you edited.')
+      ..writeln(
+          '# Safe to commit. Deleting it only makes `moarch update` more cautious.')
       ..writeln("version: '$packageVersion'")
       ..writeln("generated_at: '${DateTime.now().toIso8601String()}'");
 

@@ -127,7 +127,8 @@ class UpdateCommand extends Command<int> {
     final only = argResults?.rest ?? const <String>[];
 
     if (!Directory(libPath).existsSync()) {
-      _logger.err('No lib/ directory at $targetPath — is this a Flutter project?');
+      _logger
+          .err('No lib/ directory at $targetPath — is this a Flutter project?');
       return 1;
     }
 
@@ -146,7 +147,8 @@ class UpdateCommand extends Command<int> {
     if (manifest == null) {
       _logger.info('');
       _logger.warn('  No ${ProjectManifest.fileName} in this project.');
-      _logger.info('  Without it moarch cannot tell an untouched generated file');
+      _logger
+          .info('  Without it moarch cannot tell an untouched generated file');
       _logger.info('  from one you edited, so every changed file is listed as');
       _logger.info('  needing review rather than refreshed automatically.');
     } else {
@@ -167,7 +169,8 @@ class UpdateCommand extends Command<int> {
     final upToDate = candidates.length - changed.length;
 
     if (changed.isEmpty) {
-      _logger.success('  ✓  All ${candidates.length} generated widget(s) are up to date.');
+      _logger.success(
+          '  ✓  All ${candidates.length} generated widget(s) are up to date.');
       _logger.info('');
       return 0;
     }
@@ -188,7 +191,8 @@ class UpdateCommand extends Command<int> {
     }
 
     if (needsDecision.isNotEmpty) {
-      _logger.info('  Changed by you since generation — not touched by default:');
+      _logger
+          .info('  Changed by you since generation — not touched by default:');
       for (final candidate in needsDecision) {
         _describe(candidate, showDiff: showDiff);
       }
@@ -325,7 +329,8 @@ class UpdateCommand extends Command<int> {
         '+${stat.added} -${stat.removed}$label');
 
     if (!showDiff) return;
-    for (final line in TextDiff.unified(candidate.current, candidate.generated)) {
+    for (final line
+        in TextDiff.unified(candidate.current, candidate.generated)) {
       switch (line.kind) {
         case '+':
           _logger.info('      ${green.wrap('+${line.text}')}');

@@ -2710,9 +2710,14 @@ import '../../../core/utils/extensions.dart';
 /// ```
 ///
 /// Resolves to the picked item, or null when the sheet is dismissed.
+///
+/// [showMulti] opens the same sheet with a checkbox per row and a Done button —
+/// what [AppMultiSelectInput] uses. One sheet covers both because everything
+/// that makes this sheet worth having (the search, the filter, opening at the
+/// current selection) is the same either way.
 class SearchPickerSheet<T> extends StatefulWidget {
-  /// Creates the sheet. Prefer [show], which opens it with the modal settings
-  /// a full-height searchable sheet needs.
+  /// Creates the sheet. Prefer [show] or [showMulti], which open it with the
+  /// modal settings a full-height searchable sheet needs.
   const SearchPickerSheet({
     super.key,
     required this.title,
@@ -2720,6 +2725,10 @@ class SearchPickerSheet<T> extends StatefulWidget {
     required this.idOf,
     required this.labelOf,
     this.selectedId,
+    this.selectedIds = const [],
+    this.multiSelect = false,
+    this.maxSelected,
+    this.doneLabel = 'Done',
     this.searchHint = 'Search',
     this.leadingOf,
     this.trailingLabelOf,
@@ -2743,6 +2752,22 @@ class SearchPickerSheet<T> extends StatefulWidget {
 
   /// The row to mark as current and to open the list scrolled to.
   final String? selectedId;
+
+  /// The rows already ticked, when [multiSelect]. The sheet works on its own
+  /// copy and reports the result once, so a dismissed sheet changes nothing.
+  final List<String> selectedIds;
+
+  /// Puts a checkbox on every row and a Done button under the list. Tapping a
+  /// row toggles it instead of closing the sheet.
+  final bool multiSelect;
+
+  /// Ceiling on how many may be ticked. At the limit the unticked rows stop
+  /// responding — better than letting the user pick a sixth of five and having
+  /// the form refuse it afterwards. Only read when [multiSelect].
+  final int? maxSelected;
+
+  /// Copy on the confirm button. Only read when [multiSelect].
+  final String doneLabel;
 
   /// Placeholder in the search field.
   final String searchHint;
@@ -2805,6 +2830,50 @@ class SearchPickerSheet<T> extends StatefulWidget {
     );
   }
 
+  /// Opens the sheet in multi-select mode and resolves to everything ticked
+  /// when Done was tapped, or null if it was dismissed.
+  ///
+  /// An empty list and null mean different things: the first is a deliberate
+  /// "none of them", the second is "leave it as it was".
+  static Future<List<T>?> showMulti<T>(
+    BuildContext context, {
+    required String title,
+    required List<T> items,
+    required String Function(T item) idOf,
+    required String Function(T item) labelOf,
+    List<String> selectedIds = const [],
+    int? maxSelected,
+    String doneLabel = 'Done',
+    String searchHint = 'Search',
+    Widget Function(T item)? leadingOf,
+    String Function(T item)? trailingLabelOf,
+    List<T> Function(List<T> items, String query)? filter,
+    String emptyLabel = 'Nothing matches that search',
+    AppInputVariant? variant,
+  }) {
+    return showModalBottomSheet<List<T>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SearchPickerSheet<T>(
+        title: title,
+        items: items,
+        idOf: idOf,
+        labelOf: labelOf,
+        selectedIds: selectedIds,
+        multiSelect: true,
+        maxSelected: maxSelected,
+        doneLabel: doneLabel,
+        searchHint: searchHint,
+        leadingOf: leadingOf,
+        trailingLabelOf: trailingLabelOf,
+        filter: filter,
+        emptyLabel: emptyLabel,
+        variant: variant,
+      ),
+    );
+  }
+
   @override
   State<SearchPickerSheet<T>> createState() => _SearchPickerSheetState<T>();
 }
@@ -2815,17 +2884,44 @@ class _SearchPickerSheetState<T> extends State<SearchPickerSheet<T>> {
   );
   String _query = '';
 
+  /// The sheet's own copy of a multi-select selection: it is reported once, on
+  /// Done, so backing out of the sheet leaves the caller's list untouched.
+  late final Set<String> _picked = {...widget.selectedIds};
+
   /// Opens the list already showing the current selection, so a picker over a
   /// long table doesn't start hundreds of rows away from the answer.
   ///
   /// Exact rather than estimated because the rows are a fixed [_rowHeight].
   double get _initialOffset {
-    final selectedId = widget.selectedId;
+    // In multi-select the first tick is the one to open at — it is where the
+    // user was working, and later ones are usually near it.
+    final selectedId =
+        widget.selectedId ??
+        (widget.selectedIds.isEmpty ? null : widget.selectedIds.first);
     if (selectedId == null) return 0;
     final index = widget.items.indexWhere(
       (item) => widget.idOf(item) == selectedId,
     );
     return index <= 0 ? 0 : index * _rowHeight;
+  }
+
+  /// True once as many rows are ticked as [SearchPickerSheet.maxSelected]
+  /// allows.
+  bool get _atLimit =>
+      widget.maxSelected != null && _picked.length >= widget.maxSelected!;
+
+  /// Everything ticked, in [SearchPickerSheet.items] order rather than in the
+  /// order it was tapped — which is the order a caller wants to store.
+  List<T> get _pickedItems => [
+    for (final item in widget.items)
+      if (_picked.contains(widget.idOf(item))) item,
+  ];
+
+  void _toggle(String id) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (!_picked.remove(id)) _picked.add(id);
+    });
   }
 
   List<T> get _filtered {
@@ -2919,10 +3015,18 @@ class _SearchPickerSheetState<T> extends State<SearchPickerSheet<T>> {
                         itemBuilder: (context, index) {
                           final item = rows[index];
                           final id = widget.idOf(item);
-                          final selected = id == widget.selectedId;
+                          final selected = widget.multiSelect
+                              ? _picked.contains(id)
+                              : id == widget.selectedId;
                           final trailing = widget.trailingLabelOf?.call(item);
+                          // Past the ceiling only the ticked rows still answer:
+                          // offering a pick the caller has to throw away is
+                          // worse than showing it can't be made.
+                          final enabled =
+                              !widget.multiSelect || selected || !_atLimit;
 
                           return ListTile(
+                            enabled: enabled,
                             selected: selected,
                             selectedColor: accent,
                             leading: widget.leadingOf?.call(item),
@@ -2934,27 +3038,105 @@ class _SearchPickerSheetState<T> extends State<SearchPickerSheet<T>> {
                                   ? const TextStyle(fontWeight: FontWeight.bold)
                                   : null,
                             ),
-                            trailing: trailing == null
-                                ? null
-                                : Text(
-                                    trailing,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: selected
-                                          ? accent
-                                          : theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              Navigator.pop(context, item);
-                            },
+                            trailing: _rowTrailing(
+                              theme: theme,
+                              accent: accent,
+                              trailingLabel: trailing,
+                              selected: selected,
+                              enabled: enabled,
+                              id: id,
+                            ),
+                            onTap: enabled
+                                ? () {
+                                    if (widget.multiSelect) {
+                                      _toggle(id);
+                                      return;
+                                    }
+                                    HapticFeedback.selectionClick();
+                                    Navigator.pop(context, item);
+                                  }
+                                : null,
                           );
                         },
                       ),
               ),
+              if (widget.multiSelect) _confirmBar(theme, accent),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// The end of a row: its secondary label, and in multi-select the checkbox
+  /// that says whether it is in.
+  Widget? _rowTrailing({
+    required ThemeData theme,
+    required Color accent,
+    required String? trailingLabel,
+    required bool selected,
+    required bool enabled,
+    required String id,
+  }) {
+    final label = trailingLabel == null
+        ? null
+        : Text(
+            trailingLabel,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: selected ? accent : theme.colorScheme.onSurfaceVariant,
+            ),
+          );
+
+    if (!widget.multiSelect) return label;
+
+    final checkbox = Checkbox(
+      value: selected,
+      activeColor: accent,
+      // The whole row is the target — the box only has to report the state, and
+      // a second tap handler here would double the haptics.
+      onChanged: enabled ? (_) => _toggle(id) : null,
+    );
+
+    if (label == null) return checkbox;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [label, checkbox],
+    );
+  }
+
+  /// The bar under a multi-select list: how many are in, and the button that
+  /// commits them.
+  Widget _confirmBar(ThemeData theme, Color accent) {
+    final max = widget.maxSelected;
+    return Container(
+      padding: AppConstants.padding16,
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: Row(
+        spacing: AppConstants.space12,
+        children: [
+          Expanded(
+            child: Text(
+              max == null
+                  ? '${_picked.length} selected'
+                  : '${_picked.length} of $max selected',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: accent),
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              Navigator.pop(context, _pickedItems);
+            },
+            child: Text(widget.doneLabel),
+          ),
+        ],
       ),
     );
   }
@@ -5451,6 +5633,169 @@ class AppIconButton extends StatelessWidget {
 }
 ''';
 
+  /// Returns the generated appFab template.
+  static String appFab() => r'''
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import './app_button.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+
+/// The screen's one primary action, wearing [AppButtonVariant] so it matches
+/// the buttons inside the screen it floats over.
+///
+/// ```dart
+/// Scaffold(
+///   floatingActionButton: AppFab(
+///     icon: Icons.add,
+///     label: 'New order',        // omit for a circular icon-only FAB
+///     onPressed: _create,
+///   ),
+///   ...
+/// )
+/// ```
+///
+/// [isLoading] swaps the icon for a spinner and stops the taps without changing
+/// the button's size, so a FAB that starts a request does not resize the screen
+/// under it. A null [onPressed] renders it disabled — the same rule the rest of
+/// the kit follows.
+class AppFab extends StatelessWidget {
+  const AppFab({
+    super.key,
+    required this.icon,
+    this.onPressed,
+    this.label,
+    this.variant = AppButtonVariant.primary,
+    this.type = AppButtonType.filled,
+    this.isLoading = false,
+    this.mini = false,
+    this.tooltip,
+    this.heroTag,
+  });
+
+  final IconData icon;
+
+  /// Pass null to render the FAB disabled.
+  final VoidCallback? onPressed;
+
+  /// Turns the circle into an extended pill. Skip it for the icon-only form.
+  final String? label;
+
+  final AppButtonVariant variant;
+
+  /// [AppButtonType.filled] is the FAB Material describes;
+  /// [AppButtonType.outlined] and [AppButtonType.ghost] give the quieter
+  /// version a screen with its own strong content sometimes wants.
+  final AppButtonType type;
+
+  final bool isLoading;
+
+  /// The smaller circle, for a dense screen. Ignored by the extended form,
+  /// which has a label to fit.
+  final bool mini;
+
+  /// Falls back to [label] on the extended form. Worth setting on the
+  /// icon-only form, which otherwise says nothing at all to a screen reader.
+  final String? tooltip;
+
+  /// Only needed when two FABs can be on screen at once, or across a route
+  /// transition: Flutter animates same-tag heroes into each other and throws if
+  /// it finds two.
+  final Object? heroTag;
+
+  (Color, Color) _colorsOf(BuildContext context) {
+    final colorScheme = context.colorScheme;
+    final (accent, onAccent) = switch (variant) {
+      AppButtonVariant.primary => (colorScheme.primary, colorScheme.onPrimary),
+      AppButtonVariant.secondary => (
+        colorScheme.secondary,
+        colorScheme.onSecondary,
+      ),
+      AppButtonVariant.tertiary => (
+        colorScheme.tertiary,
+        colorScheme.onTertiary,
+      ),
+      AppButtonVariant.danger => (colorScheme.error, colorScheme.onError),
+    };
+
+    // Variant picks the color; type only decides how it is applied — the same
+    // split AppButton makes.
+    return switch (type) {
+      AppButtonType.filled => (accent, onAccent),
+      AppButtonType.outlined || AppButtonType.ghost => (
+        colorScheme.surfaceContainerLowest,
+        accent,
+      ),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = !isLoading && onPressed != null;
+    final (background, foreground) = _colorsOf(context);
+    final resolvedBackground = enabled
+        ? background
+        : background.withValues(alpha: 0.35);
+
+    final child = isLoading
+        ? SizedBox.square(
+            dimension: AppConstants.iconMedium,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: foreground,
+            ),
+          )
+        : Icon(icon, color: foreground);
+
+    void handlePress() {
+      HapticFeedback.selectionClick();
+      onPressed!();
+    }
+
+    final shape = RoundedRectangleBorder(
+      borderRadius: AppConstants.borderRadius16,
+      side: type == AppButtonType.outlined
+          ? BorderSide(color: foreground, width: 1.5)
+          : BorderSide.none,
+    );
+
+    final resolvedLabel = label;
+    if (resolvedLabel == null) {
+      return FloatingActionButton(
+        onPressed: enabled ? handlePress : null,
+        backgroundColor: resolvedBackground,
+        foregroundColor: foreground,
+        elevation: type == AppButtonType.ghost ? 0 : null,
+        mini: mini,
+        shape: shape,
+        tooltip: tooltip,
+        heroTag: heroTag,
+        child: child,
+      );
+    }
+
+    return FloatingActionButton.extended(
+      onPressed: enabled ? handlePress : null,
+      backgroundColor: resolvedBackground,
+      foregroundColor: foreground,
+      elevation: type == AppButtonType.ghost ? 0 : null,
+      shape: shape,
+      tooltip: tooltip ?? resolvedLabel,
+      heroTag: heroTag,
+      icon: child,
+      label: Text(
+        resolvedLabel,
+        style: context.textTheme.titleSmall?.copyWith(
+          color: foreground,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+''';
+
   /// Returns the generated appAppBar template.
   static String appAppBar() => r'''
 import 'package:flutter/material.dart';
@@ -6655,9 +7000,13 @@ class _NumberedStep extends StatelessWidget {
   /// Returns the generated designSystemView template.
   static String designSystemView() => r'''
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/errors/app_exception.dart';
+import '../widgets/app_async_view.dart';
 import '../widgets/buttons/app_button.dart';
+import '../widgets/buttons/app_fab.dart';
 import '../widgets/buttons/app_icon_button.dart';
 import '../widgets/cards/app_card.dart';
 import '../widgets/empty_view.dart';
@@ -6671,12 +7020,17 @@ import '../widgets/inputs/app_checkbox.dart';
 import '../widgets/inputs/app_checkbox_label.dart';
 import '../widgets/inputs/app_choice_chip.dart';
 import '../widgets/inputs/app_date_input.dart';
+import '../widgets/inputs/app_date_range_input.dart';
 import '../widgets/inputs/app_dropdown_input.dart';
+import '../widgets/inputs/app_file_picker_field.dart';
 import '../widgets/inputs/app_input.dart';
 import '../widgets/inputs/app_input_format.dart';
 import '../widgets/inputs/app_input_style.dart';
+import '../widgets/inputs/app_multi_select_input.dart';
 import '../widgets/inputs/app_otp_input.dart';
+import '../widgets/inputs/app_phone_input.dart';
 import '../widgets/inputs/app_radio_group.dart';
+import '../widgets/inputs/app_rating.dart';
 import '../widgets/inputs/app_search_field.dart';
 import '../widgets/inputs/app_segmented.dart';
 import '../widgets/inputs/app_slider.dart';
@@ -6688,15 +7042,20 @@ import '../widgets/lists/app_card_tile.dart';
 import '../widgets/lists/app_expansion_tile.dart';
 import '../widgets/lists/app_list_tile.dart';
 import '../widgets/lists/app_section_header.dart';
+import '../widgets/lists/app_timeline.dart';
 import '../widgets/loadings/app_loading_action_overlay.dart';
 import '../widgets/loadings/app_loading_data.dart';
 import '../widgets/loadings/app_screen_lock.dart';
 import '../widgets/loadings/app_skeleton_list.dart';
 import '../widgets/media/app_avatar.dart';
+import '../widgets/media/app_carousel.dart';
 import '../widgets/media/app_image.dart';
 import '../widgets/navigation/app_app_bar.dart';
 import '../widgets/navigation/app_bottom_nav.dart';
+import '../widgets/navigation/app_drawer.dart';
+import '../widgets/navigation/app_nav_rail.dart';
 import '../widgets/navigation/app_step_indicator.dart';
+import '../widgets/navigation/app_tabs.dart';
 import '../widgets/overlays/app_bottom_sheet_scaffold.dart';
 import '../widgets/overlays/app_confirm_dialog.dart';
 import '../widgets/overlays/app_toast.dart';
@@ -6738,6 +7097,44 @@ class _DesignSystemViewState extends State<DesignSystemView> {
   bool _bannerVisible = true;
   bool _overlayLoading = false;
   String _query = '';
+  List<String> _selectedTags = const ['b'];
+  DateTimeRange? _period;
+  double _rating = 3.5;
+  List<AppPickedFile> _attachments = const [];
+  int _railIndex = 0;
+  int _asyncState = 0;
+
+  /// Stands in for `ref.watch(someNotifierProvider)`, so the four states
+  /// [AppAsyncView] draws can be stepped through here.
+  AsyncValue<List<String>> get _previewAsync => switch (_asyncState) {
+    1 => const AsyncValue<List<String>>.loading(),
+    2 => AsyncValue<List<String>>.error(
+      AppException.noInternet(),
+      StackTrace.empty,
+    ),
+    3 => const AsyncValue<List<String>>.data([]),
+    _ => const AsyncValue<List<String>>.data(['One', 'Two', 'Three']),
+  };
+
+  /// One destination list behind the bottom bar, the rail and the drawer —
+  /// which is the whole point of them sharing [AppNavDestination].
+  static const List<AppNavDestination> _navDestinations = [
+    AppNavDestination(
+      icon: Icons.home_outlined,
+      selectedIcon: Icons.home,
+      label: 'Home',
+    ),
+    AppNavDestination(
+      icon: Icons.search_outlined,
+      selectedIcon: Icons.search,
+      label: 'Search',
+    ),
+    AppNavDestination(
+      icon: Icons.person_outline,
+      selectedIcon: Icons.person,
+      label: 'Profile',
+    ),
+  ];
 
   void _toggleTheme() => setState(() {
         _mode = _mode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
@@ -7667,23 +8064,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                 child: AppBottomNav(
                   index: _navIndex,
                   onDestinationSelected: (i) => setState(() => _navIndex = i),
-                  destinations: const [
-                    AppNavDestination(
-                      icon: Icons.home_outlined,
-                      selectedIcon: Icons.home,
-                      label: 'Home',
-                    ),
-                    AppNavDestination(
-                      icon: Icons.search_outlined,
-                      selectedIcon: Icons.search,
-                      label: 'Search',
-                    ),
-                    AppNavDestination(
-                      icon: Icons.person_outline,
-                      selectedIcon: Icons.person,
-                      label: 'Profile',
-                    ),
-                  ],
+                  destinations: _navDestinations,
                 ),
               ),
 
@@ -8161,6 +8542,285 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                         if (mounted) setState(() => _overlayLoading = false);
                       },
                     ),
+                  ),
+                ),
+              ),
+
+              // ── AppAsyncView ──────────────────────────────────────────────
+              _Section(
+                title: 'AppAsyncView',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AppSegmented<int>(
+                      segments: const [0, 1, 2, 3],
+                      selected: _asyncState,
+                      labelOf: (i) =>
+                          const ['data', 'loading', 'error', 'empty'][i],
+                      onChanged: (i) => setState(() => _asyncState = i),
+                    ),
+                    const SizedBox(height: AppConstants.space12),
+                    SizedBox(
+                      height: 220,
+                      child: AppAsyncView<List<String>>(
+                        value: _previewAsync,
+                        isEmpty: (rows) => rows.isEmpty,
+                        emptyTitle: 'Nothing to show',
+                        emptyMessage: 'Rows will appear here once there are any.',
+                        onRetry: () => setState(() => _asyncState = 0),
+                        // The shape the skeleton is traced from: the same list,
+                        // with placeholder rows in it.
+                        skeleton: Column(
+                          children: [
+                            for (final row in const ['One', 'Two', 'Three'])
+                              AppListTile(title: row, subtitle: 'Loading'),
+                          ],
+                        ),
+                        builder: (context, rows) => Column(
+                          children: [
+                            for (final row in rows)
+                              AppListTile(title: row, subtitle: 'Loaded'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppPhoneInput ─────────────────────────────────────────────
+              _Section(
+                title: 'AppPhoneInput',
+                child: AppPhoneInput(
+                  label: 'Phone',
+                  required: true,
+                  initialCountry: 'PT',
+                  onChanged: (_) {},
+                ),
+              ),
+
+              // ── AppMultiSelectInput ───────────────────────────────────────
+              _Section(
+                title: 'AppMultiSelectInput',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AppMultiSelectInput<String>(
+                      label: 'Tags',
+                      items: const ['a', 'b', 'c', 'd', 'e'],
+                      idOf: (item) => item,
+                      labelOf: (item) => 'Tag ${item.toUpperCase()}',
+                      selectedIds: _selectedTags,
+                      required: true,
+                      maxSelected: 3,
+                      onChanged: (ids) => setState(() => _selectedTags = ids),
+                    ),
+                    const SizedBox(height: AppConstants.space12),
+                    // The same selection, summarised instead of chipped.
+                    AppMultiSelectInput<String>(
+                      label: 'Same field, counted',
+                      items: const ['a', 'b', 'c', 'd', 'e'],
+                      idOf: (item) => item,
+                      labelOf: (item) => 'Tag ${item.toUpperCase()}',
+                      selectedIds: _selectedTags,
+                      display: AppMultiSelectDisplay.count,
+                      variant: AppInputVariant.secondary,
+                      onChanged: (ids) => setState(() => _selectedTags = ids),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppDateRangeInput ─────────────────────────────────────────
+              _Section(
+                title: 'AppDateRangeInput',
+                child: AppDateRangeInput(
+                  label: 'Period',
+                  hint: 'Pick a range',
+                  maxDays: 31,
+                  initialValue: _period,
+                  onChanged: (range) => setState(() => _period = range),
+                  onCleared: () => setState(() => _period = null),
+                ),
+              ),
+
+              // ── AppRating ─────────────────────────────────────────────────
+              _Section(
+                title: 'AppRating',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppRating(
+                      label: 'How did we do?',
+                      value: _rating,
+                      required: true,
+                      allowHalf: true,
+                      allowClear: true,
+                      showValueLabel: true,
+                      onChanged: (v) => setState(() => _rating = v),
+                    ),
+                    const SizedBox(height: AppConstants.space12),
+                    // No onChanged — the same widget as a read-only score.
+                    AppRating(
+                      value: _rating,
+                      allowHalf: true,
+                      starSize: AppConstants.iconSmall,
+                      variant: AppInputVariant.tertiary,
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppFilePickerField ────────────────────────────────────────
+              _Section(
+                title: 'AppFilePickerField',
+                child: AppFilePickerField(
+                  label: 'Attachments',
+                  files: _attachments,
+                  maxFiles: 3,
+                  // A real screen calls its own picker here; this stands one in
+                  // so the field can be tried without a plugin.
+                  onPick: () async => const [
+                    AppPickedFile(name: 'invoice.pdf', sizeBytes: 184320),
+                  ],
+                  onChanged: (files) => setState(() => _attachments = files),
+                ),
+              ),
+
+              // ── AppFab ────────────────────────────────────────────────────
+              _Section(
+                title: 'AppFab',
+                child: Wrap(
+                  spacing: AppConstants.space16,
+                  runSpacing: AppConstants.space16,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    // Two FABs on one screen need distinct hero tags — Flutter
+                    // animates same-tag heroes into each other.
+                    AppFab(
+                      icon: Icons.add,
+                      heroTag: 'preview-fab',
+                      tooltip: 'Add',
+                      onPressed: () {},
+                    ),
+                    AppFab(
+                      icon: Icons.edit_outlined,
+                      label: 'New order',
+                      heroTag: 'preview-fab-extended',
+                      onPressed: () {},
+                    ),
+                    AppFab(
+                      icon: Icons.delete_outline,
+                      variant: AppButtonVariant.danger,
+                      type: AppButtonType.outlined,
+                      mini: true,
+                      heroTag: 'preview-fab-danger',
+                      tooltip: 'Delete',
+                      onPressed: () {},
+                    ),
+                    AppFab(
+                      icon: Icons.cloud_upload_outlined,
+                      label: 'Uploading',
+                      isLoading: true,
+                      heroTag: 'preview-fab-loading',
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppTabs ───────────────────────────────────────────────────
+              _Section(
+                title: 'AppTabs',
+                child: SizedBox(
+                  height: 180,
+                  child: AppTabs(
+                    tabs: const [
+                      AppTab(label: 'Open', icon: Icons.inbox_outlined),
+                      AppTab(label: 'Closed', icon: Icons.check_circle_outline),
+                    ],
+                    style: AppTabsStyle.pill,
+                    children: [
+                      for (final label in ['Open orders', 'Closed orders'])
+                        Center(child: Text(label)),
+                    ],
+                  ),
+                ),
+              ),
+
+              // ── AppTimeline ───────────────────────────────────────────────
+              const _Section(
+                title: 'AppTimeline',
+                child: AppTimeline(
+                  entries: [
+                    AppTimelineEntry(
+                      title: 'Ordered',
+                      subtitle: '2 items',
+                      timestamp: 'Mon 09:12',
+                      icon: Icons.check,
+                    ),
+                    AppTimelineEntry(title: 'Shipped', timestamp: 'Tue 11:40'),
+                    AppTimelineEntry(
+                      title: 'Out for delivery',
+                      status: AppTimelineStatus.current,
+                    ),
+                    AppTimelineEntry(
+                      title: 'Delivered',
+                      status: AppTimelineStatus.pending,
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppCarousel ───────────────────────────────────────────────
+              _Section(
+                title: 'AppCarousel',
+                child: AppCarousel(
+                  aspectRatio: 16 / 9,
+                  autoPlay: const Duration(seconds: 4),
+                  indicatorInside: true,
+                  children: [
+                    for (final (index, color) in [
+                      Colors.indigo,
+                      Colors.teal,
+                      Colors.deepOrange,
+                    ].indexed)
+                      Container(
+                        color: color.withValues(alpha: 0.35),
+                        alignment: Alignment.center,
+                        child: Text('Page ${index + 1}'),
+                      ),
+                  ],
+                ),
+              ),
+
+              // ── AppNavRail & AppDrawer ────────────────────────────────────
+              _Section(
+                title: 'AppNavRail / AppDrawer',
+                child: SizedBox(
+                  height: 300,
+                  child: Row(
+                    children: [
+                      AppNavRail(
+                        destinations: _navDestinations,
+                        index: _railIndex,
+                        onDestinationSelected: (i) =>
+                            setState(() => _railIndex = i),
+                      ),
+                      const VerticalDivider(width: 1),
+                      Expanded(
+                        child: AppDrawer(
+                          destinations: _navDestinations,
+                          selectedIndex: _railIndex,
+                          onDestinationSelected: (i) =>
+                              setState(() => _railIndex = i),
+                          header: const AppDrawerHeader(
+                            title: 'Acme',
+                            subtitle: 'Signed in',
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

@@ -97,7 +97,8 @@ void main() {
       expect(variable, hasLength(24));
     });
 
-    test('territories sharing a code keep the prefix that tells them apart', () {
+    test('territories sharing a code keep the prefix that tells them apart',
+        () {
       final byIso = {for (final country in table) country.iso: country};
       expect(byIso['US']!.dial, '1');
       expect(byIso['VG']!.dial, '1284', reason: 'British Virgin Islands');
@@ -120,7 +121,8 @@ void main() {
         expect(
           output,
           contains("'${entry.key}': '"),
-          reason: '+${entry.key} is shared by ${entry.value} with no preference',
+          reason:
+              '+${entry.key} is shared by ${entry.value} with no preference',
         );
       }
     });
@@ -129,7 +131,8 @@ void main() {
       expect(output, contains('_regionalIndicator'));
       expect(output, contains('String get flag'));
       // An emoji in the table would be a second thing to keep in sync.
-      expect(output, isNot(matches(RegExp(r'[\u{1F1E6}-\u{1F1FF}]', unicode: true))));
+      expect(output,
+          isNot(matches(RegExp(r'[\u{1F1E6}-\u{1F1FF}]', unicode: true))));
     });
 
     test('validates a length against the plan, not against a range', () {
@@ -155,7 +158,8 @@ void main() {
       expect(output, contains('static AppPhoneNumber split('));
       expect(output, contains('static AppCountry? byDialCode('));
       // Longest-prefix, so +1284 is the BVI rather than the US.
-      expect(output, contains('for (var length = longest; length > 0; length--)'));
+      expect(
+          output, contains('for (var length = longest; length > 0; length--)'));
     });
 
     test('lets an app move the default off the United States', () {
@@ -164,7 +168,8 @@ void main() {
 
     test('needs nothing from Flutter but its immutability annotation', () {
       expect(output, contains("import 'package:flutter/foundation.dart';"));
-      expect(output, isNot(contains("import 'package:flutter/material.dart';")));
+      expect(
+          output, isNot(contains("import 'package:flutter/material.dart';")));
     });
   });
 
@@ -173,7 +178,8 @@ void main() {
 
     test('masks through the country rather than a fixed format', () {
       expect(output, contains('class PhoneNumberInputFormatter'));
-      expect(output, contains('inputFormatters: [PhoneNumberInputFormatter(_country)]'));
+      expect(output,
+          contains('inputFormatters: [PhoneNumberInputFormatter(_country)]'));
       expect(output, contains('country.format(newValue.text)'));
     });
 
@@ -183,7 +189,8 @@ void main() {
       expect(output, contains('void _selectCountry(AppCountry country)'));
       expect(output, contains('final reshaped = country.format(digits);'));
       expect(output, contains('if (reshaped != _controller.text)'));
-      expect(output, contains('TextSelection.collapsed(offset: reshaped.length)'));
+      expect(
+          output, contains('TextSelection.collapsed(offset: reshaped.length)'));
     });
 
     test('puts the country picker in the prefix, not in the value', () {
@@ -232,7 +239,8 @@ void main() {
     });
 
     test('a read-only field cannot change country either', () {
-      expect(output, contains('final enabled = widget.enabled && !widget.readOnly;'));
+      expect(output,
+          contains('final enabled = widget.enabled && !widget.readOnly;'));
     });
   });
 
@@ -240,7 +248,8 @@ void main() {
     final output = SharedTemplates.searchPickerSheet();
 
     test('is generic over the row, and hands the row back', () {
-      expect(output, contains('class SearchPickerSheet<T> extends StatefulWidget'));
+      expect(output,
+          contains('class SearchPickerSheet<T> extends StatefulWidget'));
       expect(output, contains('static Future<T?> show<T>('));
       expect(output, contains('Navigator.pop(context, item)'));
     });
@@ -259,7 +268,10 @@ void main() {
     });
 
     test('drops a stale offset when the list is filtered underneath it', () {
-      expect(output, contains('if (_scrollController.hasClients) _scrollController.jumpTo(0);'));
+      expect(
+          output,
+          contains(
+              'if (_scrollController.hasClients) _scrollController.jumpTo(0);'));
     });
 
     test('lets a caller rank matches, not just select them', () {
@@ -267,7 +279,8 @@ void main() {
       // Portugal for the query 'PT'.
       expect(
         output,
-        contains('final List<T> Function(List<T> items, String query)? filter;'),
+        contains(
+            'final List<T> Function(List<T> items, String query)? filter;'),
       );
       expect(output, contains('if (filter != null) return filter('));
     });
@@ -342,7 +355,8 @@ void main() {
       expect(output, contains('decoration: _decoration(context),'));
     });
 
-    test('both forms validate — a sheet-backed field is still a form field', () {
+    test('both forms validate — a sheet-backed field is still a form field',
+        () {
       expect(output, contains('static String? validate('));
       // The searchable form: an InputDecorator alone is invisible to a Form.
       expect(output, contains('FormField<String>('));
@@ -411,7 +425,8 @@ void main() {
     });
 
     test('the country table stands alone — it is data, not a widget', () {
-      final spec = WidgetCatalog.all.firstWhere((spec) => spec.name == 'country');
+      final spec =
+          WidgetCatalog.all.firstWhere((spec) => spec.name == 'country');
       expect(spec.deps, isEmpty);
       expect(spec.packages, isEmpty);
     });

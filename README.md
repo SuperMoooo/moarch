@@ -93,8 +93,8 @@ number formatting (`formatCurrency`, `formatDecimal`, `formatCompact`,
 type scale, colors) in `core/constants/app_constants.dart`, a light/dark `AppTheme`,
 and a **lean common set** of widgets under `lib/shared/widgets/`: inputs (`AppInput`,
 `AppInputFormat`, `AppInputStyle`, `InputTitle`), `AppButton`, `AppLeadingIcon`, the
-state screens (`ErrorView`, `EmptyView`, `AppLoadingData`) and overlays (`AppToast`,
-`AppConfirmDialog`, dialog/bottom-sheet helpers).
+state screens (`AppAsyncView`, `ErrorView`, `EmptyView`, `AppLoadingData`) and
+overlays (`AppToast`, `AppConfirmDialog`, dialog/bottom-sheet helpers).
 
 `AppInput` is driven by an `AppInputFormat`: one enum that picks the keyboard, the
 input formatters that shape the value as it is typed, the autofill hints and the
@@ -107,6 +107,52 @@ AppInput(label: 'Expiry', format: AppInputFormat.cardExpiry) // 12/25
 
 AppInputFormat.money.unformat(controller.text)               // '1234.50'
 ```
+
+### A screen describes its content once
+
+Every generated feature used to hand-roll the same mapping: `.when(...)`, a
+`Skeletonizer` over a nullable body, an `ErrorView`, and a `ref.listen` with
+`// SHOW UI ERROR` left in it. `AppAsyncView` and `ref.listenAction` are that
+mapping, so the view is only the part that differs:
+
+```dart
+@override
+Widget build(BuildContext context) {
+  ref.listenAction<OrdersState>(
+    context,
+    ordersNotifierProvider,
+    errorOf: (state) => state.error,
+    successOf: (state) => state.success,
+  );
+
+  return Scaffold(
+    appBar: AppAppBar(title: 'Orders'),
+    body: AppAsyncView<OrdersState>(
+      value: ref.watch(ordersNotifierProvider),
+      onRetry: () => ref.invalidate(ordersNotifierProvider),
+      isEmpty: (state) => state.orders.isEmpty,
+      skeleton: _body(context, const OrdersState()),   // the shape, shimmered
+      builder: _body,
+    ),
+  );
+}
+```
+
+`AppAsyncView` draws whichever of the four states the value is in, and **a reload
+does not blank the screen**: once there is data, a later loading or error state
+leaves it on screen instead of replacing a list mid-read with a spinner. It
+builds inline, so the `Scaffold` keeps its app bar throughout. An error that
+carries no message of its own shows no detail — a stringified exception tells the
+user nothing and leaks how the app is put together.
+
+`listenAction` reads the one-shot `error` / `success` fields the generated state
+already clears on every `copyWith`, and toasts whichever arrived — one outcome
+per action, never both. Pass `onError` / `onSuccess` to navigate or log instead;
+that *replaces* the toast, so a screen that pops on success does not also flash a
+message on the way out.
+
+Both are part of `moarch init`, and `moarch create feature` writes them into an
+older project rather than generating a view that cannot compile.
 
 ### Phone numbers mask themselves, per country
 
@@ -167,6 +213,26 @@ AppDropdownInput<CategoryEntity>(
 
 Either form is a real form field: `required: true` is rejected by
 `Form.validate()`, and `validator` replaces the rule.
+
+`AppMultiSelectInput` is the same field in the plural — the same entity list,
+the same sheet with a checkbox on every row, and a `maxSelected` the sheet
+enforces as you tick rather than leaving to the form to refuse afterwards:
+
+```dart
+AppMultiSelectInput<TagEntity>(
+  label: 'Tags',
+  items: tags,
+  idOf: (t) => t.id,
+  labelOf: (t) => t.name,
+  selectedIds: _tagIds,
+  maxSelected: 3,
+  required: true,
+  onChanged: (ids) => setState(() => _tagIds = ids),
+)
+```
+
+It hands back the whole selection in `items` order, and shows it as removable
+chips, as labels, or as "3 selected".
 
 ### `required` means the form actually refuses
 
@@ -243,15 +309,18 @@ for avatars/images) is added to `pubspec.yaml`.
 The kit covers:
 
 - **inputs** — switch, segmented, choice chips, radio group, slider, date/time,
-  dropdown (searchable on request), checkbox, OTP, `AppSearchField`,
-  `AppStepper` (quantity −/+), `AppPhoneInput` (per-country masking)
-- **buttons & icons** — `AppButton`, `AppLeadingIcon`, `AppIconButton`
+  date range, dropdown (searchable on request), multi-select, checkbox, OTP,
+  rating, file picker, `AppSearchField`, `AppStepper` (quantity −/+),
+  `AppPhoneInput` (per-country masking)
+- **buttons & icons** — `AppButton`, `AppLeadingIcon`, `AppIconButton`, `AppFab`
 - **layout** — `AppListTile`, `AppCard`, `AppCardTile`, `AppTag`, `AppBadge`,
-  `AppSectionHeader`, `AppExpansionTile`
-- **feedback** — `AppBanner`, `AppProgressBar`, `AppScreenLock`, skeleton list,
-  loading overlay, `ErrorView`, `EmptyView`
-- **media** — `AppAvatar`, `AppImage`
-- **navigation** — `AppAppBar`, `AppBottomNav`, `AppStepIndicator`
+  `AppSectionHeader`, `AppExpansionTile`, `AppTimeline`
+- **feedback** — `AppAsyncView`, `ref.listenAction`, `AppBanner`,
+  `AppProgressBar`, `AppScreenLock`, skeleton list, loading overlay,
+  `ErrorView`, `EmptyView`
+- **media** — `AppAvatar`, `AppImage`, `AppCarousel`
+- **navigation** — `AppAppBar`, `AppBottomNav`, `AppTabs`, `AppDrawer`,
+  `AppNavRail` / `AppAdaptiveNav`, `AppStepIndicator`
 
 Every control shares one vocabulary — `variant`, `type`, `shape`, `size` — and
 `moarch create widget design-system` (or `all`) generates a screen previewing them

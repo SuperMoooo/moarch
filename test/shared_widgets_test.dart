@@ -1,3 +1,6 @@
+import 'package:moarch/src/templates/ui/content_templates.dart';
+import 'package:moarch/src/templates/ui/inputs_templates.dart';
+import 'package:moarch/src/templates/ui/navigation_templates.dart';
 import 'package:moarch/src/templates/ui/phone_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
@@ -33,6 +36,15 @@ void main() {
       'appToast': SharedTemplates.appToast,
       'appBottomNav': SharedTemplates.appBottomNav,
       'appBottomSheetScaffold': SharedTemplates.appBottomSheetScaffold,
+      'appFab': SharedTemplates.appFab,
+      'appMultiSelect': InputsTemplates.appMultiSelect,
+      'appDateRangeInput': InputsTemplates.appDateRangeInput,
+      'appFilePickerField': InputsTemplates.appFilePickerField,
+      'appRating': InputsTemplates.appRating,
+      'appTabs': NavigationTemplates.appTabs,
+      'appDrawer': NavigationTemplates.appDrawer,
+      'appNavRail': NavigationTemplates.appNavRail,
+      'appTimeline': ContentTemplates.appTimeline,
     };
 
     tactile.forEach((name, template) {

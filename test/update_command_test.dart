@@ -81,7 +81,8 @@ void main() {
 
   test('--force overwrites a file the user edited', () async {
     await placeWidget(spec.template(), record: true);
-    await File(widgetPath()).writeAsString('// my own tweak\n${spec.template()}');
+    await File(widgetPath())
+        .writeAsString('// my own tweak\n${spec.template()}');
 
     final code = await runUpdate(['--yes', '--force']);
 
@@ -117,8 +118,7 @@ void main() {
     // Something else stale gives the run a reason to write.
     final other = WidgetCatalog.byName('empty-view')!;
     final otherPath = p.join(libPath, 'shared', 'widgets', other.file);
-    await File(otherPath)
-        .writeAsString('// older\n${other.template()}');
+    await File(otherPath).writeAsString('// older\n${other.template()}');
     final manifest = ProjectManifest.loadOrCreate(root)
       ..record(root, otherPath, '// older\n${other.template()}');
     await manifest.save(root);

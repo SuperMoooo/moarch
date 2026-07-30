@@ -187,7 +187,8 @@ abstract final class ProjectInspector {
   /// does not compile — the single most common first-run failure.
   static List<Diagnostic> _codegen(String libPath) {
     final envDart = File(p.join(libPath, 'config', 'env', 'app_env.dart'));
-    final envGenerated = File(p.join(libPath, 'config', 'env', 'app_env.g.dart'));
+    final envGenerated =
+        File(p.join(libPath, 'config', 'env', 'app_env.g.dart'));
 
     if (envDart.existsSync() && !envGenerated.existsSync()) {
       return [
@@ -295,7 +296,8 @@ abstract final class ProjectInspector {
           Diagnostic.error(
             '${entry.key} is missing from pubspec.yaml but needed by '
             '${users.join(', ')}',
-            hint: 'Add `${entry.key}` to pubspec.yaml and run `flutter pub get`.',
+            hint:
+                'Add `${entry.key}` to pubspec.yaml and run `flutter pub get`.',
             fix: () async {
               await PubspecUtils.ensureDependencies(
                 root,
