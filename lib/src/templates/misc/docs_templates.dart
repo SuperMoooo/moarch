@@ -170,7 +170,7 @@ Authentication logic must be robust and not bypassable on the client side.
 
 **Example — biometric auth:**
 ```dart
-// local_auth: ^2.3.0
+// local_auth: ^2.4.0
 import 'package:local_auth/local_auth.dart';
 
 final auth = LocalAuthentication();
