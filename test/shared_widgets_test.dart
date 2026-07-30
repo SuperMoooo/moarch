@@ -187,32 +187,35 @@ void main() {
   group('appButton hint', () {
     final output = SharedTemplates.appButton();
 
-    test('sits inside the button, centered under the label', () {
-      expect(output, contains('if (hint != null) ...['));
+    test('sits above the button, centered over it', () {
+      expect(output, contains('if (hint == null) return button;'));
       expect(output, contains('textAlign: TextAlign.center,'));
-      expect(output, contains('mainAxisAlignment: MainAxisAlignment.center,'));
-    });
-
-    test('the button grows for it instead of clipping it', () {
       expect(
-          output, contains('height: hint == null ? sizeConfig.height : null,'));
-    });
-
-    test('reads on the fill, whatever the variant is filled with', () {
-      // A surface color would be invisible on a filled button.
+          output, contains('crossAxisAlignment: CrossAxisAlignment.center,'));
+      // The hint first, the whole button under it.
       expect(
-        output,
-        contains('color: foregroundColor.withValues(alpha: 0.85),'),
+        output.indexOf('hint!,'),
+        lessThan(output.indexOf('        button,')),
       );
     });
 
-    test('no longer stacks a left-aligned line above the button', () {
-      // The hint used to be a Text over the button, outside it.
-      expect(output, isNot(contains('CrossAxisAlignment.start')));
-      expect(output, isNot(contains('if (hint == null) return button;')));
+    test('is centered without stretching, which would eat an explicit width',
+        () {
+      // Stretch hands children a tight cross-axis constraint, so a
+      // `width: 220` button would go full-bleed the moment it took a hint.
+      expect(output, isNot(contains('CrossAxisAlignment.stretch')));
+      expect(output, contains('height: sizeConfig.height,'));
     });
 
-    test('the spinner still replaces everything while loading', () {
+    test('reads as a caption rather than as part of the fill', () {
+      expect(output, contains('color: theme.colorScheme.onSurfaceVariant,'));
+      expect(
+        output,
+        isNot(contains('foregroundColor.withValues(alpha: 0.85)')),
+      );
+    });
+
+    test('the spinner still replaces the button\'s own content', () {
       expect(output, contains('child: isLoading\n            ? SizedBox('));
     });
   });

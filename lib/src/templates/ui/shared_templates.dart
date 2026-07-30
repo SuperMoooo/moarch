@@ -314,9 +314,8 @@ $classDeclaration
   final double? width;
   final AppButtonSize size;
 
-  /// A second line inside the button, centered under the label — what the
-  /// action will do, or what it costs, said before the user commits to it.
-  /// The button grows to fit it. Omit for a plain button.
+  /// A line centered above the button — what the action will do, or what it
+  /// costs, said before the user commits to it. Omit for a plain button.
   final String? hint;$requireAuthField
 
   _ButtonSizeConfig _getSizeConfig() => switch (size) {
@@ -391,10 +390,7 @@ $classDeclaration
 
     final button = SizedBox(
       width: width ?? double.infinity,
-      // A hint is a second line inside the button, so the button grows to fit
-      // it rather than clipping it against a fixed height. Without one the
-      // height is exactly what the size says.
-      height: hint == null ? sizeConfig.height : null,
+      height: sizeConfig.height,
       child: ElevatedButton(
         onPressed: $onPressedWiring,
         style: ElevatedButton.styleFrom(
@@ -427,60 +423,60 @@ $classDeclaration
                   color: foregroundColor,
                 ),
               )
-            : Column(
+            : Row(
                 mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (prefixIcon != null) ...[
-                        Icon(prefixIcon,
-                            size: sizeConfig.iconSize, color: foregroundColor),
-                        const SizedBox(width: AppConstants.space4),
-                      ],
-                      // Flexible + ellipsis so a label longer than an explicit
-                      // [width] truncates instead of overflowing the button.
-                      Flexible(
-                        child: Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            color: foregroundColor,
-                            fontSize: sizeConfig.fontSize,
-                          ),
-                        ),
-                      ),
-                      if (suffixIcon != null) ...[
-                        const SizedBox(width: AppConstants.space4),
-                        Icon(suffixIcon,
-                            size: sizeConfig.iconSize, color: foregroundColor),
-                      ],
-                    ],
-                  ),
-                  if (hint != null) ...[
-                    const SizedBox(height: AppConstants.space4),
-                    // Centered under the label, and in the button's own
-                    // foreground: the hint sits on the fill, so a surface color
-                    // would be unreadable on a filled button.
-                    Text(
-                      hint!,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
+                  if (prefixIcon != null) ...[
+                    Icon(prefixIcon,
+                        size: sizeConfig.iconSize, color: foregroundColor),
+                    const SizedBox(width: AppConstants.space4),
+                  ],
+                  // Flexible + ellipsis so a label longer than an explicit
+                  // [width] truncates instead of overflowing the button.
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: foregroundColor.withValues(alpha: 0.85),
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: foregroundColor,
+                        fontSize: sizeConfig.fontSize,
                       ),
                     ),
+                  ),
+                  if (suffixIcon != null) ...[
+                    const SizedBox(width: AppConstants.space4),
+                    Icon(suffixIcon,
+                        size: sizeConfig.iconSize, color: foregroundColor),
                   ],
                 ],
               ),
       ),
     );
 
-    return button;
+    if (hint == null) return button;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      // Centered rather than stretched: stretch would hand the button a tight
+      // width and override an explicit [width], so a 220px button would come
+      // out full-bleed the moment it was given a hint.
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppConstants.space4),
+          child: Text(
+            hint!,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        button,
+      ],
+    );
   }
 }
 ''';
