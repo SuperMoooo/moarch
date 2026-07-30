@@ -319,7 +319,8 @@ The kit covers:
   `AppProgressBar`, `AppScreenLock`, skeleton list, loading overlay,
   `ErrorView`, `EmptyView`
 - **media** — `AppAvatar`, `AppImage`, `AppCarousel`
-- **navigation** — `AppAppBar`, `AppBottomNav`, `AppTabs`, `AppDrawer`,
+- **navigation** — `AppAppBar`, `AppBottomNav` (Material 3, classic, pill or
+  dot, each of which can float), `AppTabs`, `AppDrawer`,
   `AppNavRail` / `AppAdaptiveNav`, `AppStepIndicator`
 
 Every control shares one vocabulary — `variant`, `type`, `shape`, `size` — and

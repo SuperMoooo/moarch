@@ -80,6 +80,115 @@ void main() {
     });
   });
 
+  group('appBottomNav', () {
+    final output = SharedTemplates.appBottomNav();
+
+    test('offers four looks, and floating as a separate question', () {
+      expect(
+        output,
+        contains('enum AppBottomNavStyle { material, classic, pill, dot }'),
+      );
+      // Two knobs rather than one enum naming every combination — so every
+      // style can float, including ones added later.
+      expect(output, contains('final AppBottomNavStyle style;'));
+      expect(output, contains('final bool floating;'));
+      expect(
+          output, contains('return floating ? _floated(context, bar) : bar;'));
+    });
+
+    test('still answers with Material\'s own bar by default', () {
+      // Projects generated before the styles existed keep the bar they had.
+      expect(output, contains('this.style = AppBottomNavStyle.material,'));
+      expect(output, contains('this.floating = false,'));
+      expect(
+        output,
+        contains('final bar = style == AppBottomNavStyle.material\n'
+            '        ? _material(context)\n'
+            '        : _drawn(context);'),
+      );
+      expect(output, contains('return NavigationBar('));
+    });
+
+    test('a floating bar leaves the surface and the shadow to its card', () {
+      // Two edges inside one rounded corner is what painting both would give.
+      expect(
+        output,
+        contains("backgroundColor:\n"
+            "          floating ? Colors.transparent : context.colorScheme.surface,"),
+      );
+      expect(output, contains('elevation: floating ? 0 : null,'));
+      expect(output, contains('if (floating) return row;'));
+    });
+
+    test('the inset is spent once, by whichever layer owns the edge', () {
+      // Attached, the bar insets itself; floating, the card's margin is the
+      // inset and NavigationBar's own SafeArea has to be taken back off.
+      expect(output, contains('child: SafeArea(top: false, child: row),'));
+      expect(output, contains('MediaQuery.removePadding('));
+      expect(output, contains('removeBottom: true,'));
+      expect(output,
+          contains('bottom: inset > 0 ? inset : AppConstants.space16,'));
+    });
+
+    test('only the pill is sized by what is in it', () {
+      // The other two divide the width; a pill that stretched to an even share
+      // would not be a pill.
+      expect(
+          output,
+          contains('if (style != AppBottomNavStyle.pill)\n'
+              '              Expanded(child: _item(i))'));
+      expect(
+          output,
+          contains('else if (i == index)\n'
+              '              Flexible(child: _item(i))'));
+      expect(output, contains('widthFactor: 1,'));
+    });
+
+    test('the open pill draws its icon on the accent, not in it', () {
+      expect(
+        output,
+        contains('final selectedColor =\n'
+            '        pill ? AppInputStyle.onAccentOf(context, variant) : accent;'),
+      );
+    });
+
+    test('an icon-only destination is still named, and named once', () {
+      // Two of the four styles never draw the label.
+      expect(output, contains('label: destination.label,'));
+      expect(output, contains('child: ExcludeSemantics(child: content),'));
+      expect(output, contains('return MergeSemantics('));
+      expect(output, contains('Widget _tooltipped({required Widget child}) {'));
+      expect(output, contains('if (labelled) return child;'));
+    });
+
+    test('reduce motion reaches the same layouts', () {
+      expect(
+        output,
+        contains('final duration = MediaQuery.disableAnimationsOf(context)\n'
+            '        ? Duration.zero\n'
+            '        : AppConstants.duration200;'),
+      );
+    });
+
+    test('the dot keeps its room whether or not it is drawn', () {
+      // Otherwise the icons hop as the selection moves.
+      expect(output,
+          contains('width: _dotSize,\n              height: _dotSize,'));
+      expect(output, contains('opacity: selected ? 1 : 0,'));
+    });
+
+    test('a bar that cannot navigate is caught, not drawn', () {
+      expect(output, contains('destinations.length >= 2,'));
+      expect(output, contains('index >= 0 && index < destinations.length,'));
+    });
+
+    test('reads the kit\'s accent rather than reaching for primary', () {
+      expect(output, contains("import '../inputs/app_input_style.dart';"));
+      expect(output, contains('AppInputStyle.accentOf(context, variant)'));
+      expect(output, isNot(contains('colorScheme.primary.withValues')));
+    });
+  });
+
   group('appDrawer', () {
     final output = NavigationTemplates.appDrawer();
 
@@ -138,6 +247,21 @@ void main() {
       expect(output, contains('body: wide'));
       expect(output, contains('bottomNavigationBar: wide\n          ? null'));
       expect(output, contains('AppBottomNav('));
+    });
+
+    test('AppAdaptiveNav hands the phone layout its bar\'s looks', () {
+      expect(output,
+          contains('this.bottomNavStyle = AppBottomNavStyle.material,'));
+      expect(output, contains('this.floatingBottomNav = false,'));
+      expect(output, contains('style: bottomNavStyle,'));
+      expect(output, contains('floating: floatingBottomNav,'));
+      // The bar took a variant before the rail did not pass it one.
+      expect(output, contains('variant: variant,'));
+    });
+
+    test('a floating bar gets a body that runs under it', () {
+      // Without this the body stops at the top of the card's margin.
+      expect(output, contains('extendBody: !wide && floatingBottomNav,'));
     });
   });
 
@@ -267,6 +391,10 @@ void main() {
       for (final name in ['drawer', 'nav-rail']) {
         expect(WidgetCatalog.byName(name)!.deps, contains('bottom-nav'));
       }
+    });
+
+    test('the bar pulls in the accent it now reads', () {
+      expect(WidgetCatalog.byName('bottom-nav')!.deps, contains('input-style'));
     });
 
     test('the fab sits with the buttons and pulls in their vocabulary', () {

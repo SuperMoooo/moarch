@@ -542,6 +542,9 @@ class AppNavRail extends StatelessWidget {
 ///   body: shell,
 /// )
 /// ```
+///
+/// The phone half of it is an [AppBottomNav], so [bottomNavStyle] and
+/// [floatingBottomNav] pick which of its looks that half wears.
 class AppAdaptiveNav extends StatelessWidget {
   const AppAdaptiveNav({
     super.key,
@@ -553,6 +556,8 @@ class AppAdaptiveNav extends StatelessWidget {
     this.floatingActionButton,
     this.drawer,
     this.extendedRail = false,
+    this.bottomNavStyle = AppBottomNavStyle.material,
+    this.floatingBottomNav = false,
     this.variant,
   });
 
@@ -572,6 +577,15 @@ class AppAdaptiveNav extends StatelessWidget {
   /// layout.
   final bool extendedRail;
 
+  /// How the bar marks the selected destination. Only read on the phone
+  /// layout — the rail draws its own indicator either way.
+  final AppBottomNavStyle bottomNavStyle;
+
+  /// Whether the bar floats above the content instead of sitting on the bottom
+  /// edge. Only read on the phone layout, where it also turns on
+  /// [Scaffold.extendBody] so the body runs under the card.
+  final bool floatingBottomNav;
+
   /// Null follows [AppInputConfig.defaults].
   final AppInputVariant? variant;
 
@@ -585,6 +599,9 @@ class AppAdaptiveNav extends StatelessWidget {
       appBar: appBar,
       drawer: drawer,
       floatingActionButton: floatingActionButton,
+      // A floating bar leaves a gap under and beside itself. Without this the
+      // body stops at the top of that gap and the card looks pasted on.
+      extendBody: !wide && floatingBottomNav,
       body: wide
           ? Row(
               children: [
@@ -606,6 +623,9 @@ class AppAdaptiveNav extends StatelessWidget {
               index: index,
               destinations: destinations,
               onDestinationSelected: onDestinationSelected,
+              style: bottomNavStyle,
+              floating: floatingBottomNav,
+              variant: variant,
             ),
     );
   }

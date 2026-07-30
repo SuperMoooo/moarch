@@ -669,7 +669,9 @@ abstract final class WidgetCatalog {
       file: 'navigation/app_bottom_nav.dart',
       template: SharedTemplates.appBottomNav,
       category: 'Navigation',
-      description: 'Themed NavigationBar wrapper with typed destinations.',
+      deps: ['input-style'],
+      description:
+          'Bottom navigation in four looks — Material 3, classic, expanding pill and minimal dot — any of which can float as a rounded card. Owns the AppNavDestination type the rail and drawer read.',
     ),
     WidgetSpec(
       name: 'app-bar',

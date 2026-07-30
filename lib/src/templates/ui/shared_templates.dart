@@ -4625,9 +4625,13 @@ class AppSkeletonList extends StatelessWidget {
   static String appBottomNav() => r'''
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import '../inputs/app_input_style.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
-/// A single destination for [AppBottomNav].
+/// A single destination for [AppBottomNav] — and for the rail and the drawer,
+/// which read the same list so an app describes its navigation once.
 class AppNavDestination {
   const AppNavDestination({
     required this.icon,
@@ -4640,42 +4644,386 @@ class AppNavDestination {
   final String label;
 }
 
-/// A themed [NavigationBar] wrapper. Feed it the current [index], the
+/// How [AppBottomNav] marks the selected destination.
+///
+/// - [material]: Material 3's own bar — a label under every icon and a pill
+///   indicator that slides behind the selected one.
+/// - [classic]: the pre-M3 bar — icon over label, the selected pair tinted
+///   with the accent and nothing drawn behind it.
+/// - [pill]: icons only until selected; the selected one opens into an accent
+///   pill with its label beside the icon.
+/// - [dot]: icons only, with a dot under the selected one. The quietest of the
+///   four, for a bar whose icons speak for themselves.
+enum AppBottomNavStyle { material, classic, pill, dot }
+
+/// The app's bottom navigation. Feed it the current [index], the
 /// [destinations], and an [onDestinationSelected] callback. For go_router,
-/// drive [index] from a StatefulShellRoute and switch branch in the callback.
+/// drive [index] from a `StatefulShellRoute` and switch branch in the callback:
+///
+/// ```dart
+/// AppBottomNav(
+///   index: shell.currentIndex,
+///   destinations: destinations,
+///   onDestinationSelected: shell.goBranch,
+///   style: AppBottomNavStyle.pill,
+///   floating: true,
+/// )
+/// ```
+///
+/// [style] is how the selected destination is marked; [floating] is the
+/// separate question of whether the bar is a band across the bottom edge or a
+/// rounded card riding above it. The two combine freely — a floating [pill] is
+/// the look most modern apps wear, but every style floats.
+///
+/// A floating bar wants `Scaffold(extendBody: true)` under it, so the content
+/// runs through the gap instead of stopping at it. [AppAdaptiveNav] sets that
+/// for you.
 class AppBottomNav extends StatelessWidget {
   const AppBottomNav({
     super.key,
     required this.index,
     required this.destinations,
     required this.onDestinationSelected,
+    this.style = AppBottomNavStyle.material,
+    this.floating = false,
+    this.variant,
   });
 
   final int index;
   final List<AppNavDestination> destinations;
   final ValueChanged<int> onDestinationSelected;
 
+  final AppBottomNavStyle style;
+
+  /// Detaches the bar from the bottom edge: a rounded card with a margin around
+  /// it and a shadow under it. Works with every [style].
+  final bool floating;
+
+  /// Null follows [AppInputConfig.defaults].
+  final AppInputVariant? variant;
+
+  /// The height of the three styles this widget draws itself, before any
+  /// safe-area inset: a row of touch targets with a little air around it.
+  /// Material's own bar measures itself and is left alone.
+  static const double _height = 64;
+
+  void _select(int i) {
+    HapticFeedback.selectionClick();
+    onDestinationSelected(i);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
+    assert(
+      destinations.length >= 2,
+      'AppBottomNav: needs at least two destinations — a bar with one of them '
+      'is not navigation.',
+    );
+    assert(
+      index >= 0 && index < destinations.length,
+      'AppBottomNav: index $index is outside the ${destinations.length} '
+      'destinations it was given.',
+    );
+
+    final bar = style == AppBottomNavStyle.material
+        ? _material(context)
+        : _drawn(context);
+
+    return floating ? _floated(context, bar) : bar;
+  }
+
+  /// Material's own [NavigationBar] — still the right answer when you want the
+  /// platform look, and the only style whose indicator animates between
+  /// destinations for free.
+  Widget _material(BuildContext context) {
+    final accent = AppInputStyle.accentOf(context, variant);
+
     return NavigationBar(
       selectedIndex: index,
-      backgroundColor: theme.colorScheme.surface,
-      indicatorColor: theme.colorScheme.primary.withValues(alpha: 0.12),
-      onDestinationSelected: (i) {
-        HapticFeedback.selectionClick();
-        onDestinationSelected(i);
-      },
+      // Floating, the card behind it owns the surface and the shadow — a bar
+      // painting its own would draw a second edge inside the rounded one.
+      backgroundColor:
+          floating ? Colors.transparent : context.colorScheme.surface,
+      elevation: floating ? 0 : null,
+      indicatorColor: accent.withValues(
+        alpha: AppInputStyle.config.fillOpacity * 2,
+      ),
+      onDestinationSelected: _select,
       destinations: [
-        for (final d in destinations)
+        for (final destination in destinations)
           NavigationDestination(
-            icon: Icon(d.icon),
-            selectedIcon:
-                Icon(d.selectedIcon, color: theme.colorScheme.primary),
-            label: d.label,
+            icon: Icon(destination.icon),
+            selectedIcon: Icon(destination.selectedIcon, color: accent),
+            label: destination.label,
           ),
       ],
     );
+  }
+
+  /// The three styles Material does not ship: one row of items over the bar's
+  /// own surface.
+  Widget _drawn(BuildContext context) {
+    final row = SizedBox(
+      height: _height,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          for (var i = 0; i < destinations.length; i++)
+            // Only the pill grows with its label, so only the pill is sized by
+            // its content — the other two divide the width evenly.
+            if (style != AppBottomNavStyle.pill)
+              Expanded(child: _item(i))
+            // The open pill is the one item that can want more room than it is
+            // given: Flexible lets its label ellipsize on a narrow screen
+            // instead of overflowing the row.
+            else if (i == index)
+              Flexible(child: _item(i))
+            else
+              _item(i),
+        ],
+      ),
+    );
+
+    // Floating, the shell around it is the Material, and it has already spent
+    // the safe area on the margin under the card.
+    if (floating) return row;
+
+    return Material(
+      color: context.colorScheme.surface,
+      child: DecoratedBox(
+        // What separates the bar from the content above it, since this one
+        // carries no elevation. Drawn outside the SafeArea so it spans the
+        // full width on a notched phone held sideways.
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: context.colorScheme.outlineVariant),
+          ),
+        ),
+        child: SafeArea(top: false, child: row),
+      ),
+    );
+  }
+
+  Widget _item(int i) => _AppNavItem(
+        destination: destinations[i],
+        selected: i == index,
+        style: style,
+        variant: variant,
+        onTap: () => _select(i),
+      );
+
+  /// The card a floating bar rides in: the margin off the edges, the rounded
+  /// edge, and the shadow that lifts it off the content passing underneath.
+  Widget _floated(BuildContext context, Widget bar) {
+    final inset = MediaQuery.paddingOf(context).bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: AppConstants.space16,
+        right: AppConstants.space16,
+        top: AppConstants.space8,
+        // Just clear of the gesture indicator where there is one, a margin's
+        // worth off the edge where there is not.
+        bottom: inset > 0 ? inset : AppConstants.space16,
+      ),
+      child: DecoratedBox(
+        // The same shadow an elevated AppCard casts, so the two read as
+        // siblings rather than as two ideas of what "raised" looks like.
+        decoration: BoxDecoration(
+          borderRadius: AppConstants.borderRadiusFull,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          // A step off `surface`, which is what keeps the card visible in a
+          // dark theme, where the shadow under it is not.
+          color: context.colorScheme.surfaceContainer,
+          clipBehavior: Clip.antiAlias,
+          borderRadius: AppConstants.borderRadiusFull,
+          // The bar inside must not inset itself as well — NavigationBar wraps
+          // itself in a SafeArea, which here would pad the inside of the card.
+          child: MediaQuery.removePadding(
+            context: context,
+            removeBottom: true,
+            // A rounded end curves in over the last destination's label. The
+            // inset keeps the outermost label clear of that curve, which a
+            // long one on a narrow phone would otherwise be clipped by.
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppConstants.space8,
+              ),
+              child: bar,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One destination in the styles [AppBottomNav] draws itself.
+class _AppNavItem extends StatelessWidget {
+  const _AppNavItem({
+    required this.destination,
+    required this.selected,
+    required this.style,
+    required this.variant,
+    required this.onTap,
+  });
+
+  final AppNavDestination destination;
+  final bool selected;
+  final AppBottomNavStyle style;
+  final AppInputVariant? variant;
+  final VoidCallback onTap;
+
+  /// The mark under a selected [AppBottomNavStyle.dot] icon. Small enough to
+  /// read as a mark rather than as a second icon.
+  static const double _dotSize = 6;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = AppInputStyle.accentOf(context, variant);
+    final idle = context.colorScheme.onSurfaceVariant;
+    final pill = style == AppBottomNavStyle.pill;
+
+    // The pill is the one style that fills a surface behind its icon, so it is
+    // the one style whose selected icon is drawn *on* the accent.
+    final selectedColor =
+        pill ? AppInputStyle.onAccentOf(context, variant) : accent;
+
+    // Reduce-motion reaches the same layouts, just instantly.
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : AppConstants.duration200;
+
+    final icon = Icon(
+      selected ? destination.selectedIcon : destination.icon,
+      size: AppConstants.iconMedium,
+      color: selected ? selectedColor : idle,
+    );
+
+    final label = Text(
+      destination.label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: context.textTheme.labelMedium?.copyWith(
+        color: selected ? selectedColor : idle,
+        fontWeight: selected ? FontWeight.bold : null,
+      ),
+    );
+
+    final Widget content = switch (style) {
+      // The material style is a NavigationBar, not a row of these, so it never
+      // arrives here — answering with the nearest layout beats an empty box if
+      // that ever stops being true.
+      AppBottomNavStyle.classic || AppBottomNavStyle.material => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            icon,
+            const SizedBox(height: AppConstants.space4),
+            label,
+          ],
+        ),
+      AppBottomNavStyle.dot => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            icon,
+            const SizedBox(height: AppConstants.space8),
+            // The dot's room is held whether or not it is drawn, so the icons
+            // do not hop as the selection moves.
+            SizedBox(
+              width: _dotSize,
+              height: _dotSize,
+              child: AnimatedOpacity(
+                duration: duration,
+                opacity: selected ? 1 : 0,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: accent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      AppBottomNavStyle.pill => AnimatedContainer(
+          duration: duration,
+          curve: Curves.easeOut,
+          padding: EdgeInsets.symmetric(
+            horizontal: selected ? AppConstants.space16 : AppConstants.space12,
+            vertical: AppConstants.space8,
+          ),
+          decoration: BoxDecoration(
+            color: selected ? accent : Colors.transparent,
+            borderRadius: AppConstants.borderRadiusFull,
+          ),
+          // The label is only in the tree while selected; AnimatedSize is what
+          // turns its arrival into the pill opening rather than a jump.
+          child: AnimatedSize(
+            duration: duration,
+            curve: Curves.easeOut,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                icon,
+                if (selected) ...[
+                  const SizedBox(width: AppConstants.space8),
+                  Flexible(child: label),
+                ],
+              ],
+            ),
+          ),
+        ),
+    };
+
+    final target = ConstrainedBox(
+      constraints: const BoxConstraints(
+        minWidth: AppConstants.touchTarget,
+        minHeight: AppConstants.touchTarget,
+      ),
+      // Shrink-wraps where the item is sized by its content — a pill that
+      // stretched to the free space beside it would not be a pill. Ignored
+      // where the row hands down a tight width.
+      child: Center(
+        widthFactor: 1,
+        heightFactor: 1,
+        // The label below carries the same string as the Semantics above, and
+        // reading a destination out twice is what excluding it here avoids.
+        child: ExcludeSemantics(child: content),
+      ),
+    );
+
+    return MergeSemantics(
+      child: Semantics(
+        selected: selected,
+        // Two of the three styles never draw the label, and a row of unnamed
+        // icons is unusable with a screen reader.
+        label: destination.label,
+        child: _tooltipped(
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: AppConstants.borderRadiusFull,
+            child: target,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Names the icon on a long press — but only where the label is not already
+  /// written beside it, so a tooltip never repeats what is on screen.
+  Widget _tooltipped({required Widget child}) {
+    final labelled = style == AppBottomNavStyle.classic ||
+        (style == AppBottomNavStyle.pill && selected);
+    if (labelled) return child;
+    return Tooltip(message: destination.label, child: child);
   }
 }
 ''';
@@ -8258,10 +8606,39 @@ class _DesignSystemViewState extends State<DesignSystemView> {
               // ── AppBottomNav ──────────────────────────────────────────────
               _Section(
                 title: 'AppBottomNav',
-                child: AppBottomNav(
-                  index: _navIndex,
-                  onDestinationSelected: (i) => setState(() => _navIndex = i),
-                  destinations: _navDestinations,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Style says how the selection is marked, floating says
+                    // whether the bar is a band or a card — every combination
+                    // is valid, and they all drive the one index.
+                    for (final style in AppBottomNavStyle.values) ...[
+                      Text('${style.name}:'),
+                      const SizedBox(height: AppConstants.space8),
+                      AppBottomNav(
+                        index: _navIndex,
+                        style: style,
+                        onDestinationSelected: (i) =>
+                            setState(() => _navIndex = i),
+                        destinations: _navDestinations,
+                      ),
+                      const SizedBox(height: AppConstants.space16),
+                    ],
+                    const Text('pill / floating:'),
+                    // The surface behind it is the point: a floating bar is
+                    // meant to have content passing under its margin.
+                    ColoredBox(
+                      color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                      child: AppBottomNav(
+                        index: _navIndex,
+                        style: AppBottomNavStyle.pill,
+                        floating: true,
+                        onDestinationSelected: (i) =>
+                            setState(() => _navIndex = i),
+                        destinations: _navDestinations,
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
