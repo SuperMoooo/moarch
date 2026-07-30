@@ -34,4 +34,25 @@ linter:
         use_super_parameters: true
         avoid_print: true
 ''';
+
+  /// Replaces the counter test `flutter create` writes.
+  ///
+  /// That test pumps the `MyApp` from the demo main.dart the scaffold replaces,
+  /// so leaving it in place would break `flutter test` on a fresh project with
+  /// an error about the app rather than about anything the developer did.
+  static String widgetTest() => '''
+// `flutter create`'s counter test pumped the demo app the moarch scaffold
+// replaced, so it has been swapped for this. Put your widget tests here;
+// `test/unit/` and `test/integration/` are scaffolded for the rest.
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  testWidgets('the test harness runs', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: Placeholder()));
+
+    expect(find.byType(Placeholder), findsOneWidget);
+  });
+}
+''';
 }

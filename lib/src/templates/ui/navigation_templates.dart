@@ -358,7 +358,10 @@ class AppDrawer extends StatelessWidget {
         // NavigationDrawer counts only its NavigationDrawerDestination
         // children, so a header, a divider or a footer can sit among them
         // without throwing the selected index off.
-        ?header,
+        //
+        // An empty box rather than a null-aware element: this file has to
+        // compile in a project whose pubspec still asks for an older Dart.
+        header ?? const SizedBox.shrink(),
         for (final destination in destinations)
           NavigationDrawerDestination(
             icon: Icon(destination.icon),
@@ -403,9 +406,13 @@ class AppDrawerHeader extends StatelessWidget {
         bottom: AppConstants.space16,
       ),
       child: Row(
-        spacing: AppConstants.space12,
         children: [
-          ?leading,
+          // The gap travels with the leading widget, so a header without one
+          // does not start with 12px of nothing.
+          if (leading != null) ...[
+            leading!,
+            const SizedBox(width: AppConstants.space12),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

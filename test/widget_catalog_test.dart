@@ -131,6 +131,29 @@ void main() {
       }
     });
 
+    test('no template needs a language feature the project may not have', () {
+      // A generated file lands in whatever project moarch is run in, and the
+      // language version comes from *its* pubspec — not from the SDK the
+      // developer has installed. Null-aware elements (`?header` in a collection)
+      // need that pubspec to ask for Dart 3.8+, and a project scaffolded a while
+      // ago does not, so the file fails to compile rather than merely linting.
+      //
+      // The rest of what the kit uses — RadioGroup, `spacing:`, `withValues` —
+      // only needs a recent Flutter installed, which is a lower bar.
+      //
+      // A wrapped ternary is `? value` with a space; an element is `?value`.
+      final nullAwareElement = RegExp(r'^\s*\?[A-Za-z_]', multiLine: true);
+      for (final spec in WidgetCatalog.all) {
+        expect(
+          nullAwareElement.hasMatch(spec.template()),
+          isFalse,
+          reason: '${spec.name} uses a null-aware element. Write it as '
+              '`x ?? const SizedBox.shrink()` or `if (x != null) ...[x]` so it '
+              'compiles under an older language version.',
+        );
+      }
+    });
+
     test('markdown lists every widget under its category heading', () {
       final markdown = WidgetCatalog.markdown();
       for (final spec in WidgetCatalog.all) {

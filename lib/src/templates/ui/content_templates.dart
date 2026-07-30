@@ -281,7 +281,9 @@ class _TimelineRow extends StatelessWidget {
             ],
           ),
         ),
-        ?trailing,
+        // An empty box rather than a null-aware element: this file has to
+        // compile in a project whose pubspec still asks for an older Dart.
+        trailing ?? const SizedBox.shrink(),
       ],
     );
   }

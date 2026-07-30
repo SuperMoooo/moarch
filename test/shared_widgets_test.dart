@@ -101,6 +101,122 @@ void main() {
     });
   });
 
+  group('appToast', () {
+    final output = SharedTemplates.appToast();
+
+    test('draws its own card, because a SnackBar cannot be outlined', () {
+      expect(output, contains('backgroundColor: Colors.transparent,'));
+      expect(output, contains('elevation: 0,'));
+      expect(output, contains('padding: EdgeInsets.zero,'));
+      expect(output, contains('class _ToastCard extends StatelessWidget'));
+      expect(output, contains('border: Border.all('));
+      expect(output, contains('boxShadow: ['));
+    });
+
+    test('resolves its colors where it is built, not where it was shown', () {
+      // The SnackBar builds a frame later; colors computed in show() would be
+      // a light-palette green on a dark card if the theme changed in between.
+      expect(output,
+          contains('final isDark = theme.brightness == Brightness.dark;'));
+      expect(output,
+          contains('final (accent, icon) = AppToast._resolve(type, isDark);'));
+      expect(output, contains('required this.type,'));
+    });
+
+    test('sits on an elevated surface in dark, a plain one in light', () {
+      // A toast is an overlay: in a dark theme it has to be lighter than the
+      // page it covers, which surfaceContainerLowest is not.
+      expect(
+        output,
+        contains('isDark\n              ? colorScheme.surfaceContainerHighest\n'
+            '              : colorScheme.surfaceContainerLowest,'),
+      );
+    });
+
+    test('tints the surface without coloring the text', () {
+      expect(output, contains('color: Color.alphaBlend('));
+      expect(
+          output, contains('accent.withValues(alpha: AppToast._surfaceTint)'));
+      expect(output, contains('static const double _surfaceTint = 0.07;'));
+    });
+
+    test('stays a card rather than becoming a banner on a tablet', () {
+      expect(output, contains('static const double _maxWidth = 480;'));
+      expect(output,
+          contains('constraints: const BoxConstraints(maxWidth: _maxWidth),'));
+    });
+
+    test('takes a title over the detail', () {
+      expect(output, contains('String? title,'));
+      expect(output, contains('final heading = title;'));
+      expect(output, contains('if (heading != null)'));
+      // The message dims only when a title is carrying the emphasis.
+      expect(
+        output,
+        contains('color: heading == null\n                          '
+            '? colorScheme.onSurface\n                          '
+            ': colorScheme.onSurfaceVariant,'),
+      );
+    });
+
+    test('an action dismisses the toast before it runs', () {
+      expect(
+        output,
+        contains(
+            'ScaffoldMessenger.of(context).hideCurrentSnackBar();\n                onAction!();'),
+      );
+    });
+
+    test('offers one helper per status, and a way to take it back', () {
+      for (final helper in ['success', 'error', 'warning', 'info']) {
+        expect(
+          output,
+          contains('static void $helper(BuildContext context, String message'),
+          reason: '$helper helper is missing',
+        );
+      }
+      expect(output, contains('static void dismiss(BuildContext context)'));
+    });
+
+    test('is flicked away sideways', () {
+      expect(
+          output, contains('dismissDirection: DismissDirection.horizontal,'));
+    });
+  });
+
+  group('appButton hint', () {
+    final output = SharedTemplates.appButton();
+
+    test('sits inside the button, centered under the label', () {
+      expect(output, contains('if (hint != null) ...['));
+      expect(output, contains('textAlign: TextAlign.center,'));
+      expect(output, contains('mainAxisAlignment: MainAxisAlignment.center,'));
+    });
+
+    test('the button grows for it instead of clipping it', () {
+      expect(
+          output, contains('height: hint == null ? sizeConfig.height : null,'));
+    });
+
+    test('reads on the fill, whatever the variant is filled with', () {
+      // A surface color would be invisible on a filled button.
+      expect(
+        output,
+        contains('color: foregroundColor.withValues(alpha: 0.85),'),
+      );
+    });
+
+    test('no longer stacks a left-aligned line above the button', () {
+      // The hint used to be a Text over the button, outside it.
+      expect(output, isNot(contains('CrossAxisAlignment.start')));
+      expect(output, isNot(contains('if (hint == null) return button;')));
+    });
+
+    test('the spinner still replaces everything while loading', () {
+      expect(output, contains('child: isLoading\n            ? SizedBox('));
+    });
+  });
+
   group('appSingleScrollView', () {
     final output = SharedTemplates.appSingleScrollView();
 

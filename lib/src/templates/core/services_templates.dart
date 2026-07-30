@@ -721,7 +721,9 @@ class MediaService {
       }
     }
 
-    final FilePickerResult? result = await FilePicker.platform.pickFiles(
+    // Static since file_picker 11 — `FilePicker.platform` was the entry point
+    // up to 10.x.
+    final FilePickerResult? result = await FilePicker.pickFiles(
       type: type,
       allowedExtensions: allowedExtensions,
       allowMultiple: allowMultiple,

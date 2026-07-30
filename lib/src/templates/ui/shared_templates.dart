@@ -314,8 +314,9 @@ $classDeclaration
   final double? width;
   final AppButtonSize size;
 
-  /// Tip shown above the button, e.g. to explain what it does before the
-  /// user taps it. Omit for a plain button.
+  /// A second line inside the button, centered under the label — what the
+  /// action will do, or what it costs, said before the user commits to it.
+  /// The button grows to fit it. Omit for a plain button.
   final String? hint;$requireAuthField
 
   _ButtonSizeConfig _getSizeConfig() => switch (size) {
@@ -390,7 +391,10 @@ $classDeclaration
 
     final button = SizedBox(
       width: width ?? double.infinity,
-      height: sizeConfig.height,
+      // A hint is a second line inside the button, so the button grows to fit
+      // it rather than clipping it against a fixed height. Without one the
+      // height is exactly what the size says.
+      height: hint == null ? sizeConfig.height : null,
       child: ElevatedButton(
         onPressed: $onPressedWiring,
         style: ElevatedButton.styleFrom(
@@ -423,56 +427,60 @@ $classDeclaration
                   color: foregroundColor,
                 ),
               )
-            : Row(
+            : Column(
                 mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (prefixIcon != null) ...[
-                    Icon(prefixIcon,
-                        size: sizeConfig.iconSize, color: foregroundColor),
-                    const SizedBox(width: AppConstants.space4),
-                  ],
-                  // Flexible + ellipsis so a label longer than an explicit
-                  // [width] truncates instead of overflowing the button.
-                  Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (prefixIcon != null) ...[
+                        Icon(prefixIcon,
+                            size: sizeConfig.iconSize, color: foregroundColor),
+                        const SizedBox(width: AppConstants.space4),
+                      ],
+                      // Flexible + ellipsis so a label longer than an explicit
+                      // [width] truncates instead of overflowing the button.
+                      Flexible(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: foregroundColor,
+                            fontSize: sizeConfig.fontSize,
+                          ),
+                        ),
+                      ),
+                      if (suffixIcon != null) ...[
+                        const SizedBox(width: AppConstants.space4),
+                        Icon(suffixIcon,
+                            size: sizeConfig.iconSize, color: foregroundColor),
+                      ],
+                    ],
+                  ),
+                  if (hint != null) ...[
+                    const SizedBox(height: AppConstants.space4),
+                    // Centered under the label, and in the button's own
+                    // foreground: the hint sits on the fill, so a surface color
+                    // would be unreadable on a filled button.
+                    Text(
+                      hint!,
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: foregroundColor,
-                        fontSize: sizeConfig.fontSize,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: foregroundColor.withValues(alpha: 0.85),
                       ),
                     ),
-                  ),
-                  if (suffixIcon != null) ...[
-                    const SizedBox(width: AppConstants.space4),
-                    Icon(suffixIcon,
-                        size: sizeConfig.iconSize, color: foregroundColor),
                   ],
                 ],
               ),
       ),
     );
 
-    if (hint == null) return button;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: AppConstants.space4),
-          child: Text(
-            hint!,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-        button,
-      ],
-    );
+    return button;
   }
 }
 ''';
@@ -4681,80 +4689,110 @@ import '../../../core/constants/app_constants.dart';
 /// Feedback status for [AppToast].
 enum AppToastType { success, error, warning, info }
 
-/// One consistent feedback surface for the whole app, built on
-/// [ScaffoldMessenger] floating snackbars.
+/// One consistent feedback surface for the whole app.
 ///
-/// Usage: `AppToast.show(context, 'Saved', type: AppToastType.success);`
-/// From a Riverpod notifier you already have a context inside `ref.listen`.
+/// ```dart
+/// AppToast.success(context, 'Saved');
+/// AppToast.show(
+///   context,
+///   'Check your connection and try again.',
+///   title: 'Could not save',
+///   type: AppToastType.error,
+///   actionLabel: 'Retry',
+///   onAction: _save,
+/// );
+/// ```
+///
+/// From a Riverpod notifier you already have a context inside `ref.listen` —
+/// or use `ref.listenAction`, which calls this for you.
+///
+/// **It draws its own card.** The [SnackBar] underneath is only a positioned,
+/// dismissible, self-timing slot: transparent, unelevated and unpadded. That is
+/// what buys the border, the tinted surface, the soft shadow and the layout
+/// below — a SnackBar can be given a color and a shape, but not an outline, and
+/// an outline is most of what makes this read as a card rather than as a grey
+/// bar at the bottom of the screen.
 class AppToast {
   const AppToast._();
+
+  /// How much of the status color tints the card's surface. Enough to be felt,
+  /// not enough to fight the text on it.
+  static const double _surfaceTint = 0.07;
+
+  /// The outline, which is what gives the card an edge in both themes — a
+  /// shadow alone disappears against a dark background.
+  static const double _borderOpacity = 0.30;
+
+  /// The icon chip's fill. Matches [AppLeadingIcon]'s tonal fill, so the two
+  /// read as siblings.
+  static const double _chipFill = 0.12;
+
+  /// Widest the card gets. Past this a toast on a tablet becomes a banner
+  /// stretched across the screen, and the eye has to travel to read six words.
+  static const double _maxWidth = 480;
 
   static void show(
     BuildContext context,
     String message, {
     AppToastType type = AppToastType.info,
-    Duration duration = const Duration(seconds: 3),
+    String? title,
+    Duration duration = const Duration(seconds: 4),
     String? actionLabel,
     VoidCallback? onAction,
+    bool showClose = false,
   }) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final (accent, icon) = _resolve(type, isDark);
-
     _feedback(type);
 
     final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: theme.colorScheme.surfaceContainerHighest,
-        elevation: 4,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        padding: EdgeInsets.zero,
         duration: duration,
-        shape: RoundedRectangleBorder(
-          borderRadius: AppConstants.borderRadius12,
-        ),
-        content: Row(
-          children: [
-            Container(
-              width: 4,
-              height: 32,
-              decoration: BoxDecoration(
-                color: accent,
-                borderRadius: AppConstants.borderRadius4,
-              ),
+        margin: const EdgeInsets.all(AppConstants.space12),
+        // Flick it away sideways, which is what a card at the edge of the
+        // screen invites; the default is a downward drag into the bezel.
+        dismissDirection: DismissDirection.horizontal,
+        content: Align(
+          // Bottom-center on a wide window rather than pinned to one corner.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _maxWidth),
+            // The card resolves its own colors from the context it is built in.
+            // Passing them down from here looks equivalent and is not: the
+            // SnackBar builds a frame later, and a theme that changed in
+            // between would leave a light-palette green on a dark card.
+            child: _ToastCard(
+              message: message,
+              title: title,
+              type: type,
+              actionLabel: actionLabel,
+              onAction: onAction,
+              showClose: showClose,
             ),
-            const SizedBox(width: AppConstants.space12),
-            Icon(icon, color: accent, size: AppConstants.iconMedium),
-            const SizedBox(width: AppConstants.space12),
-            Expanded(
-              child: Text(
-                message,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
-        action: (actionLabel != null && onAction != null)
-            ? SnackBarAction(
-                label: actionLabel,
-                textColor: accent,
-                onPressed: () {
-                  HapticFeedback.selectionClick();
-                  onAction();
-                },
-              )
-            : null,
       ),
     );
   }
 
-  static void success(BuildContext context, String message) =>
-      show(context, message, type: AppToastType.success);
+  static void success(BuildContext context, String message, {String? title}) =>
+      show(context, message, title: title, type: AppToastType.success);
 
-  static void error(BuildContext context, String message) =>
-      show(context, message, type: AppToastType.error);
+  static void error(BuildContext context, String message, {String? title}) =>
+      show(context, message, title: title, type: AppToastType.error);
+
+  static void warning(BuildContext context, String message, {String? title}) =>
+      show(context, message, title: title, type: AppToastType.warning);
+
+  static void info(BuildContext context, String message, {String? title}) =>
+      show(context, message, title: title, type: AppToastType.info);
+
+  /// Takes the current toast off screen early — for a screen that is about to
+  /// be popped, or an action whose result has already been shown another way.
+  static void dismiss(BuildContext context) =>
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
   /// A toast usually lands while the user is looking somewhere else, so it
   /// says what happened by feel as well as by color — the worse the news, the
@@ -4785,6 +4823,146 @@ class AppToast {
             Icons.info_outline,
           ),
       };
+}
+
+/// The card [AppToast] puts inside the SnackBar. Private on purpose: a toast is
+/// shown through [AppToast.show], never built by hand.
+class _ToastCard extends StatelessWidget {
+  const _ToastCard({
+    required this.message,
+    required this.title,
+    required this.type,
+    required this.actionLabel,
+    required this.onAction,
+    required this.showClose,
+  });
+
+  final String message;
+  final String? title;
+  final AppToastType type;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final bool showClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final (accent, icon) = AppToast._resolve(type, isDark);
+    final heading = title;
+    final hasAction = actionLabel != null && onAction != null;
+
+    return Container(
+      padding: const EdgeInsets.all(AppConstants.space12),
+      decoration: BoxDecoration(
+        // Tinted rather than colored: the status is carried by the icon and the
+        // outline, so the text keeps the contrast the theme guarantees it.
+        color: Color.alphaBlend(
+          accent.withValues(alpha: AppToast._surfaceTint),
+          isDark
+              ? colorScheme.surfaceContainerHighest
+              : colorScheme.surfaceContainerLowest,
+        ),
+        borderRadius: AppConstants.borderRadius16,
+        border: Border.all(
+          color: accent.withValues(alpha: AppToast._borderOpacity),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: isDark ? 0.45 : 0.12),
+            blurRadius: AppConstants.space24,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        // Top, not center: with a title and two lines of body the icon belongs
+        // beside the first line, not floating halfway down the card.
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(AppConstants.space8),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: AppToast._chipFill),
+              borderRadius: AppConstants.borderRadius8,
+            ),
+            child: Icon(icon, color: accent, size: AppConstants.iconSmall),
+          ),
+          const SizedBox(width: AppConstants.space12),
+          Expanded(
+            child: Padding(
+              // Centers a single line against the icon chip without moving a
+              // two-line one off the top.
+              padding: const EdgeInsets.symmetric(vertical: AppConstants.space4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (heading != null)
+                    Text(
+                      heading,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  Text(
+                    message,
+                    // A toast is glanceable by definition; anything longer than
+                    // this belongs in an AppBanner, which persists.
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: heading == null
+                          ? colorScheme.onSurface
+                          : colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (hasAction) ...[
+            const SizedBox(width: AppConstants.space8),
+            TextButton(
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                onAction!();
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: accent,
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppConstants.space12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: AppConstants.borderRadius8,
+                ),
+              ),
+              child: Text(
+                actionLabel!,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: accent,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+          if (showClose)
+            IconButton(
+              onPressed: () =>
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+              icon: const Icon(Icons.close, size: AppConstants.iconSmall),
+              color: colorScheme.onSurfaceVariant,
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Dismiss',
+            ),
+        ],
+      ),
+    );
+  }
 }
 ''';
 
@@ -8006,12 +8184,31 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                       child: const Text('Warning'),
                     ),
                     OutlinedButton(
+                      onPressed: () => AppToast.info(context, 'For your info'),
+                      child: const Text('Info'),
+                    ),
+                    // The long form: a title over the detail, and an action
+                    // that dismisses the toast before it runs.
+                    OutlinedButton(
                       onPressed: () => AppToast.show(
                         context,
-                        'For your info',
-                        type: AppToastType.info,
+                        'Check your connection and try again.',
+                        title: 'Could not save',
+                        type: AppToastType.error,
+                        actionLabel: 'Retry',
+                        onAction: () {},
                       ),
-                      child: const Text('Info'),
+                      child: const Text('Title + action'),
+                    ),
+                    OutlinedButton(
+                      onPressed: () => AppToast.show(
+                        context,
+                        'Stays until you send it away.',
+                        title: 'Dismissible',
+                        showClose: true,
+                        duration: const Duration(seconds: 10),
+                      ),
+                      child: const Text('With close'),
                     ),
                   ],
                 ),

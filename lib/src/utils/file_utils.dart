@@ -51,12 +51,24 @@ class FileUtils {
   ///
   /// Existing files are never clobbered — a hand-edited widget or feature
   /// survives a re-run of the generator. `analysis_options.yaml` is the one
-  /// exception: it is the scaffold's own lint contract, so it is refreshed.
+  /// blanket exception: it is the scaffold's own lint contract, so it is
+  /// refreshed.
+  ///
+  /// [overwriteWhen] is the narrow exception: it is handed the file already on
+  /// disk and decides whether that particular content may be replaced. It is
+  /// for the files another tool put there — `flutter create`'s `main.dart` —
+  /// where "already exists" does not mean "the developer wrote it". An
+  /// overwrite is not tracked for [rollback]: only use it where what is being
+  /// replaced is nobody's work.
   ///
   /// Returns true when the file was written, false when an existing file was
   /// left untouched, so callers can report "created" and "skipped" honestly.
   /// In dry-run mode it records the path and reports true without touching disk.
-  static Future<bool> writeFile(String filePath, String content) async {
+  static Future<bool> writeFile(
+    String filePath,
+    String content, {
+    bool Function(String existing)? overwriteWhen,
+  }) async {
     if (_dryRun) {
       _plannedWrites.add(filePath);
       return true;
@@ -69,6 +81,10 @@ class FileUtils {
       return true;
     }
     if (p.basename(filePath) == 'analysis_options.yaml') {
+      await file.writeAsString(content);
+      return true;
+    }
+    if (overwriteWhen != null && overwriteWhen(await file.readAsString())) {
       await file.writeAsString(content);
       return true;
     }

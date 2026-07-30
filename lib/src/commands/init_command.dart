@@ -298,9 +298,11 @@ class InitCommand extends Command<int> {
             ? await mainActivityFile.readAsString()
             : null;
 
-    // Caret-pinned to the versions the templates were written against, so a
-    // breaking major release of a package can't silently break a fresh
-    // scaffold. Bump these alongside template changes.
+    // Unversioned, so pub fetches the newest release each package's own
+    // constraints allow. That is usually what a fresh scaffold wants — but it
+    // does mean pub is free to resolve *backwards* to settle a conflict
+    // elsewhere in the set, so a package that breaks when it does gets a floor
+    // of its own below.
     final defaultDependencies = <String>[
       'flutter:\n    sdk: flutter',
       'flutter_riverpod: ',
@@ -323,7 +325,13 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kCrashlytics)) 'firebase_crashlytics: ',
       if (stack.contains(_kFirebaseAuth)) 'firebase_auth: ',
       if (stack.contains(_kFirestore)) 'cloud_firestore: ',
-      if (stack.contains(_kMediaService)) 'file_picker: ',
+      // Pinned, unlike its neighbours, because it is the one package here whose
+      // unversioned entry resolves to something broken. file_picker 11 wants
+      // win32 ^5, flutter_secure_storage_windows wants win32 ^6, and pub settles
+      // that Windows-only conflict by walking file_picker back to 3.0.4 — which
+      // predates AGP's `namespace` requirement, so the Android build fails with
+      // "Namespace not specified" before the app ever runs.
+      if (stack.contains(_kMediaService)) 'file_picker: ^11.0.0',
       if (stack.contains(_kMediaService)) 'image_picker: ',
       'permission_handler: ',
       if (stack.contains(_kLaunchUrlService)) 'url_launcher: ',
@@ -346,6 +354,10 @@ class InitCommand extends Command<int> {
       'flutter_lints: ',
     ];
 
+    // False when a main.dart the developer wrote was left in place, which is
+    // the one case they have to wire ProviderScope up themselves.
+    var wroteMainDart = false;
+
     try {
       await _buildCore(libPath, stack);
       await _buildConfig(libPath, stack);
@@ -359,7 +371,21 @@ class InitCommand extends Command<int> {
       await FileUtils.createDir(p.join(testPath, 'unit'));
       await FileUtils.createDir(p.join(testPath, 'integration'));
 
+      // The counter test pumps the demo main.dart replaced just below, so it
+      // would fail to compile the moment the scaffold lands. Only that test is
+      // replaced — a test the developer wrote is left alone.
       await FileUtils.writeFile(
+        p.join(testPath, 'widget_test.dart'),
+        DevTemplates.widgetTest(),
+        overwriteWhen: _isFlutterCounterTest,
+      );
+
+      // `flutter create` always leaves a main.dart behind, and files that
+      // already exist are never clobbered — so without this the scaffold's own
+      // main.dart, the one that installs ProviderScope and initialises the
+      // selected services, was never written at all. The counter demo is
+      // replaced; anything the developer has written is not.
+      wroteMainDart = await FileUtils.writeFile(
         p.join(libPath, 'main.dart'),
         CoreTemplates.mainDart(
           withRouter: stack.contains(_kRouter),
@@ -369,6 +395,7 @@ class InitCommand extends Command<int> {
           withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
           withCrashlytics: stack.contains(_kCrashlytics),
         ),
+        overwriteWhen: _isFlutterCounterDemo,
       );
 
       await FileUtils.writeFile(
@@ -678,6 +705,16 @@ class InitCommand extends Command<int> {
     _logger.info(
         '         (generates config/env/app_env.g.dart from .env — required)');
     _logger.info('');
+    // Nothing in the scaffold works without a ProviderScope at the root, and a
+    // main.dart moarch was not allowed to touch has none.
+    if (!wroteMainDart) {
+      _logger.warn('  lib/main.dart is yours, so it was left alone.');
+      _logger.info('    Wrap your app in a ProviderScope and initialise the');
+      _logger.info(
+          '    services you selected — see the App widget moarch generates');
+      _logger.info('    for the shape it expects.');
+      _logger.info('');
+    }
     if (stack.contains(_kAuthFeature)) {
       _logger
           .info('  Auth feature generated at lib/features/auth/ — adjust the');
@@ -690,6 +727,21 @@ class InitCommand extends Command<int> {
     _logger.info('');
     return 0;
   }
+
+  /// Whether [source] is still the counter app `flutter create` writes.
+  ///
+  /// Matched on the two private names only that template declares, so a
+  /// main.dart the developer has written — even one that kept `MyApp` — is
+  /// never mistaken for it and never replaced.
+  static bool _isFlutterCounterDemo(String source) =>
+      source.contains('_MyHomePageState') &&
+      source.contains('_incrementCounter');
+
+  /// Whether [source] is still the counter test `flutter create` writes — the
+  /// one that pumps the demo app [_isFlutterCounterDemo] matches.
+  static bool _isFlutterCounterTest(String source) =>
+      source.contains('Counter increments smoke test') &&
+      source.contains('MyApp()');
 
   /// iOS refuses to activate non-default locales and rejects permission
   /// prompts whose usage description is missing, so the selected options

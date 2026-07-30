@@ -101,8 +101,13 @@ void main() {
     });
 
     test('a header does not shift the selected index', () {
-      expect(output, contains('?header,'));
+      expect(output, contains('header ?? const SizedBox.shrink(),'));
       expect(output, contains('selectedIndex: selectedIndex,'));
+    });
+
+    test('a header without a leading widget starts with no gap', () {
+      expect(output, contains('if (leading != null) ...['));
+      expect(output, contains('const SizedBox(width: AppConstants.space12),'));
     });
 
     test('ships the common header rather than only a slot for one', () {

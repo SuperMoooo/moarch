@@ -1,4 +1,4 @@
-# [2.5.0]
+# [2.5.1]
 
 ## Features
 
@@ -66,8 +66,51 @@
   the first swipe and never starts when the platform asks for reduced motion;
   `AppCarouselDots` is usable on its own.
 
+## Fixes
+
+- **`moarch init` never wrote its own `lib/main.dart`.** `flutter create` leaves
+  one behind and generated files are never clobbered, so on the documented quick
+  start (`flutter create` → `moarch init`) the counter demo survived and the
+  scaffold's main.dart — the one that installs `ProviderScope` and initialises
+  the selected services — was silently skipped. Every scaffolded app was missing
+  its provider root. The counter demo is now replaced, matched on the two
+  private names only that template declares; a main.dart you wrote is still left
+  alone, and init says so instead of passing over it in silence. The counter
+  `widget_test.dart` that pumped it is replaced on the same terms, so
+  `flutter test` passes on a fresh project.
+- **`file_picker` resolved to 3.0.4** (2021) whenever the media service was
+  selected, and 3.0.4 predates AGP's `namespace` requirement — so the Android
+  build failed with "Namespace not specified" before the app could run. The
+  entry was unversioned, and pub is free to resolve _backwards_: `file_picker`
+  11 wants `win32 ^5`, `flutter_secure_storage_windows` wants `win32 ^6`, and
+  walking `file_picker` back to 3.0.4 settled that Windows-only conflict. It now
+  carries a `^11.0.0` floor, and `MediaService` calls the static
+  `FilePicker.pickFiles` that version moved to.
+- Three widgets used null-aware elements (`?header`), which need the _project's_
+  pubspec to ask for Dart 3.8+ — not merely a recent SDK to be installed — so
+  they failed to compile in a project scaffolded a while ago. Rewritten to
+  constructs with no language-version floor, and a test now fails if a template
+  reaches for one again.
+
 ## Improvements
 
+- **`AppToast` was redrawn.** It was a grey `surfaceContainerHighest` bar with a
+  4px accent stripe and an icon beside it — a Material 2 snackbar with a
+  decoration. It is now a card: a surface tinted 7% with the status color, a
+  status-colored outline, a soft shadow, and the icon in a tonal chip matching
+  `AppLeadingIcon`'s. The outline is what the old one could not have — a
+  `SnackBar` takes a color and a shape but not a border — so the toast now draws
+  its own card inside a transparent, unelevated SnackBar.
+  It also gains a `title` over the detail line, an optional close button, a
+  `warning` / `info` helper to go with `success` / `error`, `AppToast.dismiss`,
+  a 480px ceiling so it stays a card rather than a banner on a tablet, and
+  sideways swipe-to-dismiss. In dark themes it now sits on
+  `surfaceContainerHighest` — an overlay has to be lighter than the page it
+  covers, and the old bar was darker than the content behind it.
+- `AppButton`'s `hint` moved inside the button, centered under the label, in the
+  button's own foreground color; the button grows to fit it. It used to be a
+  left-aligned line floating above the button, which read as a caption for
+  whatever was above it rather than as part of the action.
 - The design-system preview covers `AppPhoneInput` and `AppAsyncView` — the
   phone field has been in the kit since 2.4.0 without a preview, and the async
   view's four states are steppable in it. A new test fails if a widget joins the
