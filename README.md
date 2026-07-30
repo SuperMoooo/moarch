@@ -145,10 +145,11 @@ carrier-level correctness.
 
 ### Long lists get a search instead of a menu
 
-Any `AppDropdownInput` becomes searchable with one flag. A menu stops being
-usable somewhere around thirty options; past that the field opens a
-`SearchPickerSheet` — the same field, the same callback, a list you can type
-into.
+A menu stops being usable somewhere around thirty options, so past that an
+`AppDropdownInput` opens a `SearchPickerSheet` instead — the same field, the
+same callback, a list you can type into. It counts its own options and decides;
+`searchable: true` or `false` overrules it for one field, and
+`AppInputConfig.searchableThreshold` moves the line for the whole app.
 
 ```dart
 AppDropdownInput<CategoryEntity>(
@@ -156,10 +157,42 @@ AppDropdownInput<CategoryEntity>(
   items: categories,
   idOf: (c) => c.id,
   labelOf: (c) => c.name,
-  searchable: true,
+  required: true,
+  selectedId: _categoryId,
   onChanged: (id) => setState(() => _categoryId = id),
+  onSelected: (category) => _prefillFrom(category),
+  onCleared: () => setState(() => _categoryId = null),
 )
 ```
+
+Either form is a real form field: `required: true` is rejected by
+`Form.validate()`, and `validator` replaces the rule.
+
+### `required` means the form actually refuses
+
+Every input that takes `required` enforces it — the text, phone, dropdown, date
+and time fields, and the controls that carry a selection rather than text:
+
+```dart
+AppCheckboxLabel(
+  label: 'Accept the terms',
+  value: _accepted,
+  required: true,          // Form.validate() fails until it is ticked
+  onChanged: (v) => setState(() => _accepted = v),
+)
+
+AppRadioGroup<Plan>(
+  values: Plan.values,
+  groupValue: _plan,
+  labelOf: (p) => p.name,
+  required: true,          // ...until one is chosen
+  onChanged: (p) => setState(() => _plan = p),
+)
+```
+
+A checkbox has no border to turn red and no helper line to explain itself, so
+these render the message underneath through `SelectionFormField` — which is
+exposed, if you want to put a control of your own into a form the same way.
 
 ### One file decides how every input looks
 

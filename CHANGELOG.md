@@ -17,8 +17,14 @@
 - `SearchPickerSheet` (`moarch create widget search-sheet`) — a bottom sheet
   that picks one row out of a long list, with a search field above it. Opens
   scrolled to the current selection.
-- `AppDropdownInput(searchable: true)` — swaps the menu for that sheet. Same
-  widget, same callback; the menu form is unchanged.
+- `AppDropdownInput` — swaps the menu for that sheet once the list passes
+  `AppInputConfig.searchableThreshold` (30), which `searchable: true`/`false`
+  overrules per field. Both forms now validate: `required: true` is enforced by
+  `Form.validate()` rather than only marking the label, and `validator` /
+  `autovalidateMode` work as they do on `AppInput`. Also gains `onSelected`
+  (the picked entity, not just its id), `onCleared` (which puts a clear button
+  in the field), and the sheet's `leadingOf`, `trailingLabelOf`, `filter` and
+  `emptyLabel`.
 - `moarch update` — refreshes generated UI-kit widgets against the current
   templates. Files you never touched are refreshed automatically; files you
   edited are listed, diffed and left alone unless you pass `--force`.
@@ -27,7 +33,41 @@
   It is what lets `update` tell an untouched file from an edited one.
 - `moarch doctor --fix` — applies the fixes that don't need a decision.
 
+## Fixes
+
+- `AppDateInput` / `AppTimeInput` showed nothing without a caller-supplied
+  controller: every value, `initialValue` and each picked one alike, was written
+  only to `widget.controller?.text`. They now own a controller when none is
+  passed (and dispose it), so the simplest possible usage displays its value.
+  A controller that already holds text is no longer overwritten by
+  `initialValue` either — the caller's value wins, as it does on `AppInput`.
+- `required: true` on `AppDateInput` and `AppTimeInput` only drew an asterisk;
+  `Form.validate()` passed an empty field. Both now validate, and take a
+  `validator` / `autovalidateMode` like the rest of the family.
+- `AppLoadingActionOverlay` started its message timers only on a false-to-true
+  change, so a screen that mounted with a request already in flight showed a
+  bare spinner forever. They now start in `initState` too.
+- `AppSegmented` and `AppChoiceChip` drew their selected foreground in
+  `colorScheme.surface`, which is only the right answer in a light theme. Both
+  now use the new `AppInputStyle.onAccentOf`, which `AppCheckbox` and
+  `AppSwitch` share.
+
 ## Improvements
+
+- Selection controls validate. `AppCheckboxLabel(required: true)` is the
+  "accept the terms" checkbox a `Form` can enforce, and
+  `AppRadioGroup(required: true)` refuses to validate until one option is
+  chosen. Both render the error under the control through the new
+  `SelectionFormField`, which is exposed for wrapping any control of your own.
+- `AppSegmented` and `AppRadioGroup` assert that the current selection is
+  actually one of the options, instead of silently rendering with nothing
+  highlighted.
+- `AppCheckboxLabel`, `AppRadioGroup`, `AppSegmented` and `AppChoiceChip` all
+  take a null callback to disable themselves, matching `AppCheckbox`,
+  `AppSwitch`, `AppSlider` and `AppStepper`. `AppDateInput` and `AppTimeInput`
+  gain `enabled` alongside their existing `readOnly`.
+- `AppStepper`'s − and + carry tooltips and semantics, and meet the 48px
+  minimum tap target.
 
 - `moarch doctor` now checks what the scaffold actually depends on: whether
   `build_runner` has generated `app_env.g.dart`, whether both localization

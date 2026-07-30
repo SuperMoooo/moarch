@@ -291,12 +291,32 @@ void main() {
     final output = SharedTemplates.appDropdown();
 
     test('keeps one widget and one callback for both forms', () {
-      expect(output, contains('this.searchable = false'));
-      expect(output, contains('final bool searchable;'));
-      expect(output, contains('? _searchableField(context, accent, alignment)'));
-      expect(output, contains(': _menuField(context, accent, alignment)'));
-      // Same callback either way.
-      expect('onChanged('.allMatches(output).length, greaterThanOrEqualTo(2));
+      expect(output, contains('final bool? searchable;'));
+      expect(
+        output,
+        contains('? _searchableField(context, selected, accent, alignment)'),
+      );
+      expect(
+        output,
+        contains(': _menuField(context, selected, accent, alignment)'),
+      );
+      // Same callback either way: both forms report through one _pick, which
+      // is the only place the caller's onChanged is called at all.
+      expect('_pick('.allMatches(output).length, greaterThanOrEqualTo(3));
+      expect('onChanged(idOf(item));'.allMatches(output).length, 1);
+    });
+
+    test('a list long enough to need a search gets one unasked', () {
+      expect(
+        output,
+        contains(
+          'searchable ?? items.length >= AppInputStyle.config.searchableThreshold',
+        ),
+      );
+      expect(
+        SharedTemplates.appInputConfig(),
+        contains('this.searchableThreshold = 30'),
+      );
     });
 
     test('the searchable form only displays the selection', () {
@@ -306,13 +326,46 @@ void main() {
       expect(output, contains('SearchPickerSheet.show<T>('));
     });
 
+    test('the sheet gets every row option the caller set', () {
+      for (final forwarded in [
+        'leadingOf: leadingOf,',
+        'trailingLabelOf: trailingLabelOf,',
+        'filter: filter,',
+        'emptyLabel:',
+      ]) {
+        expect(output, contains(forwarded), reason: '$forwarded is dropped');
+      }
+    });
+
     test('both forms build the same decoration', () {
       expect(output, contains('InputDecoration _decoration('));
-      expect(output, contains('decoration: _decoration(context, suffix: suffixIcon)'));
+      expect(output, contains('decoration: _decoration(context),'));
+    });
+
+    test('both forms validate — a sheet-backed field is still a form field', () {
+      expect(output, contains('static String? validate('));
+      // The searchable form: an InputDecorator alone is invisible to a Form.
+      expect(output, contains('FormField<String>('));
+      expect(output, contains('errorText: state.errorText'));
+      // The menu form validates through the FormField it already is.
+      expect(output, contains('validator: _validate,'));
+    });
+
+    test('an id with no row never reaches the menu', () {
+      // A dropdown asserts one item carries its value, so an id waiting on its
+      // list would throw.
+      expect(
+        output,
+        contains('initialValue: selected == null ? null : selectedId,'),
+      );
     });
 
     test('a disabled field opens nothing', () {
-      expect(output, contains('onTap: enabled ? () => _openSheet(context) : null'));
+      expect(
+        output,
+        contains('onTap: enabled ? () => _openSheet(context, state) : null'),
+      );
+      expect(output, contains('onChanged: enabled ? _onMenuChanged : null'));
     });
   });
 

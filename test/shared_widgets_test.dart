@@ -69,10 +69,13 @@ void main() {
         SharedTemplates.appCheckbox(),
         contains('onChanged: onChanged == null'),
       );
-      expect(
-        SharedTemplates.appCheckboxLabel(),
-        contains('HapticFeedback.selectionClick();\n        onChanged(!value);'),
-      );
+      // Both halves of the row report through one `toggle`, which is the only
+      // place the row buzzes — so neither half can double up or stay silent.
+      final row = SharedTemplates.appCheckboxLabel();
+      expect(row, contains('void toggle(bool next) {'));
+      expect('HapticFeedback.'.allMatches(row).length, 1);
+      expect(row, contains('onTap: enabled ? () => toggle(!value) : null'));
+      expect(row, contains('onChanged: enabled ? (v) => toggle(v ?? false)'));
     });
 
     test('a picker reports the open and the pick, not every wheel notch', () {

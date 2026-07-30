@@ -188,7 +188,7 @@ abstract final class WidgetCatalog {
       category: 'Inputs',
       deps: ['input-style', 'input-title', 'search-sheet'],
       description:
-          'Generic id/label dropdown that reads any entity list; `searchable: true` swaps the menu for a searchable sheet.',
+          'Generic id/label dropdown that reads any entity list, validates like the rest of the family, and swaps its menu for a searchable sheet once the list is long enough.',
     ),
     WidgetSpec(
       name: 'country',
@@ -230,9 +230,9 @@ abstract final class WidgetCatalog {
       file: 'inputs/app_checkbox_label.dart',
       template: SharedTemplates.appCheckboxLabel,
       category: 'Inputs',
-      deps: ['checkbox'],
+      deps: ['checkbox', 'input-title'],
       description:
-          'AppCheckbox paired with a tappable label and optional subtitle.',
+          'AppCheckbox paired with a tappable label and optional subtitle; `required: true` makes it the "accept the terms" checkbox a Form can enforce.',
     ),
     WidgetSpec(
       name: 'switch',
@@ -267,8 +267,9 @@ abstract final class WidgetCatalog {
       file: 'inputs/app_radio_group.dart',
       template: SharedTemplates.appRadioGroup,
       category: 'Inputs',
-      deps: ['input-style'],
-      description: 'Single-select labeled radio list (modern RadioGroup API).',
+      deps: ['input-style', 'input-title'],
+      description:
+          'Single-select labeled radio list (modern RadioGroup API); `required: true` refuses to validate until one is chosen.',
     ),
     WidgetSpec(
       name: 'slider',

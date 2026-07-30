@@ -688,6 +688,7 @@ class AppInputConfig {
     this.floatingLabelBehavior = FloatingLabelBehavior.auto,
     this.showCounter = false,
     this.autovalidateMode,
+    this.searchableThreshold = 30,
     this.idleBorderWidth = 1,
     this.focusedBorderWidth = 1.5,
     this.idleBorderOpacity = 0.4,
@@ -759,6 +760,13 @@ class AppInputConfig {
   /// for a form that should correct itself as it is filled in.
   final AutovalidateMode? autovalidateMode;
 
+  /// How many options an [AppDropdownInput] shows in a menu before it switches
+  /// to a searchable sheet. A menu stops being usable somewhere around thirty
+  /// rows; raise this for a list that stays scannable longer, or set it to 0 to
+  /// make every dropdown searchable. A field can still answer for itself with
+  /// `searchable: true` or `false`.
+  final int searchableThreshold;
+
   // ── Border and fill ────────────────────────────────────────────────────────
 
   final double idleBorderWidth;
@@ -800,6 +808,7 @@ class AppInputConfig {
     FloatingLabelBehavior? floatingLabelBehavior,
     bool? showCounter,
     AutovalidateMode? autovalidateMode,
+    int? searchableThreshold,
     double? idleBorderWidth,
     double? focusedBorderWidth,
     double? idleBorderOpacity,
@@ -823,6 +832,7 @@ class AppInputConfig {
           floatingLabelBehavior ?? this.floatingLabelBehavior,
       showCounter: showCounter ?? this.showCounter,
       autovalidateMode: autovalidateMode ?? this.autovalidateMode,
+      searchableThreshold: searchableThreshold ?? this.searchableThreshold,
       idleBorderWidth: idleBorderWidth ?? this.idleBorderWidth,
       focusedBorderWidth: focusedBorderWidth ?? this.focusedBorderWidth,
       idleBorderOpacity: idleBorderOpacity ?? this.idleBorderOpacity,
@@ -872,6 +882,22 @@ class AppInputStyle {
       AppInputVariant.secondary => colorScheme.secondary,
       AppInputVariant.tertiary => colorScheme.tertiary,
       AppInputVariant.danger => colorScheme.error,
+    };
+  }
+
+  /// The color that reads on top of [accentOf] — what a checked box, a selected
+  /// segment or a filled chip puts its glyph and label in.
+  ///
+  /// Every control that fills itself with the accent needs this, and each one
+  /// guessing separately is how a selected segment ends up unreadable: the
+  /// surface color is only the right answer in a light theme.
+  static Color onAccentOf(BuildContext context, AppInputVariant? variant) {
+    final colorScheme = context.theme.colorScheme;
+    return switch (variant ?? config.variant) {
+      AppInputVariant.primary => colorScheme.onPrimary,
+      AppInputVariant.secondary => colorScheme.onSecondary,
+      AppInputVariant.tertiary => colorScheme.onTertiary,
+      AppInputVariant.danger => colorScheme.onError,
     };
   }
 
@@ -1078,6 +1104,7 @@ class AppInputStyle {
   static String inputTitle() => r'''
 import 'package:flutter/material.dart';
 import './app_input_style.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
 /// The label an [AppInputLabelMode.above] field wears, with its required
@@ -1183,6 +1210,85 @@ class InputFieldLayout extends StatelessWidget {
         ),
         field,
       ],
+    );
+  }
+}
+
+/// Makes a control that carries its own selection — a checkbox, a radio group,
+/// a chip row — validate like the rest of the family.
+///
+/// The fields built on [InputDecoration] get `errorText` for free: a border to
+/// turn red and a line underneath to explain it. A checkbox paints neither, so
+/// a `Form` that rejects one has nowhere to say why. This wraps the control in
+/// a [FormField] and puts that line under it.
+///
+/// ```dart
+/// SelectionFormField<bool>(
+///   value: _accepted,
+///   validator: (v) => v ? null : 'Please accept the terms',
+///   builder: (_) => AppCheckboxLabel(...),
+/// )
+/// ```
+class SelectionFormField<T> extends StatelessWidget {
+  const SelectionFormField({
+    super.key,
+    required this.value,
+    required this.validator,
+    required this.builder,
+    this.enabled = true,
+    this.autovalidateMode,
+  });
+
+  /// The control's current selection, read from the caller on every validate
+  /// rather than stored — the caller owns it, so its answer is the true one
+  /// even before a rebuild has reached this field.
+  final T value;
+
+  /// Null leaves the control out of validation altogether, and no error line is
+  /// ever built.
+  final String? Function(T value)? validator;
+
+  final Widget Function(FormFieldState<T> state) builder;
+  final bool enabled;
+
+  /// Null follows [AppInputConfig.defaults].
+  final AutovalidateMode? autovalidateMode;
+
+  @override
+  Widget build(BuildContext context) {
+    return FormField<T>(
+      initialValue: value,
+      enabled: enabled,
+      autovalidateMode:
+          autovalidateMode ?? AppInputStyle.config.autovalidateMode,
+      // A null [validator] resolves to no rule, so an unvalidated control still
+      // builds exactly as it did — it simply never has anything to report.
+      validator: (_) => validator?.call(value),
+      builder: (state) {
+        final error = state.errorText;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          // Stretch so the control keeps the width it had before it was
+          // wrapped: a row-wide tap target must not shrink to its content.
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            builder(state),
+            if (error != null)
+              Padding(
+                padding: const EdgeInsets.only(
+                  top: AppConstants.space4,
+                  left: AppConstants.space12,
+                ),
+                child: Text(
+                  error,
+                  style: context.textTheme.bodySmall?.copyWith(
+                    color: context.colorScheme.error,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1376,7 +1482,7 @@ enum AppInputFormat {
       return AppInputFormat.multiline;
     }
     if (keyboardType == TextInputType.number) return AppInputFormat.integer;
-    if (keyboardType == TextInputType.numberWithOptions(decimal: true)) {
+    if (keyboardType == const TextInputType.numberWithOptions(decimal: true)) {
       return AppInputFormat.decimal;
     }
     return null;
@@ -2103,12 +2209,15 @@ class AppDateInput extends StatefulWidget {
     required this.label,
     this.hint,
     this.initialValue,
+    this.enabled = true,
     this.readOnly = false,
     this.prefixIcon,
     this.suffixIcon,
     this.focusNode,
     this.autoFocus = false,
     this.required = false,
+    this.validator,
+    this.autovalidateMode,
     this.labelMode,
     this.variant,
     this.type,
@@ -2118,16 +2227,37 @@ class AppDateInput extends StatefulWidget {
     this.onChanged,
   });
 
+  /// Optional external controller — pass one to read or clear the date from
+  /// outside. When omitted the field owns (and disposes) its own, so a value
+  /// still shows without one.
   final TextEditingController? controller;
   final String label;
   final String? hint;
   final DateTime? initialValue;
+
+  /// A disabled field is greyed out and opens nothing.
+  final bool enabled;
+
+  /// Styled normally but opens no picker — for a date that is displayed rather
+  /// than chosen.
   final bool readOnly;
+
   final Widget? prefixIcon;
   final Widget? suffixIcon;
   final FocusNode? focusNode;
   final bool autoFocus;
+
+  /// Marks the label, and — unless [validator] replaces the rule — rejects an
+  /// empty field when the form validates.
   final bool required;
+
+  /// Replaces the built-in rule entirely. Receives the field's text.
+  /// Call [AppDateInput.validate] from inside it to add a rule on top instead
+  /// of dropping the required check.
+  final String? Function(String? value)? validator;
+
+  /// When the field validates itself. Null follows the config.
+  final AutovalidateMode? autovalidateMode;
 
   /// Null follows [AppInputConfig.defaults].
   final AppInputLabelMode? labelMode;
@@ -2139,15 +2269,31 @@ class AppDateInput extends StatefulWidget {
   /// Alignment of the displayed date and the hint. The label follows it too.
   final TextAlign textAlign;
 
-  /// Fires with the picked date. Without it the only way to read the value is
-  /// to pass your own [controller] and parse its text back.
+  /// Fires with the picked date.
   final ValueChanged<DateTime>? onChanged;
+
+  /// The rule applied when no [validator] is given: a required field has to
+  /// hold a date.
+  static String? validate(String? value, {bool required = false}) =>
+      required && (value == null || value.trim().isEmpty)
+      ? 'This field is required'
+      : null;
 
   @override
   State<AppDateInput> createState() => _AppDateInputState();
 }
 
 class _AppDateInputState extends State<AppDateInput> {
+  /// The field shows whatever this holds, so it has to exist even when the
+  /// caller passes nothing — otherwise a picked date would update the state
+  /// and never appear on screen.
+  late final TextEditingController _controller =
+      widget.controller ?? TextEditingController();
+
+  /// Only dispose what this widget created; an injected controller belongs to
+  /// the caller and may well outlive the field.
+  late final bool _ownsController = widget.controller == null;
+
   DateTime _lastSelectedDate = DateTime.now();
 
   /// One range for both pickers, so the two platforms never disagree about
@@ -2162,8 +2308,18 @@ class _AppDateInputState extends State<AppDateInput> {
     super.initState();
     if (widget.initialValue != null) {
       _lastSelectedDate = widget.initialValue!;
-      widget.controller?.text = widget.initialValue!.formattedDate;
+      // A controller that already holds something was seeded by the caller,
+      // and that beats a default.
+      if (_controller.text.isEmpty) {
+        _controller.text = widget.initialValue!.formattedDate;
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    if (_ownsController) _controller.dispose();
+    super.dispose();
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -2180,7 +2336,7 @@ class _AppDateInputState extends State<AppDateInput> {
     HapticFeedback.selectionClick();
     setState(() {
       _lastSelectedDate = picked;
-      widget.controller?.text = picked.formattedDate;
+      _controller.text = picked.formattedDate;
     });
     widget.onChanged?.call(picked);
   }
@@ -2239,33 +2395,40 @@ class _AppDateInputState extends State<AppDateInput> {
       variant: widget.variant,
       size: widget.size,
       textAlign: widget.textAlign,
-      field: IgnorePointer(
-        ignoring: widget.readOnly,
-        child: TextFormField(
-          onTap: () => _selectDate(context),
-          focusNode: widget.focusNode,
-          autofocus: widget.autoFocus,
-          readOnly: true,
-          controller: widget.controller,
-          style: AppInputStyle.textStyle(
-            context,
-            size: widget.size,
-          )?.copyWith(color: accent, fontWeight: FontWeight.bold),
-          textAlign: widget.textAlign,
-          cursorColor: accent,
-          decoration: AppInputStyle.decoration(
-            context,
-            variant: widget.variant,
-            type: widget.type,
-            shape: widget.shape,
-            size: widget.size,
-            label: widget.label,
-            labelMode: widget.labelMode,
-            required: widget.required,
-            hint: widget.hint,
-            prefixIcon: widget.prefixIcon,
-            suffixIcon: widget.suffixIcon,
-          ),
+      field: TextFormField(
+        // A read-only field keeps its normal look but opens nothing; a disabled
+        // one is greyed out by `enabled` and never reaches this callback.
+        onTap: widget.readOnly ? null : () => _selectDate(context),
+        focusNode: widget.focusNode,
+        autofocus: widget.autoFocus,
+        enabled: widget.enabled,
+        // Always true: the value is chosen in a picker, never typed.
+        readOnly: true,
+        controller: _controller,
+        autovalidateMode:
+            widget.autovalidateMode ?? AppInputStyle.config.autovalidateMode,
+        validator:
+            widget.validator ??
+            (value) => AppDateInput.validate(value, required: widget.required),
+        style: AppInputStyle.textStyle(
+          context,
+          size: widget.size,
+        )?.copyWith(color: accent, fontWeight: FontWeight.bold),
+        textAlign: widget.textAlign,
+        cursorColor: accent,
+        decoration: AppInputStyle.decoration(
+          context,
+          variant: widget.variant,
+          type: widget.type,
+          shape: widget.shape,
+          size: widget.size,
+          label: widget.label,
+          labelMode: widget.labelMode,
+          required: widget.required,
+          hint: widget.hint,
+          enabled: widget.enabled,
+          prefixIcon: widget.prefixIcon,
+          suffixIcon: widget.suffixIcon,
         ),
       ),
     );
@@ -2297,12 +2460,15 @@ class AppTimeInput extends StatefulWidget {
     required this.label,
     this.hint,
     this.initialValue,
+    this.enabled = true,
     this.readOnly = false,
     this.prefixIcon,
     this.suffixIcon,
     this.focusNode,
     this.autoFocus = false,
     this.required = false,
+    this.validator,
+    this.autovalidateMode,
     this.labelMode,
     this.variant,
     this.type,
@@ -2312,16 +2478,37 @@ class AppTimeInput extends StatefulWidget {
     this.onChanged,
   });
 
+  /// Optional external controller — pass one to read or clear the time from
+  /// outside. When omitted the field owns (and disposes) its own, so a value
+  /// still shows without one.
   final TextEditingController? controller;
   final String label;
   final String? hint;
   final TimeOfDay? initialValue;
+
+  /// A disabled field is greyed out and opens nothing.
+  final bool enabled;
+
+  /// Styled normally but opens no picker — for a time that is displayed rather
+  /// than chosen.
   final bool readOnly;
+
   final Widget? prefixIcon;
   final Widget? suffixIcon;
   final FocusNode? focusNode;
   final bool autoFocus;
+
+  /// Marks the label, and — unless [validator] replaces the rule — rejects an
+  /// empty field when the form validates.
   final bool required;
+
+  /// Replaces the built-in rule entirely. Receives the field's text.
+  /// Call [AppTimeInput.validate] from inside it to add a rule on top instead
+  /// of dropping the required check.
+  final String? Function(String? value)? validator;
+
+  /// When the field validates itself. Null follows the config.
+  final AutovalidateMode? autovalidateMode;
 
   /// Null follows [AppInputConfig.defaults].
   final AppInputLabelMode? labelMode;
@@ -2333,15 +2520,31 @@ class AppTimeInput extends StatefulWidget {
   /// Alignment of the displayed time and the hint. The label follows it too.
   final TextAlign textAlign;
 
-  /// Fires with the picked time. Without it the only way to read the value is
-  /// to pass your own [controller] and parse its text back.
+  /// Fires with the picked time.
   final ValueChanged<TimeOfDay>? onChanged;
+
+  /// The rule applied when no [validator] is given: a required field has to
+  /// hold a time.
+  static String? validate(String? value, {bool required = false}) =>
+      required && (value == null || value.trim().isEmpty)
+      ? 'This field is required'
+      : null;
 
   @override
   State<AppTimeInput> createState() => _AppTimeInputState();
 }
 
 class _AppTimeInputState extends State<AppTimeInput> {
+  /// The field shows whatever this holds, so it has to exist even when the
+  /// caller passes nothing — otherwise a picked time would update the state
+  /// and never appear on screen.
+  late final TextEditingController _controller =
+      widget.controller ?? TextEditingController();
+
+  /// Only dispose what this widget created; an injected controller belongs to
+  /// the caller and may well outlive the field.
+  late final bool _ownsController = widget.controller == null;
+
   TimeOfDay _lastSelectedTime = TimeOfDay.now();
 
   @override
@@ -2349,8 +2552,18 @@ class _AppTimeInputState extends State<AppTimeInput> {
     super.initState();
     if (widget.initialValue != null) {
       _lastSelectedTime = widget.initialValue!;
-      widget.controller?.text = widget.initialValue!.formattedTime;
+      // A controller that already holds something was seeded by the caller,
+      // and that beats a default.
+      if (_controller.text.isEmpty) {
+        _controller.text = widget.initialValue!.formattedTime;
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    if (_ownsController) _controller.dispose();
+    super.dispose();
   }
 
   Future<void> _selectTime(BuildContext context) async {
@@ -2367,7 +2580,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
     HapticFeedback.selectionClick();
     setState(() {
       _lastSelectedTime = picked;
-      widget.controller?.text = picked.formattedTime;
+      _controller.text = picked.formattedTime;
     });
     widget.onChanged?.call(picked);
   }
@@ -2425,33 +2638,40 @@ class _AppTimeInputState extends State<AppTimeInput> {
       variant: widget.variant,
       size: widget.size,
       textAlign: widget.textAlign,
-      field: IgnorePointer(
-        ignoring: widget.readOnly,
-        child: TextFormField(
-          onTap: () => _selectTime(context),
-          focusNode: widget.focusNode,
-          autofocus: widget.autoFocus,
-          readOnly: true,
-          controller: widget.controller,
-          style: AppInputStyle.textStyle(
-            context,
-            size: widget.size,
-          )?.copyWith(color: accent, fontWeight: FontWeight.bold),
-          textAlign: widget.textAlign,
-          cursorColor: accent,
-          decoration: AppInputStyle.decoration(
-            context,
-            variant: widget.variant,
-            type: widget.type,
-            shape: widget.shape,
-            size: widget.size,
-            label: widget.label,
-            labelMode: widget.labelMode,
-            required: widget.required,
-            hint: widget.hint,
-            prefixIcon: widget.prefixIcon,
-            suffixIcon: widget.suffixIcon,
-          ),
+      field: TextFormField(
+        // A read-only field keeps its normal look but opens nothing; a disabled
+        // one is greyed out by `enabled` and never reaches this callback.
+        onTap: widget.readOnly ? null : () => _selectTime(context),
+        focusNode: widget.focusNode,
+        autofocus: widget.autoFocus,
+        enabled: widget.enabled,
+        // Always true: the value is chosen in a picker, never typed.
+        readOnly: true,
+        controller: _controller,
+        autovalidateMode:
+            widget.autovalidateMode ?? AppInputStyle.config.autovalidateMode,
+        validator:
+            widget.validator ??
+            (value) => AppTimeInput.validate(value, required: widget.required),
+        style: AppInputStyle.textStyle(
+          context,
+          size: widget.size,
+        )?.copyWith(color: accent, fontWeight: FontWeight.bold),
+        textAlign: widget.textAlign,
+        cursorColor: accent,
+        decoration: AppInputStyle.decoration(
+          context,
+          variant: widget.variant,
+          type: widget.type,
+          shape: widget.shape,
+          size: widget.size,
+          label: widget.label,
+          labelMode: widget.labelMode,
+          required: widget.required,
+          hint: widget.hint,
+          enabled: widget.enabled,
+          prefixIcon: widget.prefixIcon,
+          suffixIcon: widget.suffixIcon,
         ),
       ),
     );
@@ -2766,9 +2986,11 @@ import '../../../core/constants/app_constants.dart';
 //     onChanged: (id) => setState(() => _selectedCategoryId = id),
 //  )
 //
-// Past about thirty options a menu becomes a scroll hunt. Pass
-// `searchable: true` and the field opens a [SearchPickerSheet] instead — the
-// same field, the same callback, a list you can type into.
+// Past about thirty options a menu becomes a scroll hunt, so a list that long
+// opens a [SearchPickerSheet] instead — the same field, the same callback, a
+// list you can type into. Where "long" begins is
+// [AppInputConfig.searchableThreshold]; passing [searchable] overrules it for
+// a single field.
 class AppDropdownInput<T> extends StatelessWidget {
   const AppDropdownInput({
     super.key,
@@ -2777,13 +2999,21 @@ class AppDropdownInput<T> extends StatelessWidget {
     required this.idOf,
     required this.labelOf,
     required this.onChanged,
+    this.onSelected,
+    this.onCleared,
     this.selectedId,
     this.hint = 'Select an option',
     this.enabled = true,
     this.required = false,
-    this.searchable = false,
+    this.validator,
+    this.autovalidateMode,
+    this.searchable,
     this.searchHint = 'Search',
     this.searchTitle,
+    this.leadingOf,
+    this.trailingLabelOf,
+    this.filter,
+    this.emptyLabel,
     this.prefixIcon,
     this.suffixIcon,
     this.labelMode,
@@ -2798,6 +3028,8 @@ class AppDropdownInput<T> extends StatelessWidget {
   final List<T> items;
 
   /// Extract the id from an item — always a String, used as the dropdown value.
+  /// Ids pick the selection, so they must be unique across [items]; a duplicate
+  /// trips an assert rather than quietly selecting the wrong row.
   final String Function(T item) idOf;
 
   /// Extract the display label from an item.
@@ -2806,23 +3038,71 @@ class AppDropdownInput<T> extends StatelessWidget {
   /// Called with the selected id when the user picks an option.
   final ValueChanged<String> onChanged;
 
+  /// Called with the item itself, alongside [onChanged]. Saves the caller
+  /// looking up an entity this field had in its hand a moment earlier.
+  final ValueChanged<T>? onSelected;
+
+  /// Called when the user clears the field. Providing it is what puts the clear
+  /// button in the field — with nowhere to report a clear there is no point
+  /// offering one.
+  final VoidCallback? onCleared;
+
   final String? selectedId;
   final String hint;
   final bool enabled;
+
+  /// Marks the label, and — unless [validator] replaces the rule — rejects an
+  /// empty selection when the form validates.
   final bool required;
 
-  /// Swaps the menu for a [SearchPickerSheet] — a bottom sheet with a search
-  /// field over the same options. Turn it on once a list is long enough that
-  /// scrolling a menu is the slow way to find a row.
-  final bool searchable;
+  /// Replaces the built-in rule entirely. Receives the selected id, or null.
+  /// Call [AppDropdownInput.validate] from inside it to add a rule on top
+  /// instead of dropping the required check.
+  final String? Function(String? id)? validator;
 
-  /// Placeholder in the sheet's search field. Only used when [searchable].
+  /// When the field validates itself. Null follows the config, which starts at
+  /// Flutter's own default — on submit only.
+  final AutovalidateMode? autovalidateMode;
+
+  /// Swaps the menu for a [SearchPickerSheet] — a bottom sheet with a search
+  /// field over the same options.
+  ///
+  /// Null decides from the list's own length against
+  /// [AppInputConfig.searchableThreshold], which is the answer nearly every
+  /// field wants. Say `false` to keep a menu over a long list, `true` to give a
+  /// short one a search box anyway.
+  final bool? searchable;
+
+  /// Placeholder in the sheet's search field. Only used when searchable.
   final String searchHint;
 
-  /// Heading over the sheet. Defaults to [label]. Only used when [searchable].
+  /// Heading over the sheet. Defaults to [label]. Only used when searchable.
   final String? searchTitle;
 
+  /// Optional leading widget per row in the sheet — a flag, an avatar, an icon.
+  /// Only used when searchable.
+  final Widget Function(T item)? leadingOf;
+
+  /// Optional dimmed text at the end of a sheet row, for a secondary value.
+  /// Only used when searchable.
+  final String Function(T item)? trailingLabelOf;
+
+  /// Replaces the sheet's default filter, which is a case-insensitive
+  /// `contains` over [labelOf]. Returns the rows to show *in the order to show
+  /// them*, so a caller can rank matches as well as select them. Only used when
+  /// searchable.
+  final List<T> Function(List<T> items, String query)? filter;
+
+  /// Shown in the sheet in place of the list when there is nothing to show.
+  /// Null picks copy that fits the reason — an empty [items] is not a failed
+  /// search, and saying so stops the user retyping a query that was never the
+  /// problem. Only used when searchable.
+  final String? emptyLabel;
+
   final Widget? prefixIcon;
+
+  /// Replaces the chevron — and, with it, the clear button. The field's own
+  /// trailing affordances are a default, not a guarantee.
   final Widget? suffixIcon;
 
   /// Null follows [AppInputConfig.defaults].
@@ -2835,31 +3115,98 @@ class AppDropdownInput<T> extends StatelessWidget {
   /// Alignment of the selected value and the hint. The label follows it too.
   final TextAlign textAlign;
 
-  /// The item [selectedId] points at, or null when nothing is selected.
-  T? get _selected {
+  /// The rule applied when no [validator] is given: a required field has to
+  /// hold a selection.
+  ///
+  /// Exposed so a custom [validator] can layer on top of it:
+  ///
+  ///   validator: (id) =>
+  ///       AppDropdownInput.validate(id, required: true) ??
+  ///       (id == 'archived' ? 'That category is closed' : null),
+  static String? validate(String? id, {bool required = false}) =>
+      required && (id == null || id.isEmpty) ? 'This field is required' : null;
+
+  /// The item an id points at, or null when no row carries it.
+  T? _itemFor(String? id) {
+    if (id == null) return null;
     for (final item in items) {
-      if (idOf(item) == selectedId) return item;
+      if (idOf(item) == id) return item;
     }
     return null;
   }
 
-  InputDecoration _decoration(BuildContext context, {Widget? suffix}) =>
-      AppInputStyle.decoration(
-        context,
-        variant: variant,
-        type: type,
-        shape: shape,
-        size: size,
-        label: label,
-        labelMode: labelMode,
-        required: required,
-        hint: hint,
-        prefixIcon: prefixIcon,
-        suffixIcon: suffix,
-        enabled: enabled,
-      );
+  /// The item [selectedId] points at, or null when nothing is selected — or
+  /// when the id has no row yet.
+  T? get _selected => _itemFor(selectedId);
 
-  Future<void> _openSheet(BuildContext context) async {
+  /// Whether this field opens a sheet rather than a menu.
+  bool get _searchable =>
+      searchable ?? items.length >= AppInputStyle.config.searchableThreshold;
+
+  /// The rule in force — the caller's, else the built-in one.
+  String? _validate(String? id) {
+    final rule = validator;
+    return rule != null ? rule(id) : validate(id, required: required);
+  }
+
+  InputDecoration _decoration(
+    BuildContext context, {
+    Widget? suffix,
+    String? errorText,
+  }) => AppInputStyle.decoration(
+    context,
+    variant: variant,
+    type: type,
+    shape: shape,
+    size: size,
+    label: label,
+    labelMode: labelMode,
+    required: required,
+    hint: hint,
+    prefixIcon: prefixIcon,
+    suffixIcon: suffix,
+    enabled: enabled,
+  ).copyWith(errorText: errorText);
+
+  /// What sits at the end of the field: the caller's own suffix if there is
+  /// one, else the clear button when there is something to clear, ahead of the
+  /// chevron. A disabled field shows neither — there is no action left to
+  /// advertise.
+  Widget? _trailing(T? selected) {
+    if (suffixIcon != null) return suffixIcon;
+    if (!enabled) return null;
+
+    const chevron = Icon(Icons.keyboard_arrow_down);
+    if (onCleared == null || selected == null) return chevron;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          onPressed: () {
+            HapticFeedback.selectionClick();
+            onCleared!();
+          },
+          tooltip: 'Clear',
+          icon: const Icon(Icons.close),
+        ),
+        chevron,
+      ],
+    );
+  }
+
+  /// Reports a pick to the caller. [haptic] is off on the sheet's path, where
+  /// the tapped row has already given feedback of its own.
+  void _pick(T item, {bool haptic = true}) {
+    if (haptic) HapticFeedback.selectionClick();
+    onChanged(idOf(item));
+    onSelected?.call(item);
+  }
+
+  Future<void> _openSheet(
+    BuildContext context,
+    FormFieldState<String> state,
+  ) async {
     final picked = await SearchPickerSheet.show<T>(
       context,
       title: searchTitle ?? label,
@@ -2868,15 +3215,32 @@ class AppDropdownInput<T> extends StatelessWidget {
       idOf: idOf,
       labelOf: labelOf,
       selectedId: selectedId,
+      leadingOf: leadingOf,
+      trailingLabelOf: trailingLabelOf,
+      filter: filter,
+      emptyLabel:
+          emptyLabel ??
+          (items.isEmpty
+              ? 'Nothing to choose from'
+              : 'Nothing matches that search'),
       variant: variant,
     );
     if (picked == null) return;
-    HapticFeedback.selectionClick();
-    onChanged(idOf(picked));
+    // Marks the field as interacted with, so a form set to validate on
+    // interaction clears its error the moment a selection lands.
+    state.didChange(idOf(picked));
+    _pick(picked, haptic: false);
   }
 
   @override
   Widget build(BuildContext context) {
+    assert(
+      items.map(idOf).toSet().length == items.length,
+      'AppDropdownInput<$T>: idOf returned the same id for more than one item. '
+      'Ids are what pick the selection, so they have to be unique.',
+    );
+
+    final selected = _selected;
     final accent = AppInputStyle.accentOf(context, variant);
     final alignment = AppInputStyle.alignmentOf(textAlign);
 
@@ -2887,81 +3251,110 @@ class AppDropdownInput<T> extends StatelessWidget {
       variant: variant,
       size: size,
       textAlign: textAlign,
-      field: IgnorePointer(
-        ignoring: !enabled,
-        child: searchable
-            ? _searchableField(context, accent, alignment)
-            : _menuField(context, accent, alignment),
-      ),
+      // Both forms turn themselves off from the inside — an IgnorePointer here
+      // would block the tap but leave the field painting itself as live.
+      field: _searchable
+          ? _searchableField(context, selected, accent, alignment)
+          : _menuField(context, selected, accent, alignment),
     );
   }
 
   /// The searchable form: the field only *shows* the selection and opens the
   /// sheet, so there is no menu to lay out and the value still lives with the
   /// caller.
+  ///
+  /// The [FormField] around it is what lets this form be validated at all. An
+  /// [InputDecorator] is only a picture of an input — without this a `Form`
+  /// walks straight past a searchable field and a required one submits empty.
   Widget _searchableField(
     BuildContext context,
+    T? selected,
     Color accent,
     AlignmentGeometry alignment,
   ) {
-    final selected = _selected;
-
-    return InkWell(
-      onTap: enabled ? () => _openSheet(context) : null,
-      borderRadius: AppConstants.borderRadius12,
-      child: InputDecorator(
-        // The chevron sits inside the border here, where a suffix goes; the
-        // menu form draws its own outside it.
-        decoration: _decoration(
-          context,
-          suffix:
-              suffixIcon ??
-              (enabled ? const Icon(Icons.keyboard_arrow_down) : null),
-        ),
-        // Drives the hint and the floating label the same way an empty text
-        // field would.
-        isEmpty: selected == null,
-        child: selected == null
-            ? null
-            : Align(
-                alignment: alignment,
-                child: Text(
-                  labelOf(selected),
-                  textAlign: textAlign,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppInputStyle.textStyle(
-                    context,
-                    size: size,
-                  )?.copyWith(color: accent, fontWeight: FontWeight.bold),
-                ),
+    return FormField<String>(
+      initialValue: selectedId,
+      enabled: enabled,
+      autovalidateMode:
+          autovalidateMode ?? AppInputStyle.config.autovalidateMode,
+      // Judged on [selectedId] rather than on the value this FormField happens
+      // to hold: the caller owns the selection, so its answer is the true one
+      // even before a rebuild has reached here.
+      validator: (_) => _validate(selectedId),
+      builder: (state) => MergeSemantics(
+        // An InkWell announces nothing on its own; without this a screen reader
+        // reads out the value and never says it can be opened.
+        child: Semantics(
+          button: true,
+          enabled: enabled,
+          child: InkWell(
+            onTap: enabled ? () => _openSheet(context, state) : null,
+            borderRadius: AppConstants.borderRadius12,
+            child: InputDecorator(
+              // The chevron sits inside the border here, where a suffix goes;
+              // the menu form hands its own to the dropdown instead.
+              decoration: _decoration(
+                context,
+                suffix: _trailing(selected),
+                errorText: state.errorText,
               ),
+              // Drives the hint and the floating label the same way an empty
+              // text field would.
+              isEmpty: selected == null,
+              child: selected == null
+                  ? null
+                  : Align(
+                      alignment: alignment,
+                      child: Text(
+                        labelOf(selected),
+                        textAlign: textAlign,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppInputStyle.textStyle(
+                          context,
+                          size: size,
+                        )?.copyWith(color: accent, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+            ),
+          ),
+        ),
       ),
     );
   }
 
   Widget _menuField(
     BuildContext context,
+    T? selected,
     Color accent,
     AlignmentGeometry alignment,
   ) {
     return DropdownButtonFormField<String>(
-      initialValue: selectedId,
+      // Only an id that actually resolves. A dropdown asserts that exactly one
+      // of its items carries its value, so an id whose row has not arrived yet
+      // — restored state waiting on a fetch, a list refreshed out from under
+      // the selection — would otherwise throw.
+      initialValue: selected == null ? null : selectedId,
       style: AppInputStyle.textStyle(
         context,
         size: size,
       )?.copyWith(color: accent, fontWeight: FontWeight.bold),
-      decoration: _decoration(context, suffix: suffixIcon),
+      decoration: _decoration(context),
       isExpanded: true,
       // A dropdown has no textAlign, so align the item boxes instead.
       alignment: alignment,
-      onChanged: (value) {
-        if (value == null) return;
-        HapticFeedback.selectionClick();
-        onChanged(value);
-      },
+      autovalidateMode:
+          autovalidateMode ?? AppInputStyle.config.autovalidateMode,
+      validator: _validate,
+      // A null onChanged is what disables a dropdown: it greys the value out
+      // and takes the field out of the focus order, which no wrapper can do.
+      onChanged: enabled ? _onMenuChanged : null,
       iconEnabledColor: accent,
-      icon: enabled ? const Icon(Icons.keyboard_arrow_down) : null,
+      iconSize: AppInputStyle.configOf(size).iconSize,
+      // The trailing widget belongs here, not in the decoration: a dropdown
+      // draws exactly one, and `icon` is the slot it reads first — anything
+      // left in `suffixIcon` is dropped on the floor.
+      icon: _trailing(selected) ?? const SizedBox.shrink(),
       items: items
           .map(
             (item) => DropdownMenuItem<String>(
@@ -2973,6 +3366,11 @@ class AppDropdownInput<T> extends StatelessWidget {
           .toList(),
     );
   }
+
+  void _onMenuChanged(String? id) {
+    final item = _itemFor(id);
+    if (item != null) _pick(item);
+  }
 }
 ''';
 
@@ -2982,7 +3380,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import './app_input_style.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/utils/extensions.dart';
 
 /// A [Checkbox] colored and sized from [AppInputVariant] and [AppInputSize],
 /// so it reads as part of the same input family.
@@ -3016,20 +3413,9 @@ class AppCheckbox extends StatelessWidget {
     AppInputSize.large => 1.15,
   };
 
-  /// The color that reads on top of the checked fill — mirrors the
-  /// foreground half of [AppButton]'s variant colors.
-  Color _onAccentOf(ColorScheme colorScheme, AppInputVariant variant) =>
-      switch (variant) {
-        AppInputVariant.primary => colorScheme.onPrimary,
-        AppInputVariant.secondary => colorScheme.onSecondary,
-        AppInputVariant.tertiary => colorScheme.onTertiary,
-        AppInputVariant.danger => colorScheme.onError,
-      };
-
   @override
   Widget build(BuildContext context) {
     final config = AppInputStyle.config;
-    final colorScheme = context.colorScheme;
     final accent = AppInputStyle.accentOf(context, variant);
 
     return Transform.scale(
@@ -3044,7 +3430,7 @@ class AppCheckbox extends StatelessWidget {
                 onChanged!(v);
               },
         activeColor: accent,
-        checkColor: _onAccentOf(colorScheme, variant ?? config.variant),
+        checkColor: AppInputStyle.onAccentOf(context, variant),
         side: BorderSide(
           color: accent.withValues(alpha: _idleBorderOpacity),
           width: _borderWidth,
@@ -3066,11 +3452,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import './app_checkbox.dart';
 import './app_input_style.dart';
+import './input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
 /// [AppCheckbox] paired with a tappable label (and optional subtitle), the
 /// whole row toggling the value — not just the checkbox square.
+///
+/// `required: true` makes it the "accept the terms" checkbox: a `Form` refuses
+/// to validate until it is ticked, and says so under the row.
 class AppCheckboxLabel extends StatelessWidget {
   const AppCheckboxLabel({
     super.key,
@@ -3078,6 +3468,10 @@ class AppCheckboxLabel extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.subtitle,
+    this.required = false,
+    this.requiredError = 'This box must be ticked',
+    this.validator,
+    this.autovalidateMode,
     this.variant,
     this.size,
     this.shape,
@@ -3086,59 +3480,103 @@ class AppCheckboxLabel extends StatelessWidget {
   final String label;
   final String? subtitle;
   final bool value;
-  final ValueChanged<bool> onChanged;
+
+  /// Pass null to render the whole row disabled.
+  final ValueChanged<bool>? onChanged;
+
+  /// Marks the row and refuses to validate until it is ticked.
+  final bool required;
+
+  /// What a [required] row says when it is still unticked.
+  final String requiredError;
+
+  /// Replaces the built-in rule entirely. Returning null means valid.
+  final String? Function(bool value)? validator;
+
+  /// When the row validates itself. Null follows the config.
+  final AutovalidateMode? autovalidateMode;
+
   final AppInputVariant? variant;
   final AppInputSize? size;
   final AppInputShape? shape;
+
+  /// The rule in force: the caller's, else the required check, else nothing to
+  /// enforce at all.
+  String? Function(bool value)? get _rule {
+    if (validator != null) return validator;
+    if (!required) return null;
+    return (value) => value ? null : requiredError;
+  }
 
   @override
   Widget build(BuildContext context) {
     final textTheme = context.textTheme;
     final fontSize = AppInputStyle.configOf(size).fontSize;
+    final enabled = onChanged != null;
 
-    return InkWell(
-      borderRadius: AppConstants.borderRadius8,
-      // The square has its own haptic in AppCheckbox, so this one only covers
-      // the rest of the row — one buzz either way.
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onChanged(!value);
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppConstants.space4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            AppCheckbox(
-              value: value,
-              onChanged: (v) => onChanged(v ?? false),
-              variant: variant,
-              size: size,
-              shape: shape,
-            ),
-            const SizedBox(width: AppConstants.space8),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: textTheme.bodyLarge?.copyWith(fontSize: fontSize),
-                  ),
-                  if (subtitle != null)
-                    Text(
-                      subtitle!,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: context.colorScheme.onSurfaceVariant,
+    return SelectionFormField<bool>(
+      value: value,
+      validator: _rule,
+      enabled: enabled,
+      autovalidateMode: autovalidateMode,
+      builder: (state) {
+        void toggle(bool next) {
+          HapticFeedback.selectionClick();
+          // Tells the FormField it has been interacted with, so a form set to
+          // validate on interaction drops the error as soon as it is ticked.
+          state.didChange(next);
+          onChanged!(next);
+        }
+
+        return InkWell(
+          borderRadius: AppConstants.borderRadius8,
+          // The square has its own haptic in AppCheckbox, so this one only
+          // covers the rest of the row — one buzz either way.
+          onTap: enabled ? () => toggle(!value) : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppConstants.space4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                AppCheckbox(
+                  value: value,
+                  onChanged: enabled ? (v) => toggle(v ?? false) : null,
+                  variant: variant,
+                  size: size,
+                  shape: shape,
+                ),
+                const SizedBox(width: AppConstants.space8),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: textTheme.bodyLarge?.copyWith(
+                          fontSize: fontSize,
+                          color: enabled
+                              ? null
+                              : context.colorScheme.onSurface.withValues(
+                                  alpha: AppInputStyle.config.disabledOpacity,
+                                ),
+                        ),
                       ),
-                    ),
-                ],
-              ),
+                      if (subtitle != null)
+                        Text(
+                          subtitle!,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: context.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -3172,6 +3610,9 @@ class AppSwitch extends StatelessWidget {
     return Switch(
       value: value,
       activeTrackColor: accent,
+      // The thumb rides on the accent track once on, so it takes the same
+      // foreground a checked box does rather than the theme's default.
+      activeThumbColor: AppInputStyle.onAccentOf(context, variant),
       onChanged: onChanged == null
           ? null
           : (v) {
@@ -3189,7 +3630,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import './app_input_style.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/utils/extensions.dart';
 
 /// An exclusive single-choice segmented control (2-4 options), styled from
 /// [AppInputVariant]. Ideal for Day/Week/Month-style switches.
@@ -3215,24 +3655,42 @@ class AppSegmented<T> extends StatelessWidget {
   });
 
   final List<T> segments;
+
+  /// The chosen segment. Must be one of [segments] — a value from outside it
+  /// draws a control with nothing highlighted, so it is caught by an assert
+  /// instead.
   final T selected;
+
   final String Function(T value) labelOf;
   final IconData? Function(T value)? iconOf;
-  final ValueChanged<T> onChanged;
+
+  /// Pass null to render the whole control disabled.
+  final ValueChanged<T>? onChanged;
+
   final AppInputVariant? variant;
 
   @override
   Widget build(BuildContext context) {
+    assert(
+      segments.contains(selected),
+      'AppSegmented<$T>: selected is not one of segments, so the control would '
+      'render with nothing highlighted.',
+    );
+
     final accent = AppInputStyle.accentOf(context, variant);
-    final onAccent = context.theme.colorScheme.surface;
+    final onAccent = AppInputStyle.onAccentOf(context, variant);
+    final enabled = onChanged != null;
 
     return SegmentedButton<T>(
       showSelectedIcon: false,
       selected: {selected},
-      onSelectionChanged: (set) {
-        HapticFeedback.selectionClick();
-        onChanged(set.first);
-      },
+      // Null is what disables a SegmentedButton; there is no `enabled` flag.
+      onSelectionChanged: enabled
+          ? (set) {
+              HapticFeedback.selectionClick();
+              onChanged!(set.first);
+            }
+          : null,
       segments: [
         for (final segment in segments)
           ButtonSegment<T>(
@@ -3284,7 +3742,10 @@ class AppChoiceChip extends StatelessWidget {
 
   final String label;
   final bool selected;
-  final ValueChanged<bool> onSelected;
+
+  /// Pass null to render the chip disabled.
+  final ValueChanged<bool>? onSelected;
+
   final IconData? icon;
   final AppInputVariant? variant;
 
@@ -3292,6 +3753,7 @@ class AppChoiceChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.theme;
     final accent = AppInputStyle.accentOf(context, variant);
+    final onAccent = AppInputStyle.onAccentOf(context, variant);
 
     return ChoiceChip(
       label: Text(label),
@@ -3302,20 +3764,22 @@ class AppChoiceChip extends StatelessWidget {
           : Icon(
               icon,
               size: AppConstants.iconSmall,
-              color: selected ? theme.colorScheme.surface : accent,
+              color: selected ? onAccent : accent,
             ),
       labelStyle: theme.textTheme.labelLarge?.copyWith(
-        color:
-            selected ? theme.colorScheme.surface : theme.colorScheme.onSurface,
+        color: selected ? onAccent : theme.colorScheme.onSurface,
       ),
       selectedColor: accent,
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
       side: BorderSide.none,
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadiusFull),
-      onSelected: (v) {
-        HapticFeedback.selectionClick();
-        onSelected(v);
-      },
+      // Null is what disables a ChoiceChip; there is no `enabled` flag.
+      onSelected: onSelected == null
+          ? null
+          : (v) {
+              HapticFeedback.selectionClick();
+              onSelected!(v);
+            },
     );
   }
 }
@@ -3326,12 +3790,16 @@ class AppChoiceChip extends StatelessWidget {
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import './app_input_style.dart';
+import './input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
 /// A vertical single-select list of labeled radio options, colored from
 /// [AppInputVariant]. The whole row is tappable, not just the dot. Built on the
 /// current [RadioGroup] ancestor API (requires Flutter 3.32+).
+///
+/// `required: true` refuses to validate while [groupValue] is still null, and
+/// says so under the list.
 class AppRadioGroup<T> extends StatelessWidget {
   const AppRadioGroup({
     super.key,
@@ -3340,75 +3808,161 @@ class AppRadioGroup<T> extends StatelessWidget {
     required this.labelOf,
     required this.onChanged,
     this.subtitleOf,
+    this.required = false,
+    this.requiredError = 'Please choose an option',
+    this.validator,
+    this.autovalidateMode,
     this.variant,
   });
 
   final List<T> values;
+
+  /// The chosen option, or null while nothing is chosen. Must be one of
+  /// [values]; anything else would draw a list with nothing selected, so it is
+  /// caught by an assert instead.
   final T? groupValue;
+
   final String Function(T value) labelOf;
   final String? Function(T value)? subtitleOf;
-  final ValueChanged<T> onChanged;
+
+  /// Pass null to render the whole group disabled.
+  final ValueChanged<T>? onChanged;
+
+  /// Refuses to validate until an option is chosen.
+  final bool required;
+
+  /// What a [required] group says while nothing is chosen.
+  final String requiredError;
+
+  /// Replaces the built-in rule entirely. Returning null means valid.
+  final String? Function(T? value)? validator;
+
+  /// When the group validates itself. Null follows the config.
+  final AutovalidateMode? autovalidateMode;
+
   final AppInputVariant? variant;
+
+  /// The rule in force: the caller's, else the required check, else nothing to
+  /// enforce at all.
+  String? Function(T? value)? get _rule {
+    if (validator != null) return validator;
+    if (!required) return null;
+    return (value) => value == null ? requiredError : null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    assert(
+      groupValue == null || values.contains(groupValue),
+      'AppRadioGroup<$T>: groupValue is not one of values, so the list would '
+      'render with nothing selected.',
+    );
+
+    final accent = AppInputStyle.accentOf(context, variant);
+    final enabled = onChanged != null;
+
+    return SelectionFormField<T?>(
+      value: groupValue,
+      validator: _rule,
+      enabled: enabled,
+      autovalidateMode: autovalidateMode,
+      builder: (state) {
+        void select(T value) {
+          HapticFeedback.selectionClick();
+          // Tells the FormField it has been interacted with, so a form set to
+          // validate on interaction drops the error as soon as one is chosen.
+          state.didChange(value);
+          onChanged!(value);
+        }
+
+        return RadioGroup<T>(
+          groupValue: groupValue,
+          onChanged: (value) {
+            if (value != null && enabled) select(value);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final value in values)
+                InkWell(
+                  borderRadius: AppConstants.borderRadius8,
+                  onTap: enabled ? () => select(value) : null,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppConstants.space4,
+                    ),
+                    child: Row(
+                      children: [
+                        // The row's InkWell drives selection, so the Radio is
+                        // display-only; the RadioGroup above supplies its
+                        // state.
+                        IgnorePointer(
+                          child: Radio<T>(
+                            value: value,
+                            activeColor: accent,
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                        const SizedBox(width: AppConstants.space8),
+                        Expanded(
+                          child: _RadioLabel(
+                            label: labelOf(value),
+                            subtitle: subtitleOf?.call(value),
+                            enabled: enabled,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// One row's text. Pulled out so [AppRadioGroup.subtitleOf] is asked once per
+/// row instead of once to test for null and again to read the value.
+class _RadioLabel extends StatelessWidget {
+  const _RadioLabel({
+    required this.label,
+    required this.subtitle,
+    required this.enabled,
+  });
+
+  final String label;
+  final String? subtitle;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = context.textTheme;
-    final accent = AppInputStyle.accentOf(context, variant);
+    final colorScheme = context.colorScheme;
+    final disabled = colorScheme.onSurface.withValues(
+      alpha: AppInputStyle.config.disabledOpacity,
+    );
 
-    void select(T value) {
-      HapticFeedback.selectionClick();
-      onChanged(value);
-    }
-
-    return RadioGroup<T>(
-      groupValue: groupValue,
-      onChanged: (value) {
-        if (value != null) select(value);
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final value in values)
-            InkWell(
-              borderRadius: AppConstants.borderRadius8,
-              onTap: () => select(value),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(vertical: AppConstants.space4),
-                child: Row(
-                  children: [
-                    // The row's InkWell drives selection, so the Radio is
-                    // display-only; the RadioGroup above supplies its state.
-                    IgnorePointer(
-                      child: Radio<T>(
-                        value: value,
-                        activeColor: accent,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    ),
-                    const SizedBox(width: AppConstants.space8),
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(labelOf(value), style: textTheme.bodyLarge),
-                          if (subtitleOf?.call(value) != null)
-                            Text(
-                              subtitleOf!.call(value)!,
-                              style: textTheme.bodySmall?.copyWith(
-                                color: context.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: textTheme.bodyLarge?.copyWith(
+            color: enabled ? null : disabled,
+          ),
+        ),
+        if (subtitle != null)
+          Text(
+            subtitle!,
+            style: textTheme.bodySmall?.copyWith(
+              color: enabled ? colorScheme.onSurfaceVariant : disabled,
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
@@ -4490,6 +5044,15 @@ class _AppLoadingActionOverlayState extends State<AppLoadingActionOverlay> {
   int _messageIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    // A screen that opens with a request already in flight mounts this widget
+    // loading. Without this the timers only ever start on a false-to-true
+    // change, and that screen shows a bare spinner forever.
+    if (widget.isLoading) _startTimers();
+  }
+
+  @override
   void didUpdateWidget(AppLoadingActionOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
 
@@ -5490,6 +6053,7 @@ class AppStepper extends StatelessWidget {
         children: [
           _StepButton(
             icon: Icons.remove,
+            tooltip: 'Decrease',
             color: accent,
             iconSize: sizeConfig.iconSize,
             disabledOpacity: _disabledOpacity,
@@ -5511,6 +6075,7 @@ class AppStepper extends StatelessWidget {
           ),
           _StepButton(
             icon: Icons.add,
+            tooltip: 'Increase',
             color: accent,
             iconSize: sizeConfig.iconSize,
             disabledOpacity: _disabledOpacity,
@@ -5525,6 +6090,7 @@ class AppStepper extends StatelessWidget {
 class _StepButton extends StatelessWidget {
   const _StepButton({
     required this.icon,
+    required this.tooltip,
     required this.color,
     required this.iconSize,
     required this.disabledOpacity,
@@ -5532,6 +6098,11 @@ class _StepButton extends StatelessWidget {
   });
 
   final IconData icon;
+
+  /// Names the button. A bare glyph tells a screen reader nothing, and "−" and
+  /// "+" are exactly the two a stepper cannot afford to have confused.
+  final String tooltip;
+
   final Color color;
   final double iconSize;
   final double disabledOpacity;
@@ -5539,16 +6110,29 @@ class _StepButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      customBorder: const CircleBorder(),
-      onTap: onTap,
-      child: Padding(
-        padding: AppConstants.padding8,
-        child: Icon(
-          icon,
-          size: iconSize,
-          color:
-              onTap == null ? color.withValues(alpha: disabledOpacity) : color,
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        enabled: onTap != null,
+        label: tooltip,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: ConstrainedBox(
+            // Material's minimum tap target. The glyph alone left it at 40.
+            constraints: const BoxConstraints(
+              minWidth: AppConstants.touchTarget,
+              minHeight: AppConstants.touchTarget,
+            ),
+            child: Icon(
+              icon,
+              size: iconSize,
+              color: onTap == null
+                  ? color.withValues(alpha: disabledOpacity)
+                  : color,
+            ),
+          ),
         ),
       ),
     );
@@ -6136,6 +6720,8 @@ class DesignSystemView extends StatefulWidget {
 class _DesignSystemViewState extends State<DesignSystemView> {
   ThemeMode _mode = ThemeMode.light;
   String? _selectedDropdown;
+  String? _selectedRow;
+  bool _accepted = false;
   final Map<AppInputVariant, bool> _checkboxValues = {};
   bool _switchValue = true;
   int _segment = 0;
@@ -6468,14 +7054,37 @@ class _DesignSystemViewState extends State<DesignSystemView> {
 
               _Section(
                 title: 'AppDropdownInput',
-                child: AppDropdownInput<String>(
-                  label: 'Dropdown',
-                  items: const ['a', 'b', 'c'],
-                  idOf: (item) => item,
-                  labelOf: (item) => 'Option ${item.toUpperCase()}',
-                  selectedId: _selectedDropdown,
-                  variant: AppInputVariant.secondary,
-                  onChanged: (v) => setState(() => _selectedDropdown = v),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Short list, so it stays a menu. `onCleared` is what puts
+                    // the × in the field.
+                    AppDropdownInput<String>(
+                      label: 'Dropdown',
+                      items: const ['a', 'b', 'c'],
+                      idOf: (item) => item,
+                      labelOf: (item) => 'Option ${item.toUpperCase()}',
+                      selectedId: _selectedDropdown,
+                      variant: AppInputVariant.secondary,
+                      onChanged: (v) => setState(() => _selectedDropdown = v),
+                      onCleared: () => setState(() => _selectedDropdown = null),
+                    ),
+                    const SizedBox(height: AppConstants.space12),
+                    // Long enough to cross AppInputConfig.searchableThreshold,
+                    // so it opens the search sheet without being told to.
+                    AppDropdownInput<int>(
+                      label: 'Auto-searchable',
+                      required: true,
+                      items: List.generate(60, (index) => index),
+                      idOf: (item) => '$item',
+                      labelOf: (item) => 'Row ${item + 1}',
+                      trailingLabelOf: (item) => '#$item',
+                      selectedId: _selectedRow,
+                      variant: AppInputVariant.secondary,
+                      onChanged: (v) => setState(() => _selectedRow = v),
+                      onCleared: () => setState(() => _selectedRow = null),
+                    ),
+                  ],
                 ),
               ),
 
@@ -6496,6 +7105,20 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                         onChanged: (v) =>
                             setState(() => _checkboxValues[variant] = v),
                       ),
+                    // `required` makes it the accept-the-terms box: the form
+                    // below refuses to submit until it is ticked.
+                    AppCheckboxLabel(
+                      label: 'Accept the terms (required)',
+                      value: _accepted,
+                      required: true,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      onChanged: (v) => setState(() => _accepted = v),
+                    ),
+                    const AppCheckboxLabel(
+                      label: 'Disabled row',
+                      value: false,
+                      onChanged: null,
+                    ),
                   ],
                 ),
               ),
