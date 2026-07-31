@@ -255,13 +255,18 @@ Apps must handle personal data with care and comply with GDPR / App Store privac
 - [ ] Privacy policy is linked in the store listing and within the app
 - [ ] Data deletion flow is available (required by both stores)
 
-**Example — disable debug logging in release:**
+**Example — what the generated `core/utils/app_logger.dart` already does:**
 ```dart
-// In your logger setup (the generated app_logger.dart already does this)
-final logger = Logger(
-  level: kReleaseMode ? Level.off : Level.trace, // or Level.error in release
-);
+// Debug and trace records are stripped from release builds; warnings and
+// errors survive so a crash report has context. Level.off silences release
+// builds completely.
+level: kReleaseMode ? Level.warning : Level.trace,
 ```
+
+Credentials are redacted at the sink, so no call site has to remember to strip
+them — `password`, `token`, `accessToken`, `refreshToken` and `Bearer …` values
+are replaced with `***REDACTED***` on the way out. Add your own keys to
+`_sensitiveKeyPattern` in that file when your API introduces them.
 
 **Packages:** [`permission_handler`](https://pub.dev/packages/permission_handler), [`logger`](https://pub.dev/packages/logger)
 

@@ -58,11 +58,13 @@ import '../../core/utils/app_logger.dart';
 // (flutter_local_notifications / firebase_messaging) and an override that
 // skips super blocks them.
 
+final _log = appLogger.scoped('Notifications');
+
 // ─── Background handler (must be top-level) ──────────────────────────────────
 @pragma('vm:entry-point')
 void _backgroundHandler(NotificationResponse response) {
-  appLogger.i(
-    '[Notification] Background tap | id: ${response.id} | payload: ${response.payload}',
+  _log.i(
+    'Background tap | id: ${response.id} | payload: ${response.payload}',
   );
 }
  
@@ -133,8 +135,8 @@ class NotificationService {
     await _plugin.initialize(
       settings: initSettings,
       onDidReceiveNotificationResponse: (response) {
-        appLogger.i(
-          '[Notification] Tapped | id: ${response.id} | payload: ${response.payload}',
+        _log.i(
+          'Tapped | id: ${response.id} | payload: ${response.payload}',
         );
         // onTap
       },
@@ -144,7 +146,7 @@ class NotificationService {
     await _createNotificationChannels();
  
     _initialized = true;
-    appLogger.i('[NotificationService] Initialized');
+    _log.i('Initialized');
 
     await requestPermissions();
   }
@@ -231,7 +233,7 @@ class NotificationService {
       notificationDetails: _buildDetails(priority),
       payload: payload,
     );
-    appLogger.i('[NotificationService] Shown (id: $id)');
+    _log.i('Shown (id: $id)');
   }
  
   // ===========================================================================
@@ -266,7 +268,7 @@ class NotificationService {
       payload: payload,
     );
 
-    appLogger.i('[NotificationService] Scheduled at $tzDate (id: $id)');
+    _log.i('Scheduled at $tzDate (id: $id)');
   }
  
   /// Schedule a notification [delay] from now.
@@ -307,7 +309,7 @@ class NotificationService {
     matchDateTimeComponents: DateTimeComponents.time,
     payload: payload,
   );
-  appLogger.i('[NotificationService] Daily scheduled at $hour:$minute (id: $id)');
+  _log.i('Daily scheduled at $hour:$minute (id: $id)');
 }
  
   /// Schedule a weekly notification on a specific [day]
@@ -332,8 +334,8 @@ class NotificationService {
       matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
       payload: payload,
     );
-    appLogger.i(
-      '[NotificationService] Weekly scheduled (day $day at $hour:$minute, id: $id)',
+    _log.i(
+      'Weekly scheduled (day $day at $hour:$minute, id: $id)',
     );
   }
 
@@ -361,7 +363,7 @@ class NotificationService {
       payload: payload,
     );
 
-    appLogger.i('[NotificationService] Periodic ($interval) started (id: $id)');
+    _log.i('Periodic ($interval) started (id: $id)');
   }
  
   // ===========================================================================
@@ -371,13 +373,13 @@ class NotificationService {
   /// Cancel a specific notification by [id].
   Future<void> cancel(int id) async {
     await _plugin.cancel(id: id);
-    appLogger.i('[NotificationService] Cancelled (id: $id)');
+    _log.i('Cancelled (id: $id)');
   }
  
   /// Cancel all pending and shown notifications.
   Future<void> cancelAll() async {
     await _plugin.cancelAll();
-    appLogger.i('[NotificationService] Cancelled all');
+    _log.i('Cancelled all');
   }
  
   // ===========================================================================
@@ -490,12 +492,14 @@ import '../../core/utils/app_logger.dart';
 ///
 /// Test it from Firebase console → Messaging → New campaign.
 
+final _log = appLogger.scoped('FCM');
+
 // ─── Background handler (must be top-level) ──────────────────────────────────
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   // Runs in its own isolate. If you need other Firebase services here,
   // initialize Firebase first: await Firebase.initializeApp();
-  appLogger.i('[FCM] Background message | id: ${message.messageId}');
+  _log.i('Background message | id: ${message.messageId}');
 }
 
 /// Read this to reach the service:
@@ -547,12 +551,12 @@ class FirebaseNotificationsService {
     FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpened);
 
     _messaging.onTokenRefresh.listen((token) {
-      appLogger.i('[FCM] Token refreshed');
+      _log.i('Token refreshed');
       // TODO: send the new token to your backend.
     });
 
     _initialized = true;
-    appLogger.i('[FCM] Initialized');
+    _log.i('Initialized');
 
     await requestPermissions();
   }
@@ -577,8 +581,8 @@ class FirebaseNotificationsService {
       _messaging.unsubscribeFromTopic(topic);
 
   void _onForegroundMessage(RemoteMessage message) {
-    appLogger.i(
-      '[FCM] Foreground message | title: ${message.notification?.title}',
+    _log.i(
+      'Foreground message | title: ${message.notification?.title}',
     );
     // Android shows no system notification for foreground messages.
     // If you also generated the local NotificationService, display one manually:
@@ -590,7 +594,7 @@ class FirebaseNotificationsService {
   }
 
   void _onMessageOpened(RemoteMessage message) {
-    appLogger.i('[FCM] Opened from notification | data: ${message.data}');
+    _log.i('Opened from notification | data: ${message.data}');
     // TODO: navigate based on message.data.
   }
 }
@@ -788,6 +792,8 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../utils/app_logger.dart';
 
+final _log = appLogger.scoped('Connectivity');
+
 final connectivityProvider = Provider<ConnectivityService>((ref) {
   return ConnectivityService();
 });
@@ -802,7 +808,7 @@ class ConnectivityService {
 
   Stream<bool> get hasInternetStream =>
       _connectivity.onConnectivityChanged.map((results) {
-        appLogger.d('[Connectivity] $results');
+        _log.d('$results');
         return !results.contains(ConnectivityResult.none);
       });
   Future<bool> hasInternet() async {

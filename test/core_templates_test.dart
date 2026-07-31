@@ -171,6 +171,76 @@ void main() {
     expect(output, isNot(contains('FirebaseCrashlytics')));
   });
 
+  test('appLogger fronts the logger package with a façade', () {
+    final output = CoreTemplates.appLogger();
+
+    // Call sites bind to AppLogger, so the backend stays swappable.
+    expect(output, contains('final appLogger = AppLogger._();'));
+    expect(output,
+        contains('AppLogger scoped(String name) => AppLogger._(name);'));
+    for (final method in ['t', 'd', 'i', 'w', 'e']) {
+      expect(
+        output,
+        contains(
+            'void $method(String message, {Object? error, StackTrace? stackTrace})'),
+      );
+    }
+    // The package's own Logger is private to this file.
+    expect(output, contains('final _logger = Logger('));
+  });
+
+  test('appLogger redacts credentials at the sink', () {
+    final output = CoreTemplates.appLogger();
+
+    expect(output, contains('String _redact(String message)'));
+    expect(output, contains('accessToken'));
+    expect(output, contains("'Bearer ***REDACTED***'"));
+    // Applied by the output, not left to call sites.
+    expect(output, contains("_redact(event.lines.join('\\n'))"));
+  });
+
+  test('appLogger keeps warnings and errors in release builds', () {
+    final output = CoreTemplates.appLogger();
+
+    expect(
+        output, contains('level: kReleaseMode ? Level.warning : Level.trace'));
+  });
+
+  test('appLogger mirrors into Crashlytics when requested', () {
+    final output = CoreTemplates.appLogger(withCrashlytics: true);
+
+    expect(
+        output,
+        contains(
+            "import 'package:firebase_crashlytics/firebase_crashlytics.dart';"));
+    expect(
+        output, contains("import 'package:firebase_core/firebase_core.dart';"));
+    expect(output, contains('_CrashlyticsOutput(),'));
+    expect(
+      output,
+      contains('FirebaseCrashlytics.instance.log('),
+    );
+    // Services log during start-up, before main() initializes Firebase.
+    expect(output, contains('if (Firebase.apps.isEmpty) return;'));
+  });
+
+  test('appLogger omits Crashlytics by default', () {
+    final output = CoreTemplates.appLogger();
+
+    expect(output, isNot(contains('FirebaseCrashlytics')));
+    expect(output, isNot(contains('firebase_core')));
+    expect(output, contains('final _sinks = <LogOutput>[_DeveloperOutput()];'));
+  });
+
+  test('dioClient leaves redaction to the logger', () {
+    final output = CoreTemplates.dioClient();
+
+    expect(output, contains("final _log = appLogger.scoped('Dio');"));
+    // The interceptor hands over raw bodies; app_logger.dart scrubs them.
+    expect(output, isNot(contains('_redactSensitive')));
+    expect(output, contains('logPrint: (msg) => _log.d(msg.toString()),'));
+  });
+
   test('generated modals use the interface expected for testability', () {
     final output = ModalsTemplates.appBottomModals();
 

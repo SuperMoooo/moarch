@@ -1,5 +1,5 @@
-# [2.5.3]
+# [2.5.4]
 
 ## Features
 
-- btn fix
+- logger update

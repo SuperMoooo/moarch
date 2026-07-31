@@ -289,19 +289,178 @@ $localizationConfig      debugShowCheckedModeBanner: false,
   }
 
   /// Returns the generated appLogger template.
-  static String appLogger() => r'''
-import 'package:flutter/foundation.dart';
-import 'package:logger/logger.dart';
+  ///
+  /// [withCrashlytics] adds a second sink that mirrors records into Crashlytics
+  /// as breadcrumbs, so a crash report arrives with the lines that led up to it.
+  static String appLogger({bool withCrashlytics = false}) {
+    final crashlyticsImport = withCrashlytics
+        ? "\nimport 'package:firebase_core/firebase_core.dart';"
+            "\nimport 'package:firebase_crashlytics/firebase_crashlytics.dart';"
+        : '';
 
-final appLogger = Logger(
-  printer: PrettyPrinter(
-    methodCount: 0,
-    errorMethodCount: 12,
-    colors: true,
-    printEmojis: true,
-  ),
-  level: kReleaseMode ? Level.off : Level.trace,
+    // Kept at the tail of the file so the invariant body above has no seams:
+    // the sink list is the only place the Crashlytics choice shows up.
+    final sinks = withCrashlytics
+        ? r'''
+final _sinks = <LogOutput>[
+  _DeveloperOutput(),
+  _CrashlyticsOutput(),
+];
+
+/// Mirrors records into Crashlytics as breadcrumbs, so a crash report carries
+/// the log lines that preceded it.
+///
+/// Breadcrumbs only — reporting a caught error stays an explicit
+/// `FirebaseCrashlytics.instance.recordError(...)` at the call site, which is
+/// the only place `reason` and `fatal` can actually be decided.
+class _CrashlyticsOutput extends LogOutput {
+  @override
+  void output(OutputEvent event) {
+    // Anything logged before main() reaches Firebase.initializeApp() — service
+    // start-up, mostly — would otherwise throw on `instance`.
+    if (Firebase.apps.isEmpty) return;
+    FirebaseCrashlytics.instance.log(_redact(event.lines.join('\n')));
+  }
+}
+'''
+        : r'''
+final _sinks = <LogOutput>[_DeveloperOutput()];
+''';
+
+    return '''
+import 'dart:developer' as developer;
+
+import 'package:flutter/foundation.dart';
+import 'package:logger/logger.dart';$crashlyticsImport
+
+$_appLoggerBody// ─── Sinks ───────────────────────────────────────────────────────────────────
+
+$sinks''';
+  }
+
+  /// The part of `app_logger.dart` that never varies with the selected stack.
+  static const String _appLoggerBody = r'''
+/// The app's logger.
+///
+/// Call sites talk to [AppLogger] rather than to the `logger` package, so how
+/// logging works — where it goes, what it hides, when it stays quiet — is a
+/// decision this one file owns.
+final appLogger = AppLogger._();
+
+class AppLogger {
+  AppLogger._([this._tag]);
+
+  final String? _tag;
+
+  /// A logger that stamps every record with `[name]`.
+  ///
+  /// Prefer this over writing the prefix into each message by hand — the tag
+  /// comes out spelled the same way every time, which is what makes a log
+  /// filterable after the fact.
+  ///
+  /// ```dart
+  /// final _log = appLogger.scoped('FCM');
+  /// _log.i('Token refreshed'); // [FCM] Token refreshed
+  /// ```
+  AppLogger scoped(String name) => AppLogger._(name);
+
+  /// The noisiest level — debug builds only.
+  void t(String message, {Object? error, StackTrace? stackTrace}) =>
+      _write(Level.trace, message, error, stackTrace);
+
+  void d(String message, {Object? error, StackTrace? stackTrace}) =>
+      _write(Level.debug, message, error, stackTrace);
+
+  void i(String message, {Object? error, StackTrace? stackTrace}) =>
+      _write(Level.info, message, error, stackTrace);
+
+  void w(String message, {Object? error, StackTrace? stackTrace}) =>
+      _write(Level.warning, message, error, stackTrace);
+
+  void e(String message, {Object? error, StackTrace? stackTrace}) =>
+      _write(Level.error, message, error, stackTrace);
+
+  void _write(
+    Level level,
+    String message,
+    Object? error,
+    StackTrace? stackTrace,
+  ) {
+    _logger.log(
+      level,
+      _tag == null ? message : '[$_tag] $message',
+      error: error,
+      stackTrace: stackTrace,
+    );
+  }
+}
+
+// ─── Backend ─────────────────────────────────────────────────────────────────
+
+final _logger = Logger(
+  // Release output is one line per record: it is headed for Crashlytics
+  // breadcrumbs and device logs, where PrettyPrinter's box art is only noise.
+  printer: kReleaseMode
+      ? SimplePrinter(printTime: true, colors: false)
+      : PrettyPrinter(
+          methodCount: 0,
+          errorMethodCount: 12,
+          colors: true,
+          printEmojis: true,
+          dateTimeFormat: DateTimeFormat.onlyTimeAndSinceStart,
+        ),
+  output: MultiOutput(_sinks),
+  // Warnings and errors survive into release so a crash has context leading up
+  // to it; everything below them is stripped. Set this to Level.off to silence
+  // release builds completely.
+  level: kReleaseMode ? Level.warning : Level.trace,
 );
+
+/// Writes through `dart:developer` rather than `print`, so DevTools' Logging
+/// view gets one record per event with its severity attached — filterable,
+/// instead of a wall of console text.
+class _DeveloperOutput extends LogOutput {
+  @override
+  void output(OutputEvent event) {
+    developer.log(
+      _redact(event.lines.join('\n')),
+      name: 'app',
+      time: event.origin.time,
+      level: _developerLevels[event.level] ?? 0,
+    );
+  }
+}
+
+/// `dart:developer` grades severity on package:logging's scale, which [Level]
+/// does not line up with on its own.
+const _developerLevels = <Level, int>{
+  Level.trace: 300,
+  Level.debug: 500,
+  Level.info: 800,
+  Level.warning: 900,
+  Level.error: 1000,
+  Level.fatal: 1200,
+};
+
+// ─── Redaction ───────────────────────────────────────────────────────────────
+
+/// Every sink runs this, rather than each call site remembering to — which is
+/// what stops a stray `appLogger.d(response.data.toString())` from putting a
+/// credential in the logs.
+final _sensitiveKeyPattern = RegExp(
+  r'("?(?:password|newPassword|token|authorization|refreshToken|accessToken)"?\s*:\s*)'
+  r'("[^"]*"|[^,}\]\n]+)',
+  caseSensitive: false,
+);
+
+final _bearerPattern = RegExp(r'Bearer\s+\S+', caseSensitive: false);
+
+String _redact(String message) => message
+    .replaceAllMapped(
+      _sensitiveKeyPattern,
+      (match) => '${match.group(1)}***REDACTED***',
+    )
+    .replaceAll(_bearerPattern, 'Bearer ***REDACTED***');
 
 ''';
 
@@ -844,6 +1003,8 @@ import '../constants/api_constants.dart';
 import '../security/secure_storage.dart';
 import '../utils/app_logger.dart';
 
+final _log = appLogger.scoped('Dio');
+
 const _kPublicEndpoints = <String>[
   // Routes that never receive the Authorization header (and are never
   // retried after a token refresh). Adjust to your API contract.
@@ -925,13 +1086,15 @@ Dio _buildDioClient(Ref ref) {
       ),
     )
     ..interceptors.add(
-      RetryInterceptor(dio: dio, logPrint: (msg) => appLogger.d(msg)),
+      RetryInterceptor(dio: dio, logPrint: (msg) => _log.d(msg.toString())),
     )
+    // Bodies and headers are safe to hand over whole: app_logger.dart redacts
+    // credentials at the sink, so nothing here has to remember to.
     ..interceptors.add(
       LogInterceptor(
         requestBody: true,
         responseBody: true,
-        logPrint: (msg) => appLogger.d(_redactSensitive(msg.toString())),
+        logPrint: (msg) => _log.d(msg.toString()),
       ),
     );
 
@@ -986,27 +1149,9 @@ Future<bool> _doRefresh(TokenStorage storage) async {
     );
     return true;
   } catch (error) {
-    appLogger.w('Session refresh failed', error: error);
+    _log.w('Session refresh failed', error: error);
     return false;
   }
-}
-
-final _kSensitiveKeyPattern = RegExp(
-  r'("?(?:password|newPassword|Password|token|Authorization|refreshToken|accessToken)"?\s*:\s*)'
-  r'("[^"]*"|[^,}\]\n]+)',
-  caseSensitive: false,
-);
-
-String _redactSensitive(String message) {
-  var redacted = message.replaceAllMapped(
-    _kSensitiveKeyPattern,
-    (m) => '${m.group(1)}***REDACTED***',
-  );
-  redacted = redacted.replaceAll(
-    RegExp(r'Bearer\s+\S+', caseSensitive: false),
-    'Bearer ***REDACTED***',
-  );
-  return redacted;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1016,7 +1161,7 @@ void _configureHttpClient(Dio dio) {
       final client = HttpClient();
       if (kDebugMode) {
         client.badCertificateCallback = (cert, host, port) {
-          appLogger.w(
+          _log.w(
             'Certificate verification skipped for $host (debug mode)',
           );
           return true;

@@ -310,7 +310,9 @@ class InitCommand extends Command<int> {
       'envied: ',
       'skeletonizer: ',
       'intl:',
-      'logger: ',
+      // Floored because app_logger.dart uses PrettyPrinter's `dateTimeFormat`,
+      // which replaced the older `printTime` flag partway through logger 2.x.
+      'logger: ^2.4.0',
       'connectivity_plus: ',
       if (stack.contains(_kRouter)) 'go_router: ',
       if (stack.contains(_kDio)) 'dio: ',
@@ -1046,7 +1048,7 @@ class InitCommand extends Command<int> {
     );
     await FileUtils.writeFile(
       p.join(c, 'utils', 'app_logger.dart'),
-      CoreTemplates.appLogger(),
+      CoreTemplates.appLogger(withCrashlytics: stack.contains(_kCrashlytics)),
     );
     await FileUtils.writeFile(
       p.join(c, 'utils', 'action_notifier.dart'),
