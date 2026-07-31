@@ -7529,9 +7529,11 @@ import '../../core/errors/app_exception.dart';
 import '../widgets/app_async_view.dart';
 import '../widgets/buttons/app_button.dart';
 import '../widgets/buttons/app_fab.dart';
+import '../widgets/audio/app_audio_player.dart';
 import '../widgets/buttons/app_icon_button.dart';
 import '../widgets/calendar/app_calendar.dart';
 import '../widgets/cards/app_card.dart';
+import '../widgets/drag/app_drag_section.dart';
 import '../widgets/empty_view.dart';
 import '../widgets/error_view.dart';
 import '../widgets/feedback/app_banner.dart';
@@ -7540,6 +7542,7 @@ import '../widgets/icons/app_leading_icon.dart';
 import '../widgets/indicators/app_badge.dart';
 import '../widgets/indicators/app_tag.dart';
 import '../widgets/inputs/app_checkbox.dart';
+import '../widgets/inputs/app_country_picker.dart';
 import '../widgets/inputs/app_checkbox_label.dart';
 import '../widgets/inputs/app_choice_chip.dart';
 import '../widgets/inputs/app_date_input.dart';
@@ -7561,6 +7564,7 @@ import '../widgets/inputs/app_stepper.dart';
 import '../widgets/inputs/app_switch.dart';
 import '../widgets/inputs/app_time_input.dart';
 import '../widgets/layouts/app_single_scroll_view.dart';
+import '../widgets/tables/app_table.dart';
 import '../widgets/lists/app_card_tile.dart';
 import '../widgets/lists/app_expansion_tile.dart';
 import '../widgets/lists/app_list_tile.dart';
@@ -7624,6 +7628,8 @@ class _DesignSystemViewState extends State<DesignSystemView> {
   List<String> _selectedTags = const ['b'];
   DateTimeRange? _period;
   DateTime _calendarDay = DateTime.now();
+  String? _countryIso = 'PT';
+  List<String> _dragCards = const ['Revenue', 'Orders', 'Refunds'];
   double _rating = 3.5;
   List<AppPickedFile> _attachments = const [];
   int _railIndex = 0;
@@ -9292,6 +9298,112 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                     DateTime.now().subtract(const Duration(days: 3)): 2,
                   },
                   onSelected: (day) => setState(() => _calendarDay = day),
+                ),
+              ),
+
+              // ── AppCountryPicker ──────────────────────────────────────────
+              _Section(
+                title: 'AppCountryPicker',
+                child: AppCountryPicker(
+                  selectedIso: _countryIso,
+                  required: true,
+                  onChanged: (country) =>
+                      setState(() => _countryIso = country.iso),
+                  onCleared: () => setState(() => _countryIso = null),
+                ),
+              ),
+
+              // ── AppTable ──────────────────────────────────────────────────
+              _Section(
+                title: 'AppTable',
+                child: AppTable(
+                  striped: true,
+                  showRowDividers: false,
+                  columns: const [
+                    AppTableColumn(label: 'Item', flex: 2),
+                    AppTableColumn.numeric(label: 'Qty', width: 48),
+                    AppTableColumn.numeric(label: 'Total'),
+                  ],
+                  rows: [
+                    AppTableRow(cells: const ['Coffee', '2', '7.00'],
+                        onTap: () {}),
+                    AppTableRow(cells: const ['Pastry', '1', '2.40'],
+                        onTap: () {}),
+                    AppTableRow(
+                      cells: const ['Juice', '3', '9.60'],
+                      selected: true,
+                      onTap: () {},
+                    ),
+                  ],
+                  footer: const AppTableRow(cells: ['Total', '6', '19.00']),
+                ),
+              ),
+
+              // ── AppDragSection ────────────────────────────────────────────
+              _Section(
+                title: 'AppDragSection (hold an item to move it)',
+                child: AppDragSection(
+                  items: [
+                    for (final card in _dragCards)
+                      AppDragItem(
+                        id: card,
+                        child: AppCard(
+                          child: ListTile(
+                            leading: const Icon(Icons.drag_indicator),
+                            title: Text(card),
+                          ),
+                        ),
+                      ),
+                    // Pinned: it keeps the last slot however the rest are
+                    // shuffled, and nothing can be dropped past it.
+                    const AppDragItem(
+                      id: '_add',
+                      draggable: false,
+                      child: AppCard(
+                        child: ListTile(
+                          leading: Icon(Icons.add),
+                          title: Text('Add a card (pinned)'),
+                        ),
+                      ),
+                    ),
+                  ],
+                  onReorder: (from, to) => setState(
+                    () => _dragCards =
+                        AppDragSection.reorder(_dragCards, from, to),
+                  ),
+                ),
+              ),
+
+              // ── AppAudioPlayer ────────────────────────────────────────────
+              _Section(
+                title: 'AppAudioPlayer',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // A short public-domain clip, so the preview has something
+                    // real to scrub. Point it at your own audio.
+                    const AppAudioPlayer(
+                      source: AppAudioSource.url(
+                        'https://file-examples.com/storage/fe0b4b1a2f/file_example_MP3_700KB.mp3',
+                      ),
+                      title: 'Episode 12',
+                      subtitle: 'The one about Flutter',
+                      showSpeed: true,
+                      showRemaining: true,
+                    ),
+                    const SizedBox(height: AppConstants.space12),
+                    // The same widget as a voice note: one row, nothing to
+                    // skip, no speed.
+                    const AppAudioPlayer(
+                      source: AppAudioSource.url(
+                        'https://file-examples.com/storage/fe0b4b1a2f/file_example_MP3_700KB.mp3',
+                      ),
+                      style: AppAudioPlayerStyle.compact,
+                      showSkip: false,
+                      showRemaining: true,
+                      padding: EdgeInsets.zero,
+                    ),
+                  ],
                 ),
               ),
 

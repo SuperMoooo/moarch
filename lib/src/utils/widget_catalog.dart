@@ -1,12 +1,16 @@
 import '../templates/ui/async_templates.dart';
+import '../templates/ui/audio_templates.dart';
 import '../templates/ui/calendar_templates.dart';
 import '../templates/ui/content_templates.dart';
+import '../templates/ui/country_templates.dart';
 import '../templates/ui/dialogs_templates.dart';
+import '../templates/ui/drag_templates.dart';
 import '../templates/ui/inputs_templates.dart';
 import '../templates/ui/modals_templates.dart';
 import '../templates/ui/navigation_templates.dart';
 import '../templates/ui/phone_templates.dart';
 import '../templates/ui/shared_templates.dart';
+import '../templates/ui/table_templates.dart';
 
 /// One entry in the shared-widget kit: everything needed to generate a widget
 /// on demand and to document it in `docs/UI_KIT.md`.
@@ -245,6 +249,16 @@ abstract final class WidgetCatalog {
           'Table of 238 countries — ISO code, calling code and the national number masks each one writes, with flags derived from the ISO code.',
     ),
     WidgetSpec(
+      name: 'country-picker',
+      title: 'AppCountryPicker',
+      file: 'inputs/app_country_picker.dart',
+      template: CountryTemplates.appCountryPicker,
+      category: 'Inputs',
+      deps: ['country', 'input-style', 'input-title', 'search-sheet'],
+      description:
+          'Picks one of the 238 countries, as a validating field or as a sheet on its own — and owns the one sheet configuration AppPhoneInput opens for its prefix.',
+    ),
+    WidgetSpec(
       name: 'phone-input',
       title: 'AppPhoneInput',
       file: 'inputs/app_phone_input.dart',
@@ -255,7 +269,7 @@ abstract final class WidgetCatalog {
         'input-style',
         'input-format',
         'country',
-        'search-sheet',
+        'country-picker',
       ],
       description:
           'Phone field that masks what is typed for the country it is set to, with a searchable country picker built into its prefix.',
@@ -682,6 +696,39 @@ abstract final class WidgetCatalog {
       deps: ['input-style'],
       description:
           'Swipeable pages with stretching dots, optional peek and auto-advance — which stops for good on the first swipe, and never starts under reduce-motion.',
+    ),
+
+    // ── Media ─────────────────────────────────────────────────────────────────
+    WidgetSpec(
+      name: 'audio-player',
+      title: 'AppAudioPlayer',
+      file: 'audio/app_audio_player.dart',
+      template: AudioTemplates.appAudioPlayer,
+      category: 'Media',
+      deps: ['input-style'],
+      packages: ['just_audio: '],
+      description:
+          'Audio player over just_audio — url, asset or file — with every part switchable: transport, skip amounts, scrubbing, times, speed. Full or one-row compact.',
+    ),
+    WidgetSpec(
+      name: 'drag-section',
+      title: 'AppDragSection',
+      file: 'drag/app_drag_section.dart',
+      template: DragTemplates.appDragSection,
+      category: 'Layout & content',
+      deps: ['input-style'],
+      description:
+          'A section whose children drag into a new order: per-item size and a pinned flag nothing can be dropped past, vertical or horizontal, reporting the move rather than owning the list.',
+    ),
+    WidgetSpec(
+      name: 'table',
+      title: 'AppTable',
+      file: 'tables/app_table.dart',
+      template: TableTemplates.appTable,
+      category: 'Layout & content',
+      deps: ['input-style'],
+      description:
+          'Rows and columns sized for a phone: fixed or flexible columns with a floor, sideways scroll once they no longer fit, striping, a footer row and tappable rows.',
     ),
 
     // ── Navigation ────────────────────────────────────────────────────────────

@@ -195,12 +195,16 @@ void main() {
 
     test('puts the country picker in the prefix, not in the value', () {
       expect(output, contains('prefixIcon: _countrySelector'));
-      expect(output, contains('SearchPickerSheet.show<AppCountry>'));
       expect(output, contains('_country.dialCode'));
     });
 
-    test('ranks the picker search instead of taking the first name hit', () {
-      expect(output, contains('AppCountries.search(query, within: countries)'));
+    test('opens the one shared country sheet rather than its own', () {
+      // The flag, the calling code and the ranked search are configured once,
+      // in AppCountryPicker — so a standalone country field and this prefix
+      // cannot drift apart. Those assertions live in its own test.
+      expect(output, contains('AppCountryPicker.show('));
+      expect(output, contains("import './app_country_picker.dart';"));
+      expect(output, isNot(contains('SearchPickerSheet')));
     });
 
     test('opens on the country an E.164 seed implies', () {

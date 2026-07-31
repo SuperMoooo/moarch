@@ -551,8 +551,8 @@ import 'package:flutter/services.dart';
 import './app_country.dart';
 import './app_input.dart';
 import './app_input_format.dart';
+import './app_country_picker.dart';
 import './app_input_style.dart';
-import './search_picker_sheet.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/security/validation_service.dart';
 import '../../../core/utils/extensions.dart';
@@ -740,23 +740,15 @@ class _AppPhoneInputState extends State<AppPhoneInput> {
       AppPhoneNumber(country: _country, national: _digitsOnly(_controller.text));
 
   void _openPicker() async {
-    final picked = await SearchPickerSheet.show<AppCountry>(
+    // The sheet is configured once, in AppCountryPicker — the flag, the
+    // calling code and the ranked search are the same here as in a standalone
+    // country field, and stay that way because there is only one of them.
+    final picked = await AppCountryPicker.show(
       context,
       title: widget.pickerTitle,
       searchHint: widget.searchHint,
-      items: widget.countries ?? AppCountries.all,
-      idOf: (country) => country.iso,
-      labelOf: (country) => country.name,
-      trailingLabelOf: (country) => country.dialCode,
-      leadingOf: (country) => Text(
-        country.flag,
-        style: const TextStyle(fontSize: _flagSize),
-      ),
-      // Ranked, so two letters find the country whose code they are rather
-      // than the first country whose name happens to contain them.
-      filter: (countries, query) =>
-          AppCountries.search(query, within: countries),
-      selectedId: _country.iso,
+      countries: widget.countries,
+      selectedIso: _country.iso,
       variant: widget.variant,
     );
     if (picked == null || !mounted) return;

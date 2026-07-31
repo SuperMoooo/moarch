@@ -249,6 +249,164 @@ pair one with `AppConfirmDialog` when the answer should be deliberate.
 Unlike `AppDialogs` and `AppBottomModals` it takes a `BuildContext` rather than
 the router's navigator key, so it costs the project no GoRouter.
 
+### Audio you configure rather than wire
+
+`moarch create widget audio-player` adds `AppAudioPlayer` over
+[just_audio](https://pub.dev/packages/just_audio). It owns the `AudioPlayer`,
+loads the source and disposes both, so a screen never holds a controller.
+
+```dart
+AppAudioPlayer(
+  source: const AppAudioSource.url('https://example.com/episode.mp3'),
+  title: 'Episode 12',
+  showSpeed: true,
+)
+```
+
+**Every part is a switch**, which is what makes one widget serve a podcast
+screen and a voice note in a chat bubble:
+
+```dart
+AppAudioPlayer(
+  source: AppAudioSource.file(recording.path),
+  style: AppAudioPlayerStyle.compact,   // one row
+  showSkip: false,                      // a 6-second note has nothing to skip
+  showSpeed: false,
+  showRemaining: true,                  // -0:04 rather than the total
+)
+```
+
+`showControls`, `showProgress`, `allowScrub`, `showTimes` and `showSpeed` are
+independent, and the skip buttons take **durations rather than a fixed 15/30** —
+the number is drawn inside the arrow, so any interval works without an icon per
+value:
+
+```dart
+AppAudioPlayer(
+  source: ...,
+  skipBackward: const Duration(seconds: 10),
+  skipForward: const Duration(seconds: 10),
+)
+```
+
+Buffered progress rides in the bar's secondary track, a scrub is not dragged
+back by the position stream mid-drag, and a finished clip restarts on the next
+tap rather than sitting at the end. It plays audio and nothing else — the same
+split `just_audio` makes; lock-screen controls are `just_audio_background`'s
+job and adding it changes nothing here.
+
+### Children you can drag into a new order
+
+`moarch create widget drag-section` adds `AppDragSection`. It reports the move
+and nothing else — the list stays yours, so it can live in a notifier, in
+storage, or on a server without the widget holding a second copy of the truth.
+
+```dart
+AppDragSection(
+  items: [
+    for (final card in _cards)
+      AppDragItem(id: card.id, child: DashboardCard(card)),
+  ],
+  onReorder: (from, to) => setState(
+    () => _cards = AppDragSection.reorder(_cards, from, to),
+  ),
+)
+```
+
+Each item says how big it is and whether it moves; the section says which way
+it runs:
+
+```dart
+AppDragSection(
+  orientation: Axis.horizontal,
+  items: [
+    AppDragItem(id: 'a', size: AppDragSize.large, child: ChartCard()),
+    AppDragItem(id: 'b', size: AppDragSize.small, child: TotalCard()),
+    AppDragItem(id: 'new', draggable: false, child: AddTile()),   // pinned
+  ],
+  onReorder: _move,
+)
+```
+
+**A pinned item is a wall, not just an item that cannot be picked up** —
+nothing can be dropped past it, so the "add" tile above keeps the last slot
+however the rest are shuffled. `AppDragSize.small/medium/large` come from
+`AppDragSizes` (retune the whole section at once), or give one item an exact
+`extent`.
+
+A long press starts the drag by default, because an immediate listener over the
+item's whole surface fights the scroll; `trigger: AppDragTrigger.handle` puts a
+grip on the trailing edge instead, for an item that is already tappable.
+
+`onReorder` hands you indices **already corrected** for both the
+`ReorderableListView` off-by-one and any pinned item in the way, and
+`AppDragSection.reorder` does the remove-and-insert.
+
+### A table that fits a phone
+
+`moarch create widget table` adds `AppTable` — no dependency, and sized for a
+screen narrower than the data.
+
+```dart
+AppTable(
+  columns: const [
+    AppTableColumn(label: 'Item', flex: 2),
+    AppTableColumn.numeric(label: 'Qty', width: 56),
+    AppTableColumn.numeric(label: 'Total'),
+  ],
+  rows: const [
+    AppTableRow(cells: ['Coffee', '2', '€7.00']),
+    AppTableRow(cells: ['Pastry', '1', '€2.40']),
+  ],
+  footer: const AppTableRow(cells: ['Total', '3', '€9.40']),
+)
+```
+
+Columns are fixed (`width`) or flexible (`flex`), and a flexible one never
+squeezes below its `minWidth`. Past the point where the minimums no longer fit,
+**the table pans sideways** instead of crushing the columns further.
+
+`AppTableColumn.numeric` right-aligns and switches on tabular figures, so a
+column of money reads down cleanly. Rows take `onTap`, `selected` and a colour
+of their own; `striped`, `showRowDividers`, `showColumnDividers`, `showBorder`
+and `density` decide the rest. Cells are strings by default, or pass `widgets`
+for a chip or an avatar.
+
+It deliberately **does not scroll vertically** — a table that owns a vertical
+scroll cannot sit in a page that also scrolls without one of them being wrong.
+Drop it into `AppSingleScrollView` or a `ListView`.
+
+### One country list, two ways in
+
+`moarch create widget country-picker` adds `AppCountryPicker` over the same
+238-country `AppCountry` table `AppPhoneInput` reads. As a field:
+
+```dart
+AppCountryPicker(
+  label: 'Country',
+  selectedIso: _iso,
+  required: true,
+  onChanged: (country) => setState(() => _iso = country.iso),
+)
+```
+
+Or as a sheet on its own, from anywhere that is not a form:
+
+```dart
+final country = await AppCountryPicker.show(context, selectedIso: _iso);
+```
+
+`show` is **the single place the country sheet is configured** — the flag
+leading each row, the calling code trailing it, and the ranked search that makes
+`PT` find Portugal rather than the first country whose name contains those
+letters. `AppPhoneInput` now opens that same sheet for its prefix instead of
+carrying its own copy, so the two cannot drift apart.
+
+It hands back the whole `AppCountry` rather than a code, since the caller
+usually wants the dial code or the flag too. `display` picks what the closed
+field reads as — `🇵🇹 Portugal`, the name alone, `🇵🇹 +351`, or just the flag —
+and `countries` narrows the list to the ones you ship to.
+
 ### Long lists get a search instead of a menu
 
 A menu stops being usable somewhere around thirty options, so past that an
@@ -371,16 +529,18 @@ The kit covers:
 - **inputs** — switch, segmented, choice chips, radio group, slider, date/time,
   date range, dropdown (searchable on request), multi-select, checkbox, OTP,
   rating, file picker, `AppSearchField`, `AppStepper` (quantity −/+),
-  `AppPhoneInput` (per-country masking), `AppCalendar` (inline month)
+  `AppPhoneInput` (per-country masking), `AppCalendar` (inline month),
+  `AppCountryPicker` (238 countries)
 - **overlays** — `AppActionSheet` (platform-shaped), `AppToast`,
   `AppConfirmDialog`, `AppBottomSheetScaffold`, dialog/bottom-sheet helpers
 - **buttons & icons** — `AppButton`, `AppLeadingIcon`, `AppIconButton`, `AppFab`
 - **layout** — `AppListTile`, `AppCard`, `AppCardTile`, `AppTag`, `AppBadge`,
-  `AppSectionHeader`, `AppExpansionTile`, `AppTimeline`
+  `AppSectionHeader`, `AppExpansionTile`, `AppTimeline`, `AppTable`,
+  `AppDragSection`
 - **feedback** — `AppAsyncView`, `ref.listenAction`, `AppBanner`,
   `AppProgressBar`, `AppScreenLock`, skeleton list, loading overlay,
   `ErrorView`, `EmptyView`
-- **media** — `AppAvatar`, `AppImage`, `AppCarousel`
+- **media** — `AppAvatar`, `AppImage`, `AppCarousel`, `AppAudioPlayer`
 - **navigation** — `AppAppBar`, `AppBottomNav` (Material 3, classic, pill or
   dot, each of which can float), `AppTabs`, `AppDrawer`,
   `AppNavRail` / `AppAdaptiveNav`, `AppStepIndicator`

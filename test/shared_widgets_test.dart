@@ -1,8 +1,12 @@
+import 'package:moarch/src/templates/ui/audio_templates.dart';
 import 'package:moarch/src/templates/ui/calendar_templates.dart';
+import 'package:moarch/src/templates/ui/country_templates.dart';
+import 'package:moarch/src/templates/ui/drag_templates.dart';
 import 'package:moarch/src/templates/ui/content_templates.dart';
 import 'package:moarch/src/templates/ui/inputs_templates.dart';
 import 'package:moarch/src/templates/ui/modals_templates.dart';
 import 'package:moarch/src/templates/ui/navigation_templates.dart';
+import 'package:moarch/src/templates/ui/table_templates.dart';
 import 'package:moarch/src/templates/ui/phone_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
@@ -44,6 +48,10 @@ void main() {
       'appFilePickerField': InputsTemplates.appFilePickerField,
       'appRating': InputsTemplates.appRating,
       'appCalendar': CalendarTemplates.appCalendar,
+      'appCountryPicker': CountryTemplates.appCountryPicker,
+      'appAudioPlayer': AudioTemplates.appAudioPlayer,
+      'appTable': TableTemplates.appTable,
+      'appDragSection': DragTemplates.appDragSection,
       'appActionSheet': ModalsTemplates.appActionSheet,
       'appTabs': NavigationTemplates.appTabs,
       'appDrawer': NavigationTemplates.appDrawer,
