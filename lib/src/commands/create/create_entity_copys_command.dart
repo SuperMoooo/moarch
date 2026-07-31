@@ -153,17 +153,21 @@ class CreateEntityCopysCommand extends Command<int> {
         updated = source.replaceFirst(copyWithPattern, newCopyWith.trim());
         actions.add('replaced copyWith');
       } else {
-        updated = _appendToClass(source, newCopyWith);
+        updated = _appendToClass(source, className, newCopyWith);
         actions.add('injected copyWith');
       }
 
       // Strip any existing == / hashCode, then append the freshly built pair.
-      final hadEquality = _equalityPattern.hasMatch(updated) ||
-          _hashCodePattern.hasMatch(updated);
-      updated = updated
-          .replaceAll(_equalityPattern, '')
-          .replaceAll(_hashCodePattern, '');
-      updated = _appendToClass(updated, newEquality);
+      // Scoped to this class: a second class in the same file keeps its own.
+      var hadEquality = false;
+      updated = _editClassBody(updated, className, (body) {
+        hadEquality =
+            _equalityPattern.hasMatch(body) || _hashCodePattern.hasMatch(body);
+        return body
+            .replaceAll(_equalityPattern, '')
+            .replaceAll(_hashCodePattern, '');
+      });
+      updated = _appendToClass(updated, className, newEquality);
       actions
           .add(hadEquality ? 'replaced ==/hashCode' : 'injected ==/hashCode');
 
@@ -179,13 +183,35 @@ class CreateEntityCopysCommand extends Command<int> {
     }
   }
 
-  /// Inserts [member] just before the last closing brace of the file.
-  static String _appendToClass(String source, String member) {
-    final lastBrace = source.lastIndexOf('}');
-    if (lastBrace == -1) throw Exception('Could not find closing brace');
-    return source.substring(0, lastBrace) +
-        member +
-        source.substring(lastBrace);
+  /// Inserts [member] at the end of [className]'s body.
+  ///
+  /// Falls back to the file's last closing brace when the class can't be
+  /// located — which is where a single-class entity file ends anyway.
+  static String _appendToClass(
+    String source,
+    String className,
+    String member,
+  ) {
+    final closing = ModelFieldParser.classBody(source, className)?.end ??
+        source.lastIndexOf('}');
+    if (closing == -1) throw Exception('Could not find closing brace');
+    return source.substring(0, closing) + member + source.substring(closing);
+  }
+
+  /// Applies [edit] to [className]'s body alone, leaving the rest of the file
+  /// — including any other class in it — untouched.
+  static String _editClassBody(
+    String source,
+    String className,
+    String Function(String body) edit,
+  ) {
+    final range = ModelFieldParser.classBody(source, className);
+    if (range == null) return edit(source);
+    return source.replaceRange(
+      range.start,
+      range.end,
+      edit(source.substring(range.start, range.end)),
+    );
   }
 }
 

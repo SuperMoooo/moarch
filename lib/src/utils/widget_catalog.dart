@@ -1,4 +1,5 @@
 import '../templates/ui/async_templates.dart';
+import '../templates/ui/calendar_templates.dart';
 import '../templates/ui/content_templates.dart';
 import '../templates/ui/dialogs_templates.dart';
 import '../templates/ui/inputs_templates.dart';
@@ -258,6 +259,17 @@ abstract final class WidgetCatalog {
       ],
       description:
           'Phone field that masks what is typed for the country it is set to, with a searchable country picker built into its prefix.',
+    ),
+    WidgetSpec(
+      name: 'calendar',
+      title: 'AppCalendar',
+      file: 'calendar/app_calendar.dart',
+      template: CalendarTemplates.appCalendar,
+      category: 'Inputs',
+      deps: ['input-style'],
+      packages: ['table_calendar: '],
+      description:
+          'Inline month grid — the sibling of AppDateInput, for when the month itself is the content: event dots per day, a range callback to load them by, and month/2-week/week formats.',
     ),
     WidgetSpec(
       name: 'checkbox',
@@ -610,6 +622,16 @@ abstract final class WidgetCatalog {
       deps: ['button', 'leading-icon', 'dialogs'],
       description:
           'Confirm/cancel dialog built from AppButton + AppLeadingIcon.',
+    ),
+    WidgetSpec(
+      name: 'action-sheet',
+      title: 'AppActionSheet',
+      file: 'overlays/app_action_sheet.dart',
+      template: ModalsTemplates.appActionSheet,
+      category: 'Overlays',
+      deps: ['bottom-sheet'],
+      description:
+          'The sheet of actions behind a three-dot button or a long press — Material rows on Android, iOS grouped cards elsewhere, with a destructive variant and a value each row resolves to.',
     ),
     WidgetSpec(
       name: 'toast',

@@ -84,10 +84,11 @@ class CreateModelCommand extends Command<int> {
 
     if (addEmpty) {
       return _injectEmptyFactory(
-        featurePath: featurePath,
         modelName: modelName,
-        modelClass: modelClass,
-        modelFile: entityFile,
+        // The target is the entity file, and the class in it is `<Model>Entity`
+        // — a factory named after the model alone would not compile.
+        entityClass: '${modelClass}Entity',
+        entityFile: entityFile,
       );
     }
 
@@ -132,54 +133,55 @@ class CreateModelCommand extends Command<int> {
   }
 
   Future<int> _injectEmptyFactory({
-    required String featurePath,
     required String modelName,
-    required String modelClass,
-    required String modelFile,
+    required String entityClass,
+    required String entityFile,
   }) async {
-    if (!File(modelFile).existsSync()) {
+    if (!File(entityFile).existsSync()) {
       _logger.err(
-        'Entity file not found at $modelFile.\n'
+        'Entity file not found at $entityFile.\n'
         '  Scaffold it first with: moarch create model <feature> $modelName',
       );
       return 1;
     }
 
-    final source = await File(modelFile).readAsString();
+    final source = await File(entityFile).readAsString();
 
     // Guard — already has .empty()
-    if (source.contains('factory $modelClass.empty(')) {
-      _logger.warn('$modelClass already has an .empty() factory.');
+    if (source.contains('factory $entityClass.empty(')) {
+      _logger.warn('$entityClass already has an .empty() factory.');
       return 0;
     }
 
-    final fields = ModelFieldParser.parse(source, modelClass);
+    final fields = ModelFieldParser.parse(source, entityClass);
     if (fields.isEmpty) {
       _logger.warn(
-        'No fields found in $modelClass. '
+        'No fields found in $entityClass. '
         'Make sure the class has a const constructor with named parameters.',
       );
     }
 
-    final factory = ModelFieldParser.buildEmptyFactory(modelClass, fields);
+    final factory = ModelFieldParser.buildEmptyFactory(entityClass, fields);
 
-    // Inject just before the last closing brace of the class
-    final lastBrace = source.lastIndexOf('}');
-    if (lastBrace == -1) {
-      _logger.err('Could not locate closing brace in $modelFile.');
+    // Inject at the end of the entity's own body — the file's last brace may
+    // belong to a second class declared below it.
+    final closing = ModelFieldParser.classBody(source, entityClass)?.end ??
+        source.lastIndexOf('}');
+    if (closing == -1) {
+      _logger.err('Could not locate closing brace in $entityFile.');
       return 1;
     }
 
     final updated =
-        source.substring(0, lastBrace) + factory + source.substring(lastBrace);
+        source.substring(0, closing) + factory + source.substring(closing);
 
     _logger.info('');
-    _logger.info('🏭 Injecting .empty() into $modelClass');
+    _logger.info('🏭 Injecting .empty() into $entityClass');
     _logger.info('');
 
     final progress = _logger.progress('Patching');
     try {
-      await File(modelFile).writeAsString(updated);
+      await File(entityFile).writeAsString(updated);
       progress.complete('Done');
     } catch (e) {
       progress.fail('Failed: $e');
@@ -187,9 +189,9 @@ class CreateModelCommand extends Command<int> {
     }
 
     _logger.success('');
-    _logger.info('  ✓ $modelClass.empty() added to');
+    _logger.info('  ✓ $entityClass.empty() added to');
     _logger.info(
-        '    ${modelFile.replaceAll(RegExp(r'^.*[/\\]lib[/\\]'), 'lib/')}');
+        '    ${entityFile.replaceAll(RegExp(r'^.*[/\\]lib[/\\]'), 'lib/')}');
     _logger.info('');
     return 0;
   }

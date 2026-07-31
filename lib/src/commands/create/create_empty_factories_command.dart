@@ -115,7 +115,7 @@ class CreateEmptyFactoriesCommand extends Command<int> {
     } else {
       _logger.success('  Patched : $patched');
       if (skipped > 0) {
-        _logger.info('  Skipped : $skipped (already have .empty())');
+        _logger.info('  Skipped : $skipped (already up to date)');
       }
 
       if (failed > 0) {
@@ -147,19 +147,32 @@ class CreateEmptyFactoriesCommand extends Command<int> {
         r'factory\s+' + RegExp.escape(className) + r'\.empty\(\)\s*=>\s*.*?;',
         dotAll: true,
       );
+      final existing = factoryPattern.firstMatch(source);
 
       String updated;
-      if (source.contains('factory $className.empty(')) {
-        // Replace existing
-        updated = source.replaceFirst(factoryPattern, newFactory.trim());
+      if (existing != null) {
+        if (existing[0] == newFactory.trim()) {
+          _logger.info('  ·   $relativePath (already up to date)');
+          return _Result.skipped;
+        }
+        updated = source.replaceRange(
+            existing.start, existing.end, newFactory.trim());
         _logger.info('  🔄  $relativePath (replaced existing .empty())');
+      } else if (source.contains('factory $className.empty(')) {
+        // Present, but with a body this can't rewrite (a block, not an arrow).
+        // Leaving it is the honest outcome — the old code reported a
+        // replacement that the regex had in fact not made.
+        _logger.warn('  !   $relativePath (hand-written .empty() left alone)');
+        return _Result.skipped;
       } else {
-        // Append new
-        final lastBrace = source.lastIndexOf('}');
-        if (lastBrace == -1) throw Exception('Could not find closing brace');
-        updated = source.substring(0, lastBrace) +
+        // Append at the end of this class — the file's last brace may belong
+        // to a second class declared below it.
+        final closing = ModelFieldParser.classBody(source, className)?.end ??
+            source.lastIndexOf('}');
+        if (closing == -1) throw Exception('Could not find closing brace');
+        updated = source.substring(0, closing) +
             newFactory +
-            source.substring(lastBrace);
+            source.substring(closing);
         _logger.info('  ✨  $relativePath (injected new .empty())');
       }
 

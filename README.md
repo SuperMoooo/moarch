@@ -189,6 +189,66 @@ Numbering plans are a good description of how numbers are *written*, not a
 replacement for libphonenumber — validate server-side too if you need
 carrier-level correctness.
 
+### When the month is the content, not an answer in a form
+
+`AppDateInput` opens the platform picker, which is what a date-shaped *field*
+wants. An agenda, a booking screen or a streak wants the grid itself, and that
+is `moarch create widget calendar` — a wrapper over
+[table_calendar](https://pub.dev/packages/table_calendar) that keeps its sixty
+parameters out of your screens.
+
+```dart
+AppCalendar(
+  selected: _day,
+  events: {for (final a in appointments) a.startsAt: 1},   // dots under the day
+  onSelected: (day) => setState(() => _day = day),
+  onMonthChanged: (first, last) => ref.read(p.notifier).load(first, last),
+)
+```
+
+Two `DateTime`s in the same day are not equal, which is the usual reason a
+marker never appears — so `events` is **re-keyed to the day** each entry falls
+on. Pass the instants your data already carries; two appointments at 09:00 and
+14:00 count as two dots on one day rather than missing the grid entirely.
+
+`onMonthChanged` reports the *month's* own bounds, not the six weeks drawn
+around it — the range you actually want to fetch events for. Colors come from
+`AppInputVariant` like the rest of the family, `canChangeFormat` offers the
+month/2-week/week toggle (and only then is a vertical swipe live), and leaving
+`onSelected` off makes it a read-only display.
+
+### One sheet for "what do you want to do with this?"
+
+`moarch create widget action-sheet` adds `AppActionSheet` — the thing behind a
+three-dot button or a long press. Material rows on Android, the iOS grouped
+cards everywhere else, off the same split `AppDateInput` uses for its pickers.
+
+```dart
+final picked = await AppActionSheet.show<String>(
+  context,
+  title: 'Order #1042',
+  actions: [
+    const AppSheetAction(label: 'Edit', icon: Icons.edit_outlined, value: 'edit'),
+    const AppSheetAction(label: 'Share', icon: Icons.ios_share, value: 'share'),
+    const AppSheetAction.destructive(
+      label: 'Delete',
+      icon: Icons.delete_outline,
+      value: 'delete',
+    ),
+  ],
+);
+```
+
+Dismissing resolves to `null`, so a `switch` on the result has one honest "the
+user backed out" branch. A row can carry an `onTap` instead of a `value`, and
+it runs **after** the sheet has closed — a handler that pushes a route while
+the sheet is still closing otherwise fights the navigator for it. Destructive
+rows are drawn in the theme's error color and confirm nothing on their own:
+pair one with `AppConfirmDialog` when the answer should be deliberate.
+
+Unlike `AppDialogs` and `AppBottomModals` it takes a `BuildContext` rather than
+the router's navigator key, so it costs the project no GoRouter.
+
 ### Long lists get a search instead of a menu
 
 A menu stops being usable somewhere around thirty options, so past that an
@@ -311,7 +371,9 @@ The kit covers:
 - **inputs** — switch, segmented, choice chips, radio group, slider, date/time,
   date range, dropdown (searchable on request), multi-select, checkbox, OTP,
   rating, file picker, `AppSearchField`, `AppStepper` (quantity −/+),
-  `AppPhoneInput` (per-country masking)
+  `AppPhoneInput` (per-country masking), `AppCalendar` (inline month)
+- **overlays** — `AppActionSheet` (platform-shaped), `AppToast`,
+  `AppConfirmDialog`, `AppBottomSheetScaffold`, dialog/bottom-sheet helpers
 - **buttons & icons** — `AppButton`, `AppLeadingIcon`, `AppIconButton`, `AppFab`
 - **layout** — `AppListTile`, `AppCard`, `AppCardTile`, `AppTag`, `AppBadge`,
   `AppSectionHeader`, `AppExpansionTile`, `AppTimeline`

@@ -1,5 +1,7 @@
+import 'package:moarch/src/templates/ui/calendar_templates.dart';
 import 'package:moarch/src/templates/ui/content_templates.dart';
 import 'package:moarch/src/templates/ui/inputs_templates.dart';
+import 'package:moarch/src/templates/ui/modals_templates.dart';
 import 'package:moarch/src/templates/ui/navigation_templates.dart';
 import 'package:moarch/src/templates/ui/phone_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
@@ -41,6 +43,8 @@ void main() {
       'appDateRangeInput': InputsTemplates.appDateRangeInput,
       'appFilePickerField': InputsTemplates.appFilePickerField,
       'appRating': InputsTemplates.appRating,
+      'appCalendar': CalendarTemplates.appCalendar,
+      'appActionSheet': ModalsTemplates.appActionSheet,
       'appTabs': NavigationTemplates.appTabs,
       'appDrawer': NavigationTemplates.appDrawer,
       'appNavRail': NavigationTemplates.appNavRail,

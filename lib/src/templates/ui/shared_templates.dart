@@ -7530,6 +7530,7 @@ import '../widgets/app_async_view.dart';
 import '../widgets/buttons/app_button.dart';
 import '../widgets/buttons/app_fab.dart';
 import '../widgets/buttons/app_icon_button.dart';
+import '../widgets/calendar/app_calendar.dart';
 import '../widgets/cards/app_card.dart';
 import '../widgets/empty_view.dart';
 import '../widgets/error_view.dart';
@@ -7578,6 +7579,7 @@ import '../widgets/navigation/app_drawer.dart';
 import '../widgets/navigation/app_nav_rail.dart';
 import '../widgets/navigation/app_step_indicator.dart';
 import '../widgets/navigation/app_tabs.dart';
+import '../widgets/overlays/app_action_sheet.dart';
 import '../widgets/overlays/app_bottom_sheet_scaffold.dart';
 import '../widgets/overlays/app_confirm_dialog.dart';
 import '../widgets/overlays/app_toast.dart';
@@ -7621,6 +7623,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
   String _query = '';
   List<String> _selectedTags = const ['b'];
   DateTimeRange? _period;
+  DateTime _calendarDay = DateTime.now();
   double _rating = 3.5;
   List<AppPickedFile> _attachments = const [];
   int _railIndex = 0;
@@ -7661,6 +7664,37 @@ class _DesignSystemViewState extends State<DesignSystemView> {
   void _toggleTheme() => setState(() {
         _mode = _mode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
       });
+
+  /// [style] is forced by two of the buttons so one device can preview the
+  /// platform shape it is not running on.
+  Future<void> _showActionSheet(
+    BuildContext context, {
+    AppActionSheetStyle style = AppActionSheetStyle.adaptive,
+  }) async {
+    final picked = await AppActionSheet.show<String>(
+      context,
+      style: style,
+      title: 'Order #1042',
+      message: 'Choose what to do with this order.',
+      actions: const [
+        AppSheetAction(label: 'Edit', icon: Icons.edit_outlined, value: 'edit'),
+        AppSheetAction(label: 'Share', icon: Icons.ios_share, value: 'share'),
+        AppSheetAction(
+          label: 'Archive',
+          icon: Icons.archive_outlined,
+          value: 'archive',
+          enabled: false,
+        ),
+        AppSheetAction.destructive(
+          label: 'Delete',
+          icon: Icons.delete_outline,
+          value: 'delete',
+        ),
+      ],
+    );
+    if (!context.mounted) return;
+    AppToast.info(context, picked == null ? 'Dismissed' : 'Picked: $picked');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -8118,6 +8152,37 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                       );
                     }
                   },
+                ),
+              ),
+
+              // ── AppActionSheet ────────────────────────────────────────────
+              _Section(
+                title: 'AppActionSheet',
+                child: Wrap(
+                  spacing: AppConstants.space8,
+                  runSpacing: AppConstants.space8,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => _showActionSheet(context),
+                      child: const Text('Adaptive'),
+                    ),
+                    // Both shapes are forced here so one device can preview
+                    // the platform it is not.
+                    OutlinedButton(
+                      onPressed: () => _showActionSheet(
+                        context,
+                        style: AppActionSheetStyle.material,
+                      ),
+                      child: const Text('Material'),
+                    ),
+                    OutlinedButton(
+                      onPressed: () => _showActionSheet(
+                        context,
+                        style: AppActionSheetStyle.cupertino,
+                      ),
+                      child: const Text('Cupertino'),
+                    ),
+                  ],
                 ),
               ),
 
@@ -9211,6 +9276,22 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                   initialValue: _period,
                   onChanged: (range) => setState(() => _period = range),
                   onCleared: () => setState(() => _period = null),
+                ),
+              ),
+
+              // ── AppCalendar ───────────────────────────────────────────────
+              _Section(
+                title: 'AppCalendar',
+                child: AppCalendar(
+                  selected: _calendarDay,
+                  canChangeFormat: true,
+                  // Whatever time the data carries, the dot lands on the day.
+                  events: {
+                    DateTime.now(): 1,
+                    DateTime.now().add(const Duration(days: 2)): 3,
+                    DateTime.now().subtract(const Duration(days: 3)): 2,
+                  },
+                  onSelected: (day) => setState(() => _calendarDay = day),
                 ),
               ),
 
