@@ -9375,14 +9375,14 @@ class _DesignSystemViewState extends State<DesignSystemView> {
               ),
 
               // ── AppAudioPlayer ────────────────────────────────────────────
-              _Section(
+              const _Section(
                 title: 'AppAudioPlayer',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // A short public-domain clip, so the preview has something
                     // real to scrub. Point it at your own audio.
-                    const AppAudioPlayer(
+                    AppAudioPlayer(
                       source: AppAudioSource.url(
                         'https://file-examples.com/storage/fe0b4b1a2f/file_example_MP3_700KB.mp3',
                       ),
@@ -9391,10 +9391,10 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                       showSpeed: true,
                       showRemaining: true,
                     ),
-                    const SizedBox(height: AppConstants.space12),
+                    SizedBox(height: AppConstants.space12),
                     // The same widget as a voice note: one row, nothing to
                     // skip, no speed.
-                    const AppAudioPlayer(
+                    AppAudioPlayer(
                       source: AppAudioSource.url(
                         'https://file-examples.com/storage/fe0b4b1a2f/file_example_MP3_700KB.mp3',
                       ),

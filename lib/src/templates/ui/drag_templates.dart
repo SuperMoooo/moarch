@@ -159,7 +159,9 @@ class AppDragSection extends StatelessWidget {
   /// one being dragged rather than leaving a hole behind.
   final double spacing;
 
-  final EdgeInsetsGeometry padding;
+  /// `EdgeInsets` rather than `EdgeInsetsGeometry`, because that is what
+  /// `ReorderableListView` accepts.
+  final EdgeInsets padding;
 
   /// Null follows the orientation: a vertical section shrink-wraps so it can
   /// sit in a page, a horizontal one does not so it can fill the width it is
