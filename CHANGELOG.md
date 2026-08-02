@@ -1,62 +1,47 @@
-# [2.7.1]
+# [2.8.0]
 
 ## Features
 
-- `AppAudioPlayer` (`moarch create widget audio-player`) — an audio player over
-  [just_audio](https://pub.dev/packages/just_audio) that a screen configures
-  rather than wires. It owns the `AudioPlayer`, loads the source and disposes
-  both. One `AppAudioSource` covers url, asset and file.
-    - **Every part is a switch**, so the same widget is a podcast screen and a
-      voice-note bubble: `showControls`, `showSkip`, `showProgress`, `allowScrub`,
-      `showTimes`, `showRemaining` and `showSpeed` are independent, and
-      `AppAudioPlayerStyle.compact` is the one-row arrangement.
-    - The skip buttons take **durations, not a fixed 15/30** — the number is drawn
-      inside the arrow, so any interval works without an icon per value.
-    - Buffered progress rides in the bar's secondary track; a scrub is not dragged
-      back by the position stream mid-drag; a finished clip restarts on the next
-      tap rather than sitting at the end; and `onCompleted` fires once per
-      play-through rather than on every frame the player sits in `completed`.
-- `AppDragSection` (`moarch create widget drag-section`) — a section whose
-  children drag into a new order, vertical or horizontal, with no dependency.
-    - It **reports the move rather than owning the list**, so the order can live
-      in a notifier, in storage or on a server without the widget holding a
-      second copy of it. `AppDragSection.reorder` does the remove-and-insert.
-    - Each item declares its own size — `AppDragSize.small/medium/large` off a
-      shared `AppDragSizes`, or an exact `extent` — and whether it can be moved.
-    - **A pinned item is a wall**, not merely un-draggable: it carries no drag
-      listener at all, and nothing can be dropped past it, so an "add" tile keeps
-      the last slot however the rest are shuffled.
-    - `onReorder` arrives already corrected for the `ReorderableListView`
-      off-by-one and for any pinned item in the way.
-    - A long press starts the drag, because an immediate listener over the whole
-      item fights the scroll; `AppDragTrigger.handle` puts a grip on the trailing
-      edge instead.
-- `AppTable` (`moarch create widget table`) — rows and columns sized for a
-  phone, with no dependency.
-    - Columns are fixed (`width`) or flexible (`flex`), and a flexible one never
-      squeezes below its `minWidth`. Past the point where the minimums no longer
-      fit, the table **pans sideways** rather than crushing the columns.
-    - `AppTableColumn.numeric` right-aligns and switches on tabular figures.
-    - Rows take `onTap`, `selected` and a colour of their own; `striped`,
-      `showRowDividers`, `showColumnDividers`, `showBorder` and `density` decide
-      the rest. Cells are strings, or `widgets` for a chip or an avatar.
-    - It deliberately **owns no vertical scroll** — a table that scrolls
-      vertically cannot sit in a page that also does. Put it in
-      `AppSingleScrollView` or a `ListView`.
-- `AppCountryPicker` (`moarch create widget country-picker`) — the 238-country
-  `AppCountry` table as a field of its own, validating like the rest of the
-  family, or as `AppCountryPicker.show(context)` from anywhere that is not a
-  form.
-    - It hands back the whole `AppCountry` rather than a code, since the caller
-      usually wants the dial code or the flag too. `display` picks what the closed
-      field reads as, and `countries` narrows the list.
+- **`moarch update` now refreshes everything the CLI generates, not just the
+  widget kit.** The gap it closed for widgets was the same gap `core/`,
+  `config/`, the auth feature, the docs and the workflows had all along: a
+  project scaffolded two versions ago still carries the old
+  `validation_service.dart`, and nothing told you which improvements you were
+  missing or which changes were your own.
+    - **Every file is addressable on its own** — `moarch update validation`,
+      `moarch update extensions`, `moarch update theme`, `moarch update logger`.
+      With no arguments the whole project is considered, exactly as before.
+    - **Or by group**, when a whole area has drifted: `widgets`, `core`,
+      `network`, `security`, `services`, `config`, `auth`, `docs`, `workflows`,
+      `project`, `ios`. They combine freely —
+      `moarch update security docs extensions`.
+    - `moarch update --list` prints every name and group with the file it maps
+      to, so the slugs don't have to be guessed.
+    - **Templates that vary are rebuilt against the project they land in**, not
+      against a default: `app_logger.dart` keeps its Crashlytics branch,
+      `main.dart` keeps the router, localization and notification services the
+      project actually has, `app_exception.dart` keeps its Dio and Firebase
+      mappings, and `build_ipa.yml` keeps its Firebase steps. The options are
+      read back off the generated files and `pubspec.yaml` — the record that
+      stays true as the project is edited.
+    - **It refreshes, it never scaffolds.** A file the project declined at
+      `init` is not missing, so naming it does nothing rather than generating
+      it. `moarch update biometric` in a project without biometrics is a no-op.
+    - The three buckets are unchanged, and now apply to all of it: untouched
+      files refresh silently, edited ones are listed and diffed and never
+      written without `--force`.
 
 ## Improvements
 
-- **The country sheet is configured in one place.** `AppPhoneInput` carried its
-  own `SearchPickerSheet` setup — the flag leading each row, the calling code
-  trailing it, the ranked search that makes `PT` find Portugal rather than the
-  first name containing those letters. That configuration now lives in
-  `AppCountryPicker.show`, and the phone field opens it, so a standalone country
-  field and a phone prefix cannot drift apart. `phone-input` gains
-  `country-picker` as a dependency; the search sheet still arrives with it.
+- **`moarch init` now records every file it writes in `.moarch.yaml`**, where it
+  previously recorded only the widgets. That record is the whole basis for
+  telling an untouched generated file from one you edited — without it the rest
+  of the scaffold could only ever be reported as *needs review*.
+    - A project scaffolded before 2.8.0 has no record of its non-widget files,
+      so the first `moarch update` lists them as needing review even where they
+      are untouched. Refreshing or confirming them re-records them, and
+      subsequent runs are exact. That is the safe direction: nothing is
+      overwritten on the strength of a guess.
+- `.fvmrc` and `flutter_native_splash.yaml` are generated from `DevTemplates`
+  rather than from literals inside the init command, so what `init` writes and
+  what `update` compares against cannot drift apart.

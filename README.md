@@ -39,7 +39,10 @@ moarch create widget <name>        # add a UI-kit widget on demand (e.g. switch,
 moarch create widget all           # generate the whole UI kit + the preview screen
 moarch create widget --list        # list every available widget
 
-moarch update        # refresh generated widgets against the current templates
+moarch update        # refresh every generated file against the current templates
+moarch update <name> # ...or just one (e.g. validation, extensions, theme)
+moarch update <group># ...or one group (widgets, core, security, config, docs...)
+moarch update --list # list every name and group update accepts
 moarch doctor        # check the project for common scaffolding issues
 moarch doctor --fix  # ...and apply the ones that don't need a decision
 ```
@@ -552,18 +555,44 @@ restyle the whole app's typography from one place.
 
 ## Staying up to date
 
-Generated code goes stale: the UI kit keeps improving, and a project scaffolded
-two versions ago still has the old `app_input.dart`. `moarch update` closes that
-gap without ever gambling with your edits.
+Generated code goes stale: the templates keep improving, and a project scaffolded
+two versions ago still has the old `app_input.dart` and the old
+`validation_service.dart`. `moarch update` closes that gap without ever gambling
+with your edits.
 
 ```bash
-moarch update                # refresh what's safe, review the rest
+moarch update                # the whole project — refresh what's safe, review the rest
+moarch update --list         # every name and group update accepts
 moarch update --dry-run      # report only, write nothing
 moarch update --diff         # show what would change, line by line
-moarch update input button   # limit it to specific widgets
+moarch update validation     # one file, on its own
+moarch update input button   # or several
+moarch update core docs      # or whole groups
 ```
 
-It sorts every generated widget into one of three buckets:
+It covers everything the CLI generates, not just widgets — each addressable on
+its own:
+
+| group | what's in it |
+| --- | --- |
+| `widgets` | the whole `lib/shared/widgets/` kit (`input`, `button`, `toast`…) |
+| `core` | `extensions`, `logger`, `constants`, `api-constants`, `action-notifier`, `exception`, `main` |
+| `network` | `dio-client`, `safe-api-call` |
+| `security` | `validation`, `secure-storage`, `biometric` |
+| `services` | `media-service`, `notifications-service`, `permission-service`, `debouncer`… |
+| `config` | `theme`, `env`, `router`, `routes`, `firebase-providers` |
+| `auth` | the nine files of the generated auth feature |
+| `docs` | `ui-kit`, `deploy-checklist`, `security-checklist`, `jks-doc`, `workflow-doc` |
+| `workflows` | the five GitHub Actions workflows |
+| `project` | `analysis-options`, `splash`, `fvmrc`, `widget-test` |
+| `ios` | `ios-entitlements`, `ios-profile-entitlements`, `xcode-script` |
+
+Only files your project actually has are ever touched: `update` refreshes what is
+there, it never scaffolds what you chose not to generate. Templates that vary
+with your setup — `app_logger.dart` with Crashlytics, `main.dart` with the router
+and localization — are rebuilt against the project they're being written into.
+
+It sorts every generated file into one of three buckets:
 
 | | |
 | --- | --- |
@@ -579,8 +608,9 @@ it falls back to treating everything as needing review — safe, just less usefu
 Nothing in the third bucket is written unless you pass `--force`, which discards
 those edits. Run `git diff` after any update before committing.
 
-> `update` covers the `lib/shared/widgets/` kit — the part that actually churns
-> between releases. Features, core and config are yours once generated.
+> A project scaffolded by an older moarch has no record of the non-widget files,
+> so they report as *needs review* until the first `update` re-records them.
+> That's the safe direction: nothing is overwritten on the strength of a guess.
 
 ## Checking a project
 

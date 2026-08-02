@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'project_manifest.dart';
+
 /// Utility helpers for creating and writing scaffold files.
 ///
 /// Tracks files it creates during a session so a failed scaffold can be
@@ -11,13 +13,27 @@ class FileUtils {
   FileUtils._();
 
   static bool _dryRun = false;
+  static ProjectManifest? _manifest;
+  static String? _manifestRoot;
   static final List<String> _createdFiles = <String>[];
   static final List<String> _plannedWrites = <String>[];
 
   /// Starts a new tracking session. Call before a command begins writing
   /// files so [rollback] and [plannedWrites] reflect only this run.
-  static void beginSession({bool dryRun = false}) {
+  ///
+  /// Pass [manifest] and [projectRoot] to have every file actually written
+  /// recorded as moarch's own output — that record is the only thing letting
+  /// `moarch update` tell an untouched generated file from an edited one.
+  /// Files left in place because they already existed are deliberately not
+  /// recorded: their content is the user's, not ours to vouch for.
+  static void beginSession({
+    bool dryRun = false,
+    ProjectManifest? manifest,
+    String? projectRoot,
+  }) {
     _dryRun = dryRun;
+    _manifest = manifest;
+    _manifestRoot = projectRoot;
     _createdFiles.clear();
     _plannedWrites.clear();
   }
@@ -78,16 +94,28 @@ class FileUtils {
     if (!file.existsSync()) {
       await file.writeAsString(content);
       _createdFiles.add(filePath);
+      _record(filePath, content);
       return true;
     }
     if (p.basename(filePath) == 'analysis_options.yaml') {
       await file.writeAsString(content);
+      _record(filePath, content);
       return true;
     }
     if (overwriteWhen != null && overwriteWhen(await file.readAsString())) {
       await file.writeAsString(content);
+      _record(filePath, content);
       return true;
     }
     return false;
+  }
+
+  /// Notes [content] as what moarch wrote to [filePath], when the session was
+  /// given a manifest to record into.
+  static void _record(String filePath, String content) {
+    final manifest = _manifest;
+    final root = _manifestRoot;
+    if (manifest == null || root == null) return;
+    manifest.record(root, filePath, content);
   }
 }

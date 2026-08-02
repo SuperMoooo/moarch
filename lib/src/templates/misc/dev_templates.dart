@@ -35,6 +35,22 @@ linter:
         avoid_print: true
 ''';
 
+  /// The FVM pin written at the project root.
+  static String fvmrc() => '{\n  "flutter": "stable"\n}\n';
+
+  /// The splash configuration `flutter_native_splash` reads.
+  static String nativeSplash() => '''
+        # dart run flutter_native_splash:create --path=flutter_native_splash.yaml
+        # No icon because it will use the app icon files in each platform folder
+        flutter_native_splash:
+          color: '#FFFFFF' # BG COLOR (light mode)
+          color_dark: '#000000' # BG COLOR (dark mode)
+
+          android_12:
+              color: '#FFFFFF' # BG COLOR (light mode)
+              color_dark: '#000000' # BG COLOR (dark mode)
+    ''';
+
   /// Replaces the counter test `flutter create` writes.
   ///
   /// That test pumps the `MyApp` from the demo main.dart the scaffold replaces,

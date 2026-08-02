@@ -240,14 +240,19 @@ class InitCommand extends Command<int> {
     final progress = _logger.progress(
       dryRun ? 'Previewing structure' : 'Creating structure',
     );
-    FileUtils.beginSession(dryRun: dryRun);
 
-    // Records the stack and a hash of every widget written, so `moarch update`
+    // Records the stack and a hash of every file written, so `moarch update`
     // can later tell an untouched generated file from one the user edited.
     final manifest = ProjectManifest(
       version: packageVersion,
       generatedAt: DateTime.now(),
       stack: stack.toList()..sort(),
+    );
+
+    FileUtils.beginSession(
+      dryRun: dryRun,
+      manifest: manifest,
+      projectRoot: p.absolute(targetPath),
     );
 
     final pubspecFile = File(p.join(p.absolute(targetPath), 'pubspec.yaml'));
@@ -363,7 +368,7 @@ class InitCommand extends Command<int> {
     try {
       await _buildCore(libPath, stack);
       await _buildConfig(libPath, stack);
-      await _buildShared(libPath, stack, manifest);
+      await _buildShared(libPath, stack);
       await FileUtils.createDir(p.join(libPath, 'features'));
       if (stack.contains(_kAuthFeature)) {
         await _buildAuthFeature(libPath);
@@ -402,7 +407,7 @@ class InitCommand extends Command<int> {
 
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), '.fvmrc'),
-        '{\n  "flutter": "stable"\n}\n',
+        DevTemplates.fvmrc(),
       );
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), '.env'),
@@ -410,17 +415,9 @@ class InitCommand extends Command<int> {
       );
 
       await FileUtils.writeFile(
-          p.join(p.absolute(targetPath), 'flutter_native_splash.yaml'), '''
-        # dart run flutter_native_splash:create --path=flutter_native_splash.yaml
-        # No icon because it will use the app icon files in each platform folder
-        flutter_native_splash:
-          color: '#FFFFFF' # BG COLOR (light mode)
-          color_dark: '#000000' # BG COLOR (dark mode)
-
-          android_12:
-              color: '#FFFFFF' # BG COLOR (light mode)
-              color_dark: '#000000' # BG COLOR (dark mode)
-    ''');
+        p.join(p.absolute(targetPath), 'flutter_native_splash.yaml'),
+        DevTemplates.nativeSplash(),
+      );
 
       await FileUtils.writeFile(
           p.join(p.absolute(targetPath), 'analysis_options.yaml'),
@@ -1196,13 +1193,8 @@ class InitCommand extends Command<int> {
     }
   }
 
-  Future<void> _buildShared(
-    String libPath,
-    Set<String> stack,
-    ProjectManifest manifest,
-  ) async {
+  Future<void> _buildShared(String libPath, Set<String> stack) async {
     final s = p.join(libPath, 'shared', 'widgets');
-    final projectRoot = p.dirname(libPath);
     final hasRouter = stack.contains(_kRouter);
     final hasBiometric = stack.contains(_kBiometricAuth);
 
@@ -1219,10 +1211,7 @@ class InitCommand extends Command<int> {
       final content = spec.name == 'button'
           ? SharedTemplates.appButton(hasBiometricAuth: hasBiometric)
           : spec.template();
-      final path = p.join(s, spec.file);
-      if (await FileUtils.writeFile(path, content)) {
-        manifest.record(projectRoot, path, content);
-      }
+      await FileUtils.writeFile(p.join(s, spec.file), content);
     }
 
     // A catalog of the whole UI kit and how to scaffold the rest on demand.
