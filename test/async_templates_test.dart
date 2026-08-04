@@ -55,6 +55,59 @@ void main() {
     test('a nullable T can still hold null as its value', () {
       expect(output, contains('final data = value.value as T;'));
     });
+
+    test('takes a raw Stream or Future, not only a provider\'s AsyncValue', () {
+      expect(output, contains('const AppAsyncView.stream({'));
+      expect(output, contains('required Stream<T> stream,'));
+      expect(output, contains('const AppAsyncView.future({'));
+      expect(output, contains('required Future<T> future,'));
+    });
+
+    test('all three sources land in the same four-state mapping', () {
+      // The constructors differ in where the value comes from and in nothing
+      // else: the copy, the skeleton and the empty test are declared once.
+      expect(
+        output,
+        contains('Widget _render(BuildContext context, AsyncValue<T> value) {'),
+      );
+      expect(
+        output,
+        contains('if (value != null) return _render(context, value);'),
+      );
+      expect(output, contains('builder: _render,'));
+    });
+
+    test('a raw source keeps what it has already emitted', () {
+      // `copyWithPrevious` is what makes an error mid-stream, or a stream
+      // swapped for another, leave the loaded data on screen.
+      expect(
+        output,
+        contains('_value = AsyncValue<T>.loading().copyWithPrevious(_value);'),
+      );
+      expect(
+        output,
+        contains('setState(() => _value = next.copyWithPrevious(_value));'),
+      );
+    });
+
+    test('the subscription lives and dies with the element', () {
+      expect(output, contains('_subscription = stream.listen('));
+      expect(
+        output,
+        contains('void didUpdateWidget(covariant _AsyncSource<T> oldWidget) {'),
+      );
+      expect(output, contains('void dispose() {\n    _unsubscribe();'));
+      expect(output, contains('_subscription?.cancel();'));
+    });
+
+    test('a late result is not drawn over the source that replaced it', () {
+      // A Future keeps running after the widget stopped waiting for it.
+      expect(output, contains('if (!mounted) return;'));
+      expect(
+        output,
+        contains('if (from != null && !identical(from, _pending)) return;'),
+      );
+    });
   });
 
   group('actionListener', () {

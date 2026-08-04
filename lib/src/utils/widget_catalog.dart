@@ -515,7 +515,7 @@ abstract final class WidgetCatalog {
       deps: ['error-view', 'empty-view'],
       packages: ['skeletonizer: '],
       description:
-          'Renders one AsyncValue as the four states it can be in — skeleton, error, empty, data — and keeps the old data on screen through a refresh.',
+          'Renders an AsyncValue, a Stream or a Future as the four states it can be in — skeleton, error, empty, data — and keeps the old data on screen through a refresh.',
     ),
     WidgetSpec(
       name: 'action-listener',

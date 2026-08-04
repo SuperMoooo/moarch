@@ -148,6 +148,31 @@ builds inline, so the `Scaffold` keeps its app bar throughout. An error that
 carries no message of its own shows no detail — a stringified exception tells the
 user nothing and leaks how the app is put together.
 
+The value can come from anywhere. A notifier, a `FutureProvider` and a
+`StreamProvider` all hand back an `AsyncValue`; for the sources that never became
+a provider — a Firestore query, a socket, a one-off fetch — there are two more
+constructors that take the source itself:
+
+```dart
+AppAsyncView<List<Order>>.stream(
+  stream: repository.watchOrders(),
+  isEmpty: (orders) => orders.isEmpty,
+  builder: (context, orders) => OrderList(orders),
+)
+
+AppAsyncView<Order>.future(
+  future: repository.fetchOrder(id),
+  builder: (context, order) => OrderDetail(order),
+)
+```
+
+Same four states, same copy, same retry — only where the data comes from
+changes. The subscription is the widget's: it starts with the element, is
+cancelled with it, and is swapped when a different stream is passed. It holds
+the same line on refreshes too, so a stream that errors, or one replaced by
+another, keeps what it had already emitted on screen. A `Future` that completes
+after the screen moved on is dropped rather than drawn over what came next.
+
 `listenAction` reads the one-shot `error` / `success` fields the generated state
 already clears on every `copyWith`, and toasts whichever arrived — one outcome
 per action, never both. Pass `onError` / `onSuccess` to navigate or log instead;
