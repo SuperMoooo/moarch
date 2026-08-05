@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 
 import '../templates/ui/shared_templates.dart';
 import 'file_utils.dart';
+import 'plist_utils.dart';
 import 'project_manifest.dart';
 import 'pubspec_utils.dart';
 import 'widget_catalog.dart';
@@ -77,6 +78,7 @@ abstract final class ProjectInspector {
     return [
       ..._structure(root, libPath),
       if (pubspec != null) ..._dependencies(libPath, pubspec),
+      if (pubspec != null) ..._firebase(root, libPath, pubspec),
       if (pubspec != null) ..._localization(libPath, pubspec),
       ..._codegen(libPath),
       ..._widgets(root, libPath, pubspec),
@@ -142,6 +144,192 @@ abstract final class ProjectInspector {
     }
 
     return findings;
+  }
+
+  // ── Firebase ────────────────────────────────────────────────────────────────
+
+  /// The three ways a Firebase-backed project is generated correctly but
+  /// wired up incompletely — each of which only shows up at runtime, on the
+  /// first call, as an exception with no obvious cause.
+  static List<Diagnostic> _firebase(
+    String root,
+    String libPath,
+    String pubspec,
+  ) {
+    final hasFirestore = pubspec.contains('cloud_firestore:');
+    final hasFirebaseAuth = pubspec.contains('firebase_auth:');
+    if (!hasFirestore && !hasFirebaseAuth) return const [];
+
+    final findings = <Diagnostic>[];
+
+    // The generated app_exception.dart and safe_firebase_call.dart import
+    // firebase_core directly, so a transitive dependency is not enough.
+    if (!pubspec.contains('firebase_core:')) {
+      findings.add(
+        Diagnostic.error(
+          'firebase_core is missing from pubspec.yaml',
+          hint: 'The generated Firebase error mapping imports it directly.',
+          fix: () async {
+            await PubspecUtils.ensureDependencies(
+              root,
+              dependencies: ['firebase_core: '],
+            );
+            return 'added firebase_core to pubspec.yaml (run `flutter pub get`)';
+          },
+        ),
+      );
+    }
+
+    // The Firebase auth feature's datasource is the only generated file that
+    // imports google_sign_in.
+    final usesGoogleSignIn = File(p.join(libPath, 'features', 'auth', 'data',
+                'datasources', 'auth_remote_datasource.dart'))
+            .existsSync() &&
+        File(p.join(libPath, 'features', 'auth', 'domain', 'entities',
+                'auth_user_entity.dart'))
+            .existsSync();
+
+    if (usesGoogleSignIn && !pubspec.contains('google_sign_in:')) {
+      findings.add(
+        Diagnostic.error(
+          'google_sign_in is missing from pubspec.yaml but the auth feature '
+          'signs in with Google',
+          hint: 'Add `google_sign_in: ^7.0.0` and run `flutter pub get`.',
+          fix: () async {
+            await PubspecUtils.ensureDependencies(
+              root,
+              dependencies: ['google_sign_in: ^7.0.0'],
+            );
+            return 'added google_sign_in to pubspec.yaml (run `flutter pub get`)';
+          },
+        ),
+      );
+    }
+
+    // Nothing Firebase works before initializeApp — reading any provider
+    // first throws "No Firebase App '[DEFAULT]' has been created". Not
+    // auto-fixed: by this point main.dart is the user's file.
+    final mainFile = File(p.join(libPath, 'main.dart'));
+    if (mainFile.existsSync() &&
+        !mainFile.readAsStringSync().contains('Firebase.initializeApp')) {
+      findings.add(
+        const Diagnostic.warning(
+          'lib/main.dart never calls Firebase.initializeApp()',
+          hint: 'Add `await Firebase.initializeApp();` before runApp — every '
+              'Firestore/Auth call throws without it. Run `flutterfire '
+              'configure` first and pass DefaultFirebaseOptions.currentPlatform.',
+        ),
+      );
+    }
+
+    // The per-platform config `flutterfire configure` writes. Without them
+    // Firebase.initializeApp() fails on that platform at launch.
+    final androidConfig =
+        File(p.join(root, 'android', 'app', 'google-services.json'));
+    final iosConfig =
+        File(p.join(root, 'ios', 'Runner', 'GoogleService-Info.plist'));
+    final missingConfigs = [
+      if (Directory(p.join(root, 'android')).existsSync() &&
+          !androidConfig.existsSync())
+        'android/app/google-services.json',
+      if (Directory(p.join(root, 'ios')).existsSync() &&
+          !iosConfig.existsSync())
+        'ios/Runner/GoogleService-Info.plist',
+    ];
+    if (missingConfigs.isNotEmpty) {
+      findings.add(
+        Diagnostic.warning(
+          '${missingConfigs.join(' and ')} missing',
+          hint: 'Run `flutterfire configure` to generate the platform config. '
+              'Keep these files out of version control if the project is public.',
+        ),
+      );
+    }
+
+    findings.addAll(_googleSignInPlist(root, usesGoogleSignIn, iosConfig));
+
+    return findings;
+  }
+
+  /// Google sign-in on iOS needs `GIDClientID` and the `REVERSED_CLIENT_ID`
+  /// URL scheme in `Info.plist` — the plugin never reads
+  /// `GoogleService-Info.plist` itself.
+  ///
+  /// `moarch init` writes placeholders when it runs before
+  /// `flutterfire configure`; this is the other half of that deal, and the
+  /// fix is exactly the copy the user would otherwise do by hand.
+  static List<Diagnostic> _googleSignInPlist(
+    String root,
+    bool usesGoogleSignIn,
+    File iosConfig,
+  ) {
+    if (!usesGoogleSignIn) return const [];
+
+    final infoPlist = File(p.join(root, 'ios', 'Runner', 'Info.plist'));
+    if (!infoPlist.existsSync()) return const [];
+
+    final content = infoPlist.readAsStringSync();
+    final hasClientId = content.contains('<key>GIDClientID</key>');
+    final hasScheme = content.contains('com.googleusercontent.apps.');
+    final hasPlaceholder =
+        content.contains(PlistUtils.googleClientIdPlaceholder) ||
+            content.contains(PlistUtils.googleReversedClientIdPlaceholder);
+
+    if (hasClientId && hasScheme && !hasPlaceholder) return const [];
+
+    // Nothing to copy from yet — say what is missing and leave it.
+    if (!iosConfig.existsSync()) {
+      return [
+        Diagnostic.warning(
+          hasPlaceholder
+              ? 'ios/Runner/Info.plist still has placeholder Google client ids'
+              : 'ios/Runner/Info.plist is missing the Google sign-in keys',
+          hint: 'Run `flutterfire configure` to get GoogleService-Info.plist, '
+              'then `moarch doctor --fix` to copy CLIENT_ID and '
+              'REVERSED_CLIENT_ID into Info.plist.',
+        ),
+      ];
+    }
+
+    final source = iosConfig.readAsStringSync();
+    final clientId = PlistUtils.readString(source, 'CLIENT_ID');
+    final reversed = PlistUtils.readString(source, 'REVERSED_CLIENT_ID');
+    if (clientId == null || reversed == null) {
+      return [
+        const Diagnostic.warning(
+          'GoogleService-Info.plist has no CLIENT_ID — Google sign-in is not '
+          'enabled for this Firebase app',
+          hint: 'Firebase console → Authentication → Sign-in method → Google, '
+              'then re-download GoogleService-Info.plist.',
+        ),
+      ];
+    }
+
+    return [
+      Diagnostic.error(
+        hasPlaceholder
+            ? 'ios/Runner/Info.plist still has placeholder Google client ids'
+            : 'ios/Runner/Info.plist is missing the Google sign-in keys',
+        hint: 'Copy CLIENT_ID into GIDClientID and REVERSED_CLIENT_ID into '
+            'CFBundleURLSchemes.',
+        fix: () async {
+          var patched = content
+              .replaceAll(PlistUtils.googleClientIdPlaceholder, clientId)
+              .replaceAll(
+                  PlistUtils.googleReversedClientIdPlaceholder, reversed);
+          patched = PlistUtils.ensureEntries(patched, {
+            'GIDClientID': clientId,
+          });
+          patched = PlistUtils.ensureUrlScheme(
+            patched,
+            reversed,
+            comment: 'Google sign-in (REVERSED_CLIENT_ID)',
+          );
+          await infoPlist.writeAsString(patched);
+          return 'wrote the Google client ids into ios/Runner/Info.plist';
+        },
+      ),
+    ];
   }
 
   // ── Localization ────────────────────────────────────────────────────────────

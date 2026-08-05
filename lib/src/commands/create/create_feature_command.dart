@@ -6,16 +6,22 @@ import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/core/services_templates.dart';
 import 'package:path/path.dart' as p;
 
+import '../../templates/config/config_templates.dart';
 import '../../templates/ui/feature_templates.dart';
 import '../../utils/checklist.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/project_manifest.dart';
 import '../../utils/pubspec_utils.dart';
+import '../../utils/scaffold_catalog.dart';
 import '../../utils/string_utils.dart';
 import '../../utils/widget_catalog.dart';
 
 // Layer labels used in the checklist
 const _kRemoteDatasource = 'Remote Datasource';
+// Shown in place of the label above when the project has both backends, so
+// the choice of which one this feature talks to is the user's.
+const _kDioDatasource = 'Remote Datasource (Dio)';
+const _kFirestoreDatasource = 'Remote Datasource (Firestore)';
 const _kLocalDatasource = 'Local/Cache Datasource';
 const _kRepository = 'Repository (interface + impl)';
 const _kUseCases = 'Use Cases';
@@ -123,6 +129,16 @@ class CreateFeatureCommand extends Command<int> {
 
     // ── New feature ───────────────────────────────────────────────────────────
 
+    // What this project talks to. The datasource is the one layer whose shape
+    // depends on it: Dio and a REST path, or a Firestore collection.
+    final context = ScaffoldContext.detect(p.dirname(p.absolute(libPath)));
+    final hasDio = context.hasDio;
+    final hasFirestore = context.hasFirestore;
+    // Both installed → the user picks per feature. Only one → that one. None
+    // detected → Dio, which is what every project scaffolded so far used.
+    final bothBackends = hasDio && hasFirestore;
+    var useFirestore = hasFirestore && !hasDio;
+
     // Layer checklist
     final skipChecklist = argResults?['all'] as bool? ?? false;
 
@@ -142,11 +158,28 @@ class CreateFeatureCommand extends Command<int> {
         selected = Checklist.prompt(
           title: '  Select layers for "$className":',
           items: [
-            const ChecklistItem(
-              _kRemoteDatasource,
-              defaultOn: true,
-              description: 'Fetches data from an API via the Dio client.',
-            ),
+            if (bothBackends) ...[
+              const ChecklistItem(
+                _kDioDatasource,
+                defaultOn: true,
+                description: 'Fetches data from an API via the Dio client.',
+                excludes: {_kFirestoreDatasource},
+              ),
+              const ChecklistItem(
+                _kFirestoreDatasource,
+                defaultOn: false,
+                description:
+                    'Reads, writes and watches a Firestore collection.',
+                excludes: {_kDioDatasource},
+              ),
+            ] else
+              ChecklistItem(
+                _kRemoteDatasource,
+                defaultOn: true,
+                description: useFirestore
+                    ? 'Reads, writes and watches a Firestore collection.'
+                    : 'Fetches data from an API via the Dio client.',
+              ),
             const ChecklistItem(
               _kLocalDatasource,
               defaultOn: false,
@@ -182,6 +215,17 @@ class CreateFeatureCommand extends Command<int> {
       }
     }
 
+    // Fold the backend-specific labels back into the canonical one, so
+    // everything below only asks "is there a remote datasource?".
+    if (selected.remove(_kFirestoreDatasource)) {
+      selected.add(_kRemoteDatasource);
+      useFirestore = true;
+    }
+    if (selected.remove(_kDioDatasource)) {
+      selected.add(_kRemoteDatasource);
+      useFirestore = false;
+    }
+
     // The use case and notifier templates depend on the repository provider,
     // so generating them without it would produce broken imports.
     if ((selected.contains(_kUseCases) || selected.contains(_kStateNotifier)) &&
@@ -213,7 +257,14 @@ class CreateFeatureCommand extends Command<int> {
           className,
           varName,
           hasRepo: selected.contains(_kRepository),
+          useFirestore: useFirestore,
         );
+        if (useFirestore) {
+          // The datasource imports the Firebase providers and the safe-call
+          // wrapper. A project that took Firestore through `moarch init` has
+          // both; one that added cloud_firestore by hand does not.
+          await _ensureFirebaseFiles(libPath, context);
+        }
       }
       if (selected.contains(_kLocalDatasource)) {
         await _writeLocalDatasource(
@@ -230,8 +281,10 @@ class CreateFeatureCommand extends Command<int> {
         );
       }
       if (needsDataLayer) {
-        await _writeModel(featurePath, featureName, className);
-        await _writeEntity(featurePath, featureName, className);
+        await _writeModel(featurePath, featureName, className,
+            useFirestore: useFirestore);
+        await _writeEntity(featurePath, featureName, className,
+            useFirestore: useFirestore);
       }
       if (selected.contains(_kUseCases)) {
         await _writeUsecase(featurePath, featureName, className, varName);
@@ -280,6 +333,12 @@ class CreateFeatureCommand extends Command<int> {
       includeUnit: false,
       includeIntegration: false,
     );
+    if (useFirestore && selected.contains(_kRemoteDatasource)) {
+      _logger.info(
+          '  Firestore-backed — point `collectionPath` in ${featureName}_remote_datasource.dart');
+      _logger.info('  at your collection, and check your security rules.');
+      _logger.info('');
+    }
     _logger.info(
         'If you want tests, use the mogen_unit_tests and mogen_integration_tests package on pub.dev.');
     return 0;
@@ -335,12 +394,59 @@ class CreateFeatureCommand extends Command<int> {
     await manifest.save(projectRoot);
   }
 
+  /// Writes the Firebase files the Firestore datasource imports, for a project
+  /// that has cloud_firestore but was never scaffolded with it.
+  ///
+  /// Mirrors [_ensureViewWidgets]: [FileUtils.writeFile] never overwrites, so
+  /// a project that already has them is left exactly as it is.
+  Future<void> _ensureFirebaseFiles(
+    String libPath,
+    ScaffoldContext context,
+  ) async {
+    final projectRoot = p.dirname(p.absolute(libPath));
+    final manifest = ProjectManifest.loadOrCreate(projectRoot);
+
+    final files = <String, String>{
+      p.join(libPath, 'config', 'firebase', 'firebase_providers.dart'):
+          ConfigTemplates.firebaseProviders(
+        hasAuth: context.hasFirebaseAuth,
+        hasDb: true,
+      ),
+      p.join(libPath, 'core', 'network', 'safe_firebase_call.dart'):
+          CoreTemplates.safeFirebaseCall(withAuth: context.hasFirebaseAuth),
+    };
+
+    var wroteAny = false;
+    for (final entry in files.entries) {
+      if (!await FileUtils.writeFile(entry.key, entry.value)) continue;
+      // Recorded so `moarch update` can tell a file it wrote from one the
+      // user has since edited.
+      manifest.record(projectRoot, entry.key, entry.value);
+      wroteAny = true;
+    }
+
+    if (wroteAny) await manifest.save(projectRoot);
+
+    // A project scaffolded with Firebase Auth but no Firestore has a providers
+    // file with no firebaseDbProvider in it, and the file above was left alone
+    // because it already existed — so the new datasource would not compile.
+    final providersFile =
+        File(p.join(libPath, 'config', 'firebase', 'firebase_providers.dart'));
+    if (providersFile.existsSync() &&
+        !providersFile.readAsStringSync().contains('firebaseDbProvider')) {
+      _logger.warn(
+          '  config/firebase/firebase_providers.dart has no firebaseDbProvider.');
+      _logger.info('    Add it, or run: moarch update firebase-providers');
+    }
+  }
+
   Future<void> _writeRemoteDatasource(
       String fp, String name, String cls, String varName,
-      {required bool hasRepo}) async {
+      {required bool hasRepo, bool useFirestore = false}) async {
     await FileUtils.writeFile(
       p.join(fp, 'data', 'datasources', '${name}_remote_datasource.dart'),
-      FeatureTemplates.remoteDatasource(name, cls, varName),
+      FeatureTemplates.remoteDatasource(name, cls, varName,
+          useFirestore: useFirestore),
     );
   }
 
@@ -372,17 +478,19 @@ class CreateFeatureCommand extends Command<int> {
     );
   }
 
-  Future<void> _writeModel(String fp, String name, String cls) async {
+  Future<void> _writeModel(String fp, String name, String cls,
+      {bool useFirestore = false}) async {
     await FileUtils.writeFile(
       p.join(fp, 'data', 'models', '${name}_model.dart'),
-      FeatureTemplates.model(name, cls),
+      FeatureTemplates.model(name, cls, useFirestore: useFirestore),
     );
   }
 
-  Future<void> _writeEntity(String fp, String name, String cls) async {
+  Future<void> _writeEntity(String fp, String name, String cls,
+      {bool useFirestore = false}) async {
     await FileUtils.writeFile(
       p.join(fp, 'domain', 'entities', '${name}_entity.dart'),
-      FeatureTemplates.entity(name, cls),
+      FeatureTemplates.entity(name, cls, useFirestore: useFirestore),
     );
   }
 

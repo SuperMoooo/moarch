@@ -55,6 +55,41 @@ moarch doctor --fix  # ...and apply the ones that don't need a decision
 - secure storage, logger, helpers, and a full shared UI kit / design system (see below)
 - optional services such as notifications (local or Firebase push), URL launcher, media, debounce
 - optional localization: flutter_localizations (`lib/l10n/` + `.arb` files) or easy_localization (`assets/translations/` JSON files) — pick one, the checklist keeps them mutually exclusive
+- a backend: Dio against a REST API, Firebase (Firestore / Auth), or both (see below)
+
+### Dio or Firebase
+
+The backend you pick in the first checklist decides what the data layer is made
+of. Nothing else about the architecture moves: the same layers, the same provider
+names, the same `AppException` reaching the same `AppAsyncView`.
+
+| | Dio | Firebase |
+| --- | --- | --- |
+| datasource holds | `final Dio _dio;` | `final FirebaseFirestore _firestore;` |
+| calls go through | `safeApiCall` | `safeFirebaseCall` / `safeFirebaseStream` |
+| entity `id` | `int` | `String` — a document id |
+| errors mapped by | `AppException.fromDioError` | `fromFirebaseError` + `fromFirebaseAuthError` |
+| auth feature | tokens in secure storage, refresh interceptor | Firebase Auth, email/password + Google |
+
+`moarch create feature <name>` follows the same choice. In a Firestore project
+the datasource comes out with `fetchAll` / `fetchOne` / `watchAll` /
+`create` / `save` / `delete` over one collection; in a project with **both**
+backends installed, the layer checklist asks which one this feature talks to.
+
+Selecting **Firebase Auth** together with the auth feature generates it against
+Firebase instead of REST: email/password, Google sign-in, password reset, account
+deletion, and a session restored from `authStateChanges()` rather than from a
+stored refresh token. With Firestore also selected it keeps a `users/{uid}`
+profile document in step with the account. Dio is not pulled in for it, and no
+tokens are stored — Firebase persists the session itself.
+
+Google sign-in needs work outside Dart that nothing in the build will remind you
+about, so `init` writes **`docs/FIREBASE_SETUP.md`** with all of it: enabling the
+providers, the Android SHA-1/SHA-256 fingerprints, and the two iOS `Info.plist`
+keys (`GIDClientID` and the `REVERSED_CLIENT_ID` URL scheme). Those two are
+written into `Info.plist` for you when `GoogleService-Info.plist` already exists;
+otherwise placeholders go in and `moarch doctor --fix` copies the real values
+across once `flutterfire configure` has run.
 
 ### Input validation
 
@@ -602,12 +637,12 @@ its own:
 | --- | --- |
 | `widgets` | the whole `lib/shared/widgets/` kit (`input`, `button`, `toast`…) |
 | `core` | `extensions`, `logger`, `constants`, `api-constants`, `action-notifier`, `exception`, `main` |
-| `network` | `dio-client`, `safe-api-call` |
+| `network` | `dio-client`, `safe-api-call`, `safe-firebase-call` |
 | `security` | `validation`, `secure-storage`, `biometric` |
 | `services` | `media-service`, `notifications-service`, `permission-service`, `debouncer`… |
 | `config` | `theme`, `env`, `router`, `routes`, `firebase-providers` |
-| `auth` | the nine files of the generated auth feature |
-| `docs` | `ui-kit`, `deploy-checklist`, `security-checklist`, `jks-doc`, `workflow-doc` |
+| `auth` | the nine files of the generated auth feature, REST or Firebase |
+| `docs` | `ui-kit`, `deploy-checklist`, `security-checklist`, `jks-doc`, `workflow-doc`, `firebase-doc` |
 | `workflows` | the five GitHub Actions workflows |
 | `project` | `analysis-options`, `splash`, `fvmrc`, `widget-test` |
 | `ios` | `ios-entitlements`, `ios-profile-entitlements`, `xcode-script` |
@@ -615,7 +650,8 @@ its own:
 Only files your project actually has are ever touched: `update` refreshes what is
 there, it never scaffolds what you chose not to generate. Templates that vary
 with your setup — `app_logger.dart` with Crashlytics, `main.dart` with the router
-and localization — are rebuilt against the project they're being written into.
+and localization, the auth feature against REST or Firebase — are rebuilt against
+the project they're being written into.
 
 It sorts every generated file into one of three buckets:
 
@@ -648,11 +684,17 @@ those edits. Run `git diff` after any update before committing.
 - a generated widget whose dependency or pub package was never added — a
   broken import either way
 - `go_router` and `config/router/` out of sync
+- Firebase half-wired: no `Firebase.initializeApp()` in `main.dart`, a missing
+  `google-services.json` / `GoogleService-Info.plist`, `firebase_core` or
+  `google_sign_in` absent from `pubspec.yaml`, or `Info.plist` still carrying
+  the placeholder Google client ids — each of which fails at runtime, on the
+  first call, with an error that doesn't name the step that was missed
 
 Each finding says what to do about it, and `moarch doctor --fix` applies the
 mechanical ones — generating a missing widget dependency, adding a missing
-package. Anything that's a genuine choice (which localization package to drop)
-is reported and left to you.
+package, copying `CLIENT_ID` and `REVERSED_CLIENT_ID` out of
+`GoogleService-Info.plist` into `Info.plist`. Anything that's a genuine choice
+(which localization package to drop) is reported and left to you.
 
 ## Local development
 

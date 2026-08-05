@@ -1,0 +1,704 @@
+/// Generates the auth feature scaffold backed by Firebase Auth — email /
+/// password plus Google sign-in — instead of the REST client.
+///
+/// The layer names and provider names match [AuthTemplates] exactly, so the
+/// router guard, the notifier and anything else reading `authNotifierProvider`
+/// work the same whichever backend the project chose. What changes is what
+/// sits behind the datasource: `FirebaseAuth` and `GoogleSignIn` rather than
+/// Dio and `TokenStorage` — Firebase persists the session itself, so there
+/// are no tokens for the app to store.
+class FirebaseAuthTemplates {
+  FirebaseAuthTemplates._();
+
+  // ── Domain — Entity ─────────────────────────────────────────────────────────
+
+  /// Returns the generated auth user entity template.
+  static String entity() => r'''
+class AuthUserEntity {
+  const AuthUserEntity({
+    required this.id,
+    this.email,
+    this.displayName,
+    this.photoUrl,
+    this.emailVerified = false,
+  });
+
+  /// The Firebase Auth uid. Also the document id of the user's profile when
+  /// the project stores one in Firestore.
+  final String id;
+
+  final String? email;
+  final String? displayName;
+  final String? photoUrl;
+  final bool emailVerified;
+
+  @override
+  bool operator ==(Object other) => other is AuthUserEntity && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
+}
+''';
+
+  // ── Domain — Repository interface ───────────────────────────────────────────
+
+  /// Returns the generated auth repository interface template.
+  static String repositoryInterface() => r'''
+import '../entities/auth_user_entity.dart';
+
+abstract interface class AuthRepository {
+  /// Emits the signed-in user, or null once they sign out.
+  ///
+  /// Firebase restores the persisted session asynchronously at start-up, so
+  /// this is what says whether the app opened signed in — `currentUser` can
+  /// still be null for a moment after launch.
+  Stream<AuthUserEntity?> authStateChanges();
+
+  /// True when a session was restored for this device.
+  Future<bool> isLoggedIn();
+
+  /// The signed-in user, or null.
+  Future<AuthUserEntity?> currentUser();
+
+  /// Signs in with email and password.
+  Future<AuthUserEntity> login({
+    required String email,
+    required String password,
+  });
+
+  /// Creates the account, optionally setting a display name on it.
+  Future<AuthUserEntity> register({
+    required String email,
+    required String password,
+    String? displayName,
+  });
+
+  /// Google sign-in, exchanged for a Firebase session.
+  ///
+  /// Throws an [AppException] of type `cancelled` when the user dismisses the
+  /// Google sheet — nothing failed, so there is nothing to report.
+  Future<AuthUserEntity> signInWithGoogle();
+
+  /// Sends the password reset email Firebase hosts.
+  Future<void> sendPasswordResetEmail({required String email});
+
+  /// Ends the session — Google's too, when that is how the user signed in.
+  Future<void> logout();
+
+  /// Deletes the account. Firebase requires a recent sign-in for this and
+  /// reports `requires-recent-login` when the session is too old.
+  Future<void> deleteAccount();
+
+  /// The signed-in user's uid.
+  Future<String?> currentUserId();
+}
+''';
+
+  // ── Data — Model ────────────────────────────────────────────────────────────
+
+  /// Returns the generated auth user model template.
+  ///
+  /// [withFirestore] adds the JSON mapping for the `users/{uid}` profile
+  /// document — Firebase Auth holds the credentials, everything else about a
+  /// user belongs in Firestore.
+  static String model({bool withFirestore = false}) {
+    const header = r'''
+import 'package:firebase_auth/firebase_auth.dart';
+
+import '../../domain/entities/auth_user_entity.dart';
+
+class AuthUserModel extends AuthUserEntity {
+  const AuthUserModel({
+    required super.id,
+    super.email,
+    super.displayName,
+    super.photoUrl,
+    super.emailVerified,
+  });
+
+  /// The FirebaseAuth user as the rest of the app sees it.
+  factory AuthUserModel.fromFirebaseUser(User user) => AuthUserModel(
+        id: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoUrl: user.photoURL,
+        emailVerified: user.emailVerified,
+      );
+''';
+
+    const firestoreMapping = r'''
+
+  /// The profile document at `users/{uid}` — the id is the document's name,
+  /// not one of its fields.
+  factory AuthUserModel.fromJson(
+    Map<String, dynamic> json, {
+    required String id,
+  }) {
+    return AuthUserModel(
+      id: id,
+      email: json['email'] as String?,
+      displayName: json['displayName'] as String?,
+      photoUrl: json['photoUrl'] as String?,
+      emailVerified: json['emailVerified'] as bool? ?? false,
+      // TODO: parse the rest of your profile fields
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'email': email,
+      'displayName': displayName,
+      'photoUrl': photoUrl,
+      'emailVerified': emailVerified,
+      // TODO: add the rest of your profile fields
+    };
+  }
+''';
+
+    return '$header${withFirestore ? firestoreMapping : ''}}\n';
+  }
+
+  // ── Data — Remote datasource ────────────────────────────────────────────────
+
+  /// Returns the generated auth remote datasource template.
+  ///
+  /// [withFirestore] adds the user-profile document calls, so the datasource
+  /// holds `_firestore` alongside `_auth`.
+  static String remoteDatasource({bool withFirestore = false}) {
+    final firestoreImport = withFirestore
+        ? "import 'package:cloud_firestore/cloud_firestore.dart';\n"
+        : '';
+
+    final firestoreProviderArg =
+        withFirestore ? '\n    ref.watch(firebaseDbProvider),' : '';
+
+    final firestoreField = withFirestore
+        ? r'''
+  final FirebaseFirestore _firestore;
+
+  /// Where the user profile documents live.
+  static const String usersCollection = 'users';
+'''
+        : '';
+
+    final firestoreCtorParam = withFirestore ? ', this._firestore' : '';
+
+    final firestoreMethods = withFirestore
+        ? r'''
+
+  // ── Profile document ──────────────────────────────────────────────────────
+  // Firebase Auth stores the credentials; anything else you know about a user
+  // goes here. Lock it down in your Firestore rules to
+  // `request.auth.uid == userId`.
+
+  DocumentReference<Map<String, dynamic>> _profileRef(String id) =>
+      _firestore.collection(usersCollection).doc(id);
+
+  /// `merge: true` so signing in again never blanks fields the profile has
+  /// but FirebaseAuth doesn't know about.
+  Future<void> saveProfile(AuthUserModel user) {
+    return safeFirebaseCall<void>(
+      call: () => _profileRef(user.id).set(
+        user.toJson(),
+        SetOptions(merge: true),
+      ),
+    );
+  }
+
+  Future<AuthUserModel?> fetchProfile(String id) {
+    return safeFirebaseCall<AuthUserModel?>(
+      call: () async {
+        final doc = await _profileRef(id).get();
+        final data = doc.data();
+        if (data == null) return null;
+        return AuthUserModel.fromJson(data, id: doc.id);
+      },
+    );
+  }
+
+  Future<void> deleteProfile(String id) {
+    return safeFirebaseCall<void>(call: () => _profileRef(id).delete());
+  }
+'''
+        : '';
+
+    return '''
+${firestoreImport}import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+
+import '../../../../config/firebase/firebase_providers.dart';
+import '../../../../core/errors/app_exception.dart';
+import '../../../../core/network/safe_firebase_call.dart';
+import '../models/auth_user_model.dart';
+
+/// The **web** client id from Firebase console → Authentication → Sign-in
+/// method → Google → Web SDK configuration.
+///
+/// Android and iOS normally read their client id from google-services.json /
+/// GoogleService-Info.plist and this can stay null. Set it when sign-in comes
+/// back without an ID token, or when you target web or desktop.
+const String? kGoogleServerClientId = null;
+
+final authRemoteDataSourceProvider = Provider<AuthRemoteDataSource>(
+  (ref) => AuthRemoteDataSource(
+    ref.watch(firebaseAuthProvider),
+    GoogleSignIn.instance,$firestoreProviderArg
+  ),
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class AuthRemoteDataSource {
+  AuthRemoteDataSource(this._auth, this._googleSignIn$firestoreCtorParam);
+
+  final FirebaseAuth _auth;
+  final GoogleSignIn _googleSignIn;
+$firestoreField
+  bool _googleReady = false;
+
+  /// Fires on sign-in, sign-out, token refresh and account deletion — and
+  /// once at start-up with the session Firebase restored from disk.
+  Stream<AuthUserModel?> authStateChanges() => _auth.authStateChanges().map(
+        (user) => user == null ? null : AuthUserModel.fromFirebaseUser(user),
+      );
+
+  AuthUserModel? get currentUser {
+    final user = _auth.currentUser;
+    return user == null ? null : AuthUserModel.fromFirebaseUser(user);
+  }
+
+  Future<AuthUserModel> login({
+    required String email,
+    required String password,
+  }) {
+    return safeFirebaseCall<AuthUserModel>(
+      call: () async {
+        final credential = await _auth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+        return AuthUserModel.fromFirebaseUser(credential.user!);
+      },
+    );
+  }
+
+  Future<AuthUserModel> register({
+    required String email,
+    required String password,
+    String? displayName,
+  }) {
+    return safeFirebaseCall<AuthUserModel>(
+      call: () async {
+        final credential = await _auth.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+        final user = credential.user!;
+        if (displayName != null && displayName.isNotEmpty) {
+          await user.updateDisplayName(displayName);
+          // updateDisplayName does not touch the cached user object.
+          await user.reload();
+        }
+        return AuthUserModel.fromFirebaseUser(_auth.currentUser ?? user);
+      },
+    );
+  }
+
+  /// Interactive Google sign-in, exchanged for a Firebase session.
+  Future<AuthUserModel> signInWithGoogle() {
+    return safeFirebaseCall<AuthUserModel>(
+      call: () async {
+        await _ensureGoogleInitialized();
+
+        // google_sign_in has no interactive call on the web: render its own
+        // button there (see the package's web documentation) and pass the
+        // credential you get back to _auth.signInWithCredential.
+        if (!_googleSignIn.supportsAuthenticate()) {
+          throw AppException.fromError(
+            'Google sign-in needs the platform button on this target',
+            StackTrace.current,
+          );
+        }
+
+        final GoogleSignInAccount account;
+        try {
+          account = await _googleSignIn.authenticate();
+        } on GoogleSignInException catch (error) {
+          if (error.code == GoogleSignInExceptionCode.canceled) {
+            throw AppException.cancelled();
+          }
+          rethrow;
+        }
+
+        final idToken = account.authentication.idToken;
+        if (idToken == null) {
+          throw AppException.fromError(
+            'Google returned no ID token — set kGoogleServerClientId',
+            StackTrace.current,
+          );
+        }
+
+        final credential = GoogleAuthProvider.credential(idToken: idToken);
+        final userCredential = await _auth.signInWithCredential(credential);
+        return AuthUserModel.fromFirebaseUser(userCredential.user!);
+      },
+    );
+  }
+
+  Future<void> sendPasswordResetEmail({required String email}) {
+    return safeFirebaseCall<void>(
+      call: () => _auth.sendPasswordResetEmail(email: email),
+    );
+  }
+
+  Future<void> logout() {
+    return safeFirebaseCall<void>(
+      call: () async {
+        // Harmless when the session did not come from Google, and required
+        // when it did — otherwise the next sign-in reuses the same account
+        // without asking.
+        await _googleSignIn.signOut();
+        await _auth.signOut();
+      },
+    );
+  }
+
+  Future<void> delete() {
+    return safeFirebaseCall<void>(
+      call: () async {
+        final user = _auth.currentUser;
+        if (user == null) return;
+
+        final linkedToGoogle = user.providerData.any(
+          (provider) => provider.providerId == GoogleAuthProvider.PROVIDER_ID,
+        );
+        // Revokes the grant as well as the session, so deleting the account
+        // really does undo the connection.
+        if (linkedToGoogle) await _googleSignIn.disconnect();
+
+        // Throws requires-recent-login when the session is old — the message
+        // tells the user to sign in again.
+        await user.delete();
+      },
+    );
+  }
+
+  Future<void> _ensureGoogleInitialized() async {
+    if (_googleReady) return;
+    await _googleSignIn.initialize(serverClientId: kGoogleServerClientId);
+    _googleReady = true;
+  }
+$firestoreMethods}
+''';
+  }
+
+  // ── Data — Repository impl ──────────────────────────────────────────────────
+
+  /// Returns the generated auth repository implementation template.
+  static String repositoryImpl({bool withFirestore = false}) {
+    final saveProfileOnRegister =
+        withFirestore ? '\n    await _remote.saveProfile(user);' : '';
+
+    final saveProfileOnGoogle = withFirestore
+        ? '\n    // First Google sign-in — create the profile document.\n    await _remote.saveProfile(user);'
+        : '';
+
+    final deleteProfile = withFirestore
+        ? '''
+    // Deleted first: once the account is gone the rules that granted access
+    // to its own document no longer match.
+    final id = await currentUserId();
+    if (id != null) await _remote.deleteProfile(id);
+'''
+        : '';
+
+    return '''
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../domain/entities/auth_user_entity.dart';
+import '../../domain/repositories/auth_repository.dart';
+import '../datasources/auth_remote_datasource.dart';
+
+final authRepositoryProvider = Provider<AuthRepository>(
+  (ref) => AuthRepositoryImpl(ref.watch(authRemoteDataSourceProvider)),
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class AuthRepositoryImpl implements AuthRepository {
+  const AuthRepositoryImpl(this._remote);
+
+  final AuthRemoteDataSource _remote;
+
+  @override
+  Stream<AuthUserEntity?> authStateChanges() => _remote.authStateChanges();
+
+  @override
+  Future<bool> isLoggedIn() async => _remote.currentUser != null;
+
+  @override
+  Future<AuthUserEntity?> currentUser() async => _remote.currentUser;
+
+  @override
+  Future<AuthUserEntity> login({
+    required String email,
+    required String password,
+  }) {
+    return _remote.login(email: email, password: password);
+  }
+
+  @override
+  Future<AuthUserEntity> register({
+    required String email,
+    required String password,
+    String? displayName,
+  }) async {
+    final user = await _remote.register(
+      email: email,
+      password: password,
+      displayName: displayName,
+    );$saveProfileOnRegister
+    return user;
+  }
+
+  @override
+  Future<AuthUserEntity> signInWithGoogle() async {
+    final user = await _remote.signInWithGoogle();$saveProfileOnGoogle
+    return user;
+  }
+
+  @override
+  Future<void> sendPasswordResetEmail({required String email}) =>
+      _remote.sendPasswordResetEmail(email: email);
+
+  @override
+  Future<void> logout() => _remote.logout();
+
+  @override
+  Future<void> deleteAccount() async {
+$deleteProfile    await _remote.delete();
+  }
+
+  @override
+  Future<String?> currentUserId() async => _remote.currentUser?.id;
+}
+''';
+  }
+
+  // ── Presentation — State ────────────────────────────────────────────────────
+
+  /// Returns the generated auth state template.
+  static String state() => r'''
+import '../../../../core/utils/action_notifier.dart';
+
+class AuthState implements ActionState<AuthState> {
+  const AuthState({
+    this.authenticated = false,
+    this.userId,
+    this.email,
+    this.displayName,
+    this.photoUrl,
+    this.isLoadingAction = false,
+    this.error,
+    this.success,
+  });
+
+  final bool authenticated;
+  final String? userId;
+  final String? email;
+  final String? displayName;
+  final String? photoUrl;
+  final bool isLoadingAction;
+
+  /// One-shot UI event fields: any copyWith call that omits them clears
+  /// them, so a message is only surfaced once.
+  final String? error;
+  final String? success;
+
+  AuthState copyWith({
+    bool? authenticated,
+    String? userId,
+    String? email,
+    String? displayName,
+    String? photoUrl,
+    bool? isLoadingAction,
+    String? error,
+    String? success,
+  }) {
+    return AuthState(
+      authenticated: authenticated ?? this.authenticated,
+      userId: userId ?? this.userId,
+      email: email ?? this.email,
+      displayName: displayName ?? this.displayName,
+      photoUrl: photoUrl ?? this.photoUrl,
+      isLoadingAction: isLoadingAction ?? this.isLoadingAction,
+      error: error,
+      success: success,
+    );
+  }
+
+  @override
+  AuthState copyWithLoading() => copyWith(isLoadingAction: true);
+
+  @override
+  AuthState copyWithError(String message) => copyWith(error: message);
+}
+''';
+
+  // ── Presentation — Notifier ─────────────────────────────────────────────────
+
+  /// Returns the generated auth notifier template.
+  static String notifier() => r'''
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/errors/app_exception.dart';
+import '../../../../core/utils/action_notifier.dart';
+import '../../data/repositories/auth_repository_impl.dart';
+import '../../domain/entities/auth_user_entity.dart';
+import '../../domain/repositories/auth_repository.dart';
+import '../states/auth_state.dart';
+
+final authNotifierProvider =
+    AsyncNotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class AuthNotifier extends AsyncNotifier<AuthState>
+    with ActionNotifierMixin<AuthState> {
+  AuthRepository get _repo => ref.read(authRepositoryProvider);
+
+  @override
+  FutureOr<AuthState> build() async {
+    // Firebase restores the persisted session asynchronously, so the first
+    // event of authStateChanges — not currentUser — is what says whether this
+    // start is signed in. The router can park on a splash route until this
+    // resolves, and never flashes the wrong screen.
+    final changes = _repo.authStateChanges();
+    final restored = await changes.first;
+
+    // Later events keep the state honest for the rest of the session: signed
+    // out on another device, token revoked, account deleted.
+    final subscription = changes.listen(
+      (user) => state = AsyncData(_stateFrom(user)),
+    );
+    ref.onDispose(subscription.cancel);
+
+    return _stateFrom(restored);
+  }
+
+  Future<void> login({required String email, required String password}) {
+    return runAction((_) async {
+      final user = await _repo.login(email: email, password: password);
+      return _stateFrom(user);
+    });
+  }
+
+  Future<void> register({
+    required String email,
+    required String password,
+    String? displayName,
+  }) {
+    return runAction((_) async {
+      final user = await _repo.register(
+        email: email,
+        password: password,
+        displayName: displayName,
+      );
+      return _stateFrom(user);
+    });
+  }
+
+  Future<void> signInWithGoogle() {
+    return runAction((current) async {
+      try {
+        final user = await _repo.signInWithGoogle();
+        return _stateFrom(user);
+      } on AppException catch (e) {
+        // Dismissing the Google sheet is not a failure worth showing.
+        if (e.type == AppExceptionType.cancelled) return current;
+        rethrow;
+      }
+    });
+  }
+
+  Future<void> sendPasswordResetEmail({required String email}) {
+    return runAction((current) async {
+      await _repo.sendPasswordResetEmail(email: email);
+      return current.copyWith(success: 'Password reset email sent');
+    });
+  }
+
+  Future<void> logout() {
+    return runAction((_) async {
+      await _repo.logout();
+      return const AuthState();
+    });
+  }
+
+  Future<void> deleteAccount() {
+    return runAction((_) async {
+      await _repo.deleteAccount();
+      return const AuthState(success: 'Account deleted');
+    });
+  }
+
+  AuthState _stateFrom(AuthUserEntity? user) {
+    if (user == null) return const AuthState();
+    return AuthState(
+      authenticated: true,
+      userId: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      photoUrl: user.photoUrl,
+    );
+  }
+}
+''';
+
+  // ── Presentation — Views ────────────────────────────────────────────────────
+
+  /// Returns the generated login view template.
+  static String loginView() => r'''
+import 'package:flutter/material.dart';
+
+// TODO: build your login UI and call
+// ref.read(authNotifierProvider.notifier).login(email: ..., password: ...)
+// ref.read(authNotifierProvider.notifier).signInWithGoogle()
+// ref.read(authNotifierProvider.notifier).sendPasswordResetEmail(email: ...)
+
+class LoginView extends StatelessWidget {
+  const LoginView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login')),
+      body: const SizedBox.shrink(),
+    );
+  }
+}
+''';
+
+  /// Returns the generated register view template.
+  static String registerView() => r'''
+import 'package:flutter/material.dart';
+
+// TODO: build your register UI and call
+// ref.read(authNotifierProvider.notifier).register(email: ..., password: ...)
+
+class RegisterView extends StatelessWidget {
+  const RegisterView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Register')),
+      body: const SizedBox.shrink(),
+    );
+  }
+}
+''';
+}

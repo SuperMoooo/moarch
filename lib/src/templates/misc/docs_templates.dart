@@ -677,6 +677,222 @@ keytool -list -v -keystore my-release-key.jks -alias my-key-alias
 ```
 ''';
 
+  /// Returns the Firebase setup guide.
+  ///
+  /// The generated Dart compiles the moment it lands; none of it *runs* until
+  /// the platform side below is done, and every step here fails at runtime
+  /// with an error that does not name the step that was missed. Sections are
+  /// included per selected option so the guide is only ever about this
+  /// project.
+  static String firebaseSetup({
+    bool withAuth = false,
+    bool withGoogleSignIn = false,
+    bool withFirestore = false,
+    bool withCrashlytics = false,
+    bool withMessaging = false,
+  }) {
+    final services = [
+      if (withAuth) 'Authentication',
+      if (withFirestore) 'Cloud Firestore',
+      if (withCrashlytics) 'Crashlytics',
+      if (withMessaging) 'Cloud Messaging',
+    ].join(', ');
+
+    final buffer = StringBuffer()
+      ..writeln('# Firebase Setup')
+      ..writeln()
+      ..writeln('What this project needs on the Firebase and platform side '
+          'before the generated')
+      ..writeln('code runs. Services in use: $services.')
+      ..writeln()
+      ..writeln('---')
+      ..writeln()
+      ..writeln('## 1. Connect the project')
+      ..writeln()
+      ..writeln('```bash')
+      ..writeln('dart pub global activate flutterfire_cli')
+      ..writeln('flutterfire configure')
+      ..writeln('```')
+      ..writeln()
+      ..writeln('This writes `lib/firebase_options.dart`, '
+          '`android/app/google-services.json` and')
+      ..writeln('`ios/Runner/GoogleService-Info.plist`, and adds the Gradle '
+          'plugins Android needs.')
+      ..writeln()
+      ..writeln('Then pass the generated options in `lib/main.dart`:')
+      ..writeln()
+      ..writeln('```dart')
+      ..writeln("import 'firebase_options.dart';")
+      ..writeln()
+      ..writeln('await Firebase.initializeApp(')
+      ..writeln('  options: DefaultFirebaseOptions.currentPlatform,')
+      ..writeln(');')
+      ..writeln('```')
+      ..writeln()
+      ..writeln('> The config files carry no secret — the security boundary '
+          'is your Firestore/Storage')
+      ..writeln('> rules, not the file. Still, keep them out of a public repo '
+          'to avoid quota abuse.')
+      ..writeln();
+
+    if (withAuth) {
+      buffer
+        ..writeln('---')
+        ..writeln()
+        ..writeln('## 2. Enable the sign-in methods')
+        ..writeln()
+        ..writeln('Firebase console → Authentication → Sign-in method:')
+        ..writeln()
+        ..writeln('- **Email/Password** — enable it.');
+      if (withGoogleSignIn) {
+        buffer
+          ..writeln('- **Google** — enable it, and note the *Web SDK '
+              'configuration* client id shown')
+          ..writeln('  there. That is the `serverClientId` the Android and '
+              'web flows exchange for an')
+          ..writeln('  ID token.')
+          ..writeln()
+          ..writeln('Anything Firebase rejects arrives as an `AppException` '
+              'with the message already')
+          ..writeln('written for the user — see '
+              '`AppException.fromFirebaseAuthError`.');
+      }
+      buffer.writeln();
+    }
+
+    if (withGoogleSignIn) {
+      buffer
+        ..writeln('---')
+        ..writeln()
+        ..writeln('## 3. Google sign-in — Android')
+        ..writeln()
+        ..writeln('Google checks the signing certificate of the APK, so every '
+            'certificate that ever')
+        ..writeln('signs a build needs its fingerprint registered: your debug '
+            'keystore, your release')
+        ..writeln('keystore, and Play App Signing if you use it (Play Console '
+            '→ Setup → App signing).')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln('# debug')
+        ..writeln(r'keytool -list -v -alias androiddebugkey \')
+        ..writeln(r'  -keystore ~/.android/debug.keystore \')
+        ..writeln('  -storepass android -keypass android')
+        ..writeln()
+        ..writeln('# release')
+        ..writeln('keytool -list -v -keystore my-release-key.jks '
+            '-alias my-key-alias')
+        ..writeln('```')
+        ..writeln()
+        ..writeln('Paste **SHA-1 and SHA-256** into Firebase console → '
+            'Project settings → your Android')
+        ..writeln('app, then **re-download `google-services.json`** — it '
+            'changes when you add them.')
+        ..writeln()
+        ..writeln('Symptom of a missing fingerprint: the account picker '
+            'opens, and sign-in fails')
+        ..writeln('immediately afterwards with no visible reason.')
+        ..writeln()
+        ..writeln('---')
+        ..writeln()
+        ..writeln('## 4. Google sign-in — iOS')
+        ..writeln()
+        ..writeln('The plugin does **not** read `GoogleService-Info.plist`. '
+            'Two values have to be')
+        ..writeln('copied out of it into `ios/Runner/Info.plist` — '
+            '`moarch init` puts them there when')
+        ..writeln('the file already exists, and `moarch doctor --fix` fills '
+            'them in afterwards.')
+        ..writeln()
+        ..writeln('| GoogleService-Info.plist | Info.plist |')
+        ..writeln('|---|---|')
+        ..writeln('| `CLIENT_ID` | `GIDClientID` |')
+        ..writeln('| `REVERSED_CLIENT_ID` | a `CFBundleURLSchemes` entry |')
+        ..writeln()
+        ..writeln('```xml')
+        ..writeln('<key>GIDClientID</key>')
+        ..writeln('<string>YOUR_CLIENT_ID.apps.googleusercontent.com</string>')
+        ..writeln('<key>CFBundleURLTypes</key>')
+        ..writeln('<array>')
+        ..writeln('  <dict>')
+        ..writeln('    <key>CFBundleTypeRole</key>')
+        ..writeln('    <string>Editor</string>')
+        ..writeln('    <key>CFBundleURLSchemes</key>')
+        ..writeln('    <array>')
+        ..writeln(
+            '      <string>com.googleusercontent.apps.YOUR_REVERSED_CLIENT_ID</string>')
+        ..writeln('    </array>')
+        ..writeln('  </dict>')
+        ..writeln('</array>')
+        ..writeln('```')
+        ..writeln()
+        ..writeln('Symptom of a missing URL scheme: the sign-in sheet opens '
+            'and never returns.')
+        ..writeln()
+        ..writeln('---')
+        ..writeln()
+        ..writeln('## 5. Google sign-in — web and desktop')
+        ..writeln()
+        ..writeln('There is no native config to read from, so set '
+            '`kGoogleServerClientId` in')
+        ..writeln(
+            '`lib/features/auth/data/datasources/auth_remote_datasource.dart` '
+            'to the web client')
+        ..writeln('id from step 2. On the web there is also no interactive '
+            '`authenticate()` — render')
+        ..writeln("the package's own button and pass the credential you get "
+            'back to')
+        ..writeln('`FirebaseAuth.signInWithCredential`. The generated code '
+            'raises a clear error')
+        ..writeln('rather than failing silently there.')
+        ..writeln();
+    }
+
+    if (withFirestore) {
+      buffer
+        ..writeln('---')
+        ..writeln()
+        ..writeln('## Firestore rules')
+        ..writeln()
+        ..writeln('A new database starts in test mode, which stops working '
+            'after 30 days and lets')
+        ..writeln('anyone read everything until it does. Start from the '
+            'user-scoped shape instead:')
+        ..writeln()
+        ..writeln('```')
+        ..writeln('rules_version = "2";')
+        ..writeln('service cloud.firestore {')
+        ..writeln('  match /databases/{database}/documents {')
+        ..writeln('    match /users/{userId} {')
+        ..writeln('      allow read, write: if request.auth != null')
+        ..writeln('                         && request.auth.uid == userId;')
+        ..writeln('    }')
+        ..writeln('    // TODO: one rule per collection. Nothing is readable '
+            'by default.')
+        ..writeln('  }')
+        ..writeln('}')
+        ..writeln('```')
+        ..writeln()
+        ..writeln('A rejected read arrives as an `AppException` of type '
+            '`auth` ("You don\'t have')
+        ..writeln('access to this data") — if you see that in development, '
+            'it is the rules.')
+        ..writeln();
+    }
+
+    buffer
+      ..writeln('---')
+      ..writeln()
+      ..writeln('## Check the wiring')
+      ..writeln()
+      ..writeln('```bash')
+      ..writeln('moarch doctor        # reports what is missing')
+      ..writeln('moarch doctor --fix  # applies what can be applied')
+      ..writeln('```');
+
+    return buffer.toString();
+  }
+
   /// Returns the CI/CD secrets setup guide for the build workflows.
   static String stepsForWorkflow() => r'''
 # CI/CD Workflow Setup

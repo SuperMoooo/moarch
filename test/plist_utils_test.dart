@@ -77,4 +77,69 @@ void main() {
     });
     expect(rerun, equals(output));
   });
+
+  group('ensureUrlScheme', () {
+    const scheme = 'com.googleusercontent.apps.123-abc';
+
+    test('creates CFBundleURLTypes when the plist has none', () {
+      final output = PlistUtils.ensureUrlScheme(_samplePlist, scheme);
+
+      expect(output, contains('<key>CFBundleURLTypes</key>'));
+      expect(output, contains('<key>CFBundleURLSchemes</key>'));
+      expect(output, contains('<string>$scheme</string>'));
+      expect(output, contains('</dict>\n</plist>'));
+    });
+
+    test('adds to an existing CFBundleURLTypes rather than skipping it', () {
+      final withDeepLink = PlistUtils.ensureUrlScheme(_samplePlist, 'myapp');
+      final output = PlistUtils.ensureUrlScheme(withDeepLink, scheme);
+
+      // Both schemes survive, under a single CFBundleURLTypes key.
+      expect(output, contains('<string>myapp</string>'));
+      expect(output, contains('<string>$scheme</string>'));
+      expect(
+        '<key>CFBundleURLTypes</key>'.allMatches(output).length,
+        equals(1),
+      );
+    });
+
+    test('is a no-op when the scheme is already registered', () {
+      final output = PlistUtils.ensureUrlScheme(_samplePlist, scheme);
+
+      expect(PlistUtils.ensureUrlScheme(output, scheme), equals(output));
+    });
+
+    test('writes the comment into the entry', () {
+      final output = PlistUtils.ensureUrlScheme(
+        _samplePlist,
+        scheme,
+        comment: 'replace me',
+      );
+
+      expect(output, contains('<!-- replace me -->'));
+    });
+  });
+
+  test('readString lifts the value that follows a key', () {
+    const googleServices = '''
+<plist version="1.0">
+<dict>
+\t<key>CLIENT_ID</key>
+\t<string>123-abc.apps.googleusercontent.com</string>
+\t<key>REVERSED_CLIENT_ID</key>
+\t<string>com.googleusercontent.apps.123-abc</string>
+</dict>
+</plist>
+''';
+
+    expect(
+      PlistUtils.readString(googleServices, 'CLIENT_ID'),
+      equals('123-abc.apps.googleusercontent.com'),
+    );
+    expect(
+      PlistUtils.readString(googleServices, 'REVERSED_CLIENT_ID'),
+      equals('com.googleusercontent.apps.123-abc'),
+    );
+    expect(PlistUtils.readString(googleServices, 'API_KEY'), isNull);
+  });
 }

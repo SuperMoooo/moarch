@@ -5,13 +5,17 @@ class FeatureTemplates {
   // ── Domain — Entity ─────────────────────────────────────────────────────────
 
   /// Returns the generated entity template.
-  static String entity(String name, String cls) => '''
+  ///
+  /// [useFirestore] makes `id` a String: a Firestore document id is the
+  /// document's name, not a numeric column.
+  static String entity(String name, String cls, {bool useFirestore = false}) =>
+      '''
 class ${cls}Entity {
   const ${cls}Entity({
     required this.id,
   });
 
-  final int id;
+  ${useFirestore ? '/// The Firestore document id.\n  final String id;' : 'final int id;'}
 
   // TODO: add copyWith if needed
 
@@ -65,7 +69,52 @@ class Get$cls {
   // ── Data — Model ────────────────────────────────────────────────────────────
 
   /// Returns the generated model template.
-  static String model(String name, String cls) => '''
+  ///
+  /// The [useFirestore] variant reads the id off the document rather than out
+  /// of the payload, and leaves it out of `toJson` — writing it back as a
+  /// field would store it twice, and the two copies drift.
+  static String model(String name, String cls, {bool useFirestore = false}) {
+    if (useFirestore) {
+      return '''
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../../domain/entities/${name}_entity.dart';
+
+class ${cls}Model extends ${cls}Entity {
+  const ${cls}Model({
+    required super.id,
+  });
+
+  factory ${cls}Model.fromJson(Map<String, dynamic> json, {required String id}) {
+    return ${cls}Model(
+      id: id,
+      // TODO: parse your other fields
+    );
+  }
+
+  /// The id lives on the document, not in its data.
+  factory ${cls}Model.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) =>
+      ${cls}Model.fromJson(doc.data() ?? const <String, dynamic>{}, id: doc.id);
+
+  Map<String, dynamic> toJson() {
+    return {
+      // TODO: add your other fields — not `id`, Firestore keys the document by it
+    };
+  }
+
+  factory ${cls}Model.fromEntity(${cls}Entity entity) => ${cls}Model(
+    id: entity.id,
+  );
+
+  ${cls}Entity toEntity() =>
+      ${cls}Entity(
+        id: id,
+      );
+}
+''';
+    }
+
+    return '''
 import '../../domain/entities/${name}_entity.dart';
 
 class ${cls}Model extends ${cls}Entity{
@@ -97,11 +146,19 @@ class ${cls}Model extends ${cls}Entity{
       );
 }
 ''';
+  }
 
   // ── Data — Remote datasource ────────────────────────────────────────────────
 
   /// Returns the generated remoteDatasource template.
-  static String remoteDatasource(String name, String cls, String varName) => '''
+  ///
+  /// [useFirestore] swaps the Dio client for `FirebaseFirestore` — the same
+  /// layer, the same provider name, a different backend behind it.
+  static String remoteDatasource(String name, String cls, String varName,
+      {bool useFirestore = false}) {
+    if (useFirestore) return _firestoreDatasource(name, cls, varName);
+
+    return '''
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -129,6 +186,92 @@ class ${cls}RemoteDataSource {
         final response = await _dio.get('/$name');
         return ${cls}Model.fromJson(response.data);
       },
+    );
+  }
+}
+''';
+  }
+
+  /// The Firestore-backed remote datasource: one collection, read/write/watch.
+  static String _firestoreDatasource(String name, String cls, String varName) =>
+      '''
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../config/firebase/firebase_providers.dart';
+import '../../../../core/network/safe_firebase_call.dart';
+import '../models/${name}_model.dart';
+
+final ${varName}RemoteDataSourceProvider = Provider<${cls}RemoteDataSource>(
+  (ref) => ${cls}RemoteDataSource(ref.watch(firebaseDbProvider)),
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+class ${cls}RemoteDataSource {
+  const ${cls}RemoteDataSource(this._firestore);
+
+  final FirebaseFirestore _firestore;
+
+  /// TODO: point this at your collection.
+  static const String collectionPath = '$name';
+
+  CollectionReference<Map<String, dynamic>> get _collection =>
+      _firestore.collection(collectionPath);
+
+  Future<List<${cls}Model>> fetchAll() {
+    return safeFirebaseCall<List<${cls}Model>>(
+      call: () async {
+        final snapshot = await _collection.get();
+        return snapshot.docs.map(${cls}Model.fromDoc).toList();
+      },
+    );
+  }
+
+  Future<${cls}Model?> fetchOne(String id) {
+    return safeFirebaseCall<${cls}Model?>(
+      call: () async {
+        final doc = await _collection.doc(id).get();
+        if (!doc.exists) return null;
+        return ${cls}Model.fromDoc(doc);
+      },
+    );
+  }
+
+  /// Live updates — the reason to be on Firestore at all. Errors arrive as
+  /// AppException, so AppAsyncView renders them like any other failure.
+  Stream<List<${cls}Model>> watchAll() {
+    return safeFirebaseStream(
+      () => _collection.snapshots().map(
+            (snapshot) => snapshot.docs.map(${cls}Model.fromDoc).toList(),
+          ),
+    );
+  }
+
+  /// Returns the id Firestore assigned to the new document.
+  Future<String> create(${cls}Model model) {
+    return safeFirebaseCall<String>(
+      call: () async {
+        final doc = await _collection.add(model.toJson());
+        return doc.id;
+      },
+    );
+  }
+
+  /// `merge: true` so a partial model never blanks the fields it left out.
+  Future<void> save(${cls}Model model) {
+    return safeFirebaseCall<void>(
+      call: () => _collection.doc(model.id).set(
+            model.toJson(),
+            SetOptions(merge: true),
+          ),
+    );
+  }
+
+  Future<void> delete(String id) {
+    return safeFirebaseCall<void>(
+      call: () => _collection.doc(id).delete(),
     );
   }
 }

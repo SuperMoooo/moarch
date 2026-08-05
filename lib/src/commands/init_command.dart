@@ -10,6 +10,7 @@ import 'package:moarch/src/templates/misc/docs_templates.dart';
 import 'package:moarch/src/templates/misc/ios_templates.dart';
 import 'package:moarch/src/templates/misc/workflow_templates.dart';
 import 'package:moarch/src/templates/ui/auth_templates.dart';
+import 'package:moarch/src/templates/ui/firebase_auth_templates.dart';
 import 'package:moarch/src/utils/checklist.dart';
 import 'package:path/path.dart' as p;
 
@@ -152,7 +153,8 @@ class InitCommand extends Command<int> {
               _kAuthFeature,
               defaultOn: true,
               description:
-                  'REST auth feature: tokens + user id in secure storage, session restore on app start.',
+                  'Follows the backend above: Firebase Auth (email/password + Google) '
+                  'when selected, otherwise REST with tokens in secure storage.',
             ),
             const ChecklistItem(
               _kRouter,
@@ -221,9 +223,23 @@ class InitCommand extends Command<int> {
       }
     }
 
-    // The auth feature calls the API through the Dio client and its refresh
-    // interceptor, so generating it without Dio would produce broken imports.
-    if (stack.contains(_kAuthFeature) && !stack.contains(_kDio)) {
+    // Which backend the auth feature is generated against. Firebase Auth wins
+    // when both are selected: it is the more specific choice — a project can
+    // still use Dio for everything else.
+    final firebaseAuthFeature =
+        stack.contains(_kAuthFeature) && stack.contains(_kFirebaseAuth);
+
+    if (firebaseAuthFeature && stack.contains(_kDio)) {
+      _logger
+          .info('  Note: the auth feature is generated against Firebase Auth.');
+    }
+
+    // The REST auth feature calls the API through the Dio client and its
+    // refresh interceptor, so generating it without Dio would produce broken
+    // imports. Firebase Auth needs none of that.
+    if (stack.contains(_kAuthFeature) &&
+        !stack.contains(_kDio) &&
+        !firebaseAuthFeature) {
       stack.add(_kDio);
       _logger.info('  Note: Dio added — the auth feature depends on it.');
     }
@@ -332,6 +348,10 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kCrashlytics)) 'firebase_crashlytics: ',
       if (stack.contains(_kFirebaseAuth)) 'firebase_auth: ',
       if (stack.contains(_kFirestore)) 'cloud_firestore: ',
+      // Floored because the generated Google flow is written against the 7.x
+      // API — `GoogleSignIn.instance`, `initialize()` and `authenticate()`
+      // replaced the constructor and `signIn()` of 6.x.
+      if (firebaseAuthFeature) 'google_sign_in: ^7.0.0',
       // Pinned, unlike its neighbours, because it is the one package here whose
       // unversioned entry resolves to something broken. file_picker 11 wants
       // win32 ^5, flutter_secure_storage_windows wants win32 ^6, and pub settles
@@ -371,7 +391,14 @@ class InitCommand extends Command<int> {
       await _buildShared(libPath, stack);
       await FileUtils.createDir(p.join(libPath, 'features'));
       if (stack.contains(_kAuthFeature)) {
-        await _buildAuthFeature(libPath);
+        if (firebaseAuthFeature) {
+          await _buildFirebaseAuthFeature(
+            libPath,
+            withFirestore: stack.contains(_kFirestore),
+          );
+        } else {
+          await _buildAuthFeature(libPath);
+        }
       }
       final testPath = p.join(p.absolute(targetPath), 'test');
       await FileUtils.createDir(testPath);
@@ -401,6 +428,11 @@ class InitCommand extends Command<int> {
           withNotificationsService: stack.contains(_kNotificationsService),
           withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
           withCrashlytics: stack.contains(_kCrashlytics),
+          // Firestore and Firebase Auth are read through providers the app
+          // touches on its first frame, so Firebase has to be up by then.
+          withFirebase: stack.contains(_kFirestore) ||
+              stack.contains(_kFirebaseAuth) ||
+              stack.contains(_kCrashlytics),
         ),
         overwriteWhen: _isFlutterCounterDemo,
       );
@@ -442,6 +474,26 @@ class InitCommand extends Command<int> {
         p.join(p.absolute(targetPath), 'docs', 'STEPS_FOR_WORKFLOW.md'),
         DocsTemplates.stepsForWorkflow(),
       );
+
+      // The platform-side work the generated Firebase code depends on —
+      // config files, sign-in providers, SHA fingerprints, the iOS URL
+      // scheme. None of it is visible from the Dart, and all of it fails at
+      // runtime rather than at build time.
+      if (stack.contains(_kFirestore) ||
+          stack.contains(_kFirebaseAuth) ||
+          stack.contains(_kCrashlytics) ||
+          stack.contains(_kFirebaseNotifications)) {
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'docs', 'FIREBASE_SETUP.md'),
+          DocsTemplates.firebaseSetup(
+            withAuth: stack.contains(_kFirebaseAuth),
+            withGoogleSignIn: firebaseAuthFeature,
+            withFirestore: stack.contains(_kFirestore),
+            withCrashlytics: stack.contains(_kCrashlytics),
+            withMessaging: stack.contains(_kFirebaseNotifications),
+          ),
+        );
+      }
 
       if (stack.contains(_kWorkflows)) {
         await FileUtils.writeFile(
@@ -714,12 +766,40 @@ class InitCommand extends Command<int> {
       _logger.info('    for the shape it expects.');
       _logger.info('');
     }
-    if (stack.contains(_kAuthFeature)) {
+    if (stack.contains(_kAuthFeature) && !firebaseAuthFeature) {
       _logger
           .info('  Auth feature generated at lib/features/auth/ — adjust the');
       _logger.info(
           '  /auth/* endpoints and token JSON keys in auth_remote_datasource.dart');
       _logger.info('  and core/network/dio_client.dart to your API contract.');
+      _logger.info('');
+    }
+    if (firebaseAuthFeature) {
+      _logger.info(
+          '  Auth feature generated at lib/features/auth/ — Firebase Auth with');
+      _logger.info('  email/password and Google sign-in. Before it runs:');
+      _logger.info(
+          '    1. flutterfire configure  (writes the google-services files)');
+      _logger.info(
+          '    2. Firebase console → Authentication → Sign-in method: enable');
+      _logger.info('       Email/Password and Google');
+      _logger.info(
+          '    3. Android: add your SHA-1 and SHA-256 to the Firebase project,');
+      _logger.info('       then re-download google-services.json');
+      _logger.info(
+          '    4. iOS: GIDClientID + the REVERSED_CLIENT_ID URL scheme in');
+      _logger
+          .info('       Info.plist — `moarch doctor --fix` copies them across');
+      _logger.info('');
+      _logger.info('  Full guide: docs/FIREBASE_SETUP.md');
+      _logger.info('');
+    } else if (stack.contains(_kFirestore) ||
+        stack.contains(_kFirebaseAuth) ||
+        stack.contains(_kCrashlytics) ||
+        stack.contains(_kFirebaseNotifications)) {
+      _logger.info(
+          '  Firebase selected — run `flutterfire configure` before the first');
+      _logger.info('  launch. See docs/FIREBASE_SETUP.md.');
       _logger.info('');
     }
     _logger.info('  moarch create feature <name>   → generate a feature');
@@ -756,11 +836,14 @@ class InitCommand extends Command<int> {
     final wantsUrlLauncher = stack.contains(_kLaunchUrlService);
     final wantsFcm = stack.contains(_kFirebaseNotifications);
     final wantsBiometrics = stack.contains(_kBiometricAuth);
+    final wantsGoogleSignIn =
+        stack.contains(_kFirebaseAuth) && stack.contains(_kAuthFeature);
     if (!wantsLocales &&
         !wantsMedia &&
         !wantsUrlLauncher &&
         !wantsFcm &&
-        !wantsBiometrics) {
+        !wantsBiometrics &&
+        !wantsGoogleSignIn) {
       return;
     }
 
@@ -770,6 +853,7 @@ class InitCommand extends Command<int> {
       if (wantsUrlLauncher) 'LSApplicationQueriesSchemes',
       if (wantsFcm) 'UIBackgroundModes (remote-notification)',
       if (wantsBiometrics) 'NSFaceIDUsageDescription',
+      if (wantsGoogleSignIn) 'GIDClientID + the Google sign-in URL scheme',
     ].join(' and ');
 
     if (dryRun) {
@@ -823,8 +907,53 @@ class InitCommand extends Command<int> {
         ['fetch', 'remote-notification'],
       );
     }
+    if (wantsGoogleSignIn) {
+      content = _patchGoogleSignInPlist(plistFile, content);
+    }
     await plistFile.writeAsString(content);
     _logger.info('  Updated ios/Runner/Info.plist with $additions.');
+  }
+
+  /// Adds the two iOS keys Google sign-in cannot work without: `GIDClientID`,
+  /// and the URL scheme built from `REVERSED_CLIENT_ID` that the sign-in
+  /// sheet returns through. The plugin does not read GoogleService-Info.plist
+  /// itself — both values have to be copied into `Info.plist`.
+  ///
+  /// When `flutterfire configure` has already run, the real values are lifted
+  /// straight out of `ios/Runner/GoogleService-Info.plist`. When it hasn't,
+  /// placeholders go in with an XML comment saying what to replace them with,
+  /// and `moarch doctor --fix` finishes the job once the file appears.
+  String _patchGoogleSignInPlist(File plistFile, String content) {
+    final googleServices =
+        File(p.join(p.dirname(plistFile.path), 'GoogleService-Info.plist'));
+
+    String? clientId;
+    String? reversedClientId;
+    if (googleServices.existsSync()) {
+      final source = googleServices.readAsStringSync();
+      clientId = PlistUtils.readString(source, 'CLIENT_ID');
+      reversedClientId = PlistUtils.readString(source, 'REVERSED_CLIENT_ID');
+    }
+
+    if (clientId == null || reversedClientId == null) {
+      _logger.warn(
+          '  ios/Runner/GoogleService-Info.plist not found — Info.plist got '
+          'placeholder Google client ids.');
+      _logger.info('    Run `flutterfire configure`, then `moarch doctor --fix`'
+          ' to fill them in.');
+    }
+
+    final patched = PlistUtils.ensureEntries(content, {
+      'GIDClientID': clientId ?? PlistUtils.googleClientIdPlaceholder,
+    });
+
+    return PlistUtils.ensureUrlScheme(
+      patched,
+      reversedClientId ?? PlistUtils.googleReversedClientIdPlaceholder,
+      comment: reversedClientId == null
+          ? 'moarch: replace with REVERSED_CLIENT_ID from GoogleService-Info.plist'
+          : 'Google sign-in (REVERSED_CLIENT_ID)',
+    );
   }
 
   /// flutter_local_notifications needs the UNUserNotificationCenter delegate
@@ -1035,6 +1164,7 @@ class InitCommand extends Command<int> {
         hasDio: stack.contains(_kDio),
         hasFirebase:
             stack.contains(_kFirestore) || stack.contains(_kFirebaseAuth),
+        hasFirebaseAuth: stack.contains(_kFirebaseAuth),
         hasCrashlytics: stack.contains(_kCrashlytics),
       ),
     );
@@ -1067,6 +1197,17 @@ class InitCommand extends Command<int> {
       await FileUtils.writeFile(
         p.join(c, 'network', 'safe_api_call.dart'),
         CoreTemplates.safeApiCall(),
+      );
+    }
+    // The Firebase counterpart of safeApiCall — every generated Firestore and
+    // Firebase Auth call goes through it, so the failures reach the UI as the
+    // same AppException a REST call would raise.
+    if (stack.contains(_kFirestore) || stack.contains(_kFirebaseAuth)) {
+      await FileUtils.writeFile(
+        p.join(c, 'network', 'safe_firebase_call.dart'),
+        CoreTemplates.safeFirebaseCall(
+          withAuth: stack.contains(_kFirebaseAuth),
+        ),
       );
     }
     await FileUtils.writeFile(
@@ -1160,6 +1301,55 @@ class InitCommand extends Command<int> {
     await FileUtils.writeFile(
       p.join(f, 'presentation', 'views', 'register_view.dart'),
       AuthTemplates.registerView(),
+    );
+  }
+
+  /// The same feature against Firebase Auth: email/password and Google
+  /// sign-in, with no token storage — Firebase persists the session itself.
+  ///
+  /// [withFirestore] additionally keeps a `users/{uid}` profile document in
+  /// step with the account.
+  Future<void> _buildFirebaseAuthFeature(
+    String libPath, {
+    required bool withFirestore,
+  }) async {
+    final f = p.join(libPath, 'features', 'auth');
+
+    await FileUtils.writeFile(
+      p.join(f, 'domain', 'entities', 'auth_user_entity.dart'),
+      FirebaseAuthTemplates.entity(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'domain', 'repositories', 'auth_repository.dart'),
+      FirebaseAuthTemplates.repositoryInterface(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'data', 'models', 'auth_user_model.dart'),
+      FirebaseAuthTemplates.model(withFirestore: withFirestore),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'data', 'datasources', 'auth_remote_datasource.dart'),
+      FirebaseAuthTemplates.remoteDatasource(withFirestore: withFirestore),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'data', 'repositories', 'auth_repository_impl.dart'),
+      FirebaseAuthTemplates.repositoryImpl(withFirestore: withFirestore),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'presentation', 'states', 'auth_state.dart'),
+      FirebaseAuthTemplates.state(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'presentation', 'notifiers', 'auth_notifier.dart'),
+      FirebaseAuthTemplates.notifier(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'presentation', 'views', 'login_view.dart'),
+      FirebaseAuthTemplates.loginView(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'presentation', 'views', 'register_view.dart'),
+      FirebaseAuthTemplates.registerView(),
     );
   }
 

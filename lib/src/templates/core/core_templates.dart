@@ -13,8 +13,14 @@ class CoreTemplates {
     bool withNotificationsService = false,
     bool withFirebaseNotifications = false,
     bool withCrashlytics = false,
+    bool withFirebase = false,
   }) {
     if (withEasyLocalization) withLocalization = false;
+
+    // Crashlytics has always initialized Firebase on its own; Firestore and
+    // Firebase Auth need the same call, or the first provider read throws
+    // "No Firebase App '[DEFAULT]' has been created".
+    final needsFirebaseInit = withFirebase || withCrashlytics;
 
     final localizationImports = withEasyLocalization
         ? "\nimport 'package:easy_localization/easy_localization.dart';\n"
@@ -70,18 +76,25 @@ class CoreTemplates {
         ? '\n  await container.read(firebaseNotificationsServiceProvider).init();'
         : '';
 
-    final crashlyticsImports = withCrashlytics
-        ? "\nimport 'package:firebase_core/firebase_core.dart';\nimport 'package:firebase_crashlytics/firebase_crashlytics.dart';"
-        : '';
+    final firebaseImports = [
+      if (needsFirebaseInit)
+        "\nimport 'package:firebase_core/firebase_core.dart';",
+      if (withCrashlytics)
+        "\nimport 'package:firebase_crashlytics/firebase_crashlytics.dart';",
+    ].join();
 
-    final crashlyticsInit = withCrashlytics
+    // One initializeApp for every Firebase service the project selected. The
+    // FCM service below only initializes Firebase when nobody else has, so it
+    // is happy either way.
+    final firebaseInit = needsFirebaseInit
         ? '''
 
   // Requires Firebase setup — run `flutterfire configure`, then pass the
   // generated options: Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)
-  await Firebase.initializeApp();
+  await Firebase.initializeApp();${withCrashlytics ? '''
+
   // Only report crashes from release builds.
-  await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);
+  await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);''' : ''}
 '''
         : '';
 
@@ -129,7 +142,7 @@ final locale = ref.watch(languageProvider).locale;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$crashlyticsImports
+import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$firebaseImports
 import 'core/utils/app_logger.dart';
 import 'shared/widgets/error_view.dart';
 import 'config/theme/app_theme.dart';
@@ -140,7 +153,7 @@ Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 $easyLocalizationInit$containerSetup$notificationInit
-$crashlyticsInit$firebaseNotificationInit
+$firebaseInit$firebaseNotificationInit
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
     appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught
@@ -213,7 +226,7 @@ class App extends ConsumerWidget {
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$crashlyticsImports
+import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$firebaseImports
 import 'core/utils/app_logger.dart';
 import 'shared/widgets/error_view.dart';
 import 'config/theme/app_theme.dart';
@@ -223,7 +236,7 @@ Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 $easyLocalizationInit$containerSetup$notificationInit
-$crashlyticsInit$firebaseNotificationInit
+$firebaseInit$firebaseNotificationInit
   //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
     appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught
@@ -1207,4 +1220,83 @@ Future<T> safeApiCall<T>({
 
 
 ''';
+
+  /// Returns the generated safeFirebaseCall template — the Firebase
+  /// counterpart of [safeApiCall].
+  ///
+  /// [withAuth] adds the `FirebaseAuthException` arm. It has to come first:
+  /// `FirebaseAuthException` extends `FirebaseException`, so catching the
+  /// base type above it would turn every auth code into a generic one.
+  static String safeFirebaseCall({bool withAuth = false}) {
+    final authImport =
+        withAuth ? "import 'package:firebase_auth/firebase_auth.dart';\n" : '';
+
+    final authCatch = withAuth
+        ? '\n  } on FirebaseAuthException catch (e) {'
+            '\n    // Before FirebaseException — it is a subtype of it.'
+            '\n    throw AppException.fromFirebaseAuthError(e);'
+        : '';
+
+    final authStreamCatch = withAuth
+        ? '''
+    if (error is FirebaseAuthException) {
+      throw AppException.fromFirebaseAuthError(error);
+    }
+'''
+        : '';
+
+    return '''
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:firebase_core/firebase_core.dart';
+$authImport
+import '../errors/app_exception.dart';
+
+/// Runs a Firebase call with the same contract as `safeApiCall`: offline is
+/// caught before the request leaves, and everything that comes back wrong
+/// arrives as an [AppException].
+Future<T> safeFirebaseCall<T>({
+  required Future<T> Function() call,
+  FutureOr<T>? Function()? onNoInternet, // optional cache fallback
+}) async {
+  final connectivityResult = await Connectivity().checkConnectivity();
+
+  if (connectivityResult.contains(ConnectivityResult.none)) {
+    if (onNoInternet != null) {
+      final fallback = await onNoInternet();
+      if (fallback != null) return fallback;
+    }
+    throw AppException.noInternet();
+  }
+
+  try {
+    return await call();
+  } on AppException {
+    // Already mapped by an inner call — re-wrapping it would bury the message.
+    rethrow;$authCatch
+  } on FirebaseException catch (e) {
+    throw AppException.fromFirebaseError(e);
+  } catch (e, s) {
+    throw AppException.fromError(e, s);
+  }
+}
+
+/// The same mapping for a Firestore stream, so a live query fails the way a
+/// one-off read does and `AppAsyncView` can render it.
+///
+/// Connectivity is not checked here: Firestore serves its local cache while
+/// offline and catches up when the connection returns — which is the reason
+/// to be watching a stream in the first place.
+Stream<T> safeFirebaseStream<T>(Stream<T> Function() stream) {
+  return stream().handleError((Object error, StackTrace stackTrace) {
+    if (error is AppException) throw error;
+$authStreamCatch    if (error is FirebaseException) {
+      throw AppException.fromFirebaseError(error);
+    }
+    throw AppException.fromError(error, stackTrace);
+  });
+}
+''';
+  }
 }

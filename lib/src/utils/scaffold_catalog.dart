@@ -12,6 +12,7 @@ import '../templates/misc/docs_templates.dart';
 import '../templates/misc/ios_templates.dart';
 import '../templates/misc/workflow_templates.dart';
 import '../templates/ui/auth_templates.dart';
+import '../templates/ui/firebase_auth_templates.dart';
 import 'widget_catalog.dart';
 
 /// The options a generated file's template varies with, read back off a
@@ -101,6 +102,15 @@ class ScaffoldContext {
 
   /// Firebase Auth is installed.
   bool get hasFirebaseAuth => hasPackage('firebase_auth');
+
+  /// The auth feature was generated against Firebase Auth rather than the
+  /// REST client.
+  ///
+  /// Read off the entity, which is the one file whose name differs between
+  /// the two variants — a project can have `firebase_auth` in its pubspec and
+  /// still have taken the REST auth feature.
+  bool get hasFirebaseAuthFeature =>
+      hasFile('lib/features/auth/domain/entities/auth_user_entity.dart');
 }
 
 /// One generated file outside the widget kit that `moarch update` can refresh.
@@ -185,6 +195,7 @@ abstract final class ScaffoldCatalog {
       template: (c) => ErrorTemplates.appException(
         hasDio: c.hasDio,
         hasFirebase: c.hasFirebase,
+        hasFirebaseAuth: c.hasFirebaseAuth,
         hasCrashlytics: c.hasCrashlytics,
       ),
       description:
@@ -247,6 +258,7 @@ abstract final class ScaffoldCatalog {
         withNotificationsService: c.hasNotifications,
         withFirebaseNotifications: c.hasFirebaseNotifications,
         withCrashlytics: c.hasCrashlytics,
+        withFirebase: c.hasFirebase || c.hasCrashlytics,
       ),
       description:
           'The entry point: ProviderScope, theme, router and the services the project selected.',
@@ -270,6 +282,17 @@ abstract final class ScaffoldCatalog {
       template: (_) => CoreTemplates.safeApiCall(),
       description:
           'The wrapper that turns a request into a typed AppException.',
+    ),
+    ScaffoldSpec(
+      name: 'safe-firebase-call',
+      title: 'safeFirebaseCall',
+      path: 'lib/core/network/safe_firebase_call.dart',
+      category: 'Network',
+      template: (c) => CoreTemplates.safeFirebaseCall(
+        withAuth: c.hasFirebaseAuth,
+      ),
+      description:
+          'The same contract for Firestore and Firebase Auth calls and streams.',
     ),
 
     // ── Security ────────────────────────────────────────────────────────────
@@ -408,6 +431,8 @@ abstract final class ScaffoldCatalog {
     ),
 
     // ── Auth feature ────────────────────────────────────────────────────────
+    // The files below the entity are shared by both backends: same path, same
+    // provider names, a template chosen by which entity the project has.
     ScaffoldSpec(
       name: 'auth-entity',
       title: 'AuthTokensEntity',
@@ -417,11 +442,21 @@ abstract final class ScaffoldCatalog {
       description: 'The domain view of an access/refresh token pair.',
     ),
     ScaffoldSpec(
+      name: 'auth-user-entity',
+      title: 'AuthUserEntity',
+      path: 'lib/features/auth/domain/entities/auth_user_entity.dart',
+      category: 'Auth feature',
+      template: (_) => FirebaseAuthTemplates.entity(),
+      description: 'The domain view of a signed-in Firebase user.',
+    ),
+    ScaffoldSpec(
       name: 'auth-repository',
       title: 'AuthRepository',
       path: 'lib/features/auth/domain/repositories/auth_repository.dart',
       category: 'Auth feature',
-      template: (_) => AuthTemplates.repositoryInterface(),
+      template: (c) => c.hasFirebaseAuthFeature
+          ? FirebaseAuthTemplates.repositoryInterface()
+          : AuthTemplates.repositoryInterface(),
       description: 'The repository contract the notifier depends on.',
     ),
     ScaffoldSpec(
@@ -433,19 +468,39 @@ abstract final class ScaffoldCatalog {
       description: 'JSON ↔ entity mapping for the token pair.',
     ),
     ScaffoldSpec(
+      name: 'auth-user-model',
+      title: 'AuthUserModel',
+      path: 'lib/features/auth/data/models/auth_user_model.dart',
+      category: 'Auth feature',
+      template: (c) => FirebaseAuthTemplates.model(
+        withFirestore: c.hasFirestore,
+      ),
+      description:
+          'FirebaseAuth user ↔ entity, plus the Firestore profile document.',
+    ),
+    ScaffoldSpec(
       name: 'auth-datasource',
       title: 'AuthRemoteDatasource',
       path: 'lib/features/auth/data/datasources/auth_remote_datasource.dart',
       category: 'Auth feature',
-      template: (_) => AuthTemplates.remoteDatasource(),
-      description: 'The /auth/* calls — adjust these to your API contract.',
+      template: (c) => c.hasFirebaseAuthFeature
+          ? FirebaseAuthTemplates.remoteDatasource(
+              withFirestore: c.hasFirestore,
+            )
+          : AuthTemplates.remoteDatasource(),
+      description:
+          'The auth calls — /auth/* over Dio, or FirebaseAuth and Google sign-in.',
     ),
     ScaffoldSpec(
       name: 'auth-repository-impl',
       title: 'AuthRepositoryImpl',
       path: 'lib/features/auth/data/repositories/auth_repository_impl.dart',
       category: 'Auth feature',
-      template: (_) => AuthTemplates.repositoryImpl(),
+      template: (c) => c.hasFirebaseAuthFeature
+          ? FirebaseAuthTemplates.repositoryImpl(
+              withFirestore: c.hasFirestore,
+            )
+          : AuthTemplates.repositoryImpl(),
       description:
           'Datasource + secure storage behind the repository contract.',
     ),
@@ -454,7 +509,9 @@ abstract final class ScaffoldCatalog {
       title: 'AuthState',
       path: 'lib/features/auth/presentation/states/auth_state.dart',
       category: 'Auth feature',
-      template: (_) => AuthTemplates.state(),
+      template: (c) => c.hasFirebaseAuthFeature
+          ? FirebaseAuthTemplates.state()
+          : AuthTemplates.state(),
       description: 'The state the auth notifier exposes.',
     ),
     ScaffoldSpec(
@@ -462,7 +519,9 @@ abstract final class ScaffoldCatalog {
       title: 'AuthNotifier',
       path: 'lib/features/auth/presentation/notifiers/auth_notifier.dart',
       category: 'Auth feature',
-      template: (_) => AuthTemplates.notifier(),
+      template: (c) => c.hasFirebaseAuthFeature
+          ? FirebaseAuthTemplates.notifier()
+          : AuthTemplates.notifier(),
       description:
           'Login, register, refresh, logout, delete and session restore.',
     ),
@@ -471,7 +530,9 @@ abstract final class ScaffoldCatalog {
       title: 'LoginView',
       path: 'lib/features/auth/presentation/views/login_view.dart',
       category: 'Auth feature',
-      template: (_) => AuthTemplates.loginView(),
+      template: (c) => c.hasFirebaseAuthFeature
+          ? FirebaseAuthTemplates.loginView()
+          : AuthTemplates.loginView(),
       description: 'The login screen built from the UI kit.',
     ),
     ScaffoldSpec(
@@ -479,7 +540,9 @@ abstract final class ScaffoldCatalog {
       title: 'RegisterView',
       path: 'lib/features/auth/presentation/views/register_view.dart',
       category: 'Auth feature',
-      template: (_) => AuthTemplates.registerView(),
+      template: (c) => c.hasFirebaseAuthFeature
+          ? FirebaseAuthTemplates.registerView()
+          : AuthTemplates.registerView(),
       description: 'The register screen built from the UI kit.',
     ),
 
@@ -516,6 +579,21 @@ abstract final class ScaffoldCatalog {
       category: 'Docs',
       template: (_) => DocsTemplates.generateJKS(),
       description: 'How to generate and wire up the Android signing key.',
+    ),
+    ScaffoldSpec(
+      name: 'firebase-doc',
+      title: 'Firebase setup guide',
+      path: 'docs/FIREBASE_SETUP.md',
+      category: 'Docs',
+      template: (c) => DocsTemplates.firebaseSetup(
+        withAuth: c.hasFirebaseAuth,
+        withGoogleSignIn: c.hasFirebaseAuthFeature,
+        withFirestore: c.hasFirestore,
+        withCrashlytics: c.hasCrashlytics,
+        withMessaging: c.hasFirebaseNotifications,
+      ),
+      description:
+          'The console and platform steps the generated Firebase code depends on.',
     ),
     ScaffoldSpec(
       name: 'workflow-doc',

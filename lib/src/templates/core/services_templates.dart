@@ -40,6 +40,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../../core/constants/app_constants.dart';
 import '../../core/utils/app_logger.dart';
 
 // Android: add to android/app/src/main/AndroidManifest.xml inside <manifest>:
@@ -407,6 +408,7 @@ class NotificationService {
         importance: isHigh ? Importance.max : Importance.defaultImportance,
         priority: isHigh ? Priority.high : Priority.defaultPriority,
         ticker: 'ticker',
+        color: AppConstants.primary,
       ),
       iOS: DarwinNotificationDetails(
         presentAlert: true,
