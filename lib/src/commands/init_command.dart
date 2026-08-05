@@ -360,7 +360,15 @@ class InitCommand extends Command<int> {
       // "Namespace not specified" before the app ever runs.
       if (stack.contains(_kMediaService)) 'file_picker: ^11.0.0',
       if (stack.contains(_kMediaService)) 'image_picker: ',
-      'permission_handler: ',
+      // Capped, unlike its neighbours, because permission_handler 13 pulls
+      // permission_handler_android 14, whose android/build.gradle.kts is
+      // written against AGP 9 / Gradle 9 / Kotlin 2.3 and its built-in Kotlin
+      // support. On the AGP 8 toolchain `flutter create` still scaffolds, its
+      // top-level `kotlin { compilerOptions { ... } }` block fails to resolve
+      // and the build dies in script compilation. 12.x resolves the android
+      // impl to 13.x, which is Groovy/AGP 8 and builds; the API the generated
+      // PermissionService uses is unchanged across the two.
+      'permission_handler: ^12.0.3',
       if (stack.contains(_kLaunchUrlService)) 'url_launcher: ',
       if (stack.contains(_kNotificationsService))
         'flutter_local_notifications: ',
