@@ -1,5 +1,5 @@
-# [2.9.1]
+# [2.9.2]
 
 ## Features
 
-- new widgets
+- app toast adjustment

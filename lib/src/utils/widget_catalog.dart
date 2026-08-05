@@ -673,8 +673,8 @@ abstract final class WidgetCatalog {
       template: SharedTemplates.appToast,
       category: 'Overlays',
       common: true,
-      description:
-          'Themed success/error/warning/info toast on ScaffoldMessenger.',
+      description: 'Themed success/error/warning/info toast on the root '
+          'Overlay, with its own entrance and exit curves.',
     ),
     WidgetSpec(
       name: 'bottom-sheet',

@@ -119,17 +119,87 @@ void main() {
   group('appToast', () {
     final output = SharedTemplates.appToast();
 
-    test('draws its own card, because a SnackBar cannot be outlined', () {
-      expect(output, contains('backgroundColor: Colors.transparent,'));
-      expect(output, contains('elevation: 0,'));
-      expect(output, contains('padding: EdgeInsets.zero,'));
+    test('draws its own outlined card on the overlay', () {
       expect(output, contains('class _ToastCard extends StatelessWidget'));
       expect(output, contains('border: Border.all('));
       expect(output, contains('boxShadow: ['));
+      expect(
+          output, contains('Overlay.maybeOf(context, rootOverlay: true)'));
+      expect(output, contains('overlay.insert(entry);'));
+    });
+
+    test('owns both ends of the animation, which a SnackBar does not expose',
+        () {
+      expect(output,
+          contains('static const Duration _enterDuration = Duration(milliseconds: 320);'));
+      expect(output,
+          contains('static const Duration _exitDuration = Duration(milliseconds: 200);'));
+      // Decelerating in, accelerating out — reversing easeOutCubic would have
+      // the card crawl off the screen.
+      expect(output, contains('curve: Curves.easeOutCubic,'));
+      expect(output, contains('reverseCurve: Curves.easeInCubic,'));
+      // Fade, rise and scale run off the same curve.
+      expect(output, contains('FadeTransition('));
+      expect(output, contains('begin: const Offset(0, AppToast._rise),'));
+      expect(output,
+          contains('Tween<double>(begin: AppToast._enterScale, end: 1)'));
+    });
+
+    test('honours reduce motion', () {
+      expect(output,
+          contains('final reduced = MediaQuery.disableAnimationsOf(context);'));
+      expect(output, contains('reduced ? Duration.zero : AppToast._enterDuration'));
+      expect(output, contains('reduced ? Duration.zero : AppToast._exitDuration'));
+    });
+
+    test('a second toast swaps the content of the card already up', () {
+      // Playing a full exit first makes the user watch 200ms of a message they
+      // have been replaced out of before the new one starts arriving.
+      expect(output, contains('if (_entry != null && live != null) {'));
+      expect(output, contains('live.value = spec;'));
+      // And the exit is called off if one was already running.
+      expect(output, contains('_controller.forward();\n    setState(() {});'));
+    });
+
+    test('pulls the entry only once the exit has finished', () {
+      expect(
+        output,
+        contains('if (status == AnimationStatus.dismissed) widget.onGone();'),
+      );
+      expect(output, contains('entry?.remove();'));
+    });
+
+    test('lets go of an overlay that died without playing its exit', () {
+      // The route under it popped, the navigator was replaced, a hot restart:
+      // _release never ran, and statics left pointing at a disposed notifier
+      // make show() treat every later toast as a replacement for a card that is
+      // not there — silently doing nothing for the rest of the session.
+      expect(output, contains('AppToast._forget(widget.spec);'));
+      expect(output,
+          contains('static void _forget(ValueNotifier<_ToastSpec> spec) {'));
+      // Identity-checked: the exit path clears these a frame before dispose
+      // runs, so a toast shown in that gap already owns them.
+      expect(output, contains('if (!identical(_live, spec)) return;'));
+    });
+
+    test('cannot remove the same entry twice', () {
+      // A swipe and the timer can land on the same frame.
+      expect(
+        output,
+        contains('final entry = _entry;\n    _entry = null;'),
+      );
+    });
+
+    test('sits above the keyboard when there is one', () {
+      expect(
+        output,
+        contains('media.viewInsets.bottom > 0\n        ? media.viewInsets.bottom\n'
+            '        : media.viewPadding.bottom;'),
+      );
     });
 
     test('resolves its colors where it is built, not where it was shown', () {
-      // The SnackBar builds a frame later; colors computed in show() would be
+      // The card builds a frame later; colors computed in show() would be
       // a light-palette green on a dark card if the theme changed in between.
       expect(output,
           contains('final isDark = theme.brightness == Brightness.dark;'));
@@ -157,8 +227,10 @@ void main() {
 
     test('stays a card rather than becoming a banner on a tablet', () {
       expect(output, contains('static const double _maxWidth = 480;'));
-      expect(output,
-          contains('constraints: const BoxConstraints(maxWidth: _maxWidth),'));
+      expect(
+          output,
+          contains(
+              'constraints: const BoxConstraints(maxWidth: AppToast._maxWidth),'));
     });
 
     test('takes a title over the detail', () {
@@ -177,8 +249,7 @@ void main() {
     test('an action dismisses the toast before it runs', () {
       expect(
         output,
-        contains(
-            'ScaffoldMessenger.of(context).hideCurrentSnackBar();\n                onAction!();'),
+        contains('AppToast.dismiss();\n                onAction!();'),
       );
     });
 
@@ -190,12 +261,15 @@ void main() {
           reason: '$helper helper is missing',
         );
       }
-      expect(output, contains('static void dismiss(BuildContext context)'));
+      // No context: the overlay is reachable without one, and the caller that
+      // wants a toast gone is often the one whose context is going away.
+      expect(output, contains('static void dismiss() => _hideCurrent?.call();'));
     });
 
-    test('is flicked away sideways', () {
-      expect(
-          output, contains('dismissDirection: DismissDirection.horizontal,'));
+    test('is flicked away sideways, and skips the exit when it is', () {
+      expect(output, contains('direction: DismissDirection.horizontal,'));
+      expect(output, contains('onDismissed: (_) => _handleSwipe(),'));
+      expect(output, contains('resizeDuration: null,'));
     });
   });
 
