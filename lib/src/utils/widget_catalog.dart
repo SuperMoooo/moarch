@@ -11,6 +11,7 @@ import '../templates/ui/navigation_templates.dart';
 import '../templates/ui/phone_templates.dart';
 import '../templates/ui/shared_templates.dart';
 import '../templates/ui/table_templates.dart';
+import '../templates/ui/text_templates.dart';
 
 /// One entry in the shared-widget kit: everything needed to generate a widget
 /// on demand and to document it in `docs/UI_KIT.md`.
@@ -393,6 +394,15 @@ abstract final class WidgetCatalog {
           'Filled/outlined/ghost button with variant/shape/size, loading + disabled states.',
     ),
     WidgetSpec(
+      name: 'text-button',
+      title: 'AppTextButton',
+      file: 'buttons/app_text_button.dart',
+      template: TextTemplates.appTextButton,
+      category: 'Buttons & icons',
+      description:
+          'AppButton\'s quiet sibling, where the label is the button — plain, underlined or on a tonal pill, with a neutral variant the louder controls don\'t have, and a loading state that keeps the label\'s exact width.',
+    ),
+    WidgetSpec(
       name: 'leading-icon',
       title: 'AppLeadingIcon',
       file: 'icons/app_leading_icon.dart',
@@ -458,6 +468,15 @@ abstract final class WidgetCatalog {
       deps: ['card', 'list-tile'],
       description:
           'AppListTile on its own AppCard surface — a standalone tappable row.',
+    ),
+    WidgetSpec(
+      name: 'rich-text',
+      title: 'AppRichText',
+      file: 'text/app_rich_text.dart',
+      template: TextTemplates.appRichText,
+      category: 'Layout & content',
+      description:
+          'A paragraph built from AppSpans, each with its own style and its own tap handler — the recognizers a tappable span needs are created, kept alive across rebuilds and disposed for you. Plus span builders for {placeholder} sentences and search highlighting.',
     ),
     WidgetSpec(
       name: 'badge',

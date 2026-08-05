@@ -9,6 +9,7 @@ import 'package:moarch/src/templates/ui/navigation_templates.dart';
 import 'package:moarch/src/templates/ui/table_templates.dart';
 import 'package:moarch/src/templates/ui/phone_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
+import 'package:moarch/src/templates/ui/text_templates.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
 import 'package:test/test.dart';
 
@@ -19,6 +20,8 @@ void main() {
     final tactile = <String, String Function()>{
       'appButton': SharedTemplates.appButton,
       'appIconButton': SharedTemplates.appIconButton,
+      'appTextButton': TextTemplates.appTextButton,
+      'appRichText': TextTemplates.appRichText,
       'appInput': SharedTemplates.appInput,
       'dateInput': SharedTemplates.dateInput,
       'timeInput': SharedTemplates.timeInput,

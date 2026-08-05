@@ -596,10 +596,12 @@ The kit covers:
   `AppCountryPicker` (238 countries)
 - **overlays** — `AppActionSheet` (platform-shaped), `AppToast`,
   `AppConfirmDialog`, `AppBottomSheetScaffold`, dialog/bottom-sheet helpers
-- **buttons & icons** — `AppButton`, `AppLeadingIcon`, `AppIconButton`, `AppFab`
+- **buttons & icons** — `AppButton`, `AppTextButton` (the quiet, text-first
+  action), `AppLeadingIcon`, `AppIconButton`, `AppFab`
 - **layout** — `AppListTile`, `AppCard`, `AppCardTile`, `AppTag`, `AppBadge`,
   `AppSectionHeader`, `AppExpansionTile`, `AppTimeline`, `AppTable`,
-  `AppDragSection`
+  `AppDragSection`, `AppRichText` (a style and a tap handler per span, with the
+  recognizers handled for you)
 - **feedback** — `AppAsyncView`, `ref.listenAction`, `AppBanner`,
   `AppProgressBar`, `AppScreenLock`, skeleton list, loading overlay,
   `ErrorView`, `EmptyView`

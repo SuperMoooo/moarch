@@ -7531,6 +7531,7 @@ import '../widgets/buttons/app_button.dart';
 import '../widgets/buttons/app_fab.dart';
 import '../widgets/audio/app_audio_player.dart';
 import '../widgets/buttons/app_icon_button.dart';
+import '../widgets/buttons/app_text_button.dart';
 import '../widgets/calendar/app_calendar.dart';
 import '../widgets/cards/app_card.dart';
 import '../widgets/drag/app_drag_section.dart';
@@ -7565,6 +7566,7 @@ import '../widgets/inputs/app_switch.dart';
 import '../widgets/inputs/app_time_input.dart';
 import '../widgets/layouts/app_single_scroll_view.dart';
 import '../widgets/tables/app_table.dart';
+import '../widgets/text/app_rich_text.dart';
 import '../widgets/lists/app_card_tile.dart';
 import '../widgets/lists/app_expansion_tile.dart';
 import '../widgets/lists/app_list_tile.dart';
@@ -8814,6 +8816,225 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                           tooltip: 'disabled',
                         ),
                       ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppTextButton ─────────────────────────────────────────────
+              _Section(
+                title: 'AppTextButton',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Types (primary):'),
+                    const SizedBox(height: AppConstants.space8),
+                    Wrap(
+                      spacing: AppConstants.space8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        for (final type in AppTextButtonType.values)
+                          AppTextButton(
+                            label: type.name,
+                            type: type,
+                            onPressed: () {},
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    // The neutral variant is the one the louder controls do not
+                    // have: the action offered without being urged.
+                    const Text('Variants (plain):'),
+                    const SizedBox(height: AppConstants.space8),
+                    Wrap(
+                      spacing: AppConstants.space8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        for (final variant in AppTextButtonVariant.values)
+                          AppTextButton(
+                            label: variant.name,
+                            variant: variant,
+                            onPressed: () {},
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    const Text('Sizes (tonal, pill):'),
+                    const SizedBox(height: AppConstants.space8),
+                    Wrap(
+                      spacing: AppConstants.space8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        for (final size in AppTextButtonSize.values)
+                          AppTextButton(
+                            label: size.name,
+                            size: size,
+                            type: AppTextButtonType.tonal,
+                            shape: AppTextButtonShape.pill,
+                            onPressed: () {},
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    const Text('Icons & states:'),
+                    const SizedBox(height: AppConstants.space8),
+                    Wrap(
+                      spacing: AppConstants.space8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        AppTextButton(
+                          label: 'See all',
+                          suffixIcon: Icons.chevron_right,
+                          onPressed: () {},
+                        ),
+                        AppTextButton(
+                          label: 'Add note',
+                          prefixIcon: Icons.add,
+                          variant: AppTextButtonVariant.secondary,
+                          onPressed: () {},
+                        ),
+                        // Loading keeps the label's exact width, so nothing in
+                        // the row moves while it spins.
+                        const AppTextButton(label: 'Resending…', isLoading: true),
+                        const AppTextButton(
+                          label: 'Disabled',
+                          variant: AppTextButtonVariant.danger,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    const Text('Dense — no touch target, for a tight row:'),
+                    const SizedBox(height: AppConstants.space8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Recent orders'),
+                        AppTextButton(
+                          label: 'See all',
+                          size: AppTextButtonSize.small,
+                          dense: true,
+                          onPressed: () {},
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppRichText ───────────────────────────────────────────────
+              _Section(
+                title: 'AppRichText',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('A style per span:'),
+                    const SizedBox(height: AppConstants.space8),
+                    AppRichText(
+                      style: Theme.of(context).textTheme.bodyLarge,
+                      spans: const [
+                        AppSpan('Plain, '),
+                        AppSpan.bold('bold'),
+                        AppSpan(', '),
+                        AppSpan('italic', italic: true),
+                        AppSpan(', '),
+                        AppSpan('muted', variant: AppSpanVariant.muted),
+                        AppSpan(', '),
+                        AppSpan('danger', variant: AppSpanVariant.danger),
+                        AppSpan(', '),
+                        AppSpan(
+                          'struck',
+                          decoration: TextDecoration.lineThrough,
+                        ),
+                        AppSpan(' and '),
+                        AppSpan(
+                          '1.6×',
+                          scale: 1.6,
+                          weight: FontWeight.w700,
+                          variant: AppSpanVariant.primary,
+                        ),
+                        AppSpan('.'),
+                      ],
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    const Text('Tappable spans — tap either, hold the second:'),
+                    const SizedBox(height: AppConstants.space8),
+                    AppRichText(
+                      spans: [
+                        const AppSpan('By continuing you agree to our '),
+                        AppSpan.link(
+                          'Terms',
+                          onTap: () => AppToast.info(context, 'Terms tapped'),
+                        ),
+                        const AppSpan(' and '),
+                        AppSpan.link(
+                          'Privacy Policy',
+                          onTap: () => AppToast.info(context, 'Privacy tapped'),
+                          onLongPress: () =>
+                              AppToast.success(context, 'Link copied'),
+                        ),
+                        const AppSpan('.'),
+                      ],
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    const Text('An icon, and a whole widget, inline:'),
+                    const SizedBox(height: AppConstants.space8),
+                    const AppRichText(
+                      spans: [
+                        AppSpan('Delivery by '),
+                        AppSpan.bold('Friday'),
+                        AppSpan(' '),
+                        AppSpan.icon(
+                          Icons.local_shipping_outlined,
+                          variant: AppSpanVariant.primary,
+                        ),
+                        AppSpan('  '),
+                        AppSpan.widget(
+                          AppTag(
+                            label: 'On time',
+                            status: AppTagStatus.success,
+                            icon: Icons.check,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    // The sentence comes from one translatable string; the
+                    // translator moves {placeholders} and the styling follows.
+                    const Text('A sentence from {placeholders}:'),
+                    const SizedBox(height: AppConstants.space8),
+                    AppRichText(
+                      spans: AppSpan.template(
+                        'Signed in as {email}. {action} at any time.',
+                        {
+                          'email': const AppSpan.bold(
+                            'ana@example.com',
+                            variant: AppSpanVariant.neutral,
+                          ),
+                          'action': AppSpan.link(
+                            'Switch account',
+                            onTap: () =>
+                                AppToast.info(context, 'Switch account'),
+                          ),
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    // Reads the query typed into AppSearchField above.
+                    const Text('Search highlighting:'),
+                    const SizedBox(height: AppConstants.space8),
+                    AppRichText(
+                      selectable: true,
+                      spans: AppSpan.highlight(
+                        'The quick brown fox jumps over the lazy dog.',
+                        query: _query.isEmpty ? 'the' : _query,
+                      ),
+                    ),
+                    const SizedBox(height: AppConstants.space4),
+                    Text(
+                      _query.isEmpty
+                          ? 'Type in AppSearchField above to change the query.'
+                          : 'Matching "$_query"',
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
                 ),

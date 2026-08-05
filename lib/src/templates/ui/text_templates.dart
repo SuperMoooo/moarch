@@ -1,0 +1,902 @@
+/// Templates for the two text widgets: the low-emphasis text action, and the
+/// paragraph whose parts are styled — and tapped — one span at a time.
+abstract final class TextTemplates {
+  /// Returns the generated appTextButton template.
+  static String appTextButton() => r'''
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+
+/// Color role of [AppTextButton] — what the action is *about*, never how it is
+/// drawn. Mirrors [AppButtonVariant] so a text action and a filled button speak
+/// the same color vocabulary.
+///
+/// [neutral] is the one role the louder controls don't have, and the one a text
+/// action needs most: "Skip", "Not now", "Cancel" — an action that is offered
+/// without being urged. It follows the theme's `onSurface`, so it stays legible
+/// in light and dark alike.
+enum AppTextButtonVariant { primary, secondary, tertiary, danger, neutral }
+
+/// Fill treatment of [AppTextButton] — how the [AppTextButtonVariant] color is
+/// applied.
+///
+/// - [plain]: bare colored label; the default, and the quietest.
+/// - [underlined]: colored label with a rule under it — the inline-link look,
+///   for an action sitting inside a sentence.
+/// - [tonal]: label on a soft variant-tinted pill, for when the action has to
+///   be found at a glance without becoming a full button.
+///
+/// Orthogonal to [AppTextButtonVariant] and [AppTextButtonSize]: any color
+/// combines with any fill at any size.
+enum AppTextButtonType { plain, underlined, tonal }
+
+/// Corner shape of the [AppTextButtonType.tonal] pill. Ignored by the other
+/// two types, which paint no container to shape.
+enum AppTextButtonShape { rounded, pill }
+
+enum AppTextButtonSize { small, medium, large }
+
+typedef _TextButtonSizeConfig = ({
+  double fontSize,
+  double iconSize,
+  double minHeight,
+  EdgeInsets padding,
+});
+
+/// A text-first action: the label *is* the button. [AppButton]'s quiet sibling,
+/// for the choice that shouldn't compete with the screen's main one — "Forgot
+/// password?", "See all", "Resend code", the link inside a paragraph.
+///
+/// Reach for [AppButton] when the action is the point of the screen, this when
+/// it is the alternative to it.
+///
+/// ```dart
+/// AppTextButton(
+///   label: 'Forgot password?',
+///   variant: AppTextButtonVariant.primary,
+///   type: AppTextButtonType.underlined,
+///   onPressed: () => context.push('/reset'),
+/// )
+/// ```
+class AppTextButton extends StatelessWidget {
+  const AppTextButton({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.variant = AppTextButtonVariant.primary,
+    this.type = AppTextButtonType.plain,
+    this.shape = AppTextButtonShape.rounded,
+    this.size = AppTextButtonSize.medium,
+    this.prefixIcon,
+    this.suffixIcon,
+    this.isLoading = false,
+    this.color,
+    this.fontWeight,
+    this.maxLines = 1,
+    this.expand = false,
+    this.alignment,
+    this.dense = false,
+    this.tooltip,
+  });
+
+  final String label;
+
+  /// Tap handler. Pass null to render the button in its disabled state.
+  final VoidCallback? onPressed;
+  final AppTextButtonVariant variant;
+  final AppTextButtonType type;
+
+  /// Only read by [AppTextButtonType.tonal] — the other types have no
+  /// container to shape.
+  final AppTextButtonShape shape;
+  final AppTextButtonSize size;
+  final IconData? prefixIcon;
+  final IconData? suffixIcon;
+
+  /// Replaces the label with a spinner and ignores taps. The button keeps the
+  /// exact width the label gave it, so a row of actions doesn't reflow.
+  final bool isLoading;
+
+  /// Overrides [variant]'s color. For the action that has to match a color the
+  /// variant vocabulary doesn't name — a status tint, say. Reach for a
+  /// [variant] first; this is the escape hatch.
+  final Color? color;
+
+  /// Defaults to semi-bold, which is what keeps a bare label reading as
+  /// something tappable rather than as more text.
+  final FontWeight? fontWeight;
+
+  /// Lines the label may wrap onto before it ellipsizes. One by default.
+  final int maxLines;
+
+  /// Stretches the button across its parent. Off by default: a text action
+  /// normally takes only the room its label needs.
+  final bool expand;
+
+  /// Where the label sits when the button is wider than it — with [expand], or
+  /// inside a stretched Column. Defaults to centered.
+  final Alignment? alignment;
+
+  /// Drops the 48dp touch target and the padding around the label, for a text
+  /// action that has to sit tight against something else — the "See all" at the
+  /// end of a section header, an action inline in a dense row.
+  ///
+  /// It buys the layout back at the cost of an easy tap, so keep it for
+  /// buttons that sit inside an already-tappable row.
+  final bool dense;
+
+  /// Long-press label. Worth setting when the label is abbreviated by
+  /// [maxLines] on a narrow screen.
+  final String? tooltip;
+
+  static const double _tonalFillOpacity = 0.12;
+  static const double _disabledOpacity = 0.38;
+  static const FontWeight _defaultWeight = FontWeight.w600;
+
+  _TextButtonSizeConfig _sizeConfig() => switch (size) {
+        AppTextButtonSize.small => (
+            fontSize: AppConstants.fontSize13,
+            iconSize: 16.0,
+            minHeight: 32.0,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppConstants.space8,
+              vertical: AppConstants.space4,
+            ),
+          ),
+        AppTextButtonSize.medium => (
+            fontSize: AppConstants.fontSize15,
+            iconSize: 18.0,
+            minHeight: 40.0,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppConstants.space12,
+              vertical: AppConstants.space8,
+            ),
+          ),
+        AppTextButtonSize.large => (
+            fontSize: AppConstants.fontSize17,
+            iconSize: 20.0,
+            minHeight: AppConstants.touchTarget,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppConstants.space16,
+              vertical: AppConstants.space12,
+            ),
+          ),
+      };
+
+  /// The variant's color, plus the color that reads on top of it. Single
+  /// source for every color the button paints.
+  (Color, Color) _colorsOf(ThemeData theme) {
+    final override = color;
+    if (override != null) {
+      // No colorScheme pair exists for an arbitrary color, so pick whichever
+      // of black/white keeps a tonal fill legible.
+      return (
+        override,
+        ThemeData.estimateBrightnessForColor(override) == Brightness.dark
+            ? Colors.white
+            : Colors.black,
+      );
+    }
+    return switch (variant) {
+      AppTextButtonVariant.primary => (
+          theme.colorScheme.primary,
+          theme.colorScheme.onPrimary,
+        ),
+      AppTextButtonVariant.secondary => (
+          theme.colorScheme.secondary,
+          theme.colorScheme.onSecondary,
+        ),
+      AppTextButtonVariant.tertiary => (
+          theme.colorScheme.tertiary,
+          theme.colorScheme.onTertiary,
+        ),
+      AppTextButtonVariant.danger => (
+          theme.colorScheme.error,
+          theme.colorScheme.onError,
+        ),
+      AppTextButtonVariant.neutral => (
+          theme.colorScheme.onSurface,
+          theme.colorScheme.surface,
+        ),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    final sizeConfig = _sizeConfig();
+    final (accent, _) = _colorsOf(theme);
+    final enabled = onPressed != null && !isLoading;
+
+    // Variant chooses the color; type only decides how that color is applied.
+    // Only the tonal type paints anything behind the label.
+    final background = switch (type) {
+      AppTextButtonType.tonal => Color.alphaBlend(
+          accent.withValues(alpha: _tonalFillOpacity),
+          theme.colorScheme.surface,
+        ),
+      AppTextButtonType.plain || AppTextButtonType.underlined =>
+        Colors.transparent,
+    };
+
+    // A disabled button stays its variant, just faded — never a generic grey.
+    final foreground =
+        enabled ? accent : accent.withValues(alpha: _disabledOpacity);
+    final resolvedBackground = enabled
+        ? background
+        : background.withValues(alpha: _disabledOpacity);
+
+    final textStyle = theme.textTheme.labelLarge?.copyWith(
+          color: foreground,
+          fontSize: sizeConfig.fontSize,
+          fontWeight: fontWeight ?? _defaultWeight,
+          decoration: type == AppTextButtonType.underlined
+              ? TextDecoration.underline
+              : TextDecoration.none,
+        ) ??
+        TextStyle(
+          color: foreground,
+          fontSize: sizeConfig.fontSize,
+          fontWeight: fontWeight ?? _defaultWeight,
+        );
+
+    final content = Row(
+      mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (prefixIcon != null) ...[
+          Icon(prefixIcon, size: sizeConfig.iconSize, color: foreground),
+          const SizedBox(width: AppConstants.space4),
+        ],
+        // Flexible + ellipsis so a label wider than the room it is given
+        // truncates instead of overflowing the row it sits in.
+        Flexible(
+          child: Text(
+            label,
+            maxLines: maxLines,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: textStyle,
+          ),
+        ),
+        if (suffixIcon != null) ...[
+          const SizedBox(width: AppConstants.space4),
+          Icon(suffixIcon, size: sizeConfig.iconSize, color: foreground),
+        ],
+      ],
+    );
+
+    final button = TextButton(
+      onPressed: enabled
+          ? () {
+              HapticFeedback.selectionClick();
+              onPressed!();
+            }
+          : null,
+      style: TextButton.styleFrom(
+        backgroundColor: resolvedBackground,
+        disabledBackgroundColor: resolvedBackground,
+        foregroundColor: foreground,
+        disabledForegroundColor: foreground,
+        padding: dense ? EdgeInsets.zero : sizeConfig.padding,
+        alignment: alignment ?? Alignment.center,
+        // A dense button gives up its 48dp target for the layout's sake; every
+        // other one keeps a target a finger can actually land on.
+        minimumSize: dense ? Size.zero : Size(0, sizeConfig.minHeight),
+        tapTargetSize:
+            dense ? MaterialTapTargetSize.shrinkWrap : MaterialTapTargetSize.padded,
+        shape: RoundedRectangleBorder(
+          borderRadius: switch (shape) {
+            AppTextButtonShape.rounded => AppConstants.borderRadius8,
+            AppTextButtonShape.pill => AppConstants.borderRadiusFull,
+          },
+        ),
+      ),
+      child: isLoading
+          // Stacked under a transparent copy of the label so the button keeps
+          // the exact width it had, and the row around it doesn't jump.
+          ? Stack(
+              alignment: Alignment.center,
+              children: [
+                Opacity(opacity: 0, child: content),
+                SizedBox.square(
+                  dimension: sizeConfig.iconSize,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: foreground,
+                  ),
+                ),
+              ],
+            )
+          : content,
+    );
+
+    final sized = expand ? SizedBox(width: double.infinity, child: button) : button;
+    if (tooltip == null) return sized;
+    return Tooltip(message: tooltip!, child: sized);
+  }
+}
+''';
+
+  /// Returns the generated appRichText template.
+  static String appRichText() => r'''
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/extensions.dart';
+
+/// Color role of one [AppSpan]. The four app roles, plus the two a paragraph
+/// needs: [neutral] for body text and [muted] for the part that is said more
+/// quietly than the rest.
+///
+/// Leave it null and the span keeps whatever color the surrounding text has.
+enum AppSpanVariant { primary, secondary, tertiary, danger, neutral, muted }
+
+/// One run inside an [AppRichText]: its text, how that text is styled, and what
+/// happens when it is tapped.
+///
+/// Style is declared in layers, each beating the one before it: the paragraph's
+/// base style, then [variant], then the shorthands ([weight], [italic],
+/// [fontSize], [scale], [decoration], [background]), then [color], and finally
+/// [style] — the escape hatch for anything the shorthands don't name. Anything
+/// left null is inherited, so a span only states what it changes.
+///
+/// ```dart
+/// AppRichText(
+///   spans: [
+///     const AppSpan('By continuing you agree to our '),
+///     AppSpan.link('Terms', onTap: () => context.push('/terms')),
+///     const AppSpan(' and '),
+///     AppSpan.link('Privacy Policy', onTap: () => context.push('/privacy')),
+///     const AppSpan('.'),
+///   ],
+/// )
+/// ```
+@immutable
+class AppSpan {
+  /// A run of plain text, styled by whichever of the arguments you pass.
+  const AppSpan(
+    this.text, {
+    this.style,
+    this.variant,
+    this.color,
+    this.weight,
+    this.italic = false,
+    this.fontSize,
+    this.scale,
+    this.decoration,
+    this.background,
+    this.onTap,
+    this.onLongPress,
+    this.semanticsLabel,
+  })  : icon = null,
+        child = null;
+
+  /// A run set in bold — the emphasized name, figure or date inside a sentence.
+  const AppSpan.bold(
+    this.text, {
+    this.style,
+    this.variant,
+    this.color,
+    this.italic = false,
+    this.fontSize,
+    this.scale,
+    this.decoration,
+    this.background,
+    this.onTap,
+    this.onLongPress,
+    this.semanticsLabel,
+  })  : weight = FontWeight.w700,
+        icon = null,
+        child = null;
+
+  /// A tappable run: variant-colored and underlined, with the recognizer and
+  /// the pointing cursor handled for you.
+  ///
+  /// Pass `underline: false` for a design that colors its links instead of
+  /// ruling them.
+  const AppSpan.link(
+    this.text, {
+    required this.onTap,
+    bool underline = true,
+    this.variant = AppSpanVariant.primary,
+    this.style,
+    this.color,
+    this.weight = FontWeight.w600,
+    this.italic = false,
+    this.fontSize,
+    this.scale,
+    this.background,
+    this.onLongPress,
+    this.semanticsLabel,
+  })  : decoration =
+            underline ? TextDecoration.underline : TextDecoration.none,
+        icon = null,
+        child = null;
+
+  /// An icon sitting on the text baseline's line box, sized off the text around
+  /// it — the arrow after "Learn more", the lock before a private note.
+  const AppSpan.icon(
+    this.icon, {
+    this.style,
+    this.variant,
+    this.color,
+    this.fontSize,
+    this.scale,
+    this.onTap,
+    this.onLongPress,
+    this.semanticsLabel,
+  })  : text = null,
+        child = null,
+        weight = null,
+        italic = false,
+        decoration = null,
+        background = null;
+
+  /// Any widget, inline in the paragraph — a chip, an avatar, a countdown.
+  /// The escape hatch for the part that isn't text at all.
+  const AppSpan.widget(
+    this.child, {
+    this.onTap,
+    this.onLongPress,
+    this.semanticsLabel,
+  })  : text = null,
+        icon = null,
+        style = null,
+        variant = null,
+        color = null,
+        weight = null,
+        italic = false,
+        fontSize = null,
+        scale = null,
+        decoration = null,
+        background = null;
+
+  /// A hard line break, for the sentence that has to start on its own line.
+  static const AppSpan lineBreak = AppSpan('\n');
+
+  /// The run's text. Null on the icon and widget spans.
+  final String? text;
+
+  /// Drawn inline instead of [text], by [AppSpan.icon].
+  final IconData? icon;
+
+  /// Drawn inline instead of [text], by [AppSpan.widget].
+  final Widget? child;
+
+  /// Merged last, over everything else — for what the shorthands don't name
+  /// (a font family, letter spacing, a shadow).
+  final TextStyle? style;
+
+  /// Color role. Null keeps the surrounding text's color.
+  final AppSpanVariant? variant;
+
+  /// An exact color, beating [variant].
+  final Color? color;
+
+  final FontWeight? weight;
+  final bool italic;
+
+  /// An exact size in logical pixels, beating [scale].
+  final double? fontSize;
+
+  /// A multiple of the paragraph's size — `1.4` for the figure that has to be
+  /// larger than the words around it, without hard-coding a size the theme
+  /// can't move.
+  final double? scale;
+
+  final TextDecoration? decoration;
+
+  /// Painted behind the run — the highlight over a search match.
+  final Color? background;
+
+  /// Tap handler. The recognizer it needs is created, kept alive across
+  /// rebuilds and disposed by [AppRichText]; there is no GestureDetector to
+  /// write and nothing to dispose yourself. A tapped span is announced as a
+  /// link to a screen reader.
+  final VoidCallback? onTap;
+
+  /// Long-press handler — "hold to copy".
+  ///
+  /// A [TextSpan] carries one recognizer, so a run that wants *both* gestures
+  /// is drawn as an inline widget instead, and that run no longer breaks across
+  /// lines. Keep a span that takes both short — a code, a number, an address —
+  /// which is what "hold to copy" is attached to anyway.
+  final VoidCallback? onLongPress;
+
+  /// What a screen reader says instead of [text] — for a run that reads as
+  /// something else out loud ("€1,240.00" said as "one thousand…").
+  final String? semanticsLabel;
+
+  bool get _isTappable => onTap != null || onLongPress != null;
+
+  /// The recognizer this run needs, or null when it needs none — because it is
+  /// not tappable, because it is drawn as an inline widget ([AppSpan.icon],
+  /// [AppSpan.widget]), or because it wants both gestures and so is promoted to
+  /// one.
+  _SpanGestureKind? get _gestureKind {
+    if (text == null) return null;
+    if (onTap != null && onLongPress != null) return null;
+    if (onTap != null) return _SpanGestureKind.tap;
+    if (onLongPress != null) return _SpanGestureKind.longPress;
+    return null;
+  }
+
+  static final RegExp _placeholder = RegExp(r'\{(\w+)\}');
+
+  /// Fills `{name}` placeholders in [pattern] with the spans in [values], and
+  /// wraps everything between them in plain spans.
+  ///
+  /// This is the one way to build a styled sentence that survives translation:
+  /// the translator moves `{terms}` wherever their grammar puts it, and the
+  /// link goes with it. Concatenating spans by hand can't do that — it pins
+  /// English word order into the layout.
+  ///
+  /// An unknown key is left in the sentence as literal text, so a typo shows
+  /// up on screen instead of silently dropping the word.
+  ///
+  /// ```dart
+  /// AppRichText(
+  ///   spans: AppSpan.template(
+  ///     context.l10n.agreeToTerms, // 'By continuing you accept the {terms}.'
+  ///     {'terms': AppSpan.link('Terms', onTap: _openTerms)},
+  ///   ),
+  /// )
+  /// ```
+  static List<AppSpan> template(String pattern, Map<String, AppSpan> values) {
+    final spans = <AppSpan>[];
+    var index = 0;
+    for (final match in _placeholder.allMatches(pattern)) {
+      final replacement = values[match.group(1)];
+      if (replacement == null) continue;
+      if (match.start > index) {
+        spans.add(AppSpan(pattern.substring(index, match.start)));
+      }
+      spans.add(replacement);
+      index = match.end;
+    }
+    if (index < pattern.length) spans.add(AppSpan(pattern.substring(index)));
+    return spans;
+  }
+
+  /// Splits [text] so that every occurrence of [query] is its own emphasized
+  /// span — the search result with the typed words picked out of it.
+  ///
+  /// ```dart
+  /// AppRichText(spans: AppSpan.highlight(result.title, query: _query))
+  /// ```
+  static List<AppSpan> highlight(
+    String text, {
+    required String query,
+    AppSpanVariant variant = AppSpanVariant.primary,
+    FontWeight weight = FontWeight.w700,
+    Color? background,
+    bool caseSensitive = false,
+  }) {
+    if (query.isEmpty) return [AppSpan(text)];
+    final haystack = caseSensitive ? text : text.toLowerCase();
+    final needle = caseSensitive ? query : query.toLowerCase();
+    final spans = <AppSpan>[];
+    var index = 0;
+    while (true) {
+      final found = haystack.indexOf(needle, index);
+      if (found < 0) break;
+      if (found > index) spans.add(AppSpan(text.substring(index, found)));
+      spans.add(
+        AppSpan(
+          text.substring(found, found + needle.length),
+          variant: variant,
+          weight: weight,
+          background: background,
+        ),
+      );
+      index = found + needle.length;
+    }
+    if (index < text.length) spans.add(AppSpan(text.substring(index)));
+    return spans;
+  }
+
+  Color? _variantColor(ThemeData theme) => switch (variant) {
+        null => null,
+        AppSpanVariant.primary => theme.colorScheme.primary,
+        AppSpanVariant.secondary => theme.colorScheme.secondary,
+        AppSpanVariant.tertiary => theme.colorScheme.tertiary,
+        AppSpanVariant.danger => theme.colorScheme.error,
+        AppSpanVariant.neutral => theme.colorScheme.onSurface,
+        AppSpanVariant.muted => theme.colorScheme.onSurfaceVariant,
+      };
+
+  /// The run's own style, resolved against the paragraph's [base]. `copyWith`
+  /// keeps [base]'s value wherever this span passes null, which is what lets a
+  /// span state only what it changes.
+  TextStyle _resolveStyle(TextStyle base, ThemeData theme) {
+    final baseSize = base.fontSize ?? AppConstants.fontSize14;
+    final scaled = scale == null ? null : baseSize * scale!;
+    return base
+        .copyWith(
+          color: color ?? _variantColor(theme),
+          fontWeight: weight,
+          fontStyle: italic ? FontStyle.italic : null,
+          fontSize: fontSize ?? scaled,
+          decoration: decoration,
+          backgroundColor: background,
+        )
+        .merge(style);
+  }
+
+  /// Wraps an inline widget in the gestures it asked for. Only the icon and
+  /// widget spans come through here — a text run is tapped through its
+  /// recognizer instead, so that it can still wrap across lines.
+  Widget _wrapGestures(Widget content, {required bool haptics}) {
+    if (!_isTappable) return content;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap == null
+            ? null
+            : () {
+                if (haptics) HapticFeedback.selectionClick();
+                onTap!();
+              },
+        onLongPress: onLongPress == null
+            ? null
+            : () {
+                if (haptics) HapticFeedback.mediumImpact();
+                onLongPress!();
+              },
+        child: content,
+      ),
+    );
+  }
+
+  InlineSpan _toInlineSpan({
+    required TextStyle base,
+    required ThemeData theme,
+    required bool haptics,
+    GestureRecognizer? recognizer,
+  }) {
+    final resolved = _resolveStyle(base, theme);
+
+    final inlineChild = child;
+    if (inlineChild != null) {
+      return WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: _wrapGestures(inlineChild, haptics: haptics),
+      );
+    }
+
+    final inlineIcon = icon;
+    if (inlineIcon != null) {
+      final size = (resolved.fontSize ?? AppConstants.fontSize14) * _iconScale;
+      return WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: _wrapGestures(
+          Icon(inlineIcon, size: size, color: resolved.color),
+          haptics: haptics,
+        ),
+      );
+    }
+
+    // A TextSpan holds exactly one recognizer, so a run that wants both a tap
+    // and a long press cannot be one. Draw it as an inline widget instead,
+    // where a GestureDetector can carry both — at the cost of a run that no
+    // longer breaks across lines. Aligned on the baseline, not the middle, so
+    // it still sits on the same line as the words around it.
+    if (onTap != null && onLongPress != null) {
+      return WidgetSpan(
+        alignment: PlaceholderAlignment.baseline,
+        baseline: TextBaseline.alphabetic,
+        child: _wrapGestures(Text(text!, style: resolved), haptics: haptics),
+      );
+    }
+
+    return TextSpan(
+      text: text,
+      style: resolved,
+      semanticsLabel: semanticsLabel,
+      recognizer: recognizer,
+      mouseCursor:
+          _isTappable ? SystemMouseCursors.click : MouseCursor.defer,
+    );
+  }
+
+  /// An inline icon reads as part of the sentence at a shade above the text
+  /// size, not at it — glyphs sit inside their em box, icons fill theirs.
+  static const double _iconScale = 1.15;
+}
+
+/// A paragraph whose parts are styled, and tapped, one at a time.
+///
+/// It exists to take two things off the call site: the [TextSpan] tree, and the
+/// gesture recognizers a tappable span needs. Those recognizers must outlive
+/// the frame that built them and be disposed with the widget — the reason
+/// tappable text normally drags a StatefulWidget along with it. Hand
+/// [AppRichText] a list of [AppSpan]s and none of that surfaces.
+///
+/// ```dart
+/// AppRichText(
+///   style: context.theme.textTheme.bodyLarge,
+///   spans: [
+///     const AppSpan('Signed in as '),
+///     AppSpan.bold(user.email, variant: AppSpanVariant.neutral),
+///     const AppSpan(' · '),
+///     AppSpan.link('Switch account', onTap: _switchAccount),
+///   ],
+/// )
+/// ```
+class AppRichText extends StatefulWidget {
+  const AppRichText({
+    super.key,
+    required this.spans,
+    this.style,
+    this.textAlign = TextAlign.start,
+    this.maxLines,
+    this.overflow = TextOverflow.clip,
+    this.softWrap = true,
+    this.selectable = false,
+    this.haptics = true,
+  });
+
+  /// The runs, in reading order. Each one carries its own style and its own
+  /// tap handler; see [AppSpan].
+  final List<AppSpan> spans;
+
+  /// The style every span starts from. Defaults to the theme's `bodyMedium`.
+  final TextStyle? style;
+
+  final TextAlign textAlign;
+  final int? maxLines;
+  final TextOverflow overflow;
+  final bool softWrap;
+
+  /// Lets the text be selected and copied. Tappable spans keep working — the
+  /// paragraph is wrapped in a [SelectionArea] rather than swapped for a
+  /// SelectableText, which would drop the recognizers.
+  final bool selectable;
+
+  /// Buzzes when a span is tapped, the way the rest of the kit's controls do.
+  /// Turn it off for text that is tapped often enough for that to nag.
+  final bool haptics;
+
+  @override
+  State<AppRichText> createState() => _AppRichTextState();
+}
+
+class _AppRichTextState extends State<AppRichText> {
+  /// One entry per tappable text span, in order. Kept across rebuilds rather
+  /// than rebuilt with the span list — see [_SpanGesture].
+  final List<_SpanGesture> _gestures = [];
+
+  @override
+  void dispose() {
+    for (final gesture in _gestures) {
+      gesture.dispose();
+    }
+    _gestures.clear();
+    super.dispose();
+  }
+
+  /// The gesture at [index], created on first use. A span that changed which
+  /// gesture it wants gets a new recognizer, since the two are different types.
+  _SpanGesture _gestureAt(int index, _SpanGestureKind kind) {
+    while (_gestures.length <= index) {
+      _gestures.add(_SpanGesture(kind));
+    }
+    final existing = _gestures[index];
+    if (existing.kind == kind) return existing;
+    existing.dispose();
+    return _gestures[index] = _SpanGesture(kind);
+  }
+
+  /// Drops the recognizers left over from a longer span list.
+  void _trimGestures(int used) {
+    while (_gestures.length > used) {
+      _gestures.removeLast().dispose();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    final base = widget.style ??
+        theme.textTheme.bodyMedium ??
+        const TextStyle(fontSize: AppConstants.fontSize14);
+
+    final children = <InlineSpan>[];
+    var gestureIndex = 0;
+    for (final span in widget.spans) {
+      // Only text runs are driven by a recognizer. An icon span, a widget span
+      // and a run that wants both gestures are drawn as inline widgets, and
+      // carry their own GestureDetector instead.
+      GestureRecognizer? recognizer;
+      final kind = span._gestureKind;
+      if (kind != null) {
+        final gesture = _gestureAt(gestureIndex++, kind)
+          ..bind(
+            span.onTap ?? span.onLongPress,
+            haptics: widget.haptics,
+          );
+        recognizer = gesture.recognizer;
+      }
+      children.add(
+        span._toInlineSpan(
+          base: base,
+          theme: theme,
+          haptics: widget.haptics,
+          recognizer: recognizer,
+        ),
+      );
+    }
+    _trimGestures(gestureIndex);
+
+    final text = Text.rich(
+      TextSpan(style: base, children: children),
+      textAlign: widget.textAlign,
+      maxLines: widget.maxLines,
+      overflow: widget.overflow,
+      softWrap: widget.softWrap,
+    );
+
+    if (!widget.selectable) return text;
+    return SelectionArea(child: text);
+  }
+}
+
+/// Which recognizer a text run is driven by.
+///
+/// Only these two, plus a double tap, are recognizers a [TextSpan] can carry:
+/// they are the ones `RenderParagraph` knows how to turn into semantics, so a
+/// screen reader announces the run as a link, or as long-pressable. Anything
+/// else is rejected outright in debug.
+enum _SpanGestureKind { tap, longPress }
+
+/// One tappable span's gesture wiring.
+///
+/// The recognizer is built once and only its callback is repointed on rebuild.
+/// Rebuilding the recognizer itself would work until the paragraph rebuilt
+/// mid-press — a form rebuilding on every keystroke, a stream ticking — at
+/// which point the recognizer under the finger would be disposed and the press
+/// swallowed.
+class _SpanGesture {
+  _SpanGesture(this.kind) {
+    recognizer = switch (kind) {
+      _SpanGestureKind.tap => TapGestureRecognizer()..onTap = _handleTap,
+      _SpanGestureKind.longPress => LongPressGestureRecognizer()
+        ..onLongPress = _handleLongPress,
+    };
+  }
+
+  final _SpanGestureKind kind;
+  late final GestureRecognizer recognizer;
+
+  VoidCallback? _handler;
+  bool _haptics = true;
+
+  void bind(VoidCallback? handler, {required bool haptics}) {
+    _handler = handler;
+    _haptics = haptics;
+  }
+
+  void _handleTap() {
+    final handler = _handler;
+    if (handler == null) return;
+    if (_haptics) HapticFeedback.selectionClick();
+    handler();
+  }
+
+  void _handleLongPress() {
+    final handler = _handler;
+    if (handler == null) return;
+    if (_haptics) HapticFeedback.mediumImpact();
+    handler();
+  }
+
+  void dispose() => recognizer.dispose();
+}
+''';
+}
