@@ -82,7 +82,8 @@ final routerProvider = Provider<GoRouter>((ref) {
 // sees login (or home) for a frame and is then bounced to the right screen.
 // Fix: park the router on a splash route until auth resolves.
 //
-// 1. Uncomment `splash` and `login` in app_routes.dart.
+// 1. The `splash`, `login`, `register` and `forgotPassword` paths — plus the
+//    `publicRoutes` set used below — already live in app_routes.dart.
 //
 // 2. Add the imports:
 //    import '../../features/auth/presentation/notifiers/auth_notifier.dart';
@@ -120,8 +121,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 //   // Auth resolved: leave splash for the right destination.
 //   if (onSplash) return isAuthenticated ? AppRoutes.home : AppRoutes.login;
 //
-//   final publicRoutes = {AppRoutes.login};
-//   final onPublicRoute = publicRoutes.contains(state.matchedLocation);
+//   final onPublicRoute = AppRoutes.publicRoutes.contains(state.matchedLocation);
 //
 //   if (!isAuthenticated && !onPublicRoute) return AppRoutes.login;
 //   if (isAuthenticated && onPublicRoute) return AppRoutes.home;
@@ -132,20 +132,25 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   /// App routes
   static String appRoutes() => r'''
- 
+
 // ── Routes ────────────────────────────────────────────────────────────────────
- 
+
 abstract final class AppRoutes {
-  static const home   = '/';
-  // static const splash = '/splash';
-  // static const login  = '/login';
+  static const home = '/';
+  static const splash = '/splash';
+  static const login = '/login';
+  static const register = '/register';
+  static const forgotPassword = '/forgot-password';
   // static const detail = '/detail/:id';
 
+  /// Routes reachable without a session. Everything else redirects to [login].
+  static const publicRoutes = {login, register, forgotPassword};
+
   //-----Test------//
-  static const designView   = '/design-system';
+  static const designView = '/design-system';
   //---------------//
 }
- 
+
 ''';
 
   /// Returns the generated firebaseProviders template.
