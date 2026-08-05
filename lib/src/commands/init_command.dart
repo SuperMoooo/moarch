@@ -403,9 +403,13 @@ class InitCommand extends Command<int> {
           await _buildFirebaseAuthFeature(
             libPath,
             withFirestore: stack.contains(_kFirestore),
+            withPushNotifications: stack.contains(_kFirebaseNotifications),
           );
         } else {
-          await _buildAuthFeature(libPath);
+          await _buildAuthFeature(
+            libPath,
+            withPushNotifications: stack.contains(_kFirebaseNotifications),
+          );
         }
       }
       final testPath = p.join(p.absolute(targetPath), 'test');
@@ -1271,7 +1275,12 @@ class InitCommand extends Command<int> {
     );
   }
 
-  Future<void> _buildAuthFeature(String libPath) async {
+  /// [withPushNotifications] registers the device's FCM token with the backend
+  /// on login, on register and on session restore.
+  Future<void> _buildAuthFeature(
+    String libPath, {
+    required bool withPushNotifications,
+  }) async {
     final f = p.join(libPath, 'features', 'auth');
 
     await FileUtils.writeFile(
@@ -1280,7 +1289,9 @@ class InitCommand extends Command<int> {
     );
     await FileUtils.writeFile(
       p.join(f, 'domain', 'repositories', 'auth_repository.dart'),
-      AuthTemplates.repositoryInterface(),
+      AuthTemplates.repositoryInterface(
+        withPushNotifications: withPushNotifications,
+      ),
     );
     await FileUtils.writeFile(
       p.join(f, 'data', 'models', 'auth_tokens_model.dart'),
@@ -1288,11 +1299,15 @@ class InitCommand extends Command<int> {
     );
     await FileUtils.writeFile(
       p.join(f, 'data', 'datasources', 'auth_remote_datasource.dart'),
-      AuthTemplates.remoteDatasource(),
+      AuthTemplates.remoteDatasource(
+        withPushNotifications: withPushNotifications,
+      ),
     );
     await FileUtils.writeFile(
       p.join(f, 'data', 'repositories', 'auth_repository_impl.dart'),
-      AuthTemplates.repositoryImpl(),
+      AuthTemplates.repositoryImpl(
+        withPushNotifications: withPushNotifications,
+      ),
     );
     await FileUtils.writeFile(
       p.join(f, 'presentation', 'states', 'auth_state.dart'),
@@ -1300,7 +1315,9 @@ class InitCommand extends Command<int> {
     );
     await FileUtils.writeFile(
       p.join(f, 'presentation', 'notifiers', 'auth_notifier.dart'),
-      AuthTemplates.notifier(),
+      AuthTemplates.notifier(
+        withPushNotifications: withPushNotifications,
+      ),
     );
     await FileUtils.writeFile(
       p.join(f, 'presentation', 'views', 'login_view.dart'),
@@ -1316,10 +1333,12 @@ class InitCommand extends Command<int> {
   /// sign-in, with no token storage — Firebase persists the session itself.
   ///
   /// [withFirestore] additionally keeps a `users/{uid}` profile document in
-  /// step with the account.
+  /// step with the account, and [withPushNotifications] registers the device's
+  /// FCM token against the user on sign-in and on session restore.
   Future<void> _buildFirebaseAuthFeature(
     String libPath, {
     required bool withFirestore,
+    required bool withPushNotifications,
   }) async {
     final f = p.join(libPath, 'features', 'auth');
 
@@ -1329,7 +1348,9 @@ class InitCommand extends Command<int> {
     );
     await FileUtils.writeFile(
       p.join(f, 'domain', 'repositories', 'auth_repository.dart'),
-      FirebaseAuthTemplates.repositoryInterface(),
+      FirebaseAuthTemplates.repositoryInterface(
+        withPushNotifications: withPushNotifications,
+      ),
     );
     await FileUtils.writeFile(
       p.join(f, 'data', 'models', 'auth_user_model.dart'),
@@ -1337,11 +1358,17 @@ class InitCommand extends Command<int> {
     );
     await FileUtils.writeFile(
       p.join(f, 'data', 'datasources', 'auth_remote_datasource.dart'),
-      FirebaseAuthTemplates.remoteDatasource(withFirestore: withFirestore),
+      FirebaseAuthTemplates.remoteDatasource(
+        withFirestore: withFirestore,
+        withPushNotifications: withPushNotifications,
+      ),
     );
     await FileUtils.writeFile(
       p.join(f, 'data', 'repositories', 'auth_repository_impl.dart'),
-      FirebaseAuthTemplates.repositoryImpl(withFirestore: withFirestore),
+      FirebaseAuthTemplates.repositoryImpl(
+        withFirestore: withFirestore,
+        withPushNotifications: withPushNotifications,
+      ),
     );
     await FileUtils.writeFile(
       p.join(f, 'presentation', 'states', 'auth_state.dart'),
@@ -1349,7 +1376,9 @@ class InitCommand extends Command<int> {
     );
     await FileUtils.writeFile(
       p.join(f, 'presentation', 'notifiers', 'auth_notifier.dart'),
-      FirebaseAuthTemplates.notifier(),
+      FirebaseAuthTemplates.notifier(
+        withPushNotifications: withPushNotifications,
+      ),
     );
     await FileUtils.writeFile(
       p.join(f, 'presentation', 'views', 'login_view.dart'),

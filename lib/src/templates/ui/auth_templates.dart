@@ -21,7 +21,21 @@ class AuthTokensEntity {
   // ── Domain — Repository interface ───────────────────────────────────────────
 
   /// Returns the generated auth repository interface template.
-  static String repositoryInterface() => r'''
+  ///
+  /// [withPushNotifications] adds the device-token contract the notifier calls
+  /// on login, on register and when a stored session is restored.
+  static String repositoryInterface({bool withPushNotifications = false}) {
+    final syncDeviceToken = withPushNotifications
+        ? '''
+  /// Reads this device's push token and sends it to the backend, so it can
+  /// target the signed-in user. Safe to call repeatedly — the token only
+  /// changes when the install does.
+  Future<void> syncDeviceToken();
+
+'''
+        : '';
+
+    return '''
 abstract interface class AuthRepository {
   /// True when a session can be restored: a refresh token is stored and a
   /// new access token could be obtained from it. Called by the auth
@@ -45,10 +59,11 @@ abstract interface class AuthRepository {
   /// Deletes the account on the backend and clears the local session.
   Future<void> deleteAccount();
 
-  /// User id extracted from the access token when the session was saved.
+$syncDeviceToken  /// User id extracted from the access token when the session was saved.
   Future<String?> currentUserId();
 }
 ''';
+  }
 
   // ── Data — Model ────────────────────────────────────────────────────────────
 
@@ -75,7 +90,31 @@ class AuthTokensModel extends AuthTokensEntity {
   // ── Data — Remote datasource ────────────────────────────────────────────────
 
   /// Returns the generated auth remote datasource template.
-  static String remoteDatasource() => r'''
+  ///
+  /// [withPushNotifications] adds the call that registers this device's FCM
+  /// token against the signed-in user.
+  static String remoteDatasource({bool withPushNotifications = false}) {
+    final saveDeviceToken = withPushNotifications
+        ? '''
+
+  /// Registers this device's push token against the signed-in user — the
+  /// access token on the request is what says who that is.
+  ///
+  /// Adapt the endpoint and the payload: most backends also want the platform,
+  /// a device id or the app version so they can clean up stale tokens.
+  Future<void> saveDeviceToken({required String token}) {
+    return safeApiCall<void>(
+      apiCall: () async {
+        await _dio.post<dynamic>('/auth/device-token', data: {
+          'token': token,
+        });
+      },
+    );
+  }
+'''
+        : '';
+
+    return '''
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -164,35 +203,72 @@ class AuthRemoteDataSource {
       },
     );
   }
-}
+$saveDeviceToken}
 ''';
+  }
 
   // ── Data — Repository impl ──────────────────────────────────────────────────
 
   /// Returns the generated auth repository implementation template.
-  static String repositoryImpl() => r'''
+  ///
+  /// [withPushNotifications] hands the FCM service to the repository, so a
+  /// signed-in session can register the device with the backend.
+  static String repositoryImpl({bool withPushNotifications = false}) {
+    final pushImport = withPushNotifications
+        ? "import '../../../../core/services/firebase_notifications_service.dart';\n"
+        : '';
+
+    final pushProviderArg = withPushNotifications
+        ? '\n    ref.watch(firebaseNotificationsServiceProvider),'
+        : '';
+
+    final pushCtorParam = withPushNotifications ? ', this._push' : '';
+
+    final pushField = withPushNotifications
+        ? '\n  final FirebaseNotificationsService _push;'
+        : '';
+
+    final syncDeviceToken = withPushNotifications
+        ? '''
+
+  @override
+  Future<void> syncDeviceToken() async {
+    final deviceToken = await _push.getDeviceToken();
+    if (deviceToken == null) return;
+    try {
+      await _remote.saveDeviceToken(token: deviceToken);
+    } on AppException catch (e) {
+      // Best effort: the session is valid either way, this device just goes
+      // without push until the next login or app start.
+      appLogger.w('Device token not registered', error: e);
+    }
+  }
+'''
+        : '';
+
+    return '''
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/security/secure_storage.dart';
-import '../../../../core/utils/app_logger.dart';
+${pushImport}import '../../../../core/utils/app_logger.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_datasource.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => AuthRepositoryImpl(
     ref.watch(authRemoteDataSourceProvider),
-    ref.watch(tokenStorageProvider),
+    ref.watch(tokenStorageProvider),$pushProviderArg
   ),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 class AuthRepositoryImpl implements AuthRepository {
-  const AuthRepositoryImpl(this._remote, this._tokens);
+  const AuthRepositoryImpl(this._remote, this._tokens$pushCtorParam);
 
   final AuthRemoteDataSource _remote;
-  final TokenStorage _tokens;
+  final TokenStorage _tokens;$pushField
 
   @override
   Future<bool> isLoggedIn() async {
@@ -263,11 +339,12 @@ class AuthRepositoryImpl implements AuthRepository {
     await _remote.delete();
     await _tokens.clearSession();
   }
-
+$syncDeviceToken
   @override
   Future<String?> currentUserId() => _tokens.userId;
 }
 ''';
+  }
 
   // ── Presentation — State ────────────────────────────────────────────────────
 
@@ -362,7 +439,27 @@ class RegisterView extends StatelessWidget {
   // ── Presentation — Notifier ─────────────────────────────────────────────────
 
   /// Returns the generated auth notifier template.
-  static String notifier() => r'''
+  ///
+  /// [withPushNotifications] registers this device with the backend at the two
+  /// moments a session starts: opening the app on a restored session, and
+  /// signing in or up.
+  static String notifier({bool withPushNotifications = false}) {
+    final syncOnRestore = withPushNotifications
+        ? '''
+
+    // Opened on a session that was already signed in — the FCM token can have
+    // changed since (reinstall, restore, token rotation), so register it again.
+    unawaited(_repo.syncDeviceToken());
+
+'''
+        : '';
+
+    final syncAfterAuth = withPushNotifications
+        ? '\n      // Not awaited: registering the device must not hold up the UI.'
+            '\n      unawaited(_repo.syncDeviceToken());'
+        : '';
+
+    return '''
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -387,7 +484,7 @@ class AuthNotifier extends AsyncNotifier<AuthState>
     // (isLoggedIn refreshes the access token when one exists).
     final loggedIn = await _repo.isLoggedIn();
     if (!loggedIn) return const AuthState();
-    return AuthState(
+$syncOnRestore    return AuthState(
       authenticated: true,
       userId: await _repo.currentUserId(),
     );
@@ -395,7 +492,7 @@ class AuthNotifier extends AsyncNotifier<AuthState>
 
   Future<void> login({required String email, required String password}) {
     return runAction((_) async {
-      await _repo.login(email: email, password: password);
+      await _repo.login(email: email, password: password);$syncAfterAuth
       return AuthState(
         authenticated: true,
         userId: await _repo.currentUserId(),
@@ -405,7 +502,7 @@ class AuthNotifier extends AsyncNotifier<AuthState>
 
   Future<void> register({required String email, required String password}) {
     return runAction((_) async {
-      await _repo.register(email: email, password: password);
+      await _repo.register(email: email, password: password);$syncAfterAuth
       return AuthState(
         authenticated: true,
         userId: await _repo.currentUserId(),
@@ -428,4 +525,5 @@ class AuthNotifier extends AsyncNotifier<AuthState>
   }
 }
 ''';
+  }
 }

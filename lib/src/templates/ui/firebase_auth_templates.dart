@@ -43,7 +43,21 @@ class AuthUserEntity {
   // ── Domain — Repository interface ───────────────────────────────────────────
 
   /// Returns the generated auth repository interface template.
-  static String repositoryInterface() => r'''
+  ///
+  /// [withPushNotifications] adds the device-token contract the notifier calls
+  /// on sign-in and when Firebase restores a session at start-up.
+  static String repositoryInterface({bool withPushNotifications = false}) {
+    final syncDeviceToken = withPushNotifications
+        ? '''
+  /// Reads this device's FCM token and saves it against the signed-in user,
+  /// so a notification can be targeted at them. Safe to call repeatedly — the
+  /// token only changes when the install does.
+  Future<void> syncDeviceToken();
+
+'''
+        : '';
+
+    return '''
 import '../entities/auth_user_entity.dart';
 
 abstract interface class AuthRepository {
@@ -89,10 +103,11 @@ abstract interface class AuthRepository {
   /// reports `requires-recent-login` when the session is too old.
   Future<void> deleteAccount();
 
-  /// The signed-in user's uid.
+$syncDeviceToken  /// The signed-in user's uid.
   Future<String?> currentUserId();
 }
 ''';
+  }
 
   // ── Data — Model ────────────────────────────────────────────────────────────
 
@@ -164,7 +179,10 @@ class AuthUserModel extends AuthUserEntity {
   ///
   /// [withFirestore] adds the user-profile document calls, so the datasource
   /// holds `_firestore` alongside `_auth`.
-  static String remoteDatasource({bool withFirestore = false}) {
+  static String remoteDatasource({
+    bool withFirestore = false,
+    bool withPushNotifications = false,
+  }) {
     final firestoreImport = withFirestore
         ? "import 'package:cloud_firestore/cloud_firestore.dart';\n"
         : '';
@@ -221,6 +239,53 @@ class AuthUserModel extends AuthUserEntity {
   }
 '''
         : '';
+
+    // Where a device token goes depends on what the project has: the profile
+    // document when Firestore is in, otherwise wherever the developer keeps
+    // their devices — Firebase Auth alone has nowhere to put it.
+    final deviceTokenMethod = !withPushNotifications
+        ? ''
+        : withFirestore
+            ? '''
+
+  // ── Push notifications ────────────────────────────────────────────────────
+
+  /// Registers this device's FCM token on the user's profile document, so a
+  /// backend function can target them.
+  ///
+  /// `arrayUnion` keeps one entry per device and ignores a token that is
+  /// already there, so calling this on every sign-in costs nothing. Clear the
+  /// stale ones from the send side: FCM reports the tokens it rejected.
+  Future<void> saveDeviceToken({
+    required String userId,
+    required String token,
+  }) {
+    return safeFirebaseCall<void>(
+      call: () => _profileRef(userId).set(
+        {
+          'fcmTokens': FieldValue.arrayUnion([token]),
+        },
+        SetOptions(merge: true),
+      ),
+    );
+  }
+'''
+            : '''
+
+  // ── Push notifications ────────────────────────────────────────────────────
+
+  /// Registers this device's FCM token against the signed-in user.
+  ///
+  /// This project has no database for it, so nothing is stored yet — point
+  /// this at wherever your devices live: an HTTPS callable, your own API, the
+  /// Realtime Database.
+  Future<void> saveDeviceToken({
+    required String userId,
+    required String token,
+  }) async {
+    // TODO: save userId + token.
+  }
+''';
 
     return '''
 ${firestoreImport}import 'package:firebase_auth/firebase_auth.dart';
@@ -389,14 +454,67 @@ $firestoreField
     await _googleSignIn.initialize(serverClientId: kGoogleServerClientId);
     _googleReady = true;
   }
-$firestoreMethods}
+$firestoreMethods$deviceTokenMethod}
 ''';
   }
 
   // ── Data — Repository impl ──────────────────────────────────────────────────
 
   /// Returns the generated auth repository implementation template.
-  static String repositoryImpl({bool withFirestore = false}) {
+  ///
+  /// [withPushNotifications] hands the FCM service to the repository, so a
+  /// signed-in session can register the device.
+  static String repositoryImpl({
+    bool withFirestore = false,
+    bool withPushNotifications = false,
+  }) {
+    final pushImports = withPushNotifications
+        ? "import '../../../../core/errors/app_exception.dart';\n"
+            "import '../../../../core/services/firebase_notifications_service.dart';\n"
+            "import '../../../../core/utils/app_logger.dart';\n"
+        : '';
+
+    final pushProvider = withPushNotifications
+        ? '''
+final authRepositoryProvider = Provider<AuthRepository>(
+  (ref) => AuthRepositoryImpl(
+    ref.watch(authRemoteDataSourceProvider),
+    ref.watch(firebaseNotificationsServiceProvider),
+  ),
+);'''
+        : '''
+final authRepositoryProvider = Provider<AuthRepository>(
+  (ref) => AuthRepositoryImpl(ref.watch(authRemoteDataSourceProvider)),
+);''';
+
+    final pushCtorParam = withPushNotifications ? ', this._push' : '';
+
+    final pushField = withPushNotifications
+        ? '\n  final FirebaseNotificationsService _push;'
+        : '';
+
+    final syncDeviceToken = withPushNotifications
+        ? '''
+
+  @override
+  Future<void> syncDeviceToken() async {
+    final id = await currentUserId();
+    if (id == null) return;
+
+    final deviceToken = await _push.getDeviceToken();
+    if (deviceToken == null) return;
+
+    try {
+      await _remote.saveDeviceToken(userId: id, token: deviceToken);
+    } on AppException catch (e) {
+      // Best effort: the session is valid either way, this device just goes
+      // without push until the next sign-in or app start.
+      appLogger.w('Device token not registered', error: e);
+    }
+  }
+'''
+        : '';
+
     final saveProfileOnRegister =
         withFirestore ? '\n    await _remote.saveProfile(user);' : '';
 
@@ -416,20 +534,18 @@ $firestoreMethods}
     return '''
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../domain/entities/auth_user_entity.dart';
+${pushImports}import '../../domain/entities/auth_user_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_datasource.dart';
 
-final authRepositoryProvider = Provider<AuthRepository>(
-  (ref) => AuthRepositoryImpl(ref.watch(authRemoteDataSourceProvider)),
-);
+$pushProvider
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 class AuthRepositoryImpl implements AuthRepository {
-  const AuthRepositoryImpl(this._remote);
+  const AuthRepositoryImpl(this._remote$pushCtorParam);
 
-  final AuthRemoteDataSource _remote;
+  final AuthRemoteDataSource _remote;$pushField
 
   @override
   Stream<AuthUserEntity?> authStateChanges() => _remote.authStateChanges();
@@ -479,7 +595,7 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<void> deleteAccount() async {
 $deleteProfile    await _remote.delete();
   }
-
+$syncDeviceToken
   @override
   Future<String?> currentUserId() async => _remote.currentUser?.id;
 }
@@ -549,7 +665,31 @@ class AuthState implements ActionState<AuthState> {
   // ── Presentation — Notifier ─────────────────────────────────────────────────
 
   /// Returns the generated auth notifier template.
-  static String notifier() => r'''
+  ///
+  /// [withPushNotifications] registers this device with the backend at the
+  /// moments a session starts: the restored session at start-up, and every
+  /// sign-in or sign-up.
+  static String notifier({bool withPushNotifications = false}) {
+    final syncOnRestore = withPushNotifications
+        ? '''
+
+    // Opened on a session Firebase restored — the FCM token can have changed
+    // since (reinstall, restore, token rotation), so register it again.
+    if (restored != null) unawaited(_repo.syncDeviceToken());
+'''
+        : '';
+
+    final syncAfterAuth = withPushNotifications
+        ? '\n      // Not awaited: registering the device must not hold up the UI.'
+            '\n      unawaited(_repo.syncDeviceToken());'
+        : '';
+
+    // Same call one level deeper, inside the try of the Google flow.
+    final syncAfterGoogle = withPushNotifications
+        ? '\n        unawaited(_repo.syncDeviceToken());'
+        : '';
+
+    return '''
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -585,13 +725,13 @@ class AuthNotifier extends AsyncNotifier<AuthState>
       (user) => state = AsyncData(_stateFrom(user)),
     );
     ref.onDispose(subscription.cancel);
-
+$syncOnRestore
     return _stateFrom(restored);
   }
 
   Future<void> login({required String email, required String password}) {
     return runAction((_) async {
-      final user = await _repo.login(email: email, password: password);
+      final user = await _repo.login(email: email, password: password);$syncAfterAuth
       return _stateFrom(user);
     });
   }
@@ -606,7 +746,7 @@ class AuthNotifier extends AsyncNotifier<AuthState>
         email: email,
         password: password,
         displayName: displayName,
-      );
+      );$syncAfterAuth
       return _stateFrom(user);
     });
   }
@@ -614,7 +754,7 @@ class AuthNotifier extends AsyncNotifier<AuthState>
   Future<void> signInWithGoogle() {
     return runAction((current) async {
       try {
-        final user = await _repo.signInWithGoogle();
+        final user = await _repo.signInWithGoogle();$syncAfterGoogle
         return _stateFrom(user);
       } on AppException catch (e) {
         // Dismissing the Google sheet is not a failure worth showing.
@@ -657,6 +797,7 @@ class AuthNotifier extends AsyncNotifier<AuthState>
   }
 }
 ''';
+  }
 
   // ── Presentation — Views ────────────────────────────────────────────────────
 

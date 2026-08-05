@@ -1,5 +1,6 @@
 import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/core/error_templates.dart';
+import 'package:moarch/src/templates/core/services_templates.dart';
 import 'package:moarch/src/templates/misc/docs_templates.dart';
 import 'package:moarch/src/templates/ui/feature_templates.dart';
 import 'package:moarch/src/templates/ui/firebase_auth_templates.dart';
@@ -301,6 +302,116 @@ void main() {
           contains('final authRemoteDataSourceProvider ='));
       expect(FirebaseAuthTemplates.state(),
           contains('implements ActionState<AuthState>'));
+    });
+  });
+
+  group('FCM notifications service', () {
+    test('waits for the APNs token before asking FCM on Apple platforms', () {
+      final output = ServicesTemplates.firebaseNotificationsService();
+
+      expect(output, contains('Future<String?> getDeviceToken({'));
+      expect(output, contains('Future<String?> getApnsToken({'));
+      // FCM cannot mint a token before APNs handed the app its own.
+      expect(
+        output.indexOf('await getApnsToken('),
+        lessThan(output.indexOf('await _messaging.getToken()')),
+      );
+      // Android has no APNs step to wait for.
+      expect(output, contains('if (!_isApplePlatform) return null;'));
+      expect(output, contains('defaultTargetPlatform == TargetPlatform.iOS'));
+      expect(output, contains("import 'package:flutter/foundation.dart';"));
+    });
+
+    test('retries both tokens with a growing delay', () {
+      final output = ServicesTemplates.firebaseNotificationsService();
+
+      expect(output, contains('static const int _tokenRetries ='));
+      expect(
+        'for (var attempt = 1; attempt <= retries; attempt++)'
+            .allMatches(output)
+            .length,
+        equals(2),
+      );
+      expect(
+        'await Future<void>.delayed(retryDelay * attempt);'
+            .allMatches(output)
+            .length,
+        equals(2),
+      );
+      // A failed lookup must not take the caller down with it.
+      expect(output, contains('} catch (error, stackTrace) {'));
+      expect(output, contains('return null;'));
+    });
+
+    test('leaves the moment to fetch the token to the caller', () {
+      final output = ServicesTemplates.firebaseNotificationsService();
+
+      // init() only asks for permission — on iOS there is no token before the
+      // user accepts, and the auth feature is what registers it afterwards.
+      expect(output, contains('await requestPermissions();'));
+      expect(output, isNot(contains('getDeviceToken()\n')));
+    });
+
+    test('the auth feature registers the device on sign-in and on restore', () {
+      final notifier =
+          FirebaseAuthTemplates.notifier(withPushNotifications: true);
+      final interface = FirebaseAuthTemplates.repositoryInterface(
+        withPushNotifications: true,
+      );
+      final impl =
+          FirebaseAuthTemplates.repositoryImpl(withPushNotifications: true);
+
+      // Login, register, Google, and the session Firebase restored at start-up.
+      expect(
+        'unawaited(_repo.syncDeviceToken());'.allMatches(notifier).length,
+        equals(4),
+      );
+      // Nothing to register when the app opened signed out.
+      expect(
+          notifier,
+          contains(
+              'if (restored != null) unawaited(_repo.syncDeviceToken());'));
+
+      expect(interface, contains('Future<void> syncDeviceToken();'));
+      expect(impl, contains('ref.watch(firebaseNotificationsServiceProvider)'));
+      expect(impl, contains('final id = await currentUserId();'));
+      expect(impl, contains('await _push.getDeviceToken();'));
+      expect(
+        impl,
+        contains('_remote.saveDeviceToken(userId: id, token: deviceToken)'),
+      );
+    });
+
+    test('the token lands on the profile document only with Firestore', () {
+      final withDb = FirebaseAuthTemplates.remoteDatasource(
+        withFirestore: true,
+        withPushNotifications: true,
+      );
+      final withoutDb =
+          FirebaseAuthTemplates.remoteDatasource(withPushNotifications: true);
+
+      expect(withDb, contains('Future<void> saveDeviceToken({'));
+      // arrayUnion, so signing in twice on one device stores one token.
+      expect(withDb, contains("'fcmTokens': FieldValue.arrayUnion([token]),"));
+      expect(withDb, contains('_profileRef(userId).set('));
+
+      // No database in the project — the method is left for the developer.
+      expect(withoutDb, contains('Future<void> saveDeviceToken({'));
+      expect(withoutDb, isNot(contains('FieldValue')));
+      expect(withoutDb, contains('// TODO: save userId + token.'));
+    });
+
+    test('a Firebase auth project without FCM is left alone', () {
+      for (final output in [
+        FirebaseAuthTemplates.repositoryInterface(),
+        FirebaseAuthTemplates.repositoryImpl(withFirestore: true),
+        FirebaseAuthTemplates.remoteDatasource(withFirestore: true),
+        FirebaseAuthTemplates.notifier(),
+      ]) {
+        expect(output, isNot(contains('syncDeviceToken')));
+        expect(output, isNot(contains('saveDeviceToken')));
+        expect(output, isNot(contains('firebase_notifications_service')));
+      }
     });
   });
 

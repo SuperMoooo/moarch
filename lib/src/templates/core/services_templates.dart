@@ -480,6 +480,7 @@ class NotificationService {
   static String firebaseNotificationsService() => r'''
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/utils/app_logger.dart';
 
@@ -519,13 +520,112 @@ class FirebaseNotificationsService {
   // ignore: unused_field
   final Ref _ref;
 
+  /// How many times a token lookup is retried before giving up.
+  static const int _tokenRetries = 5;
+
+  /// Base delay between token retries (grows linearly with each attempt).
+  static const Duration _tokenRetryDelay = Duration(seconds: 1);
+
   bool _initialized = false;
 
   FirebaseMessaging get _messaging => FirebaseMessaging.instance;
 
-  /// The current FCM registration token — send it to your backend so it can
-  /// target this device.
-  Future<String?> get token => _messaging.getToken();
+  bool get _isApplePlatform =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS);
+
+  /// The current FCM registration token, with retries.
+  /// Shorthand for [getDeviceToken] with the default settings.
+  Future<String?> get token => getDeviceToken();
+
+  /// The FCM registration token for this device — send it to your backend so
+  /// it can target this install.
+  ///
+  /// On Apple platforms FCM can only mint a token once APNs has handed the app
+  /// its own token, and that arrives asynchronously a moment after the
+  /// permission prompt — asking too early returns null or throws. So on iOS and
+  /// macOS the APNs token is awaited first (see [getApnsToken]); Android goes
+  /// straight to FCM. Both steps are retried with a backing-off delay.
+  ///
+  /// Returns null if no token could be obtained within [retries] attempts.
+  Future<String?> getDeviceToken({
+    int retries = _tokenRetries,
+    Duration retryDelay = _tokenRetryDelay,
+  }) async {
+    if (_isApplePlatform) {
+      final apnsToken = await getApnsToken(
+        retries: retries,
+        retryDelay: retryDelay,
+      );
+      if (apnsToken == null) {
+        _log.e('No FCM token: APNs token never arrived');
+        return null;
+      }
+    }
+
+    for (var attempt = 1; attempt <= retries; attempt++) {
+      try {
+        // On web, pass your VAPID key here: getToken(vapidKey: '...').
+        final fcmToken = await _messaging.getToken();
+        if (fcmToken != null) {
+          _log.i('FCM token acquired');
+          return fcmToken;
+        }
+        _log.w('FCM token null (attempt $attempt/$retries)');
+      } catch (error, stackTrace) {
+        _log.w(
+          'FCM token failed (attempt $attempt/$retries)',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+      if (attempt < retries) {
+        await Future<void>.delayed(retryDelay * attempt);
+      }
+    }
+
+    _log.e('No FCM token after $retries attempts');
+    return null;
+  }
+
+  /// The raw APNs token — iOS and macOS only, null on every other platform.
+  ///
+  /// APNs registration is still in flight for a moment after the permission
+  /// prompt, so the token is polled until it shows up. Rarely needed directly:
+  /// [getDeviceToken] already waits for it.
+  Future<String?> getApnsToken({
+    int retries = _tokenRetries,
+    Duration retryDelay = _tokenRetryDelay,
+  }) async {
+    if (!_isApplePlatform) return null;
+
+    for (var attempt = 1; attempt <= retries; attempt++) {
+      try {
+        final apnsToken = await _messaging.getAPNSToken();
+        if (apnsToken != null) {
+          _log.i('APNs token acquired');
+          return apnsToken;
+        }
+        _log.w('APNs token not ready (attempt $attempt/$retries)');
+      } catch (error, stackTrace) {
+        _log.w(
+          'APNs token failed (attempt $attempt/$retries)',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+      if (attempt < retries) {
+        await Future<void>.delayed(retryDelay * attempt);
+      }
+    }
+
+    _log.w(
+      'No APNs token after $retries attempts. Check the Push Notifications '
+      'capability in Xcode and the APNs key in the Firebase console.',
+    );
+    return null;
+  }
 
   Future<void> init() async {
     if (_initialized) return;
@@ -560,7 +660,8 @@ class FirebaseNotificationsService {
     _initialized = true;
     _log.i('Initialized');
 
-    await requestPermissions();
+   await requestPermissions();
+    
   }
 
   /// Request notification permissions from the user.

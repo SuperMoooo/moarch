@@ -80,6 +80,57 @@ void main() {
     expect(output, contains('authenticated: true'));
   });
 
+  group('device token registration', () {
+    test('the notifier registers the device on restore, login and register',
+        () {
+      final output = AuthTemplates.notifier(withPushNotifications: true);
+
+      // The two moments a session starts: app open and sign-in.
+      expect(
+        'unawaited(_repo.syncDeviceToken());'.allMatches(output).length,
+        equals(3),
+      );
+      // Never before the session exists, or the request goes out unauthorized.
+      expect(
+        output.indexOf('await _repo.login(email: email, password: password);'),
+        lessThan(output.indexOf('unawaited(_repo.syncDeviceToken());',
+            output.indexOf('Future<void> login('))),
+      );
+    });
+
+    test('the repository reads the FCM token and hands it to the datasource',
+        () {
+      final interface =
+          AuthTemplates.repositoryInterface(withPushNotifications: true);
+      final impl = AuthTemplates.repositoryImpl(withPushNotifications: true);
+      final datasource =
+          AuthTemplates.remoteDatasource(withPushNotifications: true);
+
+      expect(interface, contains('Future<void> syncDeviceToken();'));
+      expect(impl, contains('ref.watch(firebaseNotificationsServiceProvider)'));
+      expect(impl, contains('await _push.getDeviceToken();'));
+      expect(
+          impl, contains('await _remote.saveDeviceToken(token: deviceToken)'));
+      // A device that cannot register must not fail the sign-in.
+      expect(impl, contains('} on AppException catch (e) {'));
+      expect(datasource, contains('Future<void> saveDeviceToken({'));
+      expect(datasource, contains("'/auth/device-token'"));
+    });
+
+    test('a project without FCM keeps the auth feature as it was', () {
+      for (final output in [
+        AuthTemplates.repositoryInterface(),
+        AuthTemplates.repositoryImpl(),
+        AuthTemplates.remoteDatasource(),
+        AuthTemplates.notifier(),
+      ]) {
+        expect(output, isNot(contains('syncDeviceToken')));
+        expect(output, isNot(contains('saveDeviceToken')));
+        expect(output, isNot(contains('firebase_notifications_service')));
+      }
+    });
+  });
+
   test('notifiers share the global runAction helper', () {
     final helper = CoreTemplates.actionNotifier();
     expect(helper, contains('mixin ActionNotifierMixin'));

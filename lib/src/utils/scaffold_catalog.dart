@@ -455,8 +455,12 @@ abstract final class ScaffoldCatalog {
       path: 'lib/features/auth/domain/repositories/auth_repository.dart',
       category: 'Auth feature',
       template: (c) => c.hasFirebaseAuthFeature
-          ? FirebaseAuthTemplates.repositoryInterface()
-          : AuthTemplates.repositoryInterface(),
+          ? FirebaseAuthTemplates.repositoryInterface(
+              withPushNotifications: c.hasFirebaseNotifications,
+            )
+          : AuthTemplates.repositoryInterface(
+              withPushNotifications: c.hasFirebaseNotifications,
+            ),
       description: 'The repository contract the notifier depends on.',
     ),
     ScaffoldSpec(
@@ -486,8 +490,11 @@ abstract final class ScaffoldCatalog {
       template: (c) => c.hasFirebaseAuthFeature
           ? FirebaseAuthTemplates.remoteDatasource(
               withFirestore: c.hasFirestore,
+              withPushNotifications: c.hasFirebaseNotifications,
             )
-          : AuthTemplates.remoteDatasource(),
+          : AuthTemplates.remoteDatasource(
+              withPushNotifications: c.hasFirebaseNotifications,
+            ),
       description:
           'The auth calls — /auth/* over Dio, or FirebaseAuth and Google sign-in.',
     ),
@@ -499,8 +506,11 @@ abstract final class ScaffoldCatalog {
       template: (c) => c.hasFirebaseAuthFeature
           ? FirebaseAuthTemplates.repositoryImpl(
               withFirestore: c.hasFirestore,
+              withPushNotifications: c.hasFirebaseNotifications,
             )
-          : AuthTemplates.repositoryImpl(),
+          : AuthTemplates.repositoryImpl(
+              withPushNotifications: c.hasFirebaseNotifications,
+            ),
       description:
           'Datasource + secure storage behind the repository contract.',
     ),
@@ -520,8 +530,12 @@ abstract final class ScaffoldCatalog {
       path: 'lib/features/auth/presentation/notifiers/auth_notifier.dart',
       category: 'Auth feature',
       template: (c) => c.hasFirebaseAuthFeature
-          ? FirebaseAuthTemplates.notifier()
-          : AuthTemplates.notifier(),
+          ? FirebaseAuthTemplates.notifier(
+              withPushNotifications: c.hasFirebaseNotifications,
+            )
+          : AuthTemplates.notifier(
+              withPushNotifications: c.hasFirebaseNotifications,
+            ),
       description:
           'Login, register, refresh, logout, delete and session restore.',
     ),
