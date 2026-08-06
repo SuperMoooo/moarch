@@ -434,10 +434,8 @@ ${useFirestore ? '''
   /// length becomes the width of the bone.
   static const placeholder = ${cls}State();
 '''}
-  final bool isLoadingAction;
 
-  /// One-shot UI event fields: any copyWith call that omits them clears
-  /// them, so a message is only surfaced once.
+  final bool isLoadingAction;
   final String? error;
   final String? success;
 
