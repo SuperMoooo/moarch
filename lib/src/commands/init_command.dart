@@ -319,11 +319,9 @@ class InitCommand extends Command<int> {
             ? await mainActivityFile.readAsString()
             : null;
 
-    // Unversioned, so pub fetches the newest release each package's own
-    // constraints allow. That is usually what a fresh scaffold wants — but it
-    // does mean pub is free to resolve *backwards* to settle a conflict
-    // elsewhere in the set, so a package that breaks when it does gets a floor
-    // of its own below.
+    // Unversioned, so pub fetches the newest release each package allows. Pub
+    // is free to resolve *backwards* to settle a conflict, so the packages
+    // that break when it does carry a constraint of their own below.
     final defaultDependencies = <String>[
       'flutter:\n    sdk: flutter',
       'flutter_riverpod: ',
@@ -352,22 +350,14 @@ class InitCommand extends Command<int> {
       // API — `GoogleSignIn.instance`, `initialize()` and `authenticate()`
       // replaced the constructor and `signIn()` of 6.x.
       if (firebaseAuthFeature) 'google_sign_in: ^7.0.0',
-      // Pinned, unlike its neighbours, because it is the one package here whose
-      // unversioned entry resolves to something broken. file_picker 11 wants
-      // win32 ^5, flutter_secure_storage_windows wants win32 ^6, and pub settles
-      // that Windows-only conflict by walking file_picker back to 3.0.4 — which
-      // predates AGP's `namespace` requirement, so the Android build fails with
-      // "Namespace not specified" before the app ever runs.
+      // Floored: unversioned, pub settles a win32 conflict with
+      // flutter_secure_storage_windows by walking file_picker back to 3.0.4,
+      // which predates AGP's `namespace` and fails the Android build.
       if (stack.contains(_kMediaService)) 'file_picker: ^11.0.0',
       if (stack.contains(_kMediaService)) 'image_picker: ',
-      // Capped, unlike its neighbours, because permission_handler 13 pulls
-      // permission_handler_android 14, whose android/build.gradle.kts is
-      // written against AGP 9 / Gradle 9 / Kotlin 2.3 and its built-in Kotlin
-      // support. On the AGP 8 toolchain `flutter create` still scaffolds, its
-      // top-level `kotlin { compilerOptions { ... } }` block fails to resolve
-      // and the build dies in script compilation. 12.x resolves the android
-      // impl to 13.x, which is Groovy/AGP 8 and builds; the API the generated
-      // PermissionService uses is unchanged across the two.
+      // Capped: permission_handler 13 pulls an android impl written against
+      // AGP 9 / Gradle 9, which fails to compile on the AGP 8 toolchain
+      // `flutter create` still scaffolds. The API is unchanged across the two.
       'permission_handler: ^12.0.3',
       if (stack.contains(_kLaunchUrlService)) 'url_launcher: ',
       if (stack.contains(_kNotificationsService))
@@ -426,11 +416,9 @@ class InitCommand extends Command<int> {
         overwriteWhen: _isFlutterCounterTest,
       );
 
-      // `flutter create` always leaves a main.dart behind, and files that
-      // already exist are never clobbered — so without this the scaffold's own
-      // main.dart, the one that installs ProviderScope and initialises the
-      // selected services, was never written at all. The counter demo is
-      // replaced; anything the developer has written is not.
+      // `flutter create` always leaves a main.dart behind and existing files
+      // are never clobbered, so the counter demo is replaced explicitly.
+      // Anything the developer wrote is left alone.
       wroteMainDart = await FileUtils.writeFile(
         p.join(libPath, 'main.dart'),
         CoreTemplates.mainDart(
@@ -833,9 +821,8 @@ class InitCommand extends Command<int> {
 
   /// Whether [source] is still the counter app `flutter create` writes.
   ///
-  /// Matched on the two private names only that template declares, so a
-  /// main.dart the developer has written — even one that kept `MyApp` — is
-  /// never mistaken for it and never replaced.
+  /// Matched on private names only that template declares, so a main.dart the
+  /// developer wrote is never mistaken for it.
   static bool _isFlutterCounterDemo(String source) =>
       source.contains('_MyHomePageState') &&
       source.contains('_incrementCounter');
@@ -938,15 +925,12 @@ class InitCommand extends Command<int> {
     _logger.info('  Updated ios/Runner/Info.plist with $additions.');
   }
 
-  /// Adds the two iOS keys Google sign-in cannot work without: `GIDClientID`,
-  /// and the URL scheme built from `REVERSED_CLIENT_ID` that the sign-in
-  /// sheet returns through. The plugin does not read GoogleService-Info.plist
-  /// itself — both values have to be copied into `Info.plist`.
+  /// Adds the two iOS keys Google sign-in needs in `Info.plist`: `GIDClientID`
+  /// and the `REVERSED_CLIENT_ID` URL scheme. The plugin never reads
+  /// GoogleService-Info.plist itself.
   ///
-  /// When `flutterfire configure` has already run, the real values are lifted
-  /// straight out of `ios/Runner/GoogleService-Info.plist`. When it hasn't,
-  /// placeholders go in with an XML comment saying what to replace them with,
-  /// and `moarch doctor --fix` finishes the job once the file appears.
+  /// Real values are lifted from that plist when `flutterfire configure` has
+  /// run; otherwise placeholders go in and `moarch doctor --fix` finishes.
   String _patchGoogleSignInPlist(File plistFile, String content) {
     final googleServices =
         File(p.join(p.dirname(plistFile.path), 'GoogleService-Info.plist'));
@@ -1011,16 +995,12 @@ class InitCommand extends Command<int> {
     _logger.info('  Updated ios/Runner/AppDelegate.swift with $addition.');
   }
 
-  /// permission_handler is always a dependency (PermissionService is
-  /// generated unconditionally), so without this block it compiles every
-  /// permission group's native code by default — pulling in usage-description
-  /// requirements for permissions the app never requests. Only camera/photos
-  /// are turned on, since MediaService (gated by [_kMediaService]) is the
-  /// only place generated code ever calls permission_handler.
+  /// permission_handler compiles every permission group's native code by
+  /// default, pulling in usage-description requirements for permissions the
+  /// app never requests. Only camera/photos are turned on.
   ///
-  /// When `ios/Podfile` doesn't exist yet (e.g. `moarch init` ran before
-  /// `flutter create` scaffolded `ios/`), a generic one is written instead
-  /// of skipped, with the same permission block already wired in.
+  /// A missing `ios/Podfile` is written rather than skipped, with the same
+  /// block already wired in.
   Future<void> _patchPodfile(
     File podfileFile,
     Set<String> stack, {
@@ -1415,7 +1395,7 @@ class InitCommand extends Command<int> {
     if (stack.contains(_kRouter)) {
       await FileUtils.writeFile(
         p.join(c, 'router', 'app_router.dart'),
-        ConfigTemplates.appRouter(),
+        ConfigTemplates.appRouter(withAuth: stack.contains(_kAuthFeature)),
       );
       await FileUtils.writeFile(
         p.join(c, 'router', 'app_routes.dart'),

@@ -126,8 +126,6 @@ final authRemoteDataSourceProvider = Provider<AuthRemoteDataSource>(
   (ref) => AuthRemoteDataSource(ref.watch(dioClientProvider)),
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 class AuthRemoteDataSource {
   const AuthRemoteDataSource(this._dio);
 
@@ -261,8 +259,6 @@ final authRepositoryProvider = Provider<AuthRepository>(
     ref.watch(tokenStorageProvider),$pushProviderArg
   ),
 );
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 class AuthRepositoryImpl implements AuthRepository {
   const AuthRepositoryImpl(this._remote, this._tokens$pushCtorParam);
@@ -471,8 +467,6 @@ import '../states/auth_state.dart';
 
 final authNotifierProvider =
     AsyncNotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 class AuthNotifier extends AsyncNotifier<AuthState>
     with ActionNotifierMixin<AuthState> {

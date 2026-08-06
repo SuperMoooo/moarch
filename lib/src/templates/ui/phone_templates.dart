@@ -5,17 +5,12 @@ abstract final class PhoneTemplates {
   static String appCountry() => r'''
 import 'package:flutter/foundation.dart';
 
-/// A country the phone field can be set to: its ISO code, its calling code and
-/// the shapes its national numbers are allowed to take.
+/// A country the phone field can be set to: ISO code, calling code and the
+/// shapes its national numbers take.
 ///
-/// Numbering plans are not all fixed-width, which is the whole reason [masks]
-/// is a list rather than a string. It holds every shape a country allows,
-/// narrowest first — Hungary takes 8 or 9 digits, Germany 10 through 13 — so a
-/// field can grow through them as the user types instead of locking into the
-/// first one.
-///
-/// Masks describe the *national* number only. The calling code lives in [dial]
-/// because it belongs to the country selector, not to the text field.
+/// [masks] is a list, narrowest first, because plans are not all fixed-width —
+/// a field grows through them as the user types. Masks describe the
+/// *national* number only; the calling code lives in [dial].
 @immutable
 class AppCountry {
   /// Creates a country entry. The shipped table is [AppCountries.all]; build
@@ -27,10 +22,9 @@ class AppCountry {
 
   /// E.164 calling code without its `+`: `351`.
   ///
-  /// Territories that share a code carry the full prefix that identifies them,
-  /// so the British Virgin Islands is `1284` rather than `1`. That keeps
-  /// [AppCountries.byDialCode] able to tell them apart, and it is what the
-  /// selector shows.
+  /// Shared codes carry the full identifying prefix — the British Virgin
+  /// Islands is `1284`, not `1` — so [AppCountries.byDialCode] can tell them
+  /// apart.
   final String dial;
 
   /// English country name — what the picker lists and what [matches] searches.
@@ -83,24 +77,19 @@ class AppCountry {
     return buffer.toString();
   }
 
-  /// Whether [digits] is a *complete* national number here.
-  ///
-  /// The length has to match one of the plan's shapes exactly rather than fall
-  /// in a range, which is why Armenia accepts 8 or 10 digits but not the 9 in
-  /// between.
+  /// Whether [digits] is a *complete* national number here — the length must
+  /// match one of the plan's shapes exactly, not fall in a range.
   bool accepts(String digits) => lengths.contains(_digitsOnly(digits).length);
 
   /// The E.164 form of [digits]: `+351912345678`. What you send to an API, and
   /// what [AppCountries.split] reads back.
   String e164(String digits) => '+$dial${_digitsOnly(digits)}';
 
-  /// How well this country answers [query] — lower is a better match, and a
-  /// negative result means none at all. A leading `+` is ignored, so `+351`,
-  /// `351`, `PT` and `portu` all find Portugal.
+  /// How well this country answers [query] — lower is better, negative is no
+  /// match. `+351`, `351`, `PT` and `portu` all find Portugal.
   ///
-  /// Ranked rather than boolean because country names contain each other's
-  /// codes: a plain `contains` puts Egypt above Portugal for the query `PT`,
-  /// which is not what anyone typing two letters meant.
+  /// Ranked rather than boolean because a plain `contains` puts Egypt above
+  /// Portugal for the query `PT`.
   int matchRank(String query) {
     final needle = query.trim().toLowerCase();
     if (needle.isEmpty) return 0;
@@ -172,10 +161,9 @@ class AppPhoneNumber {
 
 /// The shipped country table and the lookups over it.
 ///
-/// Numbering plans come from `flutter_multi_formatter` (MIT), reshaped so the
-/// calling code sits outside the mask. They are a good description of how
-/// numbers are *written*, not a substitute for libphonenumber — if you need
-/// carrier-level correctness, validate server-side too.
+/// Plans come from `flutter_multi_formatter` (MIT). They describe how numbers
+/// are *written*, not a substitute for libphonenumber — validate server-side
+/// too if you need carrier-level correctness.
 abstract final class AppCountries {
   /// The country a field starts on when it is given nothing else.
   ///
@@ -183,12 +171,8 @@ abstract final class AppCountries {
   /// actually are: `AppCountries.initial = AppCountries.byIso('PT')!;`
   static AppCountry initial = byIso('US')!;
 
-  /// Which country a *shared* calling code resolves to.
-  ///
-  /// Ten codes cover more than one territory — `+1` is both the US and Canada,
-  /// `+7` both Russia and Kazakhstan. [byDialCode] has to answer with one of
-  /// them, so the choice is written down here rather than left to table order.
-  /// Edit freely; an unlisted code falls back to the first match by name.
+  /// Which country a *shared* calling code resolves to — `+1` is both the US
+  /// and Canada. Edit freely; an unlisted code falls back to the first match.
   static const Map<String, String> preferredForSharedDialCode = {
     '1': 'US',
     '7': 'RU',
@@ -234,11 +218,8 @@ abstract final class AppCountries {
     return null;
   }
 
-  /// Splits a number into the country it belongs to and its national digits.
-  ///
-  /// A `+`-prefixed number is resolved through [byDialCode]; anything else is
-  /// treated as already national and paired with [fallback] — which is how a
-  /// field seeded with a bare `912345678` keeps the country it is showing.
+  /// Splits a number into its country and national digits. A `+`-prefixed
+  /// number goes through [byDialCode]; anything else pairs with [fallback].
   ///
   ///   AppCountries.split('+351912345678')  // (Portugal, '912345678')
   static AppPhoneNumber split(String phone, {AppCountry? fallback}) {
@@ -567,14 +548,10 @@ export './app_country.dart';
 ///     onChanged: (number) => _phone = number.e164,
 ///   )
 ///
-/// The field holds the *national* number and punctuates it as the user types —
-/// `912 345 678` in Portugal, `(555) 010 9999` in the US. The calling code is
-/// never in the text, so it can never be typed twice or deleted by accident;
-/// read the joined-up value from [AppPhoneNumber.e164].
-///
-/// Switching country re-masks what is already there rather than clearing it,
-/// because a number pasted before the country was corrected is still the
-/// number the user meant.
+/// The field holds the *national* number and punctuates it as the user types.
+/// The calling code is never in the text, so it cannot be typed twice — read
+/// the joined-up value from [AppPhoneNumber.e164]. Switching country re-masks
+/// what is already there rather than clearing it.
 class AppPhoneInput extends StatefulWidget {
   /// Creates a phone field.
   const AppPhoneInput({
@@ -670,11 +647,8 @@ class AppPhoneInput extends StatefulWidget {
   final AppInputShape? shape;
   final AppInputSize? size;
 
-  /// The built-in rule, exposed so a custom [validator] can build on it.
-  ///
-  /// Runs [ValidationService] first — it screens the value the same way every
-  /// other field is screened — then holds the number to its country's own
-  /// digit counts, which a generic 7-to-15 check cannot do.
+  /// The built-in rule, exposed so a custom [validator] can build on it. Runs
+  /// [ValidationService], then holds the number to its country's digit counts.
   static String? validate(
     String? value, {
     required AppCountry country,
@@ -755,11 +729,8 @@ class _AppPhoneInputState extends State<AppPhoneInput> {
     _selectCountry(picked);
   }
 
-  /// Re-masks the digits already in the field for the new country.
-  ///
-  /// Flutter only runs `inputFormatters` on an edit, so nothing would reshape
-  /// the existing text on its own — a US number left as `(555) 010 9999` would
-  /// keep US punctuation after a switch to Germany.
+  /// Re-masks the digits already in the field for the new country — Flutter
+  /// only runs `inputFormatters` on an edit, so nothing else would.
   void _selectCountry(AppCountry country) {
     setState(() => _country = country);
 
@@ -868,11 +839,9 @@ class _AppPhoneInputState extends State<AppPhoneInput> {
 
 /// Types a national number in the shape [country] writes them in.
 ///
-/// Unlike a fixed [MaskedInputFormatter] this re-picks the mask on every
-/// keystroke, so a plan with more than one shape widens as the number grows:
-/// an Australian number is `#### ####` until its ninth digit turns it into
-/// `# #### ####`. Digits past the country's longest mask are dropped, so the
-/// plan is also the length cap.
+/// Re-picks the mask on every keystroke, so a multi-shape plan widens as the
+/// number grows. Digits past the longest mask are dropped, so the plan is
+/// also the length cap.
 class PhoneNumberInputFormatter extends TextInputFormatter {
   /// Formats for [country].
   const PhoneNumberInputFormatter(this.country);

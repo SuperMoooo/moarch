@@ -43,35 +43,23 @@ import 'package:timezone/timezone.dart' as tz;
 import '../../core/constants/app_constants.dart';
 import '../../core/utils/app_logger.dart';
 
-// Android: add to android/app/src/main/AndroidManifest.xml inside <manifest>:
-//   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-//   <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
-//   <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
-//   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-//
-// iOS: moarch init adds this to ios/Runner/AppDelegate.swift when the iOS
-// folder exists; otherwise add it before GeneratedPluginRegistrant.register:
-//   if #available(iOS 10.0, *) {
-//     UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate
-//   }
-// Do not override userNotificationCenter(_:didReceive:) in AppDelegate without
-// calling super — FlutterAppDelegate forwards notification taps to the plugins
-// (flutter_local_notifications / firebase_messaging) and an override that
-// skips super blocks them.
+// Android: AndroidManifest.xml needs RECEIVE_BOOT_COMPLETED, SCHEDULE_EXACT_ALARM,
+// USE_EXACT_ALARM and POST_NOTIFICATIONS.
+// iOS: `moarch init` sets UNUserNotificationCenter.current().delegate in
+// AppDelegate.swift. Never override userNotificationCenter(_:didReceive:)
+// without calling super — that blocks the plugins from receiving taps.
 
 final _log = appLogger.scoped('Notifications');
 
-// ─── Background handler (must be top-level) ──────────────────────────────────
+// Must stay top-level.
 @pragma('vm:entry-point')
 void _backgroundHandler(NotificationResponse response) {
   _log.i(
     'Background tap | id: ${response.id} | payload: ${response.payload}',
   );
 }
- 
-// ─── Priority enum ────────────────────────────────────────────────────────────
-enum NotificationPriority { defaultPriority, high }
 
+enum NotificationPriority { defaultPriority, high }
 
 /// Read this to reach the service: `ref.read(notificationServiceProvider)`.
 final notificationServiceProvider = Provider<NotificationService>((ref) {
@@ -81,8 +69,7 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
 class NotificationService {
   NotificationService(this._ref);
 
-  /// Kept for reading other providers when needed (e.g. navigate on tap:
-  /// `_ref.read(routerProvider).go(...)`).
+  /// Read other providers from here, e.g. to navigate on tap.
   // ignore: unused_field
   final Ref _ref;
 
@@ -91,76 +78,68 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
-        // ─── Notification Channel IDs ────────────────────────────────────────────
   static const String _defaultChannelId = 'default_channel';
   static const String _defaultChannelName = 'Default Notifications';
   static const String _defaultChannelDesc = 'General app notifications';
- 
+
   static const String _scheduledChannelId = 'scheduled_channel';
   static const String _scheduledChannelName = 'Scheduled Notifications';
   static const String _scheduledChannelDesc = 'Reminders and scheduled alerts';
- 
+
   static const String _highPriorityChannelId = 'high_priority_channel';
   static const String _highPriorityChannelName = 'High Priority';
   static const String _highPriorityChannelDesc = 'Urgent notifications';
- 
-  // ─── Notification IDs ────────────────────────────────────────────────────
+
   static const int defaultId = 0;
   static const int scheduledId = 1;
   static const int periodicId = 2;
- 
-
 
   Future<void> init() async {
-      if (_initialized) return;
- 
- 
-    // Initialize timezone data
+    if (_initialized) return;
+
     tz.initializeTimeZones();
- 
+
     const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher', // Make sure this icon exists
+      '@mipmap/ic_launcher',
     );
- 
+
     const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: false, // Request manually via requestPermissions()
+      requestAlertPermission: false, // Asked for in requestPermissions().
       requestBadgePermission: false,
       requestSoundPermission: false,
     );
- 
+
     const initSettings = InitializationSettings(
       android: androidSettings,
       iOS: iosSettings,
     );
- 
+
     await _plugin.initialize(
       settings: initSettings,
       onDidReceiveNotificationResponse: (response) {
         _log.i(
           'Tapped | id: ${response.id} | payload: ${response.payload}',
         );
-        // onTap
       },
       onDidReceiveBackgroundNotificationResponse: _backgroundHandler,
     );
- 
+
     await _createNotificationChannels();
- 
+
     _initialized = true;
     _log.i('Initialized');
 
     await requestPermissions();
   }
 
-    /// Creates Android notification channels.
   Future<void> _createNotificationChannels() async {
     if (!Platform.isAndroid) return;
- 
+
     final androidPlugin =
         _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
         >();
- 
+
     await androidPlugin?.createNotificationChannel(
       const AndroidNotificationChannel(
         _defaultChannelId,
@@ -194,9 +173,7 @@ class NotificationService {
     );
   }
 
-    /// Request notification permissions from the user.
-  /// Returns true if granted, false otherwise.
-  /// Call this at an appropriate moment (e.g. after onboarding).
+  /// Ask for notification permission — call it after onboarding, not on boot.
   Future<bool> requestPermissions() async {
     if (Platform.isIOS) {
       final ios = _plugin.resolvePlatformSpecificImplementation<
@@ -208,17 +185,17 @@ class NotificationService {
           ) ??
           false;
     }
- 
+
     if (Platform.isAndroid) {
       final android = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
       return await android?.requestNotificationsPermission() ?? false;
     }
- 
+
     return false;
   }
 
-     /// Show a notification right now.
+  /// Show a notification right now.
   Future<void> show({
     int id = defaultId,
     required String title,
@@ -236,15 +213,10 @@ class NotificationService {
     );
     _log.i('Shown (id: $id)');
   }
- 
-  // ===========================================================================
-  // SCHEDULE
-  // ===========================================================================
- 
-  /// Schedule a notification at an exact [scheduledDate].
+
+  /// Schedule at an exact [scheduledDate].
   ///
-  /// [timeZoneName] — IANA timezone name, e.g. 'Europe/Lisbon'.
-  /// Defaults to the device's local timezone.
+  /// [timeZoneName] is an IANA name like 'Europe/Lisbon'; defaults to local.
   Future<void> scheduleAt({
     int id = scheduledId,
     required String title,
@@ -254,12 +226,12 @@ class NotificationService {
     String? timeZoneName,
   }) async {
     _ensureInit();
- 
+
     final location =
         timeZoneName != null ? tz.getLocation(timeZoneName) : tz.local;
     final tzDate = tz.TZDateTime.from(scheduledDate, location);
- 
-  await _plugin.zonedSchedule(
+
+    await _plugin.zonedSchedule(
       id: id,
       title: title,
       body: body,
@@ -289,31 +261,30 @@ class NotificationService {
     );
   }
  
-  /// Schedule a daily notification at a fixed [time].
- 
- Future<void> scheduleDailyAt({
-  int id = scheduledId,
-  required String title,
-  required String body,
-  required int hour,
-  required int minute,
-  String? payload,
-}) async {
-  _ensureInit();
-  await _plugin.zonedSchedule(
-    id: id,
-    title: title,
-    body: body,
-    scheduledDate: _nextInstanceOfTime(hour, minute),
-    notificationDetails: _buildScheduledDetails(),
-    androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-    matchDateTimeComponents: DateTimeComponents.time,
-    payload: payload,
-  );
-  _log.i('Daily scheduled at $hour:$minute (id: $id)');
-}
- 
-  /// Schedule a weekly notification on a specific [day]
+  /// Schedule a daily notification at [hour]:[minute].
+  Future<void> scheduleDailyAt({
+    int id = scheduledId,
+    required String title,
+    required String body,
+    required int hour,
+    required int minute,
+    String? payload,
+  }) async {
+    _ensureInit();
+    await _plugin.zonedSchedule(
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: _nextInstanceOfTime(hour, minute),
+      notificationDetails: _buildScheduledDetails(),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.time,
+      payload: payload,
+    );
+    _log.i('Daily scheduled at $hour:$minute (id: $id)');
+  }
+
+  /// Schedule a weekly notification on [day]
   /// (DateTime.monday..DateTime.sunday) at [hour]:[minute].
   Future<void> scheduleWeeklyAt({
     int id = scheduledId,
@@ -340,10 +311,6 @@ class NotificationService {
     );
   }
 
-  // ===========================================================================
-  // PERIODIC
-  // ===========================================================================
- 
   /// Show a repeating notification at a fixed [interval].
   Future<void> showPeriodic({
     int id = periodicId,
@@ -353,7 +320,7 @@ class NotificationService {
     String? payload,
   }) async {
     _ensureInit();
- 
+
     await _plugin.periodicallyShow(
       id: id,
       title: title,
@@ -366,40 +333,26 @@ class NotificationService {
 
     _log.i('Periodic ($interval) started (id: $id)');
   }
- 
-  // ===========================================================================
-  // CANCEL
-  // ===========================================================================
- 
+
   /// Cancel a specific notification by [id].
   Future<void> cancel(int id) async {
     await _plugin.cancel(id: id);
     _log.i('Cancelled (id: $id)');
   }
- 
+
   /// Cancel all pending and shown notifications.
   Future<void> cancelAll() async {
     await _plugin.cancelAll();
     _log.i('Cancelled all');
   }
- 
-  // ===========================================================================
-  // QUERY
-  // ===========================================================================
- 
-  /// Returns all notifications that are pending (scheduled but not yet shown).
+
+  /// Notifications that are scheduled but not yet shown.
   Future<List<PendingNotificationRequest>> getPending() =>
       _plugin.pendingNotificationRequests();
- 
-  // ===========================================================================
-  // PRIVATE HELPERS
-  // ===========================================================================
- 
 
- 
   NotificationDetails _buildDetails(NotificationPriority priority) {
     final isHigh = priority == NotificationPriority.high;
- 
+
     return NotificationDetails(
       android: AndroidNotificationDetails(
         isHigh ? _highPriorityChannelId : _defaultChannelId,
@@ -420,7 +373,7 @@ class NotificationService {
       ),
     );
   }
- 
+
   NotificationDetails _buildScheduledDetails() {
     return const NotificationDetails(
       android: AndroidNotificationDetails(
@@ -437,7 +390,7 @@ class NotificationService {
       ),
     );
   }
- 
+
   tz.TZDateTime _nextInstanceOfTime(int hour, int minute) {
     final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
     tz.TZDateTime scheduledDate = tz.TZDateTime(
@@ -452,7 +405,7 @@ class NotificationService {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
     return scheduledDate;
-}
+  }
 
   tz.TZDateTime _nextInstanceOfDay(int day, int hour, int minute) {
     tz.TZDateTime scheduledDate = _nextInstanceOfTime(hour, minute);
@@ -461,9 +414,7 @@ class NotificationService {
     }
     return scheduledDate;
   }
- 
- 
- 
+
   void _ensureInit() {
     if (!_initialized) {
       throw StateError(
@@ -484,24 +435,20 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/utils/app_logger.dart';
 
-/// Firebase Cloud Messaging (FCM) push notifications.
-///
-/// Setup:
-/// 1. Create a Firebase project and run: flutterfire configure
-/// 2. iOS: enable the Push Notifications and Background Modes (remote
-///    notifications) capabilities in Xcode, and upload your APNs key to
-///    Firebase console → Project settings → Cloud Messaging.
-/// 3. Android: no extra setup — google-services.json from flutterfire is enough.
-///
-/// Test it from Firebase console → Messaging → New campaign.
+// Setup:
+// 1. Run `flutterfire configure`.
+// 2. iOS: enable the Push Notifications and Background Modes (remote
+//    notifications) capabilities in Xcode, and upload your APNs key to
+//    Firebase console → Project settings → Cloud Messaging.
+// 3. Android: google-services.json from flutterfire is enough.
 
 final _log = appLogger.scoped('FCM');
 
-// ─── Background handler (must be top-level) ──────────────────────────────────
+// Must stay top-level.
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
-  // Runs in its own isolate. If you need other Firebase services here,
-  // initialize Firebase first: await Firebase.initializeApp();
+  // Runs in its own isolate — call Firebase.initializeApp() before using any
+  // other Firebase service here.
   _log.i('Background message | id: ${message.messageId}');
 }
 
@@ -515,15 +462,11 @@ final firebaseNotificationsServiceProvider =
 class FirebaseNotificationsService {
   FirebaseNotificationsService(this._ref);
 
-  /// Kept for reading other providers when needed (e.g. navigate on tap:
-  /// `_ref.read(routerProvider).go(...)`).
+  /// Read other providers from here, e.g. to navigate on tap.
   // ignore: unused_field
   final Ref _ref;
 
-  /// How many times a token lookup is retried before giving up.
   static const int _tokenRetries = 5;
-
-  /// Base delay between token retries (grows linearly with each attempt).
   static const Duration _tokenRetryDelay = Duration(seconds: 1);
 
   bool _initialized = false;
@@ -535,20 +478,13 @@ class FirebaseNotificationsService {
       (defaultTargetPlatform == TargetPlatform.iOS ||
           defaultTargetPlatform == TargetPlatform.macOS);
 
-  /// The current FCM registration token, with retries.
   /// Shorthand for [getDeviceToken] with the default settings.
   Future<String?> get token => getDeviceToken();
 
-  /// The FCM registration token for this device — send it to your backend so
-  /// it can target this install.
+  /// The FCM registration token for this device — send it to your backend.
   ///
-  /// On Apple platforms FCM can only mint a token once APNs has handed the app
-  /// its own token, and that arrives asynchronously a moment after the
-  /// permission prompt — asking too early returns null or throws. So on iOS and
-  /// macOS the APNs token is awaited first (see [getApnsToken]); Android goes
-  /// straight to FCM. Both steps are retried with a backing-off delay.
-  ///
-  /// Returns null if no token could be obtained within [retries] attempts.
+  /// On Apple platforms FCM cannot mint a token until APNs has handed the app
+  /// its own, so that one is awaited first. Returns null after [retries].
   Future<String?> getDeviceToken({
     int retries = _tokenRetries,
     Duration retryDelay = _tokenRetryDelay,
@@ -589,11 +525,10 @@ class FirebaseNotificationsService {
     return null;
   }
 
-  /// The raw APNs token — iOS and macOS only, null on every other platform.
+  /// The raw APNs token — iOS and macOS only, null everywhere else.
   ///
-  /// APNs registration is still in flight for a moment after the permission
-  /// prompt, so the token is polled until it shows up. Rarely needed directly:
-  /// [getDeviceToken] already waits for it.
+  /// Polled, because registration is still in flight for a moment after the
+  /// permission prompt. [getDeviceToken] already waits for it.
   Future<String?> getApnsToken({
     int retries = _tokenRetries,
     Duration retryDelay = _tokenRetryDelay,
@@ -645,7 +580,7 @@ class FirebaseNotificationsService {
       sound: true,
     );
 
-    // Message that opened the app from a terminated state.
+    // Set when a notification opened the app from a terminated state.
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) _onMessageOpened(initialMessage);
 
@@ -660,12 +595,10 @@ class FirebaseNotificationsService {
     _initialized = true;
     _log.i('Initialized');
 
-   await requestPermissions();
-    
+    await requestPermissions();
   }
 
-  /// Request notification permissions from the user.
-  /// Returns true if granted (or provisionally granted on iOS).
+  /// True when granted, or provisionally granted on iOS.
   Future<bool> requestPermissions() async {
     final settings = await _messaging.requestPermission(
       alert: true,
@@ -676,7 +609,7 @@ class FirebaseNotificationsService {
         settings.authorizationStatus == AuthorizationStatus.provisional;
   }
 
-  /// Receive messages sent to a topic (server side: send to /topics/<topic>).
+  /// Receive messages sent to a topic (server side: send to /topics/topic).
   Future<void> subscribeToTopic(String topic) =>
       _messaging.subscribeToTopic(topic);
 
@@ -687,13 +620,8 @@ class FirebaseNotificationsService {
     _log.i(
       'Foreground message | title: ${message.notification?.title}',
     );
-    // Android shows no system notification for foreground messages.
-    // If you also generated the local NotificationService, display one manually:
-    // _ref.read(notificationServiceProvider).show(
-    //   title: message.notification?.title ?? '',
-    //   body: message.notification?.body ?? '',
-    //   payload: message.data.toString(),
-    // );
+    // Android shows no system notification for foreground messages — show one
+    // yourself with the local NotificationService if you generated it.
   }
 
   void _onMessageOpened(RemoteMessage message) {
@@ -713,8 +641,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'permission_service.dart';
-
-/// A service to handle media selection (images, videos, files).
 
 final mediaServiceProvider = Provider.autoDispose<MediaService>((ref) {
   final permissionService = ref.watch(permissionProvider);
@@ -853,8 +779,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/security/validation_service.dart';
 
-/// A service to handle URL launching operations.
-
 final urlLauncherProvider = Provider.autoDispose<UrlLauncherService>((ref) {
   return UrlLauncherService();
 });
@@ -864,8 +788,8 @@ class UrlLauncherService {
 
   /// Launch a URL string.
   Future<void> launch(String url, {LaunchMode? mode}) async {
-    // InputType.url is what gates this: it holds the scheme to http/https, so
-    // a `javascript:` or `file:` link can never reach the platform launcher.
+    // InputType.url holds the scheme to http/https, so a `javascript:` or
+    // `file:` link can never reach the platform launcher.
     final ValidationResult res = ValidationService.validate(
       url,
       inputType: InputType.url,
@@ -878,7 +802,6 @@ class UrlLauncherService {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: mode ?? LaunchMode.externalApplication);
       } else {
-        // Fallback: try opening with a web view inside the app
         await launchUrl(uri, mode: LaunchMode.inAppWebView);
       }
     } catch (e) {
@@ -922,7 +845,7 @@ class ConnectivityService {
 
 ''';
 
-  /// Returns the generated connectivityService template.
+  /// Returns the generated debouncerService template.
   static String debouncerService() => r'''
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -948,7 +871,7 @@ class DebouncerService {
 }
 ''';
 
-  /// Returns the generated connectivityService template.
+  /// Returns the generated permissionService template.
   static String permissionService() => r'''
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -973,7 +896,6 @@ class PermissionService {
 
       case PermissionStatus.permanentlyDenied:
         await openAppSettings();
-        // User navigated away and came back — re-check
         final updated = await permission.status;
         return updated.isGranted || updated.isLimited;
 

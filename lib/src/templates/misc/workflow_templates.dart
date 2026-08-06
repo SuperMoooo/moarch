@@ -2,9 +2,7 @@
 class WorkflowTemplates {
   WorkflowTemplates._();
 
-  /// Returns the unified workflow template combining all jobs in order.
-  /// Replaces ciWorkflow, sastWorkflow, secretsScanWorkflow,
-  /// dependencyReviewWorkflow and buildWorkflow.
+  /// Returns the unified workflow template, combining every job in order.
   static String unifiedWorkflow() => r'''
 # ── Unified Pipeline ──────────────────────────────────────────────────────────
 # Runs all jobs in order. Build only triggers if every check passes.

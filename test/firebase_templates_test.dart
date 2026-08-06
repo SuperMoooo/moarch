@@ -192,7 +192,7 @@ void main() {
           useFirestore: true);
 
       expect(firestore, contains('Stream<List<OrderEntity>> watchAll();'));
-      expect(firestore, contains('Future<List<OrderEntity>> getAll();'));
+      expect(firestore, contains('Future<List<OrderEntity>> fetchAll();'));
       expect(
         FeatureTemplates.repositoryInterface('order', 'Order'),
         isNot(contains('watchAll')),
@@ -264,10 +264,14 @@ void main() {
         contains("import 'package:skeletonizer/skeletonizer.dart';"),
       );
       expect(output, contains('static final placeholder = OrderState('));
+      // List.generate, not List.filled: filled repeats one instance, so every
+      // row shares an id and a keyed list throws on the duplicates.
+      expect(output, contains('items: List.generate('));
       expect(
         output,
-        contains('items: List.filled(3, OrderEntity(id: BoneMock.name)),'),
+        contains(r"(index) => OrderEntity(id: '${BoneMock.name}$index'),"),
       );
+      expect(output, isNot(contains('List.filled(')));
 
       // The REST state has no fields to fake yet, so it gets the hook and a
       // TODO rather than an import it would not use.
@@ -319,7 +323,8 @@ void main() {
       // shimmer — the fake ones live on the state, not inline here.
       expect(
         output,
-        contains('skeleton: (context) => _body(context, OrderState.placeholder),'),
+        contains(
+            'skeleton: (context) => _body(context, OrderState.placeholder),'),
       );
       // Which is why the view no longer names the entity at all.
       expect(output, isNot(contains('OrderEntity')));

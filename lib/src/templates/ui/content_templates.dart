@@ -64,9 +64,8 @@ class AppTimelineEntry {
 /// )
 /// ```
 ///
-/// It sizes to its content, so it drops into a [Column] or an
-/// [AppSingleScrollView] without a height. For a list long enough to need lazy
-/// rows, [entryBuilder] gives you one row you can put in a `ListView.builder`.
+/// It sizes to its content, so it needs no height. For a list long enough to
+/// need lazy rows, [entryBuilder] gives you one row for a `ListView.builder`.
 class AppTimeline extends StatelessWidget {
   const AppTimeline({
     super.key,
@@ -310,10 +309,8 @@ import '../../../core/constants/app_constants.dart';
 /// )
 /// ```
 ///
-/// [autoPlay] advances on a timer, and stops for good the first time the user
-/// swipes: something that keeps sliding out from under a finger is worse than
-/// something that stopped. It also never starts when the platform is set to
-/// reduce motion.
+/// [autoPlay] advances on a timer and stops for good on the first user swipe.
+/// It never starts when the platform asks to reduce motion.
 class AppCarousel extends StatefulWidget {
   const AppCarousel({
     super.key,

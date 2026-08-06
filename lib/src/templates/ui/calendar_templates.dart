@@ -20,9 +20,8 @@ enum AppCalendarWeekStart { monday, saturday, sunday }
 /// An inline month calendar — the sibling of `AppDateInput`, which opens the
 /// platform picker instead of showing the grid.
 ///
-/// Reach for this when the month itself is the content: an agenda, a booking
-/// screen, a streak. Reach for `AppDateInput` when a date is one answer in a
-/// form.
+/// Use it when the month itself is the content — an agenda, a booking screen.
+/// Use `AppDateInput` when a date is one answer in a form.
 ///
 /// ```dart
 /// AppCalendar(

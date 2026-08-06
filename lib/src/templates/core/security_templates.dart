@@ -17,11 +17,8 @@ final tokenStorageProvider = Provider<TokenStorage>(
   (ref) => TokenStorage(ref.watch(secureStorageProvider)),
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Single owner of the auth session kept in secure storage.
-/// Used by the Dio client (Authorization header + refresh on 401) and by the
-/// auth repository (login/logout/session restore).
+/// Single owner of the auth session kept in secure storage — used by the Dio
+/// client and by the auth repository.
 class TokenStorage {
   const TokenStorage(this._storage);
 
@@ -54,8 +51,8 @@ class TokenStorage {
     await _storage.delete(key: userIdKey);
   }
 
-  /// Reads the user id claim from the JWT payload without verifying the
-  /// signature (verification is the backend's job).
+  /// Reads the user id claim from the JWT payload. The signature is not
+  /// verified — that is the backend's job.
   String? _userIdFromJwt(String token) {
     try {
       final parts = token.split('.');
@@ -93,8 +90,7 @@ class BiometricService {
 
   final LocalAuthentication _auth;
 
-  // True if the device can fall back to its own lock screen
-  // (PIN/pattern/password), even without biometrics enrolled.
+  // True when the device has a lock screen, biometrics enrolled or not.
   Future<bool> canAuthenticate() => _auth.isDeviceSupported();
 
   Future<bool> authenticate() {
@@ -111,13 +107,10 @@ class BiometricService {
     );
   }
 
-  /// Runs local authentication and reports failure as a snackbar rather than
-  /// throwing, so callers (e.g. AppButton's requireAuth) only need the bool.
+  /// Runs local authentication, reporting failure as a snackbar rather than
+  /// throwing, so callers only need the bool.
   Future<bool> verifyUserLocalAuth(BuildContext context) async {
-    // The messenger is resolved up front, before any await: the biometric
-    // prompt can outlive the calling widget, and reading an inherited widget
-    // off a stale BuildContext afterwards is exactly what
-    // use_build_context_synchronously guards against.
+    // Resolved before any await — the prompt can outlive the calling widget.
     final messenger = ScaffoldMessenger.of(context);
 
     try {
@@ -153,8 +146,7 @@ class BiometricService {
 
   /// Returns the generated validationService template.
   static String validationService() => r'''
-/// What a value is meant to be — drives both the rule it is checked against
-/// and the tidying it gets on the way through.
+/// What a value is meant to be — drives the rule and the tidying it gets.
 enum InputType {
   text,
   email,
@@ -196,15 +188,14 @@ class ValidationResult {
   factory ValidationResult.valid(String sanitized) =>
       ValidationResult(isValid: true, sanitizedValue: sanitized);
 
-  /// A value that failed. It keeps the value as given, so a caller can show it
-  /// back to the user next to the [error].
+  /// A value that failed, keeping the original so it can be shown back.
   factory ValidationResult.invalid(String error, String original) =>
       ValidationResult(isValid: false, sanitizedValue: original, error: error);
 
   final bool isValid;
 
-  /// The value trimmed and normalised for its type — what you store. On a
-  /// failure this is the original, untouched.
+  /// Trimmed and normalised for its type — what you store. Untouched on
+  /// failure.
   final String sanitizedValue;
 
   /// A message to show under the field, or null when [isValid].
@@ -216,10 +207,8 @@ class ValidationResult {
       : 'ValidationResult.invalid($error)';
 }
 
-/// The rule [InputType.password] is checked against.
-///
-/// Set [ValidationService.passwordPolicy] once at startup to change it app-wide
-/// — it reaches every field, including the ones inside `AppInput`.
+/// The rule [InputType.password] is checked against. Set
+/// [ValidationService.passwordPolicy] once at startup to change it app-wide.
 class PasswordPolicy {
   const PasswordPolicy({
     this.minLength = 6,
@@ -233,8 +222,7 @@ class PasswordPolicy {
   /// How many of upper case, lower case, digit and symbol must appear (0-4).
   final int requiredClasses;
 
-  /// Length over composition, in the spirit of NIST 800-63B: a long passphrase
-  /// beats a short one with a symbol bolted on.
+  /// Length over composition, in the spirit of NIST 800-63B.
   static const PasswordPolicy lengthOnly = PasswordPolicy(
     minLength: 12,
     requiredClasses: 0,
@@ -243,21 +231,10 @@ class PasswordPolicy {
 
 /// Validates and cleans user input.
 ///
-/// Two things it deliberately does not do:
-///
-/// - **It does not screen for SQL keywords.** Quotes, semicolons and words like
-///   "select" are ordinary text: "O'Brien" is a name and "Create the report" is
-///   a note. A blocklist here rejects real input while buying no safety —
-///   injection is stopped by parameterised queries on the server, which is also
-///   the only side an attacker cannot edit.
-/// - **It does not HTML-escape what it returns.** Flutter renders text, not
-///   HTML, so escaping on the way in corrupts stored values ("Tom & Jerry" ->
-///   "Tom &amp; Jerry"). Escape where you actually build HTML, with
-///   [escapeHtml].
-///
-/// What it does check is scoped to the type: the shape of the value, control
-/// characters (stripped everywhere), markup in free text, path traversal in a
-/// [InputType.filePath], and a scheme allowlist on a [InputType.url].
+/// It does not screen for SQL keywords — a blocklist rejects real input like
+/// "O'Brien" and buys no safety, since parameterised queries stop injection.
+/// It does not HTML-escape either: Flutter renders text, so escaping on the
+/// way in corrupts stored values. Use [escapeHtml] where you build HTML.
 class ValidationService {
   const ValidationService._();
 
@@ -279,9 +256,8 @@ class ValidationService {
   static final _nonDigits = RegExp(r'\D');
   static final _whitespace = RegExp(r'\s');
 
-  /// Characters that can truncate, spoof or corrupt a string downstream. They
-  /// are stripped rather than rejected — they arrive by paste accident, not by
-  /// intent, and there is nothing a user can do about an error naming them.
+  /// Stripped rather than rejected — they arrive by paste accident, and there
+  /// is nothing a user can do about an error naming them.
   static final _controlChars = RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]');
 
   static final _markupPatterns = [
@@ -295,9 +271,8 @@ class ValidationService {
 
   /// Checks [value] against the rule for [inputType].
   ///
-  /// An empty value passes: whether a field is required is the form's decision,
-  /// not this service's. Everything else is checked in one order — clean, then
-  /// length, then safety, then shape — and the first failure is returned.
+  /// An empty value passes — whether a field is required is the form's call.
+  /// Order is clean, length, safety, shape; the first failure is returned.
   static ValidationResult validate(
     String value, {
     required InputType inputType,
@@ -334,15 +309,12 @@ class ValidationService {
     return ValidationResult.valid(cleaned);
   }
 
-  /// Trims, drops control characters, and applies the normalisation the type
-  /// implies. Tidying only — it never removes characters that would have made
-  /// the value invalid, so a bad value still fails instead of being silently
-  /// repaired into a different one.
+  /// Tidying only — it never removes characters that would have made the value
+  /// invalid, so a bad value still fails instead of being repaired.
   static String _clean(String value, InputType type, {required bool trim}) {
     final withoutControls = value.replaceAll(_controlChars, '');
 
-    // A password is opaque. Trimming it would measure something other than
-    // what the user is about to send.
+    // A password is opaque — trimming would measure the wrong string.
     if (type == InputType.password) return withoutControls;
 
     final cleaned = trim ? withoutControls.trim() : withoutControls;
@@ -355,8 +327,7 @@ class ValidationService {
     };
   }
 
-  /// The safety checks, each scoped to the type it actually applies to. See the
-  /// class doc for what is deliberately absent.
+  /// The safety checks, each scoped to the type it applies to.
   static String? _unsafeReason(String value, InputType type) {
     if (type == InputType.filePath) {
       for (final pattern in _pathTraversalPatterns) {
@@ -406,10 +377,8 @@ class ValidationService {
     final uri = Uri.tryParse(value);
     if (uri == null || !uri.hasScheme) return 'Invalid URL';
 
-    // Checked before the host, so a `javascript:` or `file:` URL — which has no
-    // host to speak of — is reported as the scheme problem it is. Handing one
-    // of those to a browser or a WebView is an attack, not a link; the
-    // allowlist is the point of validating a URL at all.
+    // Checked before the host so a `javascript:` or `file:` URL is reported as
+    // the scheme problem it is. The allowlist is the point of validating a URL.
     if (uri.scheme != 'http' && uri.scheme != 'https') {
       return 'Only http and https links are allowed';
     }
@@ -468,14 +437,14 @@ class ValidationService {
         ? 2000 + int.parse(digits.substring(2))
         : int.parse(digits.substring(2));
 
-    // Day 0 of the next month is the last day of this one: a card is good
+    // Day 0 of the next month is the last day of this one — a card is good
     // through the end of the month it names.
     final expiresAt = DateTime(year, month + 1, 0, 23, 59, 59);
     return expiresAt.isBefore(DateTime.now()) ? 'Card has expired' : null;
   }
 
-  /// The Luhn checksum every card number carries. Public because a payment
-  /// form usually wants it while typing, before the field is done.
+  /// The Luhn checksum every card number carries. Public so a payment form can
+  /// use it while typing.
   static bool luhnCheck(String cardNumber) {
     var sum = 0;
     var isEven = false;
@@ -496,10 +465,8 @@ class ValidationService {
     return sum % 10 == 0;
   }
 
-  /// Escapes the five characters that matter in HTML.
-  ///
-  /// Call this where you build HTML — a WebView payload, an email body — not
-  /// on the way into your database, or you will store the escapes.
+  /// Escapes the five characters that matter in HTML. Call it where you build
+  /// HTML, not on the way into your database, or you will store the escapes.
   static String escapeHtml(String text) => text
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
@@ -507,10 +474,8 @@ class ValidationService {
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
 
-  /// Validates a whole form at once, keyed the same way as [inputs].
-  ///
-  /// A key with no entry in [types] is reported as invalid rather than skipped,
-  /// so a field that was never wired up cannot pass by omission.
+  /// Validates a whole form at once, keyed the same way as [inputs]. A key
+  /// missing from [types] is invalid, so an unwired field cannot pass.
   static Map<String, ValidationResult> validateMultiple(
     Map<String, String> inputs,
     Map<String, InputType> types, {

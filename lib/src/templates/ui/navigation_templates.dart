@@ -24,10 +24,8 @@ class AppTab {
 /// - [pill]: the selected tab is filled with the accent, like [AppSegmented].
 enum AppTabsStyle { underline, pill }
 
-/// A [TabBar] wearing the kit's vocabulary, sized to sit in an app bar.
-///
-/// Being a [PreferredSizeWidget] is the point — it drops straight into the
-/// `bottom` slot of [AppAppBar], which is where a tab bar belongs:
+/// A [TabBar] wearing the kit's vocabulary. Being a [PreferredSizeWidget] is
+/// the point — it drops straight into [AppAppBar]'s `bottom` slot.
 ///
 /// ```dart
 /// DefaultTabController(
@@ -44,9 +42,8 @@ enum AppTabsStyle { underline, pill }
 /// )
 /// ```
 ///
-/// With no [controller] it reads the [DefaultTabController] above it, as
-/// [TabBar] does. [AppTabs] is the version that owns a controller for you and
-/// puts the views underneath.
+/// With no [controller] it reads the [DefaultTabController] above it. [AppTabs]
+/// is the version that owns a controller and puts the views underneath.
 class AppTabBar extends StatelessWidget implements PreferredSizeWidget {
   const AppTabBar({
     super.key,
@@ -132,10 +129,8 @@ class AppTabBar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-/// An [AppTabBar] with its views under it, owning the [TabController].
-///
-/// The bar-plus-views pairing is most of what a tab bar is used for, and doing
-/// it by hand means a [StatefulWidget], a ticker and a `dispose` every time:
+/// An [AppTabBar] with its views under it, owning the [TabController] — the
+/// [StatefulWidget], ticker and `dispose` you would otherwise write.
 ///
 /// ```dart
 /// AppTabs(
@@ -144,10 +139,8 @@ class AppTabBar extends StatelessWidget implements PreferredSizeWidget {
 /// )
 /// ```
 ///
-/// It fills the height it is given, so put it in a [Column] under an
-/// [Expanded], or hand it a body's worth of space directly. When the tab bar
-/// belongs in the app bar instead, use [AppTabBar] with a
-/// [DefaultTabController].
+/// It fills the height it is given, so put it under an [Expanded] or hand it a
+/// body's worth of space. For a bar in the app bar, use [AppTabBar].
 class AppTabs extends StatefulWidget {
   const AppTabs({
     super.key,
@@ -297,9 +290,8 @@ import '../../../core/utils/extensions.dart';
 /// )
 /// ```
 ///
-/// It closes itself after a pick. A drawer that stays open over the screen it
-/// just navigated to is the most common way this widget is got wrong, and there
-/// is no case where a modal drawer should survive its own selection.
+/// It closes itself after a pick — a modal drawer should never survive its own
+/// selection.
 class AppDrawer extends StatelessWidget {
   const AppDrawer({
     super.key,
@@ -356,11 +348,9 @@ class AppDrawer extends StatelessWidget {
       },
       children: [
         // NavigationDrawer counts only its NavigationDrawerDestination
-        // children, so a header, a divider or a footer can sit among them
-        // without throwing the selected index off.
-        //
-        // An empty box rather than a null-aware element: this file has to
-        // compile in a project whose pubspec still asks for an older Dart.
+        // children, so a header or divider never shifts the selected index.
+        // An empty box rather than a null-aware element, to stay compatible
+        // with older Dart SDKs.
         header ?? const SizedBox.shrink(),
         for (final destination in destinations)
           NavigationDrawerDestination(
@@ -456,9 +446,7 @@ import '../../../core/utils/extensions.dart';
 /// The vertical navigation a wide screen shows instead of a bottom bar, reading
 /// the same [AppNavDestination] list as [AppBottomNav].
 ///
-/// A bottom bar on a tablet puts the app's navigation as far from the hand as
-/// the layout allows, which is why Material asks for a rail past 600dp.
-/// [AppAdaptiveNav] makes that switch for you.
+/// Material asks for a rail past 600dp; [AppAdaptiveNav] makes that switch.
 class AppNavRail extends StatelessWidget {
   const AppNavRail({
     super.key,
@@ -531,8 +519,7 @@ class AppNavRail extends StatelessWidget {
 /// A [Scaffold] that navigates the way the window is shaped: an [AppNavRail]
 /// beside the content on a tablet, an [AppBottomNav] under it on a phone.
 ///
-/// This is the shell a `StatefulShellRoute` builds, and the reason the two nav
-/// widgets share one destination type:
+/// This is the shell a `StatefulShellRoute` builds.
 ///
 /// ```dart
 /// AppAdaptiveNav(

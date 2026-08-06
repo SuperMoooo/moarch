@@ -33,7 +33,7 @@ class ${cls}Entity {
   /// Returns the generated repositoryInterface template.
   ///
   /// [useFirestore] adds `watchAll` — the live read the presentation layer is
-  /// built on when the data is in Firestore, with `getAll` left for the
+  /// built on when the data is in Firestore, with `fetchAll` left for the
   /// one-off cases (an export, a background job) that do not want a
   /// subscription.
   static String repositoryInterface(String name, String cls,
@@ -42,7 +42,7 @@ class ${cls}Entity {
 import '../entities/${name}_entity.dart';
 
 abstract interface class ${cls}Repository {
-  Future<List<${cls}Entity>> getAll();
+  Future<List<${cls}Entity>> fetchAll();
 ${useFirestore ? '''
 
   /// A live view of the collection: emits now with what Firestore has, and
@@ -68,14 +68,12 @@ final get${cls}Provider = Provider<Get$cls>(
   (ref) => Get$cls(ref.watch(${varName}RepositoryProvider)),
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 class Get$cls {
   const Get$cls(this._repository);
 
   final ${cls}Repository _repository;
 
-  Future<List<${cls}Entity>> call() => _repository.getAll();
+  Future<List<${cls}Entity>> call() => _repository.fetchAll();
 }
 ''';
 
@@ -175,7 +173,6 @@ class ${cls}Model extends ${cls}Entity{
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/errors/app_exception.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../core/network/safe_api_call.dart';
 import '../models/${name}_model.dart';
@@ -183,8 +180,6 @@ import '../models/${name}_model.dart';
 final ${varName}RemoteDataSourceProvider = Provider<${cls}RemoteDataSource>(
   (ref) => ${cls}RemoteDataSource(ref.watch(dioClientProvider)),
 );
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 
 class ${cls}RemoteDataSource {
@@ -218,8 +213,6 @@ import '../models/${name}_model.dart';
 final ${varName}RemoteDataSourceProvider = Provider<${cls}RemoteDataSource>(
   (ref) => ${cls}RemoteDataSource(ref.watch(firebaseDbProvider)),
 );
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 
 class ${cls}RemoteDataSource {
@@ -302,8 +295,6 @@ final ${varName}LocalDataSourceProvider = Provider<${cls}LocalDataSource>(
   (ref) => ${cls}LocalDataSource(),
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 
 
 class ${cls}LocalDataSource {
@@ -348,7 +339,7 @@ class ${cls}LocalDataSource {
     final methods = useFirestore && hasRemote
         ? '''
   @override
-  Future<List<${cls}Entity>> getAll() async {
+  Future<List<${cls}Entity>> fetchAll() async {
     final models = await _remote.fetchAll();
     return models.map((model) => model.toEntity()).toList();
   }
@@ -361,7 +352,7 @@ class ${cls}LocalDataSource {
   }'''
         : '''
   @override
-  Future<List<${cls}Entity>> getAll() {
+  Future<List<${cls}Entity>> fetchAll() {
     // TODO: implement using the datasource(s) above
     throw UnimplementedError();
   }${useFirestore ? '''
@@ -387,8 +378,6 @@ $providerArgs
   ),
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 class ${cls}RepositoryImpl implements ${cls}Repository {
   const ${cls}RepositoryImpl($ctorParams);
 
@@ -403,14 +392,8 @@ $methods
 
   /// Returns the generated state template.
   ///
-  /// [useFirestore] adds the `items` the live query fills in — a Firestore
-  /// feature has data to hold from its first frame, where the REST one leaves
-  /// that to whoever writes the fetch.
-  ///
-  /// Both carry a `placeholder`: the state the loading skeleton is traced
-  /// from. It is a constant on the state rather than something the view builds
-  /// inline so that adding a field breaks one place, not every screen that
-  /// draws it.
+  /// [useFirestore] adds the `items` the live query fills in. Both variants
+  /// carry the `placeholder` the loading skeleton is traced from.
   static String state(String name, String cls, {bool useFirestore = false}) =>
       '''
 ${useFirestore ? "import 'package:skeletonizer/skeletonizer.dart';\n\n" : ''}import '../../../../core/utils/action_notifier.dart';${useFirestore ? "\nimport '../../domain/entities/${name}_entity.dart';" : ''}
@@ -423,33 +406,32 @@ class ${cls}State implements ActionState<${cls}State> {
   });
 ${useFirestore ? '''
 
-  /// The state the loading skeleton is traced from: rows that exist only to be
-  /// the right size.
+  /// The state the loading skeleton is traced from — rows that exist only to
+  /// be the right size.
   ///
-  /// Skeletonizer shimmers the widget tree it is handed, so this has to hold
-  /// something — a body built from an empty state is a `ListView.builder` over
-  /// nothing, and traces to a blank screen. The *length* of the text is what
-  /// sets the width of the bone drawn over it, which is what `BoneMock` is
-  /// for: give every field you add here a fake value of the size the real one
-  /// will be.
+  /// Skeletonizer shimmers the tree it is handed, so this has to hold
+  /// something: a body built from an empty state traces to a blank screen.
+  /// The *length* of the text sets the width of the bone, which is what
+  /// `BoneMock` is for. `List.generate`, not `List.filled`, so each row is its
+  /// own instance with its own id and a keyed list stays valid.
   static final placeholder = ${cls}State(
-    items: List.filled(3, ${cls}Entity(id: BoneMock.name)),
+    items: List.generate(
+      3,
+      (index) => ${cls}Entity(id: '\${BoneMock.name}\$index'),
+    ),
   );
 
-  /// The collection as Firestore last reported it. Replaced whole on every
-  /// snapshot rather than patched, so it never drifts from the server.
+  /// The collection as Firestore last reported it, replaced whole on every
+  /// snapshot so it never drifts from the server.
   final List<${cls}Entity> items;
 ''' : '''
 
   /// The state the loading skeleton is traced from.
   ///
-  /// Skeletonizer shimmers the widget tree it is handed, so this has to hold
-  /// something for every field the body draws — a `ListView.builder` over an
-  /// empty list has nothing to trace, and shimmers as a blank screen.
-  ///
-  /// TODO: as you add fields, give them fake values here. `BoneMock` (from
-  /// skeletonizer) hands out strings of realistic length — `BoneMock.name`,
-  /// `BoneMock.words(3)` — and that length is the width of the bone.
+  /// TODO: as you add fields, give them fake values here — Skeletonizer
+  /// shimmers the tree it is handed, and an empty state traces to a blank
+  /// screen. `BoneMock.name` / `BoneMock.words(3)` hand out strings whose
+  /// length becomes the width of the bone.
   static const placeholder = ${cls}State();
 '''}
   final bool isLoadingAction;
@@ -501,8 +483,6 @@ import '../states/${name}_state.dart';
 
 final ${varName}NotifierProvider =
     AsyncNotifierProvider<${cls}Notifier, ${cls}State>(${cls}Notifier.new);
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 class ${cls}Notifier extends AsyncNotifier<${cls}State>
     with ActionNotifierMixin<${cls}State> {

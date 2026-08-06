@@ -1,5 +1,5 @@
-# [2.9.4]
+# [3.0.0]
 
 ## Features
 
-- placeholder and other things
+- comment reduction, and adjustments

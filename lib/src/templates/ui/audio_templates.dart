@@ -12,11 +12,8 @@ import 'package:just_audio/just_audio.dart';
 import '../inputs/app_input_style.dart';
 import '../../../core/constants/app_constants.dart';
 
-/// Where an [AppAudioPlayer] reads its audio from.
-///
-/// One type for the three things `just_audio` loads differently, so a screen
-/// swapping a bundled clip for a streamed one changes the constructor and
-/// nothing else.
+/// Where an [AppAudioPlayer] reads its audio from — one type for the three
+/// things `just_audio` loads differently.
 class AppAudioSource {
   /// A remote file, streamed. Progressive download — the player reports
   /// buffered progress under the playhead.
@@ -65,8 +62,7 @@ enum AppAudioRepeat { off, one }
 /// )
 /// ```
 ///
-/// Every part is switchable, so the same widget is a voice-note bubble and a
-/// podcast screen:
+/// Every part is switchable, so the same widget is a voice-note bubble:
 ///
 /// ```dart
 /// AppAudioPlayer(
@@ -78,9 +74,8 @@ enum AppAudioRepeat { off, one }
 /// )
 /// ```
 ///
-/// It plays audio and nothing else — the same split `just_audio` itself
-/// makes. Lock-screen controls and audio-session handling are
-/// `just_audio_background`'s job, and adding it does not change this widget.
+/// It plays audio and nothing else. Lock-screen controls and audio-session
+/// handling are `just_audio_background`'s job.
 class AppAudioPlayer extends StatefulWidget {
   const AppAudioPlayer({
     super.key,

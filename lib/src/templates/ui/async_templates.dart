@@ -1,6 +1,5 @@
-/// Templates for the two pieces every Riverpod screen ends up rewriting: the
-/// `AsyncValue` → loading/error/empty/data mapping, and the wiring that turns a
-/// notifier's one-shot `error` / `success` fields into feedback on screen.
+/// Templates for the `AsyncValue` → loading/error/empty/data mapping and the
+/// one-shot `error` / `success` feedback wiring.
 class AsyncTemplates {
   /// Returns the generated appAsyncView template.
   static String appAsyncView() => r'''
@@ -14,51 +13,23 @@ import './empty_view.dart';
 import './error_view.dart';
 import '../../core/errors/app_exception.dart';
 
-/// Renders one asynchronous source as the four states it can actually be in —
-/// loading, failed, empty, loaded — so a screen describes its content once
-/// instead of re-deciding the mapping every time.
-///
-/// The default constructor takes the [AsyncValue] a provider hands back, which
-/// is what a notifier, a `FutureProvider` and a `StreamProvider` all give:
+/// Renders one asynchronous source as loading, failed, empty or loaded.
 ///
 /// ```dart
-/// final homeAsync = ref.watch(homeNotifierProvider);
-///
-/// return Scaffold(
-///   body: AppAsyncView<HomeState>(
-///     value: homeAsync,
-///     onRetry: () => ref.invalidate(homeNotifierProvider),
-///     isEmpty: (state) => state.items.isEmpty,
-///     skeleton: (context) => _body(context, HomeState.placeholder),
-///     builder: _body,
-///   ),
-/// );
-/// ```
-///
-/// [AppAsyncView.stream] and [AppAsyncView.future] take the source itself, for
-/// the ones that never became a provider — a Firestore query, a socket, a
-/// one-off fetch. Everything else is the same widget, so a screen reads the
-/// same whether or not its data went through Riverpod:
-///
-/// ```dart
-/// AppAsyncView<List<Order>>.stream(
-///   stream: repository.watchOrders(),
-///   isEmpty: (orders) => orders.isEmpty,
-///   builder: (context, orders) => ListView(...),
+/// AppAsyncView<HomeState>(
+///   value: ref.watch(homeNotifierProvider),
+///   onRetry: () => ref.invalidate(homeNotifierProvider),
+///   isEmpty: (state) => state.items.isEmpty,
+///   skeleton: (context) => _body(context, HomeState.placeholder),
+///   builder: _body,
 /// )
 /// ```
 ///
-/// It builds *inline*, not as a route: the result is a body, so it can sit
-/// inside a [Scaffold] that keeps its app bar while the content is still
-/// loading. Wrap it yourself if you want a bare loading route instead.
-///
-/// **A reload does not blank the screen.** Riverpod keeps the previous data
-/// through a refresh, and so does this: once there is something to show, a
-/// later loading or error state leaves it on screen rather than replacing a
-/// list the user is reading with a spinner. A failed refresh is reported by
-/// `listenAction`, which is what one-shot feedback is for. The raw sources
-/// hold the same line — a stream that errors or is swapped for another keeps
-/// what it had already emitted.
+/// [AppAsyncView.stream] and [AppAsyncView.future] take a raw source instead,
+/// for data that never became a provider. It builds inline, not as a route, so
+/// a [Scaffold] keeps its app bar while the content loads. Once there is
+/// something to show, a later reload leaves it on screen rather than swapping
+/// it for a spinner.
 class AppAsyncView<T> extends StatelessWidget {
   /// Renders the [AsyncValue] a provider handed back.
   const AppAsyncView({
@@ -79,13 +50,8 @@ class AppAsyncView<T> extends StatelessWidget {
         _stream = null,
         _future = null;
 
-  /// Subscribes to [stream] and renders whatever it is currently saying.
-  ///
-  /// The subscription is this widget's: it starts with the element, is
-  /// cancelled with it, and is replaced when a different stream is passed.
-  ///
-  /// [onRetry] stays the caller's business — a dead stream is re-opened by
-  /// building this widget with a new one, which only the screen can do.
+  /// Subscribes to [stream] for as long as this widget lives. Reopening a dead
+  /// stream means rebuilding with a new one, so [onRetry] is the caller's job.
   const AppAsyncView.stream({
     super.key,
     required Stream<T> stream,
@@ -104,11 +70,8 @@ class AppAsyncView<T> extends StatelessWidget {
         _value = null,
         _future = null;
 
-  /// Awaits [future] and renders the result.
-  ///
-  /// A [Future] runs once and cannot be re-awaited, so a retry means handing
-  /// over a new one — `setState(() => _future = repository.load())` — and
-  /// [onRetry] is where that goes.
+  /// Awaits [future] and renders the result. A future runs once, so a retry
+  /// means handing over a new one from [onRetry].
   const AppAsyncView.future({
     super.key,
     required Future<T> future,
@@ -135,56 +98,36 @@ class AppAsyncView<T> extends StatelessWidget {
   /// Builds the loaded state.
   final Widget Function(BuildContext context, T data) builder;
 
-  /// The shape to shimmer while the first load runs — the screen's own body,
-  /// drawn from fake data: `(context) => _body(context, HomeState.placeholder)`.
-  /// That reads as the real layout arriving rather than as a spinner
-  /// interrupting.
+  /// The shape to shimmer while the first load runs, e.g.
+  /// `(context) => _body(context, HomeState.placeholder)`. Null shows a
+  /// centered spinner instead.
   ///
-  /// **It has to be fake data, not an empty state.** Skeletonizer traces the
-  /// widget tree it is handed, so a body built from `const HomeState()` is a
-  /// `ListView.builder` over nothing and traces to a blank screen. The states
-  /// generated by `moarch create feature` carry a `placeholder` holding a few
-  /// stand-in rows for exactly this; the length of the text in them is what
-  /// sets the width of the bones drawn over it, which is what skeletonizer's
-  /// `BoneMock` is for.
-  ///
-  /// A builder rather than a widget, so a screen that is already showing data
-  /// never pays to build a placeholder nobody sees. For a body that genuinely
-  /// cannot be faked — a chart, a map — leave it out of the placeholder and
-  /// annotate it inside [builder] instead, with `Skeleton.replace`.
-  ///
-  /// Null falls back to a centered spinner.
+  /// It must be built from *fake* data, not an empty state — Skeletonizer
+  /// traces the tree it is handed, so a `ListView.builder` over nothing traces
+  /// to a blank screen. States from `moarch create feature` carry a
+  /// `placeholder` for this.
   final WidgetBuilder? skeleton;
 
-  /// Whether loaded data counts as nothing to show. Null means it never does —
-  /// a state object is not a list, and only the screen knows which of its
-  /// fields being empty makes the page empty.
+  /// Whether loaded data counts as nothing to show. Null means it never does.
   final bool Function(T data)? isEmpty;
 
-  /// Copy for the empty state. Anything left null keeps [EmptyView]'s own
-  /// wording, so a screen only says what is specific to it.
+  /// Copy for the empty state. Null keeps [EmptyView]'s own wording.
   final String? emptyTitle;
   final String? emptyMessage;
   final IconData? emptyIcon;
   final String? emptyActionLabel;
   final VoidCallback? onEmptyAction;
 
-  /// Copy for the failed state. [errorMessage] overrides the exception's own
-  /// message, which is otherwise what the user is shown.
+  /// Copy for the failed state. [errorMessage] overrides the exception's own.
   final String? errorTitle;
   final String? errorMessage;
 
-  /// Offering a retry is what puts the button in [ErrorView].
-  /// `() => ref.invalidate(theProvider)` is the usual answer.
+  /// Passing this is what puts the retry button in [ErrorView]. Usually
+  /// `() => ref.invalidate(theProvider)`.
   final VoidCallback? onRetry;
 
-  /// The message an error state shows: the caller's, else the one the failure
-  /// was built to carry, else nothing — and [ErrorView] says something sane
-  /// when it is handed nothing.
-  ///
-  /// Anything else deliberately shows no detail. `error.toString()` on an
-  /// arbitrary throw is a class name and a stack-shaped sentence, which tells
-  /// the user nothing and leaks how the app is put together.
+  /// Anything that is not an [AppException] shows no detail on purpose —
+  /// `error.toString()` tells the user nothing and leaks internals.
   String? _messageFor(Object error) =>
       errorMessage ??
       switch (error) {
@@ -197,9 +140,6 @@ class AppAsyncView<T> extends StatelessWidget {
     final value = _value;
     if (value != null) return _render(context, value);
 
-    // A raw source needs somewhere to live: [_AsyncSource] holds the
-    // subscription and turns it into the same [AsyncValue] the rest of this
-    // widget already knows how to draw.
     return _AsyncSource<T>(
       stream: _stream,
       future: _future,
@@ -208,8 +148,8 @@ class AppAsyncView<T> extends StatelessWidget {
   }
 
   Widget _render(BuildContext context, AsyncValue<T> value) {
-    // `hasValue` rather than a `when`: it is what separates "still waiting for
-    // the first result" from "already showing one and fetching again".
+    // `hasValue` rather than `when`: it separates "still waiting for the first
+    // result" from "already showing one and fetching again".
     if (!value.hasValue) {
       final error = value.error;
       if (error != null && !value.isLoading) {
@@ -244,12 +184,8 @@ class AppAsyncView<T> extends StatelessWidget {
   }
 }
 
-/// Turns a [Stream] or a [Future] into the [AsyncValue] [AppAsyncView] draws.
-///
-/// Riverpod does this for a provider; this is the same job for a source that
-/// never became one, including the part that matters most — `copyWithPrevious`
-/// carries the last data forward, so an error or a swapped-in stream does not
-/// wipe what the user is already looking at.
+/// Turns a [Stream] or a [Future] into the [AsyncValue] [AppAsyncView] draws,
+/// carrying the last data forward so an error never wipes the screen.
 class _AsyncSource<T> extends StatefulWidget {
   const _AsyncSource({
     required this.builder,
@@ -270,8 +206,8 @@ class _AsyncSourceState<T> extends State<_AsyncSource<T>> {
   AsyncValue<T> _value = AsyncValue<T>.loading();
   StreamSubscription<T>? _subscription;
 
-  /// The future currently being awaited. A screen that rebuilds with a new one
-  /// leaves the old still running, and its late result is not ours to show.
+  /// The future currently being awaited — a superseded one still completes,
+  /// and its late result is not ours to show.
   Future<T>? _pending;
 
   @override
@@ -302,8 +238,7 @@ class _AsyncSourceState<T> extends State<_AsyncSource<T>> {
   }
 
   void _subscribe() {
-    // A new source is a load, but not a blank screen: what is already on it
-    // stays until the replacement has something of its own to say.
+    // A new source is a load, not a blank screen.
     _value = AsyncValue<T>.loading().copyWithPrevious(_value);
 
     final stream = widget.stream;
@@ -349,37 +284,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../overlays/app_toast.dart';
 
 /// Reports a notifier's one-shot `error` / `success` messages to the user.
-///
-/// The states generated by `moarch create feature` carry those two fields and
-/// clear them on the next `copyWith`, precisely so a message is surfaced once.
-/// This is the half that surfaces it:
+/// Call it from `build`, like any other `ref.listen`.
 ///
 /// ```dart
-/// @override
-/// Widget build(BuildContext context) {
-///   ref.listenAction<HomeState>(
-///     context,
-///     homeNotifierProvider,
-///     errorOf: (state) => state.error,
-///     successOf: (state) => state.success,
-///   );
-///   ...
-/// }
+/// ref.listenAction<HomeState>(
+///   context,
+///   homeNotifierProvider,
+///   errorOf: (state) => state.error,
+///   successOf: (state) => state.success,
+/// );
 /// ```
 ///
-/// Call it from `build`, like any other `ref.listen` — Riverpod keeps one
-/// subscription per call site across rebuilds, and drops it with the widget.
-///
-/// Pass [onError] or [onSuccess] to do something other than toast: pop the
-/// route on success, send the user somewhere, log it. Providing one replaces
-/// the toast for that outcome rather than adding to it, so a screen that
-/// navigates does not also flash a message on the way out.
+/// [onError] / [onSuccess] replace the toast for that outcome rather than
+/// adding to it, so a screen that navigates does not also flash a message.
 extension ActionListener on WidgetRef {
   /// Listens to [provider] and reports whichever message the new state carries.
-  ///
-  /// [errorOf] and [successOf] pull the messages out of the state. Both are
-  /// optional — a screen that only ever reports failures leaves [successOf]
-  /// unset and nothing looks for a success message.
+  /// [errorOf] and [successOf] are both optional.
   void listenAction<S>(
     BuildContext context,
     ProviderListenable<AsyncValue<S>> provider, {
@@ -389,17 +309,13 @@ extension ActionListener on WidgetRef {
     void Function(String message)? onSuccess,
   }) {
     listen<AsyncValue<S>>(provider, (previous, next) {
-      // A load in flight has no outcome to report yet, and a failure of the
-      // provider itself is the view's error state to draw — not a toast on top
-      // of it. What is left is a state that arrived carrying a message.
+      // A load has no outcome yet, and a failed provider is the view's error
+      // state to draw — not a toast on top of it.
       if (next.isLoading) return;
       final state = next.value;
       if (state == null) return;
 
-      // The listener outlives nothing here — Riverpod drops the subscription
-      // with the widget — but an action can still land in the same frame the
-      // route is popped, and a toast needs a mounted context to find its
-      // messenger.
+      // An action can land in the same frame the route is popped.
       if (!context.mounted) return;
 
       final error = errorOf?.call(state);
@@ -409,8 +325,7 @@ extension ActionListener on WidgetRef {
         } else {
           AppToast.error(context, error);
         }
-        // A single action reports one outcome. Falling through would toast a
-        // success left over from the call before it.
+        // One outcome per action — falling through would toast a stale success.
         return;
       }
 

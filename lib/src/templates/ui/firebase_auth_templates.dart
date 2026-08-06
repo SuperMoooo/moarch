@@ -312,8 +312,6 @@ final authRemoteDataSourceProvider = Provider<AuthRemoteDataSource>(
   ),
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 class AuthRemoteDataSource {
   AuthRemoteDataSource(this._auth, this._googleSignIn$firestoreCtorParam);
 
@@ -540,8 +538,6 @@ import '../datasources/auth_remote_datasource.dart';
 
 $pushProvider
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 class AuthRepositoryImpl implements AuthRepository {
   const AuthRepositoryImpl(this._remote$pushCtorParam);
 
@@ -703,8 +699,6 @@ import '../states/auth_state.dart';
 
 final authNotifierProvider =
     AsyncNotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 class AuthNotifier extends AsyncNotifier<AuthState>
     with ActionNotifierMixin<AuthState> {

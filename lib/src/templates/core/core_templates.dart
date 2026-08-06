@@ -83,14 +83,12 @@ class CoreTemplates {
         "\nimport 'package:firebase_crashlytics/firebase_crashlytics.dart';",
     ].join();
 
-    // One initializeApp for every Firebase service the project selected. The
-    // FCM service below only initializes Firebase when nobody else has, so it
-    // is happy either way.
+    // One initializeApp for every Firebase service the project selected.
     final firebaseInit = needsFirebaseInit
         ? '''
 
-  // Requires Firebase setup — run `flutterfire configure`, then pass the
-  // generated options: Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)
+  // Run `flutterfire configure`, then pass the generated options:
+  // Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)
   await Firebase.initializeApp();${withCrashlytics ? '''
 
   // Only report crashes from release builds.
@@ -149,12 +147,11 @@ import 'config/theme/app_theme.dart';
 import 'config/router/app_router.dart';
 
 Future<void> main() async {
-  // Preserve the splash BEFORE anything else runs
+  // Preserve the splash before anything else runs.
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 $easyLocalizationInit$containerSetup$notificationInit
 $firebaseInit$firebaseNotificationInit
-  //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
     appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught
     if (kDebugMode) return false; // false = let Flutter crash normally in dev
@@ -164,18 +161,16 @@ $firebaseInit$firebaseNotificationInit
   FlutterError.onError = (details) {
     appLogger.e('[Flutter error]', error: details.exception, stackTrace: details.stack);$crashlyticsFlutterError
     if (kDebugMode) {
-      // default behaviour — shows red screen in dev
       FlutterError.presentError(details);
     }
-    // in prod: logged but no red screen, app continues
   };
 
   ErrorWidget.builder = (details) {
-    if (kDebugMode) return ErrorWidget(details.exception); // red screen in dev
-    return const Scaffold(body: ErrorView()); // your nice screen in prod
+    if (kDebugMode) return ErrorWidget(details.exception);
+    return const Scaffold(body: ErrorView());
   };
 
-  // OR REMOVE AFTER SOME ASYNC INIT IN A ROOT WIDGET
+  // Move this after your own async init if you have any.
   FlutterNativeSplash.remove();
 
   $runAppCall
@@ -189,8 +184,7 @@ class App extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     $localizationWatch
 
-    // To reset ALL app state on logout, key a ProviderScope by your session.
-    // Once you have an auth feature, uncomment and adapt:
+    // To reset ALL app state on logout, key a ProviderScope by your session:
     // final sessionKey = ref.watch(
     //   authNotifierProvider.select((s) => s.value?.authenticated ?? ''),
     // );
@@ -205,8 +199,8 @@ class App extends ConsumerWidget {
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-                  // Respect the system font-size setting but cap it so large
-                  // scales don't break fixed layouts.
+                  // Follow the system font size, capped so it can't break
+                  // fixed layouts.
                   textScaler: MediaQuery.textScalerOf(
                     context,
                   ).clamp(maxScaleFactor: 1.35),
@@ -232,12 +226,11 @@ import 'shared/widgets/error_view.dart';
 import 'config/theme/app_theme.dart';
 
 Future<void> main() async {
-  // Preserve the splash BEFORE anything else runs
+  // Preserve the splash before anything else runs.
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 $easyLocalizationInit$containerSetup$notificationInit
 $firebaseInit$firebaseNotificationInit
-  //::::::::::ERROR MANAGEMENT::::::::::
   PlatformDispatcher.instance.onError = (error, st) {
     appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught
     if (kDebugMode) return false; // false = let Flutter crash normally in dev
@@ -247,18 +240,16 @@ $firebaseInit$firebaseNotificationInit
   FlutterError.onError = (details) {
     appLogger.e('[Flutter error]', error: details.exception, stackTrace: details.stack);$crashlyticsFlutterError
     if (kDebugMode) {
-      // default behaviour — shows red screen in dev
       FlutterError.presentError(details);
     }
-    // in prod: logged but no red screen, app continues
   };
 
   ErrorWidget.builder = (details) {
-    if (kDebugMode) return ErrorWidget(details.exception); // red screen in dev
-    return const Scaffold(body: ErrorView()); // your nice screen in prod
+    if (kDebugMode) return ErrorWidget(details.exception);
+    return const Scaffold(body: ErrorView());
   };
 
-  // OR REMOVE AFTER SOME ASYNC INIT IN A ROOT WIDGET
+  // Move this after your own async init if you have any.
   FlutterNativeSplash.remove();
 
   $runAppCall
@@ -271,8 +262,7 @@ class App extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     $localizationWatch
 
-    // To reset ALL app state on logout, key a ProviderScope by your session.
-    // Once you have an auth feature, uncomment and adapt:
+    // To reset ALL app state on logout, key a ProviderScope by your session:
     // final sessionKey = ref.watch(
     //   authNotifierProvider.select((s) => s.value?.authenticated ?? ''),
     // );
@@ -303,16 +293,13 @@ $localizationConfig      debugShowCheckedModeBanner: false,
 
   /// Returns the generated appLogger template.
   ///
-  /// [withCrashlytics] adds a second sink that mirrors records into Crashlytics
-  /// as breadcrumbs, so a crash report arrives with the lines that led up to it.
+  /// [withCrashlytics] adds a sink that mirrors records into Crashlytics.
   static String appLogger({bool withCrashlytics = false}) {
     final crashlyticsImport = withCrashlytics
         ? "\nimport 'package:firebase_core/firebase_core.dart';"
             "\nimport 'package:firebase_crashlytics/firebase_crashlytics.dart';"
         : '';
 
-    // Kept at the tail of the file so the invariant body above has no seams:
-    // the sink list is the only place the Crashlytics choice shows up.
     final sinks = withCrashlytics
         ? r'''
 final _sinks = <LogOutput>[
@@ -320,17 +307,14 @@ final _sinks = <LogOutput>[
   _CrashlyticsOutput(),
 ];
 
-/// Mirrors records into Crashlytics as breadcrumbs, so a crash report carries
-/// the log lines that preceded it.
+/// Mirrors records into Crashlytics as breadcrumbs.
 ///
 /// Breadcrumbs only — reporting a caught error stays an explicit
-/// `FirebaseCrashlytics.instance.recordError(...)` at the call site, which is
-/// the only place `reason` and `fatal` can actually be decided.
+/// `FirebaseCrashlytics.instance.recordError(...)` at the call site.
 class _CrashlyticsOutput extends LogOutput {
   @override
   void output(OutputEvent event) {
-    // Anything logged before main() reaches Firebase.initializeApp() — service
-    // start-up, mostly — would otherwise throw on `instance`.
+    // Anything logged before Firebase.initializeApp() would throw on `instance`.
     if (Firebase.apps.isEmpty) return;
     FirebaseCrashlytics.instance.log(_redact(event.lines.join('\n')));
   }
@@ -346,18 +330,12 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';$crashlyticsImport
 
-$_appLoggerBody// ─── Sinks ───────────────────────────────────────────────────────────────────
-
-$sinks''';
+$_appLoggerBody$sinks''';
   }
 
   /// The part of `app_logger.dart` that never varies with the selected stack.
   static const String _appLoggerBody = r'''
-/// The app's logger.
-///
-/// Call sites talk to [AppLogger] rather than to the `logger` package, so how
-/// logging works — where it goes, what it hides, when it stays quiet — is a
-/// decision this one file owns.
+/// The app's logger — call sites talk to this, not to the `logger` package.
 final appLogger = AppLogger._();
 
 class AppLogger {
@@ -365,11 +343,7 @@ class AppLogger {
 
   final String? _tag;
 
-  /// A logger that stamps every record with `[name]`.
-  ///
-  /// Prefer this over writing the prefix into each message by hand — the tag
-  /// comes out spelled the same way every time, which is what makes a log
-  /// filterable after the fact.
+  /// A logger that stamps every record with `[name]`, so logs stay filterable.
   ///
   /// ```dart
   /// final _log = appLogger.scoped('FCM');
@@ -408,11 +382,9 @@ class AppLogger {
   }
 }
 
-// ─── Backend ─────────────────────────────────────────────────────────────────
-
 final _logger = Logger(
-  // Release output is one line per record: it is headed for Crashlytics
-  // breadcrumbs and device logs, where PrettyPrinter's box art is only noise.
+  // One line per record in release — it is headed for Crashlytics breadcrumbs
+  // and device logs, where PrettyPrinter's box art is only noise.
   printer: kReleaseMode
       ? SimplePrinter(printTime: true, colors: false)
       : PrettyPrinter(
@@ -423,15 +395,12 @@ final _logger = Logger(
           dateTimeFormat: DateTimeFormat.onlyTimeAndSinceStart,
         ),
   output: MultiOutput(_sinks),
-  // Warnings and errors survive into release so a crash has context leading up
-  // to it; everything below them is stripped. Set this to Level.off to silence
-  // release builds completely.
+  // Warnings and errors survive into release; use Level.off to silence it.
   level: kReleaseMode ? Level.warning : Level.trace,
 );
 
-/// Writes through `dart:developer` rather than `print`, so DevTools' Logging
-/// view gets one record per event with its severity attached — filterable,
-/// instead of a wall of console text.
+/// Writes through `dart:developer`, so DevTools' Logging view gets one
+/// filterable record per event instead of a wall of console text.
 class _DeveloperOutput extends LogOutput {
   @override
   void output(OutputEvent event) {
@@ -445,7 +414,7 @@ class _DeveloperOutput extends LogOutput {
 }
 
 /// `dart:developer` grades severity on package:logging's scale, which [Level]
-/// does not line up with on its own.
+/// does not line up with.
 const _developerLevels = <Level, int>{
   Level.trace: 300,
   Level.debug: 500,
@@ -455,11 +424,8 @@ const _developerLevels = <Level, int>{
   Level.fatal: 1200,
 };
 
-// ─── Redaction ───────────────────────────────────────────────────────────────
-
-/// Every sink runs this, rather than each call site remembering to — which is
-/// what stops a stray `appLogger.d(response.data.toString())` from putting a
-/// credential in the logs.
+/// Every sink runs this, so a stray `appLogger.d(response.data.toString())`
+/// cannot put a credential in the logs.
 final _sensitiveKeyPattern = RegExp(
   r'("?(?:password|newPassword|token|authorization|refreshToken|accessToken)"?\s*:\s*)'
   r'("[^"]*"|[^,}\]\n]+)',
@@ -507,8 +473,7 @@ extension ContextX on BuildContext {
   /// rotation.
   bool get isTablet => MediaQuery.sizeOf(this).shortestSide >= 600;
 
-  /// Drops focus and closes the keyboard — the "tap the background to dismiss"
-  /// move, and what you want before pushing a route off a form.
+  /// Drops focus and closes the keyboard.
   void unfocus() => FocusScope.of(this).unfocus();
 }
 
@@ -525,8 +490,7 @@ extension StringX on String {
   /// Empty once whitespace is discounted — the check `isEmpty` misses on '  '.
   bool get isBlank => trim().isEmpty;
 
-  /// This string, or null when there is nothing in it. Handy for optional API
-  /// fields that should be omitted rather than sent as ''.
+  /// This string, or null when blank — for API fields better omitted than ''.
   String? get nullIfBlank => isBlank ? null : this;
 
   String get capitalize =>
@@ -569,14 +533,12 @@ extension StringX on String {
     return buffer.toString();
   }
 
-  /// Lower case and accent-free — the form to compare against a search box so
-  /// 'sao' matches 'São'.
+  /// Lower case and accent-free, so 'sao' matches 'São'.
   String get searchKey => withoutDiacritics.toLowerCase().trim();
 
   /// True when [query] appears in this string, ignoring case and accents.
   bool matchesSearch(String query) => searchKey.contains(query.searchKey);
 
-  // Safe Parsers
   int? get toIntOrNull => int.tryParse(this);
   double? get toDoubleOrNull => double.tryParse(this);
 
@@ -597,7 +559,6 @@ extension StringX on String {
 
   /// Parses this string as a date; returns null when no known format matches.
   DateTime? toDateTime() {
-    // Try standard formats first
     final formats = [
       'yyyy-MM-dd',
       'dd/MM/yyyy',
@@ -614,7 +575,6 @@ extension StringX on String {
       } catch (_) {}
     }
 
-    // Fallback: manual split for ambiguous cases
     final parts = split(RegExp(r'[/\-]'));
     if (parts.length == 3) {
       final a = int.tryParse(parts[0]);
@@ -649,8 +609,7 @@ extension DateTimeX on DateTime {
       '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
   String get formattedDateTime => '$formattedDate $formattedTime';
 
-  /// yyyy-MM-ddTHH:mm:ss.mmmZ, in UTC — the `Z` says UTC, so the value is
-  /// converted rather than relabelled.
+  /// yyyy-MM-ddTHH:mm:ss.mmmZ, converted to UTC.
   String get formatedDateTimeToDatabase => toUtc().toIso8601String();
 
   // yyyy-MM-dd
@@ -729,8 +688,7 @@ extension TimeOfDayX on TimeOfDay {
   bool isBefore(TimeOfDay other) => minutesOfDay < other.minutesOfDay;
   bool isAfter(TimeOfDay other) => minutesOfDay > other.minutesOfDay;
 
-  /// This time of day on [date] — how a separate date field and time field are
-  /// combined into the single DateTime an API wants.
+  /// This time of day on [date] — merges a separate date and time field.
   DateTime onDate(DateTime date) =>
       DateTime(date.year, date.month, date.day, hour, minute);
 }
@@ -775,96 +733,66 @@ const _accented = 'ÀÁÂÃÄÅàáâãäåÈÉÊËèéêëÌÍÎÏìíîïÒÓ�
 const _unaccented = 'AAAAAAaaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuNnCc';
 ''';
 
-  // Material & Cupertino guidelines:
-  // Spacing: 4pt grid (4, 8, 12, 16, 24, 32, 48)
-  // Text: iOS SF / Material type scale — body 17, callout 16, subhead 15, footnote 13, caption 12
-  // Touch targets: min 44pt (iOS HIG) / 48dp (Material)
-  // Border radius: iOS uses 10-13 for cards, Material uses 12 (medium)
   /// Returns the generated appConstants template.
   static String appConstants() => r'''
 import 'package:flutter/material.dart';
 
-/// | NAME           | SIZE |  HEIGHT |  WEIGHT |  SPACING |             |
-/// |----------------|------|---------|---------|----------|-------------|
-/// | displayLarge   | 57.0 |   64.0  | regular | -0.25    |             |
-/// | displayMedium  | 45.0 |   52.0  | regular |  0.0     |             |
-/// | displaySmall   | 36.0 |   44.0  | regular |  0.0     |             |
-/// | headlineLarge  | 32.0 |   40.0  | regular |  0.0     |             |
-/// | headlineMedium | 28.0 |   36.0  | regular |  0.0     |             |
-/// | headlineSmall  | 24.0 |   32.0  | regular |  0.0     |             |
-/// | titleLarge     | 22.0 |   28.0  | regular |  0.0     |             |
-/// | titleMedium    | 16.0 |   24.0  | medium  |  0.15    |             |
-/// | titleSmall     | 14.0 |   20.0  | medium  |  0.1     |             |
-/// | bodyLarge      | 16.0 |   24.0  | regular |  0.5     |             |
-/// | bodyMedium     | 14.0 |   20.0  | regular |  0.25    |             |
-/// | bodySmall      | 12.0 |   16.0  | regular |  0.4     |             |
-/// | labelLarge     | 14.0 |   20.0  | medium  |  0.1     |             |
-/// | labelMedium    | 12.0 |   16.0  | medium  |  0.5     |             |
-/// | labelSmall     | 11.0 |   16.0  | medium  |  0.5     |             |
-
 abstract final class AppConstants {
- // ── Palette (light) ────────────────────────────────────────────
-static const Color primary   = Color(0xFF000000);
-static const Color secondary = Color(0xFF000000);
-static const Color tertiary  = Color(0xFF000000);
-static const Color surface   = Color(0xFF000000);
-static const Color onSurface = Color(0xFF000000);
-static const Color outline   = Color(0xFF000000);
-static const Color error = Color(0xFFba1a1a);
+  // ── Palette (light) ───────────────────────────────────────────────────────
+  static const Color primary   = Color(0xFF000000);
+  static const Color secondary = Color(0xFF000000);
+  static const Color tertiary  = Color(0xFF000000);
+  static const Color surface   = Color(0xFF000000);
+  static const Color onSurface = Color(0xFF000000);
+  static const Color outline   = Color(0xFF000000);
+  static const Color error     = Color(0xFFba1a1a);
 
-// ── Palette (dark) — same hues, tuned for a dark surface ───────
-static const Color primaryDark   = Color(0xFFFFFFFF);
-static const Color secondaryDark = Color(0xFFFFFFFF);
-static const Color tertiaryDark  = Color(0xFFFFFFFF);
-static const Color surfaceDark   = Color(0xFF121212);
-static const Color onSurfaceDark = Color(0xFFFFFFFF);
-static const Color outlineDark   = Color(0xFFFFFFFF);
-static const Color errorDark = Color(0xFFffb4ab);
+  // ── Palette (dark) ────────────────────────────────────────────────────────
+  static const Color primaryDark   = Color(0xFFFFFFFF);
+  static const Color secondaryDark = Color(0xFFFFFFFF);
+  static const Color tertiaryDark  = Color(0xFFFFFFFF);
+  static const Color surfaceDark   = Color(0xFF121212);
+  static const Color onSurfaceDark = Color(0xFFFFFFFF);
+  static const Color outlineDark   = Color(0xFFFFFFFF);
+  static const Color errorDark     = Color(0xFFffb4ab);
 
-// ── Status colors (feedback: toasts, banners, tags) ───────────
-// Kept apart from the variant palette so success/warning/info read the same
-// whatever the brand colors become.
-static const Color success = Color(0xFF2E7D32);
-static const Color warning = Color(0xFFED6C02);
-static const Color info    = Color(0xFF0288D1);
+  // ── Status colors ─────────────────────────────────────────────────────────
+  // Kept out of the palette so they read the same whatever the brand becomes.
+  static const Color success = Color(0xFF2E7D32);
+  static const Color warning = Color(0xFFED6C02);
+  static const Color info    = Color(0xFF0288D1);
 
-static const Color successDark = Color(0xFF66BB6A);
-static const Color warningDark = Color(0xFFFFA726);
-static const Color infoDark    = Color(0xFF29B6F6);
+  static const Color successDark = Color(0xFF66BB6A);
+  static const Color warningDark = Color(0xFFFFA726);
+  static const Color infoDark    = Color(0xFF29B6F6);
 
-// ── Accent tokens ────────────────────────────────────────────
-static const Color accentActive      = Color(0xFF000000);
-static const Color accentRestorative = Color(0xFF000000);
-static const Color accentEnergetic   = Color(0xFF000000);
+  // ── Accent tokens ─────────────────────────────────────────────────────────
+  static const Color accentActive      = Color(0xFF000000);
+  static const Color accentRestorative = Color(0xFF000000);
+  static const Color accentEnergetic   = Color(0xFF000000);
 
-// ── Type ──────────────────────────────────────────────────────
-// App-wide font family used by [AppTheme]'s TextTheme. Leave null for the
-// platform default (Roboto / SF). To use a custom font, declare it under
-// `flutter: fonts:` in pubspec.yaml and set its family name here, e.g.
-// `static const String? fontFamily = 'Inter';`. For Google Fonts, add the
-// google_fonts package and swap AppTheme's textTheme for
-// GoogleFonts.interTextTheme(...).
-static const String? fontFamily = null;
+  // ── Type ──────────────────────────────────────────────────────────────────
+  // Null uses the platform default. Declare a font under `flutter: fonts:` in
+  // pubspec.yaml and name it here, or add google_fonts and swap AppTheme's
+  // textTheme for GoogleFonts.interTextTheme(...).
+  static const String? fontFamily = null;
 
+  // ── Surface layers ────────────────────────────────────────────────────────
+  static const Color surfaceContainerLowest  = Color(0xFF000000);
+  static const Color surfaceContainerLow     = Color(0xFF000000);
+  static const Color surfaceContainerHighest = Color(0xFF000000);
 
-// ── Surface layers (tonal depth — no borders) ───────────────
-static const Color surfaceContainerLowest  = Color(0xFF000000);
-static const Color surfaceContainerLow     = Color(0xFF000000);
-static const Color surfaceContainerHighest = Color(0xFF000000);
+  static const Color surfaceContainerLowestDark  = Color(0xFF0A0A0A);
+  static const Color surfaceContainerLowDark     = Color(0xFF1E1E1E);
+  static const Color surfaceContainerHighestDark = Color(0xFF2C2C2C);
 
-// ── Surface layers (dark) ────────────────────────────────────
-static const Color surfaceContainerLowestDark  = Color(0xFF0A0A0A);
-static const Color surfaceContainerLowDark     = Color(0xFF1E1E1E);
-static const Color surfaceContainerHighestDark = Color(0xFF2C2C2C);
-
-// ── Flat colors for avatar bg fallback ───────────────
-static const List<Color> avatarPalette = [
-  Color(0xFFEF5350), Color(0xFFAB47BC), Color(0xFF5C6BC0),
-  Color(0xFF29B6F6), Color(0xFF26A69A), Color(0xFF9CCC65),
-  Color(0xFFFFCA28), Color(0xFFFF7043), Color(0xFF8D6E63),
-  Color(0xFF78909C),
-];
-
+  // ── Avatar background fallbacks ───────────────────────────────────────────
+  static const List<Color> avatarPalette = [
+    Color(0xFFEF5350), Color(0xFFAB47BC), Color(0xFF5C6BC0),
+    Color(0xFF29B6F6), Color(0xFF26A69A), Color(0xFF9CCC65),
+    Color(0xFFFFCA28), Color(0xFFFF7043), Color(0xFF8D6E63),
+    Color(0xFF78909C),
+  ];
 
   // ── Spacing — 4pt grid ────────────────────────────────────────────────────
   static const double space4  = 4;
@@ -887,24 +815,17 @@ static const List<Color> avatarPalette = [
   static const paddingV8  = EdgeInsets.symmetric(vertical: space8);
   static const paddingV16 = EdgeInsets.symmetric(vertical: space16);
 
-  // common page inset (Material: 16dp sides, iOS: 16-20pt sides)
   static const paddingPage = EdgeInsets.symmetric(
     horizontal: space16,
     vertical: space16,
   );
 
-  // ── Icons Sizes ───────────────────────────────────────────────────
-
+  // ── Icon sizes ────────────────────────────────────────────────────────────
   static const double iconSmall = 16;
   static const double iconMedium = 24;
   static const double iconLarge = 32;
 
   // ── Text sizes — Material type scale / iOS HIG ────────────────────────────
-  // iOS: largeTitle 34, title1 28, title2 22, title3 20, headline 17,
-  //      body 17, callout 16, subheadline 15, footnote 13, caption1/2 12/11
-  // Material: displayL 57, displayM 45, displayS 36, headlineL 32,
-  //           headlineM 28, headlineS 24, titleL 22, titleM 16, titleS 14,
-  //           bodyL 16, bodyM 14, bodyS 12, labelL 14, labelM 12, labelS 11
   static const double fontSize11 = 11; // caption2 / label small
   static const double fontSize12 = 12; // caption1 / body small
   static const double fontSize13 = 13; // footnote
@@ -917,8 +838,7 @@ static const List<Color> avatarPalette = [
   static const double fontSize28 = 28; // title1 / headlineM
   static const double fontSize34 = 34; // largeTitle (iOS)
 
-  // ── Touch targets ─────────────────────────────────────────────────────────
-  // iOS HIG: 44pt minimum, Material: 48dp minimum
+  // ── Touch targets — iOS HIG 44pt minimum, Material 48dp ───────────────────
   static const double touchTarget = 48;
 
   // ── Border radius — Material medium = 12, iOS cards ≈ 10–13 ──────────────
@@ -937,7 +857,6 @@ static const List<Color> avatarPalette = [
   static final borderRadiusFull = BorderRadius.circular(radiusFull);
 
   // ── Animation durations ───────────────────────────────────────────────────
-  // Material motion: 100ms micro, 200ms simple, 300ms complex, 500ms dramatic
   static const Duration duration100 = Duration(milliseconds: 100);
   static const Duration duration200 = Duration(milliseconds: 200);
   static const Duration duration300 = Duration(milliseconds: 300);
@@ -952,8 +871,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../errors/app_exception.dart';
 
-/// Contract for states usable with [ActionNotifierMixin.runAction]: the
-/// state must know how to flag its loading and error cases.
+/// Contract for states usable with [ActionNotifierMixin.runAction].
 abstract interface class ActionState<T> {
   T copyWithLoading();
   T copyWithError(String message);
@@ -971,11 +889,10 @@ abstract interface class ActionState<T> {
 /// }
 /// ```
 mixin ActionNotifierMixin<S extends ActionState<S>> on AsyncNotifier<S> {
-  /// Runs [action] with the shared loading/error handling; [action] returns
-  /// the next state. [action] receives the pre-action state (loading off) —
-  /// build the next state from it, not from `state.value`, which holds the
-  /// loading flag while the action runs. Errors reset the state to how it
-  /// was before the action, with the message in `error`.
+  /// Runs [action] with shared loading/error handling.
+  ///
+  /// [action] receives the pre-action state — build the next state from that,
+  /// not from `state.value`, which carries the loading flag while it runs.
   Future<void> runAction(Future<S> Function(S current) action) async {
     final current = state.value;
     if (current == null) return;
@@ -1035,7 +952,6 @@ bool _isPublicPath(String path) {
 
 final dioClientProvider = Provider<Dio>((ref) => _buildDioClient(ref));
 
-// ─────────────────────────────────────────────────────────────────────────────
 Dio _buildDioClient(Ref ref) {
   final storage = ref.watch(tokenStorageProvider);
 
@@ -1051,7 +967,6 @@ Dio _buildDioClient(Ref ref) {
     ),
   );
 
-  // Configure certificate verification
   _configureHttpClient(dio);
 
   dio
@@ -1114,8 +1029,6 @@ Dio _buildDioClient(Ref ref) {
   return dio;
 }
 
-// ── Token refresh ────────────────────────────────────────────────────────────
-
 const _kRetriedAfterRefresh = '__retried_after_refresh__';
 
 /// Single-flight guard: concurrent 401s share one refresh call instead of
@@ -1167,7 +1080,6 @@ Future<bool> _doRefresh(TokenStorage storage) async {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 void _configureHttpClient(Dio dio) {
   dio.httpClientAdapter = IOHttpClientAdapter(
     createHttpClient: () {
@@ -1187,7 +1099,7 @@ void _configureHttpClient(Dio dio) {
 
 ''';
 
-  /// SAFE API CALL
+  /// Returns the generated safeApiCall template.
   static String safeApiCall() => '''
 import 'dart:async';
 import '../../core/errors/app_exception.dart';
@@ -1221,12 +1133,10 @@ Future<T> safeApiCall<T>({
 
 ''';
 
-  /// Returns the generated safeFirebaseCall template — the Firebase
-  /// counterpart of [safeApiCall].
+  /// Returns the generated safeFirebaseCall template.
   ///
-  /// [withAuth] adds the `FirebaseAuthException` arm. It has to come first:
-  /// `FirebaseAuthException` extends `FirebaseException`, so catching the
-  /// base type above it would turn every auth code into a generic one.
+  /// [withAuth] adds the `FirebaseAuthException` arm, which must come first —
+  /// it is a subtype of `FirebaseException`.
   static String safeFirebaseCall({bool withAuth = false}) {
     final authImport =
         withAuth ? "import 'package:firebase_auth/firebase_auth.dart';\n" : '';
@@ -1253,9 +1163,8 @@ import 'package:firebase_core/firebase_core.dart';
 $authImport
 import '../errors/app_exception.dart';
 
-/// Runs a Firebase call with the same contract as `safeApiCall`: offline is
-/// caught before the request leaves, and everything that comes back wrong
-/// arrives as an [AppException].
+/// Same contract as `safeApiCall`: offline is caught before the request
+/// leaves, and anything that comes back wrong arrives as an [AppException].
 Future<T> safeFirebaseCall<T>({
   required Future<T> Function() call,
   FutureOr<T>? Function()? onNoInternet, // optional cache fallback
@@ -1282,12 +1191,10 @@ Future<T> safeFirebaseCall<T>({
   }
 }
 
-/// The same mapping for a Firestore stream, so a live query fails the way a
-/// one-off read does and `AppAsyncView` can render it.
+/// The same mapping for a Firestore stream.
 ///
-/// Connectivity is not checked here: Firestore serves its local cache while
-/// offline and catches up when the connection returns — which is the reason
-/// to be watching a stream in the first place.
+/// Connectivity is not checked here — Firestore serves its local cache while
+/// offline and catches up when the connection returns.
 Stream<T> safeFirebaseStream<T>(Stream<T> Function() stream) {
   return stream().handleError((Object error, StackTrace stackTrace) {
     if (error is AppException) throw error;

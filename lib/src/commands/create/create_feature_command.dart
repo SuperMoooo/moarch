@@ -358,14 +358,12 @@ class CreateFeatureCommand extends Command<int> {
 */
   // ── Writers ─────────────────────────────────────────────────────────────────
 
-  /// Writes the kit widgets the generated view imports — [AppAsyncView] and the
-  /// `listenAction` extension — along with everything they import in turn.
+  /// Writes the kit widgets the generated view imports — [AppAsyncView] and
+  /// `listenAction` — along with everything they import in turn.
   ///
-  /// They are part of `moarch init`, so a project scaffolded by this version
-  /// already has them and nothing here writes anything ([FileUtils.writeFile]
-  /// never overwrites). A project scaffolded by an older one does not, and a
-  /// view importing a file that was never generated is the one way this command
-  /// can hand back code that does not compile.
+  /// A no-op on a project scaffolded by this version ([FileUtils.writeFile]
+  /// never overwrites); it is older projects that would otherwise get a view
+  /// importing a file they never generated.
   Future<void> _ensureViewWidgets(String libPath) async {
     final projectRoot = p.dirname(p.absolute(libPath));
     final widgetsRoot = p.join(libPath, 'shared', 'widgets');

@@ -4,21 +4,15 @@ class ErrorTemplates {
 
   /// Returns the generated appException template.
   ///
-  /// Imports and error-mapping factories are generated only for the stack
-  /// options the user actually selected, so the file always compiles.
-  ///
-  /// [hasFirebaseAuth] adds the `FirebaseAuthException` mapping — the codes a
-  /// login/register/Google flow actually hits. `FirebaseAuthException` extends
-  /// `FirebaseException`, so callers must always catch the auth type first;
-  /// `safeFirebaseCall` does.
+  /// Imports and mapping factories follow the stack options actually selected,
+  /// so the file always compiles.
   static String appException({
     bool hasDio = true,
     bool hasFirebase = false,
     bool hasFirebaseAuth = false,
     bool hasCrashlytics = false,
   }) {
-    // firebase_auth brings firebase_core with it, so the FirebaseException
-    // mapping is always available once the auth one is.
+    // firebase_auth brings firebase_core with it.
     final withFirebase = hasFirebase || hasFirebaseAuth;
 
     const catchError = r'''
@@ -26,16 +20,14 @@ class ErrorTemplates {
     ''';
     final imports = [
       if (hasDio) "import 'package:dio/dio.dart';",
-      // FirebaseException lives in firebase_core, which both the Firestore
-      // and FirebaseAuth options depend on.
       if (withFirebase) "import 'package:firebase_core/firebase_core.dart';",
       if (hasFirebaseAuth) "import 'package:firebase_auth/firebase_auth.dart';",
       if (hasCrashlytics)
         "import 'package:firebase_crashlytics/firebase_crashlytics.dart';",
     ].join('\n');
 
-    // Crashlytics collection is toggled off for debug builds in main.dart, so
-    // these calls are safe to leave unconditional in the generated code.
+    // Collection is toggled off for debug builds in main.dart, so these are
+    // safe to leave unconditional.
     final crashlyticsFromError = hasCrashlytics
         ? '\n    FirebaseCrashlytics.instance.recordError(error, stackTrace, reason: message);'
         : '';
@@ -69,8 +61,8 @@ class ErrorTemplates {
   }
 ''';
 
-    // Firestore/Storage codes. The auth codes live in the factory below —
-    // catching FirebaseException first would swallow them.
+    // Firestore/Storage codes. Auth codes are in the factory below — catching
+    // FirebaseException first would swallow them.
     final firebaseFactory = '''
   factory AppException.fromFirebaseError(FirebaseException error) {
     final message = error.message ?? 'Unknown error';
@@ -126,10 +118,8 @@ class ErrorTemplates {
 ''';
 
     final firebaseAuthFactory = '''
-  /// Every FirebaseAuth failure a login / register / Google sign-in flow can
-  /// hit, mapped to a message you can show as-is. Must be caught *before*
-  /// [AppException.fromFirebaseError] — FirebaseAuthException is a
-  /// FirebaseException.
+  /// FirebaseAuth failures mapped to messages you can show as-is. Must be
+  /// caught *before* [AppException.fromFirebaseError].
   factory AppException.fromFirebaseAuthError(FirebaseAuthException error) {
     appLogger.e(
       '[AppException] — auth/\${error.code}',
@@ -139,8 +129,7 @@ class ErrorTemplates {
 
     switch (error.code) {
       // Recent Firebase versions collapse user-not-found and wrong-password
-      // into invalid-credential so the response can't be used to probe which
-      // emails are registered. The older codes still arrive from some SDKs.
+      // into invalid-credential. The older codes still arrive from some SDKs.
       case 'invalid-credential':
       case 'user-not-found':
       case 'wrong-password':
@@ -248,8 +237,7 @@ class AppException implements Exception {
         type: AppExceptionType.server,
   );
 
-  /// The user dismissed the flow — a sign-in sheet, a picker. Nothing failed,
-  /// so there is usually nothing worth showing them.
+  /// The user dismissed the flow. Nothing failed, so usually show nothing.
   factory AppException.cancelled() => const AppException._(
         message: 'Cancelled',
         type: AppExceptionType.cancelled,

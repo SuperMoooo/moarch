@@ -677,13 +677,11 @@ keytool -list -v -keystore my-release-key.jks -alias my-key-alias
 ```
 ''';
 
-  /// Returns the Firebase setup guide.
+  /// Returns the Firebase setup guide, with only the sections the project's
+  /// selected options need.
   ///
-  /// The generated Dart compiles the moment it lands; none of it *runs* until
-  /// the platform side below is done, and every step here fails at runtime
-  /// with an error that does not name the step that was missed. Sections are
-  /// included per selected option so the guide is only ever about this
-  /// project.
+  /// The generated Dart compiles immediately but nothing *runs* until the
+  /// platform side is done, and each missed step fails without naming itself.
   static String firebaseSetup({
     bool withAuth = false,
     bool withGoogleSignIn = false,

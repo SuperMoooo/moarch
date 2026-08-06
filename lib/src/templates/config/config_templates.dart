@@ -3,154 +3,132 @@ class ConfigTemplates {
   ConfigTemplates._();
 
   /// Returns the generated appRouter template.
-  static String appRouter() => r'''
+  ///
+  /// [withAuth] wires the redirect to `authNotifierProvider` and parks the
+  /// router on a splash route until the session is restored, so neither login
+  /// nor home flashes on startup.
+  static String appRouter({bool withAuth = false}) {
+    final relativeImports = withAuth
+        ? "import '../../features/auth/presentation/notifiers/auth_notifier.dart';\n"
+            "import '../../features/auth/presentation/views/login_view.dart';\n"
+            "import '../../features/auth/presentation/views/register_view.dart';\n"
+            "import '../../shared/widgets/loadings/app_loading_data.dart';\n"
+            "import './app_routes.dart';"
+        : "import './app_routes.dart';";
+
+    final options = withAuth
+        ? '''    initialLocation: AppRoutes.splash,
+    refreshListenable: _AuthRefresh(ref),
+    redirect: (context, state) => _redirect(ref, state),'''
+        : '    initialLocation: AppRoutes.home,';
+
+    final authRoutes = withAuth
+        ? '''
+      GoRoute(
+        path: AppRoutes.splash,
+        builder: (context, state) => const AppLoadingData(),
+      ),
+      GoRoute(
+        path: AppRoutes.login,
+        builder: (context, state) => const LoginView(),
+      ),
+      GoRoute(
+        path: AppRoutes.register,
+        builder: (context, state) => const RegisterView(),
+      ),
+'''
+        : '';
+
+    final authGuard = withAuth
+        ? r'''
+
+
+/// Re-runs [_redirect] whenever the auth state changes.
+class _AuthRefresh extends ChangeNotifier {
+  _AuthRefresh(Ref ref) {
+    ref.listen(authNotifierProvider, (_, __) => notifyListeners());
+  }
+}
+
+String? _redirect(Ref ref, GoRouterState state) {
+  final auth = ref.read(authNotifierProvider);
+  final onSplash = state.matchedLocation == AppRoutes.splash;
+
+  // Session restore is still running — hold on splash so nothing flashes.
+  // The refreshListenable re-runs this once it completes.
+  if (auth.isLoading) return onSplash ? null : AppRoutes.splash;
+
+  final isAuthenticated = auth.value?.authenticated ?? false;
+  if (onSplash) return isAuthenticated ? AppRoutes.home : AppRoutes.login;
+
+  final onPublicRoute = AppRoutes.publicRoutes.contains(state.matchedLocation);
+  if (!isAuthenticated && !onPublicRoute) return AppRoutes.login;
+  if (isAuthenticated && onPublicRoute) return AppRoutes.home;
+  return null;
+}'''
+        : '';
+
+    return '''
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import './app_routes.dart';
 
-// ── Navigator key ─────────────────────────────────────────────────────────────
-// Use this to navigate from anywhere without BuildContext:
-//   ref.read(routerProvider).go(AppRoutes.home)
-//   ref.read(routerProvider).push(AppRoutes.detail)
+$relativeImports
 
+/// Navigate without a BuildContext: `ref.read(routerProvider).go(...)`.
 final rootNavigatorKey = GlobalKey<NavigatorState>();
-
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-  navigatorKey: rootNavigatorKey,
-  initialLocation: AppRoutes.home,
-  debugLogDiagnostics: true,
-  routes: [
-    GoRoute(
-      path: AppRoutes.home,
-      builder: (context, state) => const Scaffold(
-        body: Center(child: Text('Home — replace me!')),
+    navigatorKey: rootNavigatorKey,
+$options
+    debugLogDiagnostics: true,
+    routes: [
+$authRoutes      GoRoute(
+        path: AppRoutes.home,
+        builder: (context, state) => const Scaffold(
+          body: Center(child: Text('Home — replace me!')),
+        ),
       ),
-    ),
-    // Design-system preview — generate it with:
-    //   moarch create widget design-system
-    // then add `import '../../shared/widgets/design_system_view.dart';` above
-    // and uncomment this route:
-    // GoRoute(
-    //   path: AppRoutes.designView,
-    //   builder: (_, __) => const DesignSystemView(),
-    // ),
 
-    // Example with path parameter:
-    // GoRoute(
-    //   path: AppRoutes.detail,
-    //   builder: (context, state) {
-    //     final id = state.pathParameters['id']!;
-    //     return DetailView(id: id);
-    //   },
-    // ),
+      // Path parameter — build the location with AppRoutes.groupDetailOf(id).
+      // GoRoute(
+      //   path: AppRoutes.groupDetail,
+      //   builder: (context, state) =>
+      //       GroupDetailView(id: state.pathParameters['id']!),
+      // ),
 
-    //   GoRoute(
-    //   path: '/recipe/detail',
-    //    builder: (context, state) {
-    //     final recipe = state.extra as RecipeEntity;
-    //      return RecipeDetailView(recipe: recipe);
-    //    },
-    //    ),
-
-    // navegar — passa a entidade directamente
-    //   ref.read(routerProvider).go(
-    //      '/recipe/detail',
-    //      extra: recipe, // qualquer objeto
-    //   );
- 
-    // Per-route redirect example (for the app-wide auth guard with a splash
-    // screen — no login/home flash on startup — see the bottom of this file):
-    // GoRoute(
-    //   path: AppRoutes.home,
-    //   redirect: (context, state) {
-    //     final isLoggedIn = ...; // read from your auth notifier
-    //     if (!isLoggedIn) return AppRoutes.login;
-    //     return null; // null = no redirect
-    //   },
-    //   builder: (context, state) => const HomeView(),
-    // ),
-  ],
-);
-});
-
-// ── Auth guard example (with splash — no wrong-screen flash) ─────────────────
-// While AuthNotifier.build() restores the session, the auth state is still
-// loading. If the router renders any real route during that window, the user
-// sees login (or home) for a frame and is then bounced to the right screen.
-// Fix: park the router on a splash route until auth resolves.
-//
-// 1. The `splash`, `login`, `register` and `forgotPassword` paths — plus the
-//    `publicRoutes` set used below — already live in app_routes.dart.
-//
-// 2. Add the imports:
-//    import '../../features/auth/presentation/notifiers/auth_notifier.dart';
-//    import '../../shared/widgets/loadings/app_loading_data.dart';
-//
-// 3. Add the splash route to the routes list above:
-//    GoRoute(
-//      path: AppRoutes.splash,
-//      builder: (_, __) => const AppLoadingData(),
-//    ),
-//
-// 4. Update the GoRouter above:
-//      initialLocation: AppRoutes.splash,
-//      refreshListenable: GoRouterRefreshNotifier(ref),
-//      redirect: (context, state) => _redirect(ref, state),
-//
-// class GoRouterRefreshNotifier extends ChangeNotifier {
-//   GoRouterRefreshNotifier(Ref ref) {
-//     ref.container.listen(authNotifierProvider, (previous, next) {
-//       notifyListeners();
-//     });
-//   }
-// }
-//
-// String? _redirect(Ref ref, GoRouterState state) {
-//   final authAsync = ref.read(authNotifierProvider);
-//   final onSplash = state.matchedLocation == AppRoutes.splash;
-//
-//   // Session restore still running: stay on splash so login/home never
-//   // flash. When it completes, the refreshListenable re-runs this redirect.
-//   if (authAsync.isLoading) return onSplash ? null : AppRoutes.splash;
-//
-//   final isAuthenticated = authAsync.value?.authenticated ?? false;
-//
-//   // Auth resolved: leave splash for the right destination.
-//   if (onSplash) return isAuthenticated ? AppRoutes.home : AppRoutes.login;
-//
-//   final onPublicRoute = AppRoutes.publicRoutes.contains(state.matchedLocation);
-//
-//   if (!isAuthenticated && !onPublicRoute) return AppRoutes.login;
-//   if (isAuthenticated && onPublicRoute) return AppRoutes.home;
-//   return null;
-// }
-
+      // Whole object, passed as `extra` instead of through the URL.
+      // GoRoute(
+      //   path: '/recipe/detail',
+      //   builder: (context, state) =>
+      //       RecipeDetailView(recipe: state.extra! as RecipeEntity),
+      // ),
+    ],
+  );
+});$authGuard
 ''';
+  }
 
-  /// App routes
+  /// Returns the generated appRoutes template.
   static String appRoutes() => r'''
-
-// ── Routes ────────────────────────────────────────────────────────────────────
-
 abstract final class AppRoutes {
   static const home = '/';
   static const splash = '/splash';
   static const login = '/login';
   static const register = '/register';
   static const forgotPassword = '/forgot-password';
-  // static const detail = '/detail/:id';
+  static const designView = '/design-system';
 
   /// Routes reachable without a session. Everything else redirects to [login].
   static const publicRoutes = {login, register, forgotPassword};
 
-  //-----Test------//
-  static const designView = '/design-system';
-  //---------------//
-}
+  // Dynamic routes: the constant holds the pattern GoRouter matches on, the
+  // `Of` helper builds the location you navigate to. Rename these to your own.
+  static const featureDetail = '/detail/:id';
 
+  static String featureDetailOf(String id) => '/detail/$id';
+}
 ''';
 
   /// Returns the generated firebaseProviders template.
@@ -179,10 +157,8 @@ $providers
   static String appEnv() => r'''
 import 'package:envied/envied.dart';
 
-// use
-//dart run build_runner build --delete-conflicting-outputs
-// to generate the app_env.g.dart file.
-// remember to have BASE_URL in the env file
+// Needs BASE_URL in .env, then generate app_env.g.dart with:
+//   dart run build_runner build --delete-conflicting-outputs
 
 part 'app_env.g.dart';
 
@@ -195,13 +171,6 @@ abstract final class AppEnv {
   // @EnviedField(varName: 'SOME_KEY', obfuscate: true)
   // static const String someKey = _AppEnv.someKey;
 }
-
-// Code generation commands (commented in generated code):
-// fvm flutter pub add envied
-// fvm flutter pub add --dev build_runner envied_generator
-// dart run build_runner build --delete-conflicting-outputs
-// Access values in app: final baseUrl = AppEnv.baseUrl;
-
 ''';
 
   /// Returns the generated appTheme template.
@@ -213,9 +182,8 @@ import '../../core/constants/app_constants.dart';
 abstract final class AppTheme {
   static const String? _fontFamily = AppConstants.fontFamily;
 
-  // Type scale wired to the AppConstants font-size tokens and the app font
-  // family. Colors are left null on purpose so each style inherits the correct
-  // on-surface color per brightness and stays legible on colored surfaces.
+  // Colors are left null on purpose, so each style inherits the right
+  // on-surface color for the current brightness.
   static const TextTheme _textTheme = TextTheme(
     displayLarge: TextStyle(fontFamily: _fontFamily, fontSize: 57, height: 1.12, fontWeight: FontWeight.w400, letterSpacing: -0.25),
     displayMedium: TextStyle(fontFamily: _fontFamily, fontSize: 45, height: 1.16, fontWeight: FontWeight.w400),

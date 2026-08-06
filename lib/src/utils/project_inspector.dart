@@ -58,11 +58,8 @@ class Diagnostic {
   bool get isFixable => fix != null;
 }
 
-/// Inspects a project previously scaffolded by moarch.
-///
-/// This is the shared answer to "what did moarch generate here, and is it
-/// still coherent?" — `doctor` reports and fixes the findings, `update`
-/// uses the same widget detection to decide what it can refresh.
+/// Inspects a project previously scaffolded by moarch: `doctor` reports and
+/// fixes the findings, `update` reuses the widget detection.
 abstract final class ProjectInspector {
   /// Every check, in reporting order.
   ///
@@ -253,11 +250,8 @@ abstract final class ProjectInspector {
 
   /// Google sign-in on iOS needs `GIDClientID` and the `REVERSED_CLIENT_ID`
   /// URL scheme in `Info.plist` — the plugin never reads
-  /// `GoogleService-Info.plist` itself.
-  ///
-  /// `moarch init` writes placeholders when it runs before
-  /// `flutterfire configure`; this is the other half of that deal, and the
-  /// fix is exactly the copy the user would otherwise do by hand.
+  /// `GoogleService-Info.plist` itself. This replaces the placeholders
+  /// `moarch init` writes when it runs before `flutterfire configure`.
   static List<Diagnostic> _googleSignInPlist(
     String root,
     bool usesGoogleSignIn,

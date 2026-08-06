@@ -9,27 +9,19 @@ import 'package:flutter/services.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
-/// Color role of [AppTextButton] — what the action is *about*, never how it is
-/// drawn. Mirrors [AppButtonVariant] so a text action and a filled button speak
-/// the same color vocabulary.
+/// Color role of [AppTextButton] — what the action is about, not how it is
+/// drawn. Mirrors [AppButtonVariant].
 ///
-/// [neutral] is the one role the louder controls don't have, and the one a text
-/// action needs most: "Skip", "Not now", "Cancel" — an action that is offered
-/// without being urged. It follows the theme's `onSurface`, so it stays legible
-/// in light and dark alike.
+/// [neutral] follows the theme's `onSurface`, for actions that are offered
+/// without being urged: "Skip", "Not now", "Cancel".
 enum AppTextButtonVariant { primary, secondary, tertiary, danger, neutral }
 
-/// Fill treatment of [AppTextButton] — how the [AppTextButtonVariant] color is
-/// applied.
+/// How the [AppTextButtonVariant] color is applied. Orthogonal to variant and
+/// size — any combination works.
 ///
-/// - [plain]: bare colored label; the default, and the quietest.
-/// - [underlined]: colored label with a rule under it — the inline-link look,
-///   for an action sitting inside a sentence.
-/// - [tonal]: label on a soft variant-tinted pill, for when the action has to
-///   be found at a glance without becoming a full button.
-///
-/// Orthogonal to [AppTextButtonVariant] and [AppTextButtonSize]: any color
-/// combines with any fill at any size.
+/// - [plain]: bare colored label, the quietest.
+/// - [underlined]: the inline-link look, for an action inside a sentence.
+/// - [tonal]: label on a soft tinted pill, findable at a glance.
 enum AppTextButtonType { plain, underlined, tonal }
 
 /// Corner shape of the [AppTextButtonType.tonal] pill. Ignored by the other
@@ -45,12 +37,8 @@ typedef _TextButtonSizeConfig = ({
   EdgeInsets padding,
 });
 
-/// A text-first action: the label *is* the button. [AppButton]'s quiet sibling,
-/// for the choice that shouldn't compete with the screen's main one — "Forgot
-/// password?", "See all", "Resend code", the link inside a paragraph.
-///
-/// Reach for [AppButton] when the action is the point of the screen, this when
-/// it is the alternative to it.
+/// A text-first action: the label *is* the button. [AppButton]'s quiet
+/// sibling, for the choice that shouldn't compete with the screen's main one.
 ///
 /// ```dart
 /// AppTextButton(
@@ -99,9 +87,8 @@ class AppTextButton extends StatelessWidget {
   /// exact width the label gave it, so a row of actions doesn't reflow.
   final bool isLoading;
 
-  /// Overrides [variant]'s color. For the action that has to match a color the
-  /// variant vocabulary doesn't name — a status tint, say. Reach for a
-  /// [variant] first; this is the escape hatch.
+  /// Overrides [variant]'s color — the escape hatch for a tint the variant
+  /// vocabulary doesn't name.
   final Color? color;
 
   /// Defaults to semi-bold, which is what keeps a bare label reading as
@@ -119,12 +106,8 @@ class AppTextButton extends StatelessWidget {
   /// inside a stretched Column. Defaults to centered.
   final Alignment? alignment;
 
-  /// Drops the 48dp touch target and the padding around the label, for a text
-  /// action that has to sit tight against something else — the "See all" at the
-  /// end of a section header, an action inline in a dense row.
-  ///
-  /// It buys the layout back at the cost of an easy tap, so keep it for
-  /// buttons that sit inside an already-tappable row.
+  /// Drops the 48dp touch target and the padding, for an action that has to
+  /// sit tight against something else. Keep it for already-tappable rows.
   final bool dense;
 
   /// Long-press label. Worth setting when the label is abbreviated by
@@ -329,21 +312,15 @@ import 'package:flutter/services.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
-/// Color role of one [AppSpan]. The four app roles, plus the two a paragraph
-/// needs: [neutral] for body text and [muted] for the part that is said more
-/// quietly than the rest.
-///
-/// Leave it null and the span keeps whatever color the surrounding text has.
+/// Color role of one [AppSpan] — the four app roles plus [neutral] for body
+/// text and [muted] for what is said more quietly. Null inherits.
 enum AppSpanVariant { primary, secondary, tertiary, danger, neutral, muted }
 
-/// One run inside an [AppRichText]: its text, how that text is styled, and what
-/// happens when it is tapped.
+/// One run inside an [AppRichText]: its text, its style, and its tap handler.
 ///
-/// Style is declared in layers, each beating the one before it: the paragraph's
-/// base style, then [variant], then the shorthands ([weight], [italic],
-/// [fontSize], [scale], [decoration], [background]), then [color], and finally
-/// [style] — the escape hatch for anything the shorthands don't name. Anything
-/// left null is inherited, so a span only states what it changes.
+/// Style is layered, each beating the last: the paragraph's base style, then
+/// [variant], then the shorthands, then [color], then [style]. Null inherits,
+/// so a span only states what it changes.
 ///
 /// ```dart
 /// AppRichText(
@@ -394,11 +371,8 @@ class AppSpan {
         icon = null,
         child = null;
 
-  /// A tappable run: variant-colored and underlined, with the recognizer and
-  /// the pointing cursor handled for you.
-  ///
-  /// Pass `underline: false` for a design that colors its links instead of
-  /// ruling them.
+  /// A tappable run: variant-colored and underlined, recognizer and cursor
+  /// handled for you. Pass `underline: false` to color links instead.
   const AppSpan.link(
     this.text, {
     required this.onTap,
@@ -484,9 +458,8 @@ class AppSpan {
   /// An exact size in logical pixels, beating [scale].
   final double? fontSize;
 
-  /// A multiple of the paragraph's size — `1.4` for the figure that has to be
-  /// larger than the words around it, without hard-coding a size the theme
-  /// can't move.
+  /// A multiple of the paragraph's size — `1.4` for a figure that has to be
+  /// larger than the words around it, without hard-coding a size.
   final double? scale;
 
   final TextDecoration? decoration;
@@ -494,18 +467,15 @@ class AppSpan {
   /// Painted behind the run — the highlight over a search match.
   final Color? background;
 
-  /// Tap handler. The recognizer it needs is created, kept alive across
-  /// rebuilds and disposed by [AppRichText]; there is no GestureDetector to
-  /// write and nothing to dispose yourself. A tapped span is announced as a
-  /// link to a screen reader.
+  /// Tap handler. [AppRichText] owns the recognizer's whole lifecycle, and a
+  /// tappable span is announced as a link to a screen reader.
   final VoidCallback? onTap;
 
   /// Long-press handler — "hold to copy".
   ///
-  /// A [TextSpan] carries one recognizer, so a run that wants *both* gestures
-  /// is drawn as an inline widget instead, and that run no longer breaks across
-  /// lines. Keep a span that takes both short — a code, a number, an address —
-  /// which is what "hold to copy" is attached to anyway.
+  /// A [TextSpan] carries one recognizer, so a run wanting *both* gestures is
+  /// drawn as an inline widget and no longer breaks across lines. Keep those
+  /// spans short.
   final VoidCallback? onLongPress;
 
   /// What a screen reader says instead of [text] — for a run that reads as
@@ -531,13 +501,10 @@ class AppSpan {
   /// Fills `{name}` placeholders in [pattern] with the spans in [values], and
   /// wraps everything between them in plain spans.
   ///
-  /// This is the one way to build a styled sentence that survives translation:
-  /// the translator moves `{terms}` wherever their grammar puts it, and the
-  /// link goes with it. Concatenating spans by hand can't do that — it pins
-  /// English word order into the layout.
-  ///
-  /// An unknown key is left in the sentence as literal text, so a typo shows
-  /// up on screen instead of silently dropping the word.
+  /// The one way to build a styled sentence that survives translation — the
+  /// translator moves `{terms}` and the link goes with it, where concatenating
+  /// spans by hand pins English word order into the layout. An unknown key is
+  /// left as literal text, so a typo shows up rather than dropping a word.
   ///
   /// ```dart
   /// AppRichText(
@@ -682,11 +649,9 @@ class AppSpan {
       );
     }
 
-    // A TextSpan holds exactly one recognizer, so a run that wants both a tap
-    // and a long press cannot be one. Draw it as an inline widget instead,
-    // where a GestureDetector can carry both — at the cost of a run that no
-    // longer breaks across lines. Aligned on the baseline, not the middle, so
-    // it still sits on the same line as the words around it.
+    // A TextSpan holds one recognizer, so a run wanting both a tap and a long
+    // press is drawn as an inline widget — which cannot break across lines.
+    // Baseline-aligned so it still sits on the line of the words around it.
     if (onTap != null && onLongPress != null) {
       return WidgetSpan(
         alignment: PlaceholderAlignment.baseline,
@@ -712,11 +677,8 @@ class AppSpan {
 
 /// A paragraph whose parts are styled, and tapped, one at a time.
 ///
-/// It exists to take two things off the call site: the [TextSpan] tree, and the
-/// gesture recognizers a tappable span needs. Those recognizers must outlive
-/// the frame that built them and be disposed with the widget — the reason
-/// tappable text normally drags a StatefulWidget along with it. Hand
-/// [AppRichText] a list of [AppSpan]s and none of that surfaces.
+/// It owns the [TextSpan] tree and the gesture recognizers a tappable span
+/// needs — the reason tappable text normally drags a StatefulWidget with it.
 ///
 /// ```dart
 /// AppRichText(

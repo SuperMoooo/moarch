@@ -4,10 +4,8 @@ class IosTemplates {
 
   /// Returns the Runner.entitlements file used by Debug/Release builds.
   ///
-  /// `aps-environment` is the APNs entitlement remote push needs; Xcode's
-  /// "Push Notifications" capability writes exactly this. The signing step
-  /// upgrades `development` to `production` automatically when exporting
-  /// with an App Store profile.
+  /// `aps-environment` is the APNs entitlement remote push needs. Exporting
+  /// with an App Store profile upgrades `development` to `production`.
   static String runnerEntitlements() => r'''
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -40,9 +38,8 @@ class IosTemplates {
 ''';
 
   /// Returns the Ruby script that links GoogleService-Info.plist into the
-  /// Xcode project. flutterfire configure drops the file on disk, but CI
-  /// checkouts (where the plist is gitignored and recreated from a secret)
-  /// need it (re)registered in the Runner target's resources build phase.
+  /// Xcode project — needed on CI, where the plist is gitignored and recreated
+  /// from a secret rather than registered by `flutterfire configure`.
   static String addFilesToXcodeScript() => r'''
 require 'xcodeproj'
 

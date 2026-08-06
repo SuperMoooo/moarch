@@ -8,12 +8,8 @@ import 'package:flutter/services.dart';
 import '../inputs/app_input_style.dart';
 import '../../../core/constants/app_constants.dart';
 
-/// How big an item is along the section's own axis — its height in a vertical
-/// section, its width in a horizontal one.
-///
-/// [fit] lets the child size itself, which is what most rows want. The three
-/// named sizes come from [AppDragSizes], so one section can hold a tall card
-/// and a short one without either hard-coding a number.
+/// How big an item is along the section's own axis. [fit] lets the child size
+/// itself; the named sizes come from [AppDragSizes].
 enum AppDragSize { fit, small, medium, large }
 
 /// What the three named [AppDragSize]s measure, in logical pixels.
@@ -95,10 +91,8 @@ class AppDragItem {
 /// )
 /// ```
 ///
-/// It reports the move and nothing else — the list stays yours, so it can
-/// come from a notifier, be saved to storage, or be sent to a server without
-/// this widget holding a second copy of the truth. [reorder] does the
-/// remove-and-insert for you.
+/// It reports the move and nothing else — the list stays yours, and [reorder]
+/// does the remove-and-insert for you.
 ///
 /// Items declare their own size and whether they can be moved:
 ///

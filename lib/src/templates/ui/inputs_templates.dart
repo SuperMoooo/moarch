@@ -37,9 +37,8 @@ enum AppMultiSelectDisplay { chips, labels, count }
 /// )
 /// ```
 ///
-/// The caller owns the selection, as it does on every other field in the
-/// family: [onChanged] hands back the whole new list rather than a diff, so the
-/// field never holds a second copy of the truth.
+/// The caller owns the selection — [onChanged] hands back the whole new list,
+/// so the field never holds a second copy of the truth.
 class AppMultiSelectInput<T> extends StatelessWidget {
   const AppMultiSelectInput({
     super.key,
@@ -152,14 +151,9 @@ class AppMultiSelectInput<T> extends StatelessWidget {
   final AppInputShape? shape;
   final AppInputSize? size;
 
-  /// The rule applied when no [validator] is given: a required field holds at
-  /// least one id, and the selection sits inside [min] and [max].
-  ///
-  /// Exposed so a custom [validator] can layer on top of it:
-  ///
-  ///   validator: (ids) =>
-  ///       AppMultiSelectInput.validate(ids, required: true) ??
-  ///       (ids.contains('archived') ? 'That tag is closed' : null),
+  /// The default rule: a required field holds at least one id, and the
+  /// selection sits inside [min] and [max]. Exposed so a custom [validator]
+  /// can layer on top of it.
   static String? validate(
     List<String> ids, {
     bool required = false,
@@ -408,10 +402,9 @@ import '../../../core/utils/extensions.dart';
 /// )
 /// ```
 ///
-/// Unlike [AppDateInput] this does not switch pickers per platform: Cupertino
-/// has no range wheel, and two wheels stitched together reads worse than the
-/// calendar users of both platforms already know. The [firstDate] / [lastDate]
-/// window and [maxDays] are enforced here rather than left to the picker.
+/// Unlike [AppDateInput] this does not switch pickers per platform — Cupertino
+/// has no range wheel. [firstDate] / [lastDate] and [maxDays] are enforced
+/// here rather than left to the picker.
 class AppDateRangeInput extends StatefulWidget {
   const AppDateRangeInput({
     super.key,
@@ -698,10 +691,8 @@ import '../../../core/utils/extensions.dart';
 
 /// One attachment held by an [AppFilePickerField].
 ///
-/// Deliberately not a `file_picker` or `image_picker` type: the field takes
-/// whatever the app already uses — `MediaService`, a camera, a download — and
-/// maps it into this. Nothing here imports a picker package, so the widget
-/// costs the project no dependency it had not already chosen.
+/// Deliberately not a `file_picker` or `image_picker` type — nothing here
+/// imports a picker package, so the widget adds no dependency.
 class AppPickedFile {
   const AppPickedFile({required this.name, this.path, this.sizeBytes});
 
@@ -748,8 +739,7 @@ class AppPickedFile {
 /// A field whose value is a list of attachments: an area that opens the app's
 /// own picker, and a row per file with a thumbnail and a remove button.
 ///
-/// The picking itself belongs to the caller — this is the field, not the
-/// plugin:
+/// The picking belongs to the caller — this is the field, not the plugin.
 ///
 /// ```dart
 /// AppFilePickerField(
@@ -1059,9 +1049,6 @@ import '../../../core/utils/extensions.dart';
 /// AppRating(value: _score, onChanged: (v) => setState(() => _score = v))
 /// AppRating(value: product.rating, allowHalf: true)   // display only
 /// ```
-///
-/// The same widget shows a product's 4.5 and collects the user's 5, which is
-/// what keeps a list's stars and a review form's stars the same size and color.
 class AppRating extends StatelessWidget {
   const AppRating({
     super.key,

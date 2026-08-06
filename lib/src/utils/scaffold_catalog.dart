@@ -18,11 +18,9 @@ import 'widget_catalog.dart';
 /// The options a generated file's template varies with, read back off a
 /// project that was scaffolded earlier.
 ///
-/// `moarch init` picks these from a checklist; `moarch update` has to work out
-/// the same answers from what is on disk, because that is the only record that
-/// stays true when the project is edited afterwards. A file that was never
-/// generated answers "no" to its own option, which is exactly the question
-/// each template asks.
+/// `moarch init` picks these from a checklist; `moarch update` works them out
+/// from what is on disk, the only record that stays true once the project is
+/// edited.
 class ScaffoldContext {
   /// Creates a context. Prefer [detect] — this exists for tests.
   const ScaffoldContext({
@@ -103,12 +101,17 @@ class ScaffoldContext {
   /// Firebase Auth is installed.
   bool get hasFirebaseAuth => hasPackage('firebase_auth');
 
+  /// The auth feature was generated, in either variant — the router's redirect
+  /// reads its notifier.
+  bool get hasAuthFeature =>
+      hasFile('lib/features/auth/presentation/notifiers/auth_notifier.dart');
+
   /// The auth feature was generated against Firebase Auth rather than the
   /// REST client.
   ///
-  /// Read off the entity, which is the one file whose name differs between
-  /// the two variants — a project can have `firebase_auth` in its pubspec and
-  /// still have taken the REST auth feature.
+  /// Read off the entity, the one file whose name differs between the two
+  /// variants — a project can have `firebase_auth` in its pubspec and still
+  /// have taken the REST auth feature.
   bool get hasFirebaseAuthFeature =>
       hasFile('lib/features/auth/domain/entities/auth_user_entity.dart');
 }
@@ -406,7 +409,7 @@ abstract final class ScaffoldCatalog {
       title: 'AppRouter',
       path: 'lib/config/router/app_router.dart',
       category: 'Config',
-      template: (_) => ConfigTemplates.appRouter(),
+      template: (c) => ConfigTemplates.appRouter(withAuth: c.hasAuthFeature),
       description:
           'GoRouter with the auth-aware redirect and rootNavigatorKey.',
     ),
