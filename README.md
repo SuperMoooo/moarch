@@ -56,6 +56,7 @@ moarch doctor --fix  # ...and apply the ones that don't need a decision
 - optional services such as notifications (local or Firebase push), URL launcher, media, debounce
 - optional localization: flutter_localizations (`lib/l10n/` + `.arb` files) or easy_localization (`assets/translations/` JSON files) — pick one, the checklist keeps them mutually exclusive
 - a backend: Dio against a REST API, Firebase (Firestore / Auth), or both (see below)
+- `.vscode/` — `settings.json` pointing the Dart extension at the fvm SDK `.fvmrc` pins, and `launch.json` with debug/profile/release entries plus a flavored pair for `dev`, `staging` and `prod` (ready for when the native side declares them)
 
 ### Dio or Firebase
 
@@ -75,6 +76,18 @@ names, the same `AppException` reaching the same `AppAsyncView`.
 the datasource comes out with `fetchAll` / `fetchOne` / `watchAll` /
 `create` / `save` / `delete` over one collection; in a project with **both**
 backends installed, the layer checklist asks which one this feature talks to.
+
+**A Firestore feature is live end to end.** `watchAll` is not left on the
+datasource for you to wire up: the repository exposes it, the notifier
+subscribes to it in `build()` and the view renders `state.items` — so the screen
+redraws whenever the collection changes, on this device or another, with no
+pull-to-refresh and no `invalidate` anywhere. One subscription serves both the
+first frame and every change after it (taking `.first` for the initial load and
+then listening would register the query twice — twice the billed reads), and
+Riverpod cancels it with the provider. Writes don't touch `items` either:
+Firestore applies them to the local cache before the server confirms, and the
+subscription re-emits. The REST feature is unchanged — a `Future`, and a `TODO`
+where the fetch goes.
 
 Selecting **Firebase Auth** together with the auth feature generates it against
 Firebase instead of REST: email/password, Google sign-in, password reset, account
@@ -169,7 +182,7 @@ Widget build(BuildContext context) {
       value: ref.watch(ordersNotifierProvider),
       onRetry: () => ref.invalidate(ordersNotifierProvider),
       isEmpty: (state) => state.orders.isEmpty,
-      skeleton: _body(context, const OrdersState()),   // the shape, shimmered
+      skeleton: (context) => _body(context, OrdersState.placeholder),
       builder: _body,
     ),
   );
@@ -182,6 +195,21 @@ leaves it on screen instead of replacing a list mid-read with a spinner. It
 builds inline, so the `Scaffold` keeps its app bar throughout. An error that
 carries no message of its own shows no detail — a stringified exception tells the
 user nothing and leaks how the app is put together.
+
+The skeleton is the screen's own body, shimmered — which means it has to be
+handed **fake data, not an empty state**. Skeletonizer traces the widget tree it
+is given, so `_body(context, const OrdersState())` is a `ListView.builder` over
+nothing and shimmers as a blank screen. Every generated state carries a
+`placeholder` for this, holding a few stand-in rows whose text length is the
+width of the bones drawn over them (that is what skeletonizer's `BoneMock` is
+for). Keep it in step with `_body` and the loading state stays the real layout
+arriving rather than a spinner interrupting:
+
+```dart
+static final placeholder = OrdersState(
+  orders: List.filled(3, OrderEntity(id: BoneMock.name)),
+);
+```
 
 The value can come from anywhere. A notifier, a `FutureProvider` and a
 `StreamProvider` all hand back an `AsyncValue`; for the sources that never became
@@ -646,7 +674,7 @@ its own:
 | `auth` | the nine files of the generated auth feature, REST or Firebase |
 | `docs` | `ui-kit`, `deploy-checklist`, `security-checklist`, `jks-doc`, `workflow-doc`, `firebase-doc` |
 | `workflows` | the five GitHub Actions workflows |
-| `project` | `analysis-options`, `splash`, `fvmrc`, `widget-test` |
+| `project` | `analysis-options`, `splash`, `fvmrc`, `widget-test`, `vscode-settings`, `vscode-launch` |
 | `ios` | `ios-entitlements`, `ios-profile-entitlements`, `xcode-script` |
 
 Only files your project actually has are ever touched: `update` refreshes what is

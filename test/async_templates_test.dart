@@ -10,7 +10,7 @@ void main() {
     test('draws the four states one AsyncValue can be in', () {
       expect(output, contains('return ErrorView('));
       expect(output, contains('return EmptyView('));
-      expect(output, contains('Skeletonizer(child: shape)'));
+      expect(output, contains('Skeletonizer(child: shape(context))'));
       expect(output, contains('CircularProgressIndicator.adaptive()'));
       expect(output, contains('return builder(context, data);'));
     });
@@ -25,6 +25,12 @@ void main() {
     test('a spinner is the fallback, not the default', () {
       expect(output, contains('final shape = skeleton;'));
       expect(output, contains('if (shape == null) {'));
+    });
+
+    test('the placeholder is built only when there is nothing to draw', () {
+      // A widget would be built on every rebuild, including the ones where the
+      // data is already on screen and the skeleton is thrown away.
+      expect(output, contains('final WidgetBuilder? skeleton;'));
     });
 
     test('empty is the caller\'s question, and unasked by default', () {
@@ -183,8 +189,12 @@ void main() {
     });
 
     test('traces its skeleton from the body it already builds', () {
+      // From fake data, not from an empty state: Skeletonizer shimmers the
+      // tree it is handed, and a body drawn from nothing traces to nothing.
       expect(
-          output, contains('skeleton: _body(context, const OrdersState()),'));
+        output,
+        contains('skeleton: (context) => _body(context, OrdersState.placeholder),'),
+      );
       expect(output, contains('builder: _body,'));
       expect(
         output,

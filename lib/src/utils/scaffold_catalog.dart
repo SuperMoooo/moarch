@@ -697,6 +697,24 @@ abstract final class ScaffoldCatalog {
       description:
           "The placeholder that replaced `flutter create`'s counter test.",
     ),
+    ScaffoldSpec(
+      name: 'vscode-settings',
+      title: '.vscode/settings.json',
+      path: '.vscode/settings.json',
+      category: 'Project',
+      template: (_) => DevTemplates.vscodeSettings(),
+      description:
+          'Points the Dart/Flutter extension at the fvm SDK the .fvmrc pins.',
+    ),
+    ScaffoldSpec(
+      name: 'vscode-launch',
+      title: '.vscode/launch.json',
+      path: '.vscode/launch.json',
+      category: 'Project',
+      template: (_) => DevTemplates.vscodeLaunch(),
+      description:
+          'Run & Debug configurations: debug/profile/release, flavored and not.',
+    ),
 
     // ── iOS ─────────────────────────────────────────────────────────────────
     ScaffoldSpec(

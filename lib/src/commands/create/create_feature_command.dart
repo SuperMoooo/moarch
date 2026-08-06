@@ -278,6 +278,7 @@ class CreateFeatureCommand extends Command<int> {
           varName,
           hasRemote: selected.contains(_kRemoteDatasource),
           hasLocal: selected.contains(_kLocalDatasource),
+          useFirestore: useFirestore,
         );
       }
       if (needsDataLayer) {
@@ -290,13 +291,15 @@ class CreateFeatureCommand extends Command<int> {
         await _writeUsecase(featurePath, featureName, className, varName);
       }
       if (selected.contains(_kStateNotifier)) {
-        await _writeState(featurePath, featureName, className);
+        await _writeState(featurePath, featureName, className,
+            useFirestore: useFirestore);
         await _writeNotifier(
           featurePath,
           featureName,
           className,
           varName,
           hasUseCase: selected.contains(_kUseCases),
+          useFirestore: useFirestore,
         );
         // The state/notifier depend on the shared runAction helper — write it
         // if the project doesn't have it yet (writeFile never overwrites).
@@ -312,6 +315,7 @@ class CreateFeatureCommand extends Command<int> {
           className,
           varName,
           hasNotifier: selected.contains(_kStateNotifier),
+          useFirestore: useFirestore,
         );
         if (selected.contains(_kStateNotifier)) {
           await _ensureViewWidgets(libPath);
@@ -466,15 +470,18 @@ class CreateFeatureCommand extends Command<int> {
 
   Future<void> _writeRepository(
       String fp, String name, String cls, String varName,
-      {required bool hasRemote, required bool hasLocal}) async {
+      {required bool hasRemote,
+      required bool hasLocal,
+      bool useFirestore = false}) async {
     await FileUtils.writeFile(
       p.join(fp, 'domain', 'repositories', '${name}_repository.dart'),
-      FeatureTemplates.repositoryInterface(name, cls),
+      FeatureTemplates.repositoryInterface(name, cls,
+          useFirestore: useFirestore),
     );
     await FileUtils.writeFile(
       p.join(fp, 'data', 'repositories', '${name}_repository_impl.dart'),
       FeatureTemplates.repositoryImpl(name, cls, varName,
-          hasRemote: hasRemote, hasLocal: hasLocal),
+          hasRemote: hasRemote, hasLocal: hasLocal, useFirestore: useFirestore),
     );
   }
 
@@ -506,27 +513,30 @@ class CreateFeatureCommand extends Command<int> {
     );
   }
 
-  Future<void> _writeState(String fp, String name, String cls) async {
+  Future<void> _writeState(String fp, String name, String cls,
+      {bool useFirestore = false}) async {
     await FileUtils.writeFile(
       p.join(fp, 'presentation', 'states', '${name}_state.dart'),
-      FeatureTemplates.state(name, cls),
+      FeatureTemplates.state(name, cls, useFirestore: useFirestore),
     );
   }
 
   Future<void> _writeNotifier(
       String fp, String name, String cls, String varName,
-      {required bool hasUseCase}) async {
+      {required bool hasUseCase, bool useFirestore = false}) async {
     await FileUtils.writeFile(
       p.join(fp, 'presentation', 'notifiers', '${name}_notifier.dart'),
-      FeatureTemplates.notifier(name, cls, varName, hasUseCase: hasUseCase),
+      FeatureTemplates.notifier(name, cls, varName,
+          hasUseCase: hasUseCase, useFirestore: useFirestore),
     );
   }
 
   Future<void> _writeView(String fp, String name, String cls, String varName,
-      {required bool hasNotifier}) async {
+      {required bool hasNotifier, bool useFirestore = false}) async {
     await FileUtils.writeFile(
       p.join(fp, 'presentation', 'views', '${name}_view.dart'),
-      FeatureTemplates.view(name, cls, varName, hasNotifier: hasNotifier),
+      FeatureTemplates.view(name, cls, varName,
+          hasNotifier: hasNotifier, useFirestore: useFirestore),
     );
   }
 

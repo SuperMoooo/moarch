@@ -31,12 +31,25 @@ class ${cls}Entity {
   // ── Domain — Repository interface ───────────────────────────────────────────
 
   /// Returns the generated repositoryInterface template.
-  static String repositoryInterface(String name, String cls) => '''
+  ///
+  /// [useFirestore] adds `watchAll` — the live read the presentation layer is
+  /// built on when the data is in Firestore, with `getAll` left for the
+  /// one-off cases (an export, a background job) that do not want a
+  /// subscription.
+  static String repositoryInterface(String name, String cls,
+          {bool useFirestore = false}) =>
+      '''
 import '../entities/${name}_entity.dart';
 
 abstract interface class ${cls}Repository {
   Future<List<${cls}Entity>> getAll();
+${useFirestore ? '''
 
+  /// A live view of the collection: emits now with what Firestore has, and
+  /// again on every change — including the ones made on this device, which
+  /// land straight from the local cache before the server confirms them.
+  Stream<List<${cls}Entity>> watchAll();
+''' : ''}
   // TODO: add your other methods
 }
 ''';
@@ -302,12 +315,17 @@ class ${cls}LocalDataSource {
   // ── Data — Repository impl ───────────────────────────────────────────────────
 
   /// Returns the generated repositoryImpl template.
+  ///
+  /// [useFirestore] is implemented rather than left as a TODO: the Firestore
+  /// datasource already returns the models and the live query, so all this
+  /// layer has to do is map them to entities.
   static String repositoryImpl(
     String name,
     String cls,
     String varName, {
     required bool hasRemote,
     required bool hasLocal,
+    bool useFirestore = false,
   }) {
     final providerArgs = [
       if (hasRemote) '      ref.watch(${varName}RemoteDataSourceProvider),',
@@ -323,6 +341,36 @@ class ${cls}LocalDataSource {
       if (hasRemote) '  final ${cls}RemoteDataSource _remote;',
       if (hasLocal) '  final ${cls}LocalDataSource _local;',
     ].join('\n');
+
+    // Without the remote datasource there is nothing to map, so the Firestore
+    // methods stay TODOs like the REST one — the layer the user declined is
+    // not invented for them.
+    final methods = useFirestore && hasRemote
+        ? '''
+  @override
+  Future<List<${cls}Entity>> getAll() async {
+    final models = await _remote.fetchAll();
+    return models.map((model) => model.toEntity()).toList();
+  }
+
+  @override
+  Stream<List<${cls}Entity>> watchAll() {
+    return _remote.watchAll().map(
+          (models) => models.map((model) => model.toEntity()).toList(),
+        );
+  }'''
+        : '''
+  @override
+  Future<List<${cls}Entity>> getAll() {
+    // TODO: implement using the datasource(s) above
+    throw UnimplementedError();
+  }${useFirestore ? '''
+
+  @override
+  Stream<List<${cls}Entity>> watchAll() {
+    // TODO: implement using the datasource(s) above
+    throw UnimplementedError();
+  }''' : ''}''';
 
     return '''
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -346,11 +394,7 @@ class ${cls}RepositoryImpl implements ${cls}Repository {
 
 $fields
 
-  @override
-  Future<List<${cls}Entity>> getAll() {
-    // TODO: implement using the datasource(s) above
-    throw UnimplementedError();
-  }
+$methods
 }
 ''';
   }
@@ -358,16 +402,56 @@ $fields
   // ── Presentation — State ────────────────────────────────────────────────────
 
   /// Returns the generated state template.
-  static String state(String name, String cls) => '''
-import '../../../../core/utils/action_notifier.dart';
+  ///
+  /// [useFirestore] adds the `items` the live query fills in — a Firestore
+  /// feature has data to hold from its first frame, where the REST one leaves
+  /// that to whoever writes the fetch.
+  ///
+  /// Both carry a `placeholder`: the state the loading skeleton is traced
+  /// from. It is a constant on the state rather than something the view builds
+  /// inline so that adding a field breaks one place, not every screen that
+  /// draws it.
+  static String state(String name, String cls, {bool useFirestore = false}) =>
+      '''
+${useFirestore ? "import 'package:skeletonizer/skeletonizer.dart';\n\n" : ''}import '../../../../core/utils/action_notifier.dart';${useFirestore ? "\nimport '../../domain/entities/${name}_entity.dart';" : ''}
 
 class ${cls}State implements ActionState<${cls}State> {
-  const ${cls}State({
+  const ${cls}State({${useFirestore ? '\n    this.items = const [],' : ''}
     this.isLoadingAction = false,
     this.error,
     this.success,
   });
+${useFirestore ? '''
 
+  /// The state the loading skeleton is traced from: rows that exist only to be
+  /// the right size.
+  ///
+  /// Skeletonizer shimmers the widget tree it is handed, so this has to hold
+  /// something — a body built from an empty state is a `ListView.builder` over
+  /// nothing, and traces to a blank screen. The *length* of the text is what
+  /// sets the width of the bone drawn over it, which is what `BoneMock` is
+  /// for: give every field you add here a fake value of the size the real one
+  /// will be.
+  static final placeholder = ${cls}State(
+    items: List.filled(3, ${cls}Entity(id: BoneMock.name)),
+  );
+
+  /// The collection as Firestore last reported it. Replaced whole on every
+  /// snapshot rather than patched, so it never drifts from the server.
+  final List<${cls}Entity> items;
+''' : '''
+
+  /// The state the loading skeleton is traced from.
+  ///
+  /// Skeletonizer shimmers the widget tree it is handed, so this has to hold
+  /// something for every field the body draws — a `ListView.builder` over an
+  /// empty list has nothing to trace, and shimmers as a blank screen.
+  ///
+  /// TODO: as you add fields, give them fake values here. `BoneMock` (from
+  /// skeletonizer) hands out strings of realistic length — `BoneMock.name`,
+  /// `BoneMock.words(3)` — and that length is the width of the bone.
+  static const placeholder = ${cls}State();
+'''}
   final bool isLoadingAction;
 
   /// One-shot UI event fields: any copyWith call that omits them clears
@@ -375,12 +459,12 @@ class ${cls}State implements ActionState<${cls}State> {
   final String? error;
   final String? success;
 
-  ${cls}State copyWith({
+  ${cls}State copyWith({${useFirestore ? '\n    List<${cls}Entity>? items,' : ''}
     bool? isLoadingAction,
     String? error,
     String? success,
   }) {
-    return ${cls}State(
+    return ${cls}State(${useFirestore ? '\n      items: items ?? this.items,' : ''}
       isLoadingAction: isLoadingAction ?? this.isLoadingAction,
       error: error,
       success: success,
@@ -398,8 +482,13 @@ class ${cls}State implements ActionState<${cls}State> {
   // ── Presentation — Notifier ─────────────────────────────────────────────────
 
   /// Returns the generated notifier template.
+  ///
+  /// [useFirestore] builds the state off `watchAll()` instead of returning an
+  /// empty one, so the screen tracks the collection for as long as it is
+  /// mounted. The subscription is the notifier's: Riverpod disposes it with
+  /// the provider.
   static String notifier(String name, String cls, String varName,
-          {required bool hasUseCase}) =>
+          {required bool hasUseCase, bool useFirestore = false}) =>
       '''
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -420,7 +509,53 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State>
 
   ${cls}Repository get _repo => ref.watch(${varName}RepositoryProvider);
 
-  @override
+${useFirestore ? '''  @override
+  FutureOr<${cls}State> build() {
+    // One subscription answers both the first frame and every change after
+    // it. Awaiting `.first` for the initial load and then listening would
+    // register the query twice — twice the billed reads, and a gap between
+    // the two where a change goes unseen.
+    final firstSnapshot = Completer<${cls}State>();
+
+    final subscription = _repo.watchAll().listen(
+      (items) {
+        if (!firstSnapshot.isCompleted) {
+          firstSnapshot.complete(${cls}State(items: items));
+          return;
+        }
+        // Read back off `state`, not off a captured value: an action may have
+        // run since the last snapshot.
+        state = AsyncData(
+          (state.value ?? const ${cls}State()).copyWith(items: items),
+        );
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!firstSnapshot.isCompleted) {
+          firstSnapshot.completeError(error, stackTrace);
+          return;
+        }
+        state = AsyncError(error, stackTrace);
+      },
+    );
+
+    // Firestore keeps the listener open until this is called; without it the
+    // query outlives the screen and goes on billing reads.
+    ref.onDispose(subscription.cancel);
+
+    return firstSnapshot.future;
+  }
+
+  // TODO: add your methods — runAction (from ActionNotifierMixin) handles
+  // loading, AppException and unknown errors for you. A write does not need
+  // to touch `items`: the subscription above re-emits with the change, and
+  // Firestore applies it to the local cache before the server confirms it.
+  // Example:
+  // Future<void> doSomething() {
+  //   return runAction((current) async {
+  //     await _repo.doSomething();
+  //     return current.copyWith(success: 'Done!');
+  //   });
+  // }''' : '''  @override
   FutureOr<${cls}State> build() async {
     return const ${cls}State();
   }
@@ -434,7 +569,7 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State>
   //     await _repo.doSomething();
   //     return current.copyWith(success: 'Done!');
   //   });
-  // }
+  // }'''}
 
 
 }
@@ -443,8 +578,12 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State>
   // ── Presentation — View ─────────────────────────────────────────────────────
 
   /// Returns the generated view template.
+  ///
+  /// [useFirestore] renders the `items` the notifier's subscription keeps
+  /// current, so the screen redraws on every change to the collection without
+  /// a refresh gesture or an `invalidate` anywhere.
   static String view(String name, String cls, String varName,
-      {required bool hasNotifier}) {
+      {required bool hasNotifier, bool useFirestore = false}) {
     if (!hasNotifier) {
       return '''
 import 'package:flutter/material.dart';
@@ -496,19 +635,40 @@ class _${cls}ViewState extends ConsumerState<${cls}View> {
       body: AppAsyncView<${cls}State>(
         value: ref.watch(${varName}NotifierProvider),
         onRetry: () => ref.invalidate(${varName}NotifierProvider),
-        // Shimmered while the first load runs: the same body, traced from a
-        // state that holds nothing yet.
-        skeleton: _body(context, const ${cls}State()),
+${useFirestore ? '        isEmpty: (state) => state.items.isEmpty,\n' : ''}        // Shimmered while the first load runs: the same body, traced from
+        // `${cls}State.placeholder`. That has to be *fake data* — Skeletonizer
+        // shimmers the tree it is handed, and a body drawn from an empty state
+        // has nothing in it to shimmer.
+        skeleton: (context) => _body(context, ${cls}State.placeholder),
         builder: _body,
       ),
     );
   }
+${useFirestore ? '''
+
+  // Rebuilt on every Firestore snapshot — `state.items` is whatever the
+  // collection says right now, so nothing here has to refresh it.
+  //
+  // TODO: build the row. It is also what the skeleton above is traced from, so
+  // every field you draw here needs a fake value in `${cls}State.placeholder`.
+  Widget _body(BuildContext context, ${cls}State state) {
+    return ListView.builder(
+      itemCount: state.items.length,
+      itemBuilder: (context, index) {
+        final $varName = state.items[index];
+        return ListTile(
+          title: Text($varName.id),
+        );
+      },
+    );
+  }''' : '''
 
   // TODO: build the screen. It is handed the loaded state, and it is also what
-  // the skeleton above is traced from — so keep it drawable from an empty state.
+  // the skeleton above is traced from — so every field you draw here needs a
+  // fake value in `${cls}State.placeholder`.
   Widget _body(BuildContext context, ${cls}State state) {
     return const SizedBox.shrink();
-  }
+  }'''}
 }
 ''';
   }

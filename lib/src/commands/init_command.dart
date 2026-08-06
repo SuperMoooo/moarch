@@ -458,6 +458,18 @@ class InitCommand extends Command<int> {
         'BASE_URL=',
       );
 
+      // The editor side of the .fvmrc above: without dart.flutterSdkPath the
+      // extension runs whatever Flutter is on PATH, which is the version the
+      // pin exists to stop using. An existing .vscode/ is left alone.
+      await FileUtils.writeFile(
+        p.join(p.absolute(targetPath), '.vscode', 'settings.json'),
+        DevTemplates.vscodeSettings(),
+      );
+      await FileUtils.writeFile(
+        p.join(p.absolute(targetPath), '.vscode', 'launch.json'),
+        DevTemplates.vscodeLaunch(),
+      );
+
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), 'flutter_native_splash.yaml'),
         DevTemplates.nativeSplash(),

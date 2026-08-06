@@ -7775,6 +7775,7 @@ class _NumberedStep extends StatelessWidget {
   static String designSystemView() => r'''
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/errors/app_exception.dart';
@@ -9683,11 +9684,15 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                         emptyMessage: 'Rows will appear here once there are any.',
                         onRetry: () => setState(() => _asyncState = 0),
                         // The shape the skeleton is traced from: the same list,
-                        // with placeholder rows in it.
-                        skeleton: Column(
+                        // with placeholder rows in it. Fake rows, not an empty
+                        // list — there has to be something there to shimmer.
+                        skeleton: (context) => Column(
                           children: [
-                            for (final row in const ['One', 'Two', 'Three'])
-                              AppListTile(title: row, subtitle: 'Loading'),
+                            for (var i = 0; i < 3; i++)
+                              AppListTile(
+                                title: BoneMock.name,
+                                subtitle: BoneMock.subtitle,
+                              ),
                           ],
                         ),
                         builder: (context, rows) => Column(

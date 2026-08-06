@@ -187,6 +187,149 @@ void main() {
       expect(model, isNot(contains("'id': id,")));
     });
 
+    test('the repository exposes the live query, the Dio one does not', () {
+      final firestore = FeatureTemplates.repositoryInterface('order', 'Order',
+          useFirestore: true);
+
+      expect(firestore, contains('Stream<List<OrderEntity>> watchAll();'));
+      expect(firestore, contains('Future<List<OrderEntity>> getAll();'));
+      expect(
+        FeatureTemplates.repositoryInterface('order', 'Order'),
+        isNot(contains('watchAll')),
+      );
+    });
+
+    test('the repository impl maps the datasource, TODO left to the Dio one',
+        () {
+      final output = FeatureTemplates.repositoryImpl(
+        'order',
+        'Order',
+        'order',
+        hasRemote: true,
+        hasLocal: false,
+        useFirestore: true,
+      );
+
+      expect(output, contains('await _remote.fetchAll()'));
+      expect(output, contains('_remote.watchAll().map('));
+      expect(output, contains('models.map((model) => model.toEntity())'));
+      expect(output, isNot(contains('UnimplementedError')));
+
+      expect(
+        FeatureTemplates.repositoryImpl('order', 'Order', 'order',
+            hasRemote: true, hasLocal: false),
+        contains('throw UnimplementedError()'),
+      );
+    });
+
+    test('the layer the user declined is not invented for them', () {
+      // No remote datasource selected — there is nothing to map, so both
+      // methods stay TODOs rather than calling a field that does not exist.
+      final output = FeatureTemplates.repositoryImpl(
+        'order',
+        'Order',
+        'order',
+        hasRemote: false,
+        hasLocal: true,
+        useFirestore: true,
+      );
+
+      expect(output, isNot(contains('_remote')));
+      expect(output, contains('Stream<List<OrderEntity>> watchAll()'));
+      expect('UnimplementedError'.allMatches(output).length, 2);
+    });
+
+    test('the state holds what the query emits', () {
+      final output =
+          FeatureTemplates.state('order', 'Order', useFirestore: true);
+
+      expect(output,
+          contains("import '../../domain/entities/order_entity.dart';"));
+      expect(output, contains('final List<OrderEntity> items;'));
+      expect(output, contains('this.items = const [],'));
+      expect(output, contains('items: items ?? this.items,'));
+
+      expect(
+          FeatureTemplates.state('order', 'Order'), isNot(contains('items')));
+    });
+
+    test('the state carries the fake data its skeleton is traced from', () {
+      final output =
+          FeatureTemplates.state('order', 'Order', useFirestore: true);
+
+      // Rows that exist only to be the right size — an empty list traces to a
+      // blank screen. BoneMock sets that size, so the package comes along.
+      expect(
+        output,
+        contains("import 'package:skeletonizer/skeletonizer.dart';"),
+      );
+      expect(output, contains('static final placeholder = OrderState('));
+      expect(
+        output,
+        contains('items: List.filled(3, OrderEntity(id: BoneMock.name)),'),
+      );
+
+      // The REST state has no fields to fake yet, so it gets the hook and a
+      // TODO rather than an import it would not use.
+      final rest = FeatureTemplates.state('order', 'Order');
+      expect(rest, contains('static const placeholder = OrderState();'));
+      expect(rest, isNot(contains('package:skeletonizer/skeletonizer.dart')));
+    });
+
+    test('the notifier subscribes once and hands the subscription to Riverpod',
+        () {
+      final output = FeatureTemplates.notifier(
+        'order',
+        'Order',
+        'order',
+        hasUseCase: false,
+        useFirestore: true,
+      );
+
+      expect(output, contains('_repo.watchAll().listen('));
+      expect(output, contains('final firstSnapshot = Completer<OrderState>()'));
+      expect(output, contains('ref.onDispose(subscription.cancel)'));
+      expect(output, contains('return firstSnapshot.future;'));
+      // The query is opened exactly once: awaiting `.first` for the initial
+      // load on top of this would register it a second time.
+      expect('watchAll()'.allMatches(output), hasLength(1));
+      // Errors reach AppAsyncView as the AsyncValue it already renders.
+      expect(output, contains('state = AsyncError(error, stackTrace)'));
+
+      // The REST notifier still starts from nothing.
+      expect(
+        FeatureTemplates.notifier('order', 'Order', 'order', hasUseCase: false),
+        contains('return const OrderState();'),
+      );
+    });
+
+    test('the view renders the live items', () {
+      final output = FeatureTemplates.view(
+        'order',
+        'Order',
+        'order',
+        hasNotifier: true,
+        useFirestore: true,
+      );
+
+      expect(output, contains('itemCount: state.items.length'));
+      expect(output, contains('final order = state.items[index];'));
+      expect(output, contains('isEmpty: (state) => state.items.isEmpty,'));
+      // Skeletonizer traces the real layout, so the rows need a size to
+      // shimmer — the fake ones live on the state, not inline here.
+      expect(
+        output,
+        contains('skeleton: (context) => _body(context, OrderState.placeholder),'),
+      );
+      // Which is why the view no longer names the entity at all.
+      expect(output, isNot(contains('OrderEntity')));
+
+      expect(
+        FeatureTemplates.view('order', 'Order', 'order', hasNotifier: true),
+        contains('return const SizedBox.shrink();'),
+      );
+    });
+
     test('the Dio entity and model keep the int id', () {
       expect(
           FeatureTemplates.entity('order', 'Order'), contains('final int id;'));
