@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -7,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import '../../templates/ui/feature_templates.dart';
 import '../../utils/file_utils.dart';
+import '../../utils/json_model_builder.dart';
 import '../../utils/string_utils.dart';
 
 /// COMMAND FOR MODEL CREATION
@@ -24,6 +26,12 @@ class CreateModelCommand extends Command<int> {
       abbr: 'e',
       negatable: false,
       help: 'Inject a .empty() factory into an existing entity.',
+    );
+    argParser.addOption(
+      'from-json',
+      help: 'Infer the fields from a sample JSON payload file — the entity '
+          'and model come out with real fields instead of TODOs.',
+      valueHelp: 'file',
     );
   }
 
@@ -73,6 +81,14 @@ class CreateModelCommand extends Command<int> {
         p.join(featurePath, 'domain', 'entities', '${modelName}_entity.dart');
 
     final addEmpty = argResults?['empty'] as bool? ?? false;
+    final fromJsonPath = argResults?['from-json'] as String?;
+
+    if (addEmpty && fromJsonPath != null) {
+      _logger.err('--empty and --from-json are different jobs — '
+          '--empty patches an existing entity, --from-json generates a new '
+          'one. Pick one.');
+      return 1;
+    }
 
     if (!addEmpty) {
       if (File(modelFile).existsSync() || File(entityFile).existsSync()) {
@@ -92,6 +108,13 @@ class CreateModelCommand extends Command<int> {
       );
     }
 
+    // With a JSON sample the fields are inferred instead of left as TODOs.
+    List<JsonField>? fields;
+    if (fromJsonPath != null) {
+      fields = _parseJsonSample(fromJsonPath);
+      if (fields == null) return 1;
+    }
+
     _logger.info('');
     _logger.info('🧱 Creating model: $modelClass (in feature: $featureName)');
     _logger.info('');
@@ -102,11 +125,15 @@ class CreateModelCommand extends Command<int> {
     try {
       await FileUtils.writeFile(
         modelFile,
-        FeatureTemplates.model(modelName, modelClass),
+        fields == null
+            ? FeatureTemplates.model(modelName, modelClass)
+            : JsonModelBuilder.modelSource(modelName, modelClass, fields),
       );
       await FileUtils.writeFile(
         entityFile,
-        FeatureTemplates.entity(modelName, modelClass),
+        fields == null
+            ? FeatureTemplates.entity(modelName, modelClass)
+            : JsonModelBuilder.entitySource(modelName, modelClass, fields),
       );
       progress.complete('Model scaffolded');
     } catch (e) {
@@ -116,7 +143,48 @@ class CreateModelCommand extends Command<int> {
     }
 
     _printTree(featureName, modelName, modelClass);
+    if (fields != null) {
+      _logger.info('  Fields inferred from $fromJsonPath:');
+      for (final field in fields) {
+        _logger.info('    ${field.type.padRight(24)} ${field.name}'
+            '${field.name == field.jsonKey ? '' : "  (json: '${field.jsonKey}')"}');
+      }
+      // A null in the sample types as dynamic — the sample says nothing else.
+      if (fields.any((f) => f.type == 'dynamic')) {
+        _logger.info('');
+        _logger.warn('  Fields typed `dynamic` were null in the sample — '
+            'tighten them by hand.');
+      }
+      _logger.info('');
+    }
     return 0;
+  }
+
+  /// Reads and decodes the `--from-json` sample, reporting exactly what is
+  /// wrong when it can't be used. Returns null on failure.
+  List<JsonField>? _parseJsonSample(String path) {
+    final file = File(path);
+    if (!file.existsSync()) {
+      _logger.err('No file at $path.');
+      return null;
+    }
+
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(file.readAsStringSync());
+    } on FormatException catch (e) {
+      _logger.err('$path is not valid JSON: ${e.message}');
+      return null;
+    }
+
+    final fields = JsonModelBuilder.fieldsFrom(decoded);
+    if (fields == null) {
+      _logger.err('$path holds no JSON object to read fields from — '
+          'pass a sample payload like {"id": 1, "name": "..."} '
+          '(a list of them works too).');
+      return null;
+    }
+    return fields;
   }
 
   void _printTree(String featureName, String modelName, String modelClass) {

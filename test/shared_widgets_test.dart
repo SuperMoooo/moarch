@@ -123,17 +123,20 @@ void main() {
       expect(output, contains('class _ToastCard extends StatelessWidget'));
       expect(output, contains('border: Border.all('));
       expect(output, contains('boxShadow: ['));
-      expect(
-          output, contains('Overlay.maybeOf(context, rootOverlay: true)'));
+      expect(output, contains('Overlay.maybeOf(context, rootOverlay: true)'));
       expect(output, contains('overlay.insert(entry);'));
     });
 
     test('owns both ends of the animation, which a SnackBar does not expose',
         () {
-      expect(output,
-          contains('static const Duration _enterDuration = Duration(milliseconds: 320);'));
-      expect(output,
-          contains('static const Duration _exitDuration = Duration(milliseconds: 200);'));
+      expect(
+          output,
+          contains(
+              'static const Duration _enterDuration = Duration(milliseconds: 320);'));
+      expect(
+          output,
+          contains(
+              'static const Duration _exitDuration = Duration(milliseconds: 200);'));
       // Decelerating in, accelerating out — reversing easeOutCubic would have
       // the card crawl off the screen.
       expect(output, contains('curve: Curves.easeOutCubic,'));
@@ -148,8 +151,10 @@ void main() {
     test('honours reduce motion', () {
       expect(output,
           contains('final reduced = MediaQuery.disableAnimationsOf(context);'));
-      expect(output, contains('reduced ? Duration.zero : AppToast._enterDuration'));
-      expect(output, contains('reduced ? Duration.zero : AppToast._exitDuration'));
+      expect(output,
+          contains('reduced ? Duration.zero : AppToast._enterDuration'));
+      expect(
+          output, contains('reduced ? Duration.zero : AppToast._exitDuration'));
     });
 
     test('a second toast swaps the content of the card already up', () {
@@ -193,7 +198,8 @@ void main() {
     test('sits above the keyboard when there is one', () {
       expect(
         output,
-        contains('media.viewInsets.bottom > 0\n        ? media.viewInsets.bottom\n'
+        contains(
+            'media.viewInsets.bottom > 0\n        ? media.viewInsets.bottom\n'
             '        : media.viewPadding.bottom;'),
       );
     });
@@ -263,7 +269,8 @@ void main() {
       }
       // No context: the overlay is reachable without one, and the caller that
       // wants a toast gone is often the one whose context is going away.
-      expect(output, contains('static void dismiss() => _hideCurrent?.call();'));
+      expect(
+          output, contains('static void dismiss() => _hideCurrent?.call();'));
     });
 
     test('is flicked away sideways, and skips the exit when it is', () {

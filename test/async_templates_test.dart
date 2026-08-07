@@ -193,7 +193,8 @@ void main() {
       // tree it is handed, and a body drawn from nothing traces to nothing.
       expect(
         output,
-        contains('skeleton: (context) => _body(context, OrdersState.placeholder),'),
+        contains(
+            'skeleton: (context) => _body(context, OrdersState.placeholder),'),
       );
       expect(output, contains('builder: _body,'));
       expect(

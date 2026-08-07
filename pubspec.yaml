@@ -1,8 +1,16 @@
 name: moarch
 description: Flutter CLI — scaffold Clean Architecture projects with Riverpod, FVM and your own conventions.
-version: 3.0.0
+version: 3.1.0
 repository: https://github.com/SuperMoooo/moarch
 homepage: https://supermoooo.github.io/Portfolio/
+issue_tracker: https://github.com/SuperMoooo/moarch/issues
+
+topics:
+    - cli
+    - scaffolding
+    - clean-architecture
+    - riverpod
+    - codegen
 
 environment:
     sdk: '>=3.4.0 <4.0.0'

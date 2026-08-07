@@ -276,8 +276,14 @@ class UpdateCommand extends Command<int> {
     final progress = _logger.progress('Refreshing ${toWrite.length} file(s)');
     final updated = ProjectManifest.loadOrCreate(targetPath);
 
+    // What each file held before it was refreshed, so a failure partway
+    // through puts every already-written file back instead of leaving the
+    // project half on the old templates and half on the new.
+    final replaced = <String, String>{};
+
     try {
       for (final candidate in toWrite) {
+        replaced[candidate.path] = candidate.current;
         await File(candidate.path).writeAsString(candidate.generated);
         updated.record(targetPath, candidate.path, candidate.generated);
       }
@@ -292,6 +298,14 @@ class UpdateCommand extends Command<int> {
       progress.complete('Refreshed');
     } catch (e) {
       progress.fail('Failed: $e');
+      for (final entry in replaced.entries) {
+        try {
+          File(entry.key).writeAsStringSync(entry.value);
+        } catch (_) {
+          // Best-effort restore — the git diff still shows what changed.
+        }
+      }
+      _logger.info('  Restored the files that had already been refreshed.');
       return 1;
     }
 

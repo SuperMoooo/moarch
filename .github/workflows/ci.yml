@@ -32,6 +32,18 @@ jobs:
       - name: Analyze
         run: dart analyze --fatal-infos
 
+      # version.dart duplicates the pubspec version because the pubspec can't
+      # be read at runtime once the package is globally activated — this is
+      # what keeps the two from drifting apart.
+      - name: Verify version.dart matches pubspec.yaml
+        run: |
+          PUBSPEC=$(grep -E '^version:' pubspec.yaml | awk '{print $2}')
+          CODE=$(grep -oE "'[^']+'" lib/src/version.dart | tr -d "'")
+          if [ "$PUBSPEC" != "$CODE" ]; then
+            echo "Version mismatch: pubspec.yaml has $PUBSPEC, lib/src/version.dart has $CODE"
+            exit 1
+          fi
+
       - name: Run tests
         run: dart test
 

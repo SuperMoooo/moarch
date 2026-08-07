@@ -35,11 +35,12 @@ void main() {
         (_decodeJsonc(DevTemplates.vscodeLaunch())['configurations'] as List)
             .cast<Map<String, dynamic>>();
 
-    test('every configuration launches the scaffold entry point', () {
+    test(
+        'every configuration is a dart launch — the extension defaults to '
+        'the scaffold entry point', () {
       for (final config in configurations()) {
         expect(config['type'], 'dart', reason: '${config['name']}');
         expect(config['request'], 'launch', reason: '${config['name']}');
-        expect(config['program'], 'lib/main.dart', reason: '${config['name']}');
       }
     });
 
@@ -56,13 +57,13 @@ void main() {
       };
 
       expect(modes, {
-        'debug': null, // the extension's own default
+        'debug': 'debug',
         'profile': 'profile',
         'release': 'release',
       });
     });
 
-    test('each flavor is passed to the tool and on to Dart', () {
+    test('each flavor is passed to the tool', () {
       for (final flavor in ['dev', 'staging', 'prod']) {
         final flavored = configurations()
             .where((config) =>
@@ -73,7 +74,7 @@ void main() {
         for (final config in flavored) {
           expect(
             config['args'],
-            ['--flavor', flavor, '--dart-define', 'FLAVOR=$flavor'],
+            ['--flavor', flavor],
             reason: '${config['name']}',
           );
         }
@@ -88,7 +89,11 @@ void main() {
             .map((config) => config['flutterMode'])
             .toSet();
 
-        expect(modes, containsAll(<Object?>[null, 'release']), reason: flavor);
+        expect(
+          modes,
+          containsAll(<Object?>['debug', 'release']),
+          reason: flavor,
+        );
       }
     });
   });

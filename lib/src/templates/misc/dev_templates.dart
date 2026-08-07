@@ -72,7 +72,7 @@ linter:
             "name": "debug",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "debug",
+            "flutterMode": "debug"
         },
         {
             // Where you measure jank — never in debug.

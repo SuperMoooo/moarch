@@ -5,6 +5,12 @@ A simple Dart/Flutter CLI for scaffolding Clean Architecture-style apps.
 [![pub version](https://img.shields.io/pub/v/moarch.svg)](https://pub.dev/packages/moarch)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
+Built first as a helper for me and the people I work with — it encodes the
+conventions *our* projects share. Anyone is welcome to it: if the conventions
+match yours, use it as-is; if they *almost* do, [clone it and make them
+yours](#make-it-your-own) — every template is a plain Dart string meant to be
+edited.
+
 ## Install
 
 ```bash
@@ -32,7 +38,9 @@ moarch init          # interactive scaffold
 moarch init --all    # generate the default structure without prompts
 moarch create feature <featureName>
 moarch create model <featureName> <modelName> # generate the model and entity
+moarch create model <featureName> <modelName> --from-json sample.json # infer the fields from a JSON payload
 moarch create model --empty <featureName> <modelName> # Inject a .empty() factory into an existing entity.
+moarch create flavors # dev/staging/prod via flutter_flavorizr — one main.dart, untouched
 moarch create empty-factories # generate .empty() in all entities
 moarch create entity-copys <featureName> # inject copyWith into the feature's entities (omit name for all features)
 moarch create widget <name>        # add a UI-kit widget on demand (e.g. switch, otp, list-tile)
@@ -643,6 +651,67 @@ Every control shares one vocabulary — `variant`, `type`, `shape`, `size` — a
 all in light/dark. Set `AppConstants.fontFamily` (or swap in `google_fonts`) to
 restyle the whole app's typography from one place.
 
+## Models from a JSON sample
+
+`moarch create model` writes an entity + model with an `id` and TODOs where
+the fields go. Hand it a sample of the payload the API actually returns and it
+fills them in:
+
+```bash
+moarch create model orders order --from-json sample.json
+```
+
+```dart
+// from {"id": 7, "customer_name": "Ana", "total": 12.5,
+//       "created_at": "2026-08-01T10:30:00Z", "tags": ["vip"]}
+final int id;
+final String customerName;   // fromJson reads json['customer_name']
+final double total;          // parsed through num — an int in the payload is fine
+final DateTime createdAt;    // ISO-dated strings become DateTime
+final List<String> tags;     // homogeneous lists keep their element type
+```
+
+`fromJson` / `toJson` keep the original JSON keys, and `fromEntity` /
+`toEntity` and `==` / `hashCode` come out complete. A top-level JSON *list* is
+sampled at its first element — the common shape of a list endpoint's response.
+A `null` in the sample can only type as `dynamic` (a null says nothing about
+its type), and the command calls those fields out so you can tighten them.
+
+## Flavors
+
+`moarch create flavors` sets up `dev` / `staging` / `prod` — or the names you
+pass — through [flutter_flavorizr](https://pub.dev/packages/flutter_flavorizr),
+configured so the project keeps **one `main.dart`**: yours, untouched.
+
+It writes `flavorizr.yaml` with the app name and the Android/iOS ids read from
+the project (non-production flavors get suffixed ids, so the builds install
+side by side) and adds the dev dependency. The `instructions` list in that
+file is the point: flavorizr runs only the processors that patch the native
+side and generate `lib/flavors.dart` — no `main_<flavor>.dart` entry points,
+no replaced `main.dart`.
+
+```bash
+moarch create flavors
+flutter pub get
+dart run flutter_flavorizr    # applies the instructions in flavorizr.yaml
+flutter run --flavor dev
+```
+
+That one run is equivalent to applying the processors by hand:
+
+```bash
+dart run flutter_flavorizr -p android:flavorizrGradle,android:buildGradle,android:androidManifest
+dart run flutter_flavorizr -p ios:xcconfig,ios:plist
+dart run flutter_flavorizr -p flutter:flavors
+```
+
+The app reads the current flavor off the generated `lib/flavors.dart`, and the
+flavored entries `init` writes into `.vscode/launch.json` (a debug/release
+pair per flavor) work as soon as the native side is patched.
+
+With Firebase, each suffixed application id is its own app in the Firebase
+console — register them there and re-run `flutterfire configure`.
+
 ## Staying up to date
 
 Generated code goes stale: the templates keep improving, and a project scaffolded
@@ -726,13 +795,26 @@ package, copying `CLIENT_ID` and `REVERSED_CLIENT_ID` out of
 `GoogleService-Info.plist` into `Info.plist`. Anything that's a genuine choice
 (which localization package to drop) is reported and left to you.
 
-## Local development
+## Make it your own
+
+moarch is a helper built first for my own projects and my coworkers' — the
+templates are *our* conventions, and the pub.dev package will keep following
+them. When your conventions differ, the intended move is not a feature
+request: clone it and make the templates yours.
 
 ```bash
 git clone https://github.com/SuperMoooo/moarch.git
 cd moarch
+# edit lib/src/templates/** — every generated file is a plain Dart string
 dart pub global activate --source path ./
 ```
+
+Every template lives under `lib/src/templates/`, one function per generated
+file, and the catalogs (`lib/src/utils/widget_catalog.dart` and
+`scaffold_catalog.dart`) are the lists of what exists — add an entry there and
+`init`, `create widget` and `update` all pick it up. Once activated from your
+path, `moarch update` in your projects refreshes toward *your* templates: the
+manifest machinery doesn't care whose they are.
 
 ## License
 
