@@ -2,6 +2,12 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 3.1.3
+
+### Features
+
+- AppCard adjustment
+
 ## 3.1.2
 
 ### Features

@@ -4347,13 +4347,29 @@ class AppCard extends StatelessWidget {
     required this.child,
     this.type = AppCardType.filled,
     this.padding = AppConstants.padding16,
+    this.margin,
+    this.borderColor,
     this.onTap,
     this.clipBehavior = Clip.antiAlias,
   });
 
   final Widget child;
   final AppCardType type;
+
+  /// Inset between the card's edge and its content.
   final EdgeInsetsGeometry padding;
+
+  /// Inset around the outside of the card — space between it and whatever it
+  /// sits next to. Null is none. It stays outside the surface, so the border,
+  /// the shadow and the tap ripple all stop at the card's edge.
+  final EdgeInsetsGeometry? margin;
+
+  /// Color of the card's hairline border. On [AppCardType.outlined] it stands
+  /// in for the default [ColorScheme.outlineVariant]; on the other two it adds
+  /// a border they do not otherwise draw — a filled card ringed in the error
+  /// color to mark an invalid section, say. Null leaves each type as it is.
+  final Color? borderColor;
+
   final VoidCallback? onTap;
 
   /// How the child is clipped to the card's rounded corners. Defaults to
@@ -4366,10 +4382,16 @@ class AppCard extends StatelessWidget {
     final theme = context.theme;
     final radius = AppConstants.borderRadius16;
 
+    // Outlined always draws a border; the other two only once asked for one.
+    final border = borderColor == null && type != AppCardType.outlined
+        ? null
+        : Border.all(color: borderColor ?? theme.colorScheme.outlineVariant);
+
     final decoration = switch (type) {
       AppCardType.elevated => BoxDecoration(
           color: theme.colorScheme.surfaceContainerLowest,
           borderRadius: radius,
+          border: border,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.08),
@@ -4381,11 +4403,12 @@ class AppCard extends StatelessWidget {
       AppCardType.filled => BoxDecoration(
           color: theme.colorScheme.surfaceContainerLowest,
           borderRadius: radius,
+          border: border,
         ),
       AppCardType.outlined => BoxDecoration(
           color: Colors.transparent,
           borderRadius: radius,
-          border: Border.all(color: theme.colorScheme.outlineVariant),
+          border: border,
         ),
     };
 
@@ -4395,15 +4418,19 @@ class AppCard extends StatelessWidget {
       child: Padding(padding: padding, child: child),
     );
 
-    if (onTap == null) return content;
-    return InkWell(
-      borderRadius: radius,
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onTap!();
-      },
-      child: content,
-    );
+    final card = onTap == null
+        ? content
+        : InkWell(
+            borderRadius: radius,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onTap!();
+            },
+            child: content,
+          );
+
+    if (margin == null) return card;
+    return Padding(padding: margin!, child: card);
   }
 }
 ''';
@@ -4428,6 +4455,8 @@ class AppCardTile extends StatelessWidget {
     this.showChevron = false,
     this.danger = false,
     this.cardType = AppCardType.filled,
+    this.margin,
+    this.borderColor,
   });
 
   final String title;
@@ -4446,6 +4475,15 @@ class AppCardTile extends StatelessWidget {
   /// Surface treatment of the enclosing card.
   final AppCardType cardType;
 
+  /// Inset around the outside of the card — space between this row and the one
+  /// next to it, when a stack of these is standing in for a list. Null is none.
+  final EdgeInsetsGeometry? margin;
+
+  /// Color of the card's border. See [AppCard.borderColor]: it overrides the
+  /// hairline on an outlined card, and gives a filled or elevated one a border
+  /// it would not otherwise draw.
+  final Color? borderColor;
+
   @override
   Widget build(BuildContext context) {
     // onTap lives on the card so the whole surface is the tap target; the
@@ -4453,6 +4491,8 @@ class AppCardTile extends StatelessWidget {
     return AppCard(
       type: cardType,
       padding: EdgeInsets.zero,
+      margin: margin,
+      borderColor: borderColor,
       onTap: onTap,
       child: AppListTile(
         title: title,

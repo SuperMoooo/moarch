@@ -271,8 +271,7 @@ void main() {
 
     test('a heading is neutral until told otherwise', () {
       // Unlike a button, whose whole job is to be an accent.
-      expect(output,
-          contains('this.variant = AppHeadingVariant.neutral,'));
+      expect(output, contains('this.variant = AppHeadingVariant.neutral,'));
       expect(output, contains('this.size = AppHeadingSize.medium,'));
       expect(output, contains('this.align = AppHeadingAlign.start,'));
     });
@@ -280,8 +279,10 @@ void main() {
     test('every size comes off a theme role, not a bare TextStyle', () {
       // So the app's font family and any theme-level tweak survive; the size
       // metrics land on top with copyWith.
-      expect(output,
-          contains('TextStyle? _baseStyle(TextTheme textTheme) => switch (size)'));
+      expect(
+          output,
+          contains(
+              'TextStyle? _baseStyle(TextTheme textTheme) => switch (size)'));
       for (final role in [
         'AppHeadingSize.display => textTheme.headlineLarge,',
         'AppHeadingSize.large => textTheme.headlineMedium,',
@@ -304,7 +305,8 @@ void main() {
       expect(output, contains('static const double _capsLetterSpacing = 0.8;'));
       expect(
         output,
-        contains('letterSpacing: caps && config.letterSpacing < _capsLetterSpacing\n'
+        contains(
+            'letterSpacing: caps && config.letterSpacing < _capsLetterSpacing\n'
             '          ? _capsLetterSpacing\n'
             '          : config.letterSpacing,'),
       );
@@ -312,11 +314,11 @@ void main() {
 
     test('align moves the title and the subtitle together', () {
       expect(output, contains('TextAlign get _textAlign => switch (align)'));
-      expect(
-          output, contains('CrossAxisAlignment get _crossAlign => switch (align)'));
-      // And it can only act because the heading claims the full width.
       expect(output,
-          contains('SizedBox(width: double.infinity, child: content)'));
+          contains('CrossAxisAlignment get _crossAlign => switch (align)'));
+      // And it can only act because the heading claims the full width.
+      expect(
+          output, contains('SizedBox(width: double.infinity, child: content)'));
     });
 
     test('the subtitle stays quiet whatever the variant says', () {
@@ -330,8 +332,7 @@ void main() {
       // overflow: ellipsis with a null maxLines clips mid-word on one line.
       expect(
         output,
-        contains(
-            'overflow: maxLines == null ? null : TextOverflow.ellipsis,'),
+        contains('overflow: maxLines == null ? null : TextOverflow.ellipsis,'),
       );
     });
 
