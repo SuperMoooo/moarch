@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-import '../templates/ui/shared_templates.dart';
 import 'file_utils.dart';
 import 'plist_utils.dart';
 import 'project_manifest.dart';
@@ -512,13 +511,9 @@ abstract final class ProjectInspector {
     return findings;
   }
 
-  /// The current template source for [spec], matching how the generator
-  /// writes it — `AppButton` varies with the biometric option.
-  static String widgetSource(String libPath, WidgetSpec spec) {
-    if (spec.name != 'button') return spec.template();
-    final hasBiometric =
-        File(p.join(libPath, 'core', 'security', 'biometric_service.dart'))
-            .existsSync();
-    return SharedTemplates.appButton(hasBiometricAuth: hasBiometric);
-  }
+  /// The current template source for [spec], matching how the generator wrote
+  /// it — the options are read back off the project, since that is the only
+  /// record still true after the checklist is forgotten.
+  static String widgetSource(String libPath, WidgetSpec spec) =>
+      WidgetCatalog.sourceFor(spec, WidgetVariants.detect(libPath));
 }

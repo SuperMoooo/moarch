@@ -5,6 +5,7 @@ import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/templates/core/error_templates.dart';
 import 'package:moarch/src/templates/core/security_templates.dart';
 import 'package:moarch/src/templates/core/services_templates.dart';
+import 'package:moarch/src/templates/misc/android_templates.dart';
 import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/templates/misc/docs_templates.dart';
 import 'package:moarch/src/templates/misc/ios_templates.dart';
@@ -16,7 +17,6 @@ import 'package:path/path.dart' as p;
 
 import '../templates/config/config_templates.dart';
 import '../templates/core/core_templates.dart';
-import '../templates/ui/shared_templates.dart';
 import '../utils/file_utils.dart';
 import '../utils/gradle_utils.dart';
 import '../utils/kotlin_utils.dart';
@@ -49,6 +49,7 @@ const _kDebouncerService = 'Debouncer for actions';
 const _kNotificationsService = 'Notifications service';
 const _kFirebaseNotifications = 'Firebase push notifications (FCM)';
 const _kBiometricAuth = 'Biometric authentication';
+const _kMaintenanceGate = 'Maintenance gate (backend kill switch)';
 const _kLocalizations = 'Localization (l10n)';
 const _kEasyLocalization = 'Localization (easy_localization)';
 
@@ -111,6 +112,7 @@ class InitCommand extends Command<int> {
         _kDebouncerService,
         _kNotificationsService,
         _kBiometricAuth,
+        _kMaintenanceGate,
         _kLocalizations,
       };
     } else {
@@ -198,6 +200,13 @@ class InitCommand extends Command<int> {
               defaultOn: false,
               description:
                   'Face ID / fingerprint via local_auth, wired into AppButton through beforePressed.',
+            ),
+            const ChecklistItem(
+              _kMaintenanceGate,
+              defaultOn: false,
+              description:
+                  'Empties the app while a backend flag says maintenance; '
+                  'fails open if the flag cannot be read.',
             ),
             const ChecklistItem(
               _kLocalizations,
@@ -433,6 +442,7 @@ class InitCommand extends Command<int> {
           withFirebase: stack.contains(_kFirestore) ||
               stack.contains(_kFirebaseAuth) ||
               stack.contains(_kCrashlytics),
+          withMaintenanceGate: stack.contains(_kMaintenanceGate),
         ),
         overwriteWhen: _isFlutterCounterDemo,
       );
@@ -703,6 +713,7 @@ class InitCommand extends Command<int> {
       await _patchBuildGradle(buildGradleFile, stack, dryRun: dryRun);
       await _patchAndroidManifest(androidManifestFile, stack, dryRun: dryRun);
       await _patchMainActivity(mainActivityFile, stack, dryRun: dryRun);
+      await _writeProguardRules(p.absolute(targetPath));
 
       progress.complete('Done');
     } catch (e) {
@@ -1140,6 +1151,28 @@ class InitCommand extends Command<int> {
     _logger.info('  Updated MainActivity to use $addition.');
   }
 
+  /// R8 renames and strips whatever it cannot see being called, which is most
+  /// of what the Flutter engine and its plugins reach for reflectively. The
+  /// rules go in from the start so that turning minification on before a
+  /// release is the one gradle block in docs/SECURITY_BEFORE_DEPLOYMENT.md,
+  /// not that block plus an evening of chasing release-only crashes.
+  ///
+  /// Written whether or not R8 is enabled yet — an unreferenced
+  /// `proguard-rules.pro` costs the build nothing.
+  Future<void> _writeProguardRules(String projectRoot) async {
+    final appDir = Directory(p.join(projectRoot, 'android', 'app'));
+    if (!appDir.existsSync()) {
+      _logger.info('  Note: android/app not found — copy the ProGuard rules '
+          'from docs/SECURITY_BEFORE_DEPLOYMENT.md once the android folder '
+          'exists.');
+      return;
+    }
+    await FileUtils.writeFile(
+      p.join(appDir.path, 'proguard-rules.pro'),
+      AndroidTemplates.proguardRules(),
+    );
+  }
+
   /// MainActivity.kt/.java lives under a package-name folder that varies per
   /// project (e.g. android/app/src/main/kotlin/com/example/app/), so it can't
   /// be addressed by a fixed path like AndroidManifest.xml.
@@ -1415,11 +1448,24 @@ class InitCommand extends Command<int> {
   Future<void> _buildShared(String libPath, Set<String> stack) async {
     final s = p.join(libPath, 'shared', 'widgets');
     final hasRouter = stack.contains(_kRouter);
-    final hasBiometric = stack.contains(_kBiometricAuth);
+
+    // Taken from the checklist rather than from disk: in a dry run nothing has
+    // been written yet, so detection would report every option as absent.
+    final variants = WidgetVariants(
+      hasBiometric: stack.contains(_kBiometricAuth),
+      hasFirestore: stack.contains(_kFirestore),
+      hasDio: stack.contains(_kDio),
+    );
 
     // Only the common set (see WidgetCatalog) is scaffolded here; the rest of
     // the kit is added on demand with `moarch create widget <name>`.
-    for (final spec in WidgetCatalog.common) {
+    final specs = [
+      ...WidgetCatalog.common,
+      if (stack.contains(_kMaintenanceGate))
+        ...WidgetCatalog.resolve(['maintenance-gate']),
+    ];
+
+    for (final spec in {for (final spec in specs) spec.name: spec}.values) {
       if (spec.needsRouter && !hasRouter) {
         _logger.info(
           '  Skipped ${spec.title} (needs the GoRouter option) — add it later '
@@ -1427,10 +1473,10 @@ class InitCommand extends Command<int> {
         );
         continue;
       }
-      final content = spec.name == 'button'
-          ? SharedTemplates.appButton(hasBiometricAuth: hasBiometric)
-          : spec.template();
-      await FileUtils.writeFile(p.join(s, spec.file), content);
+      await FileUtils.writeFile(
+        p.join(s, spec.file),
+        WidgetCatalog.sourceFor(spec, variants),
+      );
     }
 
     // A catalog of the whole UI kit and how to scaffold the rest on demand.

@@ -62,9 +62,11 @@ moarch doctor --fix  # ...and apply the ones that don't need a decision
 - Envied-based `.env` support
 - secure storage, logger, helpers, and a full shared UI kit / design system (see below)
 - optional services such as notifications (local or Firebase push), URL launcher, media, debounce
+- an optional maintenance gate — a backend flag that empties the app (see below)
 - optional localization: flutter_localizations (`lib/l10n/` + `.arb` files) or easy_localization (`assets/translations/` JSON files) — pick one, the checklist keeps them mutually exclusive
 - a backend: Dio against a REST API, Firebase (Firestore / Auth), or both (see below)
 - `.vscode/` — `settings.json` pointing the Dart extension at the fvm SDK `.fvmrc` pins, and `launch.json` with debug/profile/release entries plus a flavored pair for `dev`, `staging` and `prod` (ready for when the native side declares them)
+- `android/app/proguard-rules.pro` — the R8 keep rules for the Flutter engine, Firebase, OkHttp and coroutines. Inert until you enable minification for the release build type, so it costs the debug build nothing; the gradle block that turns it on is in `docs/SECURITY_BEFORE_DEPLOYMENT.md`
 
 ### Dio or Firebase
 
@@ -132,6 +134,50 @@ The password rule is one assignment at startup:
 ```dart
 ValidationService.passwordPolicy = PasswordPolicy.lengthOnly;      // 12+ chars
 ValidationService.passwordPolicy = const PasswordPolicy(minLength: 8);
+```
+
+### Maintenance gate
+
+A kill switch your backend owns. `MaintenanceGate` watches a flag and, while it
+is on, replaces the entire app with a screen carrying whatever title and message
+the backend sent — so the team taking the API down can empty the app without an
+app release, and change the wording without one either.
+
+```dart
+MaterialApp.router(
+  builder: (context, child) => MaintenanceGate(child: child!),
+  routerConfig: router,
+)
+```
+
+It goes in `MaterialApp.builder`, which wraps the Navigator — so it sits above
+every route the router can reach, including anything pushed after the flag
+flips. And it *replaces* the app rather than covering it: with no Navigator
+mounted there is nothing left to tap, nothing for the back button to pop, and no
+route that can push itself on top of the gate.
+
+**It fails open.** While the first read is in flight, and if the flag cannot be
+read at all — offline, endpoint down, Firestore rules denied — the app runs
+normally. A fault in the check itself must not be able to lock out every user at
+once. The trade-off runs the other way: a backend that is completely unreachable
+shows your usual error states rather than the maintenance screen.
+
+The source follows the backend you picked. Firestore gets a live `snapshots()`
+listener on `config/maintenance`, so flipping the flag empties every open app
+within a second. Dio gets the endpoint polled every five minutes and again on
+resume. With neither, you get a stub provider to point at whatever you use.
+Either way it is one provider, and the gate above it is identical:
+
+```json
+{ "active": true, "title": "Back at 14:00", "message": "Upgrading the database." }
+```
+
+> Whichever source you use, make it readable **without a token**. A signed-out
+> user, or one whose session expired during the outage, still has to be told the
+> app is down — and a permission denial fails open.
+
+```bash
+moarch create widget maintenance-gate   # or take it in the init checklist
 ```
 
 ### Extensions
@@ -745,6 +791,7 @@ its own:
 | `workflows` | the five GitHub Actions workflows |
 | `project` | `analysis-options`, `splash`, `fvmrc`, `widget-test`, `vscode-settings`, `vscode-launch` |
 | `ios` | `ios-entitlements`, `ios-profile-entitlements`, `xcode-script` |
+| `android` | `proguard` |
 
 Only files your project actually has are ever touched: `update` refreshes what is
 there, it never scaffolds what you chose not to generate. Templates that vary

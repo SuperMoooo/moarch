@@ -14,6 +14,7 @@ class CoreTemplates {
     bool withFirebaseNotifications = false,
     bool withCrashlytics = false,
     bool withFirebase = false,
+    bool withMaintenanceGate = false,
   }) {
     if (withEasyLocalization) withLocalization = false;
 
@@ -135,6 +136,16 @@ final locale = ref.watch(languageProvider).locale;
 '''
             : '';
 
+    final maintenanceImport = withMaintenanceGate
+        ? "\nimport 'shared/widgets/maintenance_gate.dart';"
+        : '';
+
+    // Inside `builder`, so it wraps the Navigator rather than sitting in a
+    // route: a gate below the Navigator could be pushed on top of.
+    final maintenanceOpen =
+        withMaintenanceGate ? 'MaintenanceGate(child: ' : '';
+    final maintenanceClose = withMaintenanceGate ? ')' : '';
+
     if (withRouter) {
       return '''
 import 'package:flutter/foundation.dart';
@@ -142,7 +153,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$firebaseImports
 import 'core/utils/app_logger.dart';
-import 'shared/widgets/error_view.dart';
+import 'shared/widgets/error_view.dart';$maintenanceImport
 import 'config/theme/app_theme.dart';
 import 'config/router/app_router.dart';
 
@@ -207,7 +218,7 @@ class App extends ConsumerWidget {
                   alwaysUse24HourFormat: true,
                 ),
           //   ProviderScope(key: ValueKey(sessionKey), child: child!)
-          child: child!,
+          child: ${maintenanceOpen}child!$maintenanceClose,
         );
       },
     );
@@ -222,7 +233,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$firebaseImports
 import 'core/utils/app_logger.dart';
-import 'shared/widgets/error_view.dart';
+import 'shared/widgets/error_view.dart';$maintenanceImport
 import 'config/theme/app_theme.dart';
 
 Future<void> main() async {
@@ -281,7 +292,7 @@ $localizationConfig      debugShowCheckedModeBanner: false,
             alwaysUse24HourFormat: true,
           ),
           //   ProviderScope(key: ValueKey(sessionKey), child: child!)
-          child: child!,
+          child: ${maintenanceOpen}child!$maintenanceClose,
         );
       },
       // TODO: set your home widget

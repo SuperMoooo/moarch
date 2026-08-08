@@ -22,6 +22,9 @@ const _notPreviewed = {
   // MaterialApp does not install.
   'dialogs': 'needs the app router\'s navigator key',
   'modals': 'needs the app router\'s navigator key',
+  // Replaces the app instead of rendering into it, so there is no way to show
+  // it inside the preview — and what it draws is ErrorView, already covered.
+  'maintenance-gate': 'replaces the whole app; its screen is ErrorView',
 };
 
 void main() {

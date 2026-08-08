@@ -4,7 +4,6 @@ import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:path/path.dart' as p;
 
-import '../../templates/ui/shared_templates.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/project_manifest.dart';
 import '../../utils/pubspec_utils.dart';
@@ -76,12 +75,11 @@ class CreateWidgetCommand extends Command<int> {
     final widgetsRoot = p.join(libPath, 'shared', 'widgets');
     final packages = <String>{for (final spec in specs) ...spec.packages};
 
-    // AppButton has a biometric-aware variant that `moarch init` generates when
-    // the biometric option is selected. Match that here so re-adding the button
-    // to such a project doesn't hand back a version without `requireAuth`.
-    final hasBiometric = File(
-      p.join(libPath, 'core', 'security', 'biometric_service.dart'),
-    ).existsSync();
+    // Some widgets are generated against the project's options — AppButton
+    // against the biometric service, MaintenanceGate against the backend.
+    // Read them off the project, so adding a widget later matches what `init`
+    // would have written for it.
+    final variants = WidgetVariants.detect(libPath);
 
     _logger.info('');
     _logger.info('🧱 Generating ${specs.length} widget(s)');
@@ -100,9 +98,7 @@ class CreateWidgetCommand extends Command<int> {
 
     try {
       for (final spec in specs) {
-        final content = spec.name == 'button'
-            ? SharedTemplates.appButton(hasBiometricAuth: hasBiometric)
-            : spec.template();
+        final content = WidgetCatalog.sourceFor(spec, variants);
         final path = p.join(widgetsRoot, spec.file);
         final wrote = await FileUtils.writeFile(path, content);
         if (wrote) manifest.record(projectRoot, path, content);

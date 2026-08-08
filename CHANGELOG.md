@@ -2,6 +2,58 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 3.1.2
+
+### Features
+
+- **`MaintenanceGate`** — a kill switch the backend owns. While a flag says
+  maintenance, it replaces the whole app with a screen carrying the title and
+  message the backend sent, so the team taking the API down can empty the app,
+  and reword the notice, without a release. Mounted in `MaterialApp.builder` so
+  it wraps the Navigator: above every route the router can reach, including
+  anything pushed after the flag flips. It replaces rather than covers, so
+  nothing is left to tap and the back button has nothing to pop.
+  **It fails open** — loading, offline, endpoint down or rules denied all read
+  as "up", because a fault in the check must not lock out every user at once.
+  The provider follows the project's backend: a live Firestore `snapshots()`
+  listener, a polled Dio endpoint (five minutes, plus on resume), or a stub to
+  point at your own source. Available in the `init` checklist and as
+  `moarch create widget maintenance-gate`.
+- Widgets whose source varies with the project are now resolved in one place,
+  `WidgetCatalog.sourceFor`, instead of being special-cased separately in
+  `init`, `create widget` and `update` — three copies that had to agree, or
+  `update` would report a file as edited the moment it was generated.
+
+- **`init` writes `android/app/proguard-rules.pro`** — the keep rules that were
+  until now only printed in `docs/SECURITY_BEFORE_DEPLOYMENT.md` for you to
+  copy across: the Flutter engine, Play Core, Firebase, OkHttp, coroutines,
+  enums, native methods, and `SourceFile,LineNumberTable` so a release stack
+  trace still de-obfuscates. The file is inert until the release build type
+  turns R8 on, so enabling minification before a release is now just that
+  gradle block rather than that block plus a round of release-only crashes.
+  The doc renders the same template, so the two cannot drift. Refreshable with
+  `moarch update proguard` (new `android` group).
+
+### Docs
+
+- **`CHECKLIST_BEFORE_DEPLOYMENT.md` and `SECURITY_BEFORE_DEPLOYMENT.md`
+  reconciled with what the scaffold actually does.** Both were generic
+  checklists that asked you to do work `init` had already done. Items the
+  scaffold handles now arrive ticked and name the file that handles them
+  (`config/env/app_env.dart`, `TokenStorage`, `ValidationService`,
+  `app_logger.dart`, the CI jobs), so the OWASP mapping stays complete but you
+  can see at a glance what is left. Everything unticked is genuinely yours.
+- Gaps the checklists implied were covered are now called out as gaps, with the
+  exact steps: no `.env.example`, no `network_security_config.xml`, R8 rules
+  written but not enabled, `build/debug-info/` never uploaded by the Android
+  workflow, and `build_ipa.yml` archiving through `xcodebuild` without carrying
+  the Dart obfuscation flags.
+- Corrected content that no longer matched the generator: the `envied` example
+  pointed at `lib/core/env/env.dart` and class `Env` (the scaffold generates
+  `lib/config/env/app_env.dart` and `AppEnv`), the R8 block was Groovy
+  `build.gradle` where the scaffold patches `build.gradle.kts`, and two code
+  examples had Portuguese UI strings in an otherwise English doc.
+
 ## 3.1.1
 
 ### Features

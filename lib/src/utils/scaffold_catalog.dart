@@ -7,6 +7,7 @@ import '../templates/core/core_templates.dart';
 import '../templates/core/error_templates.dart';
 import '../templates/core/security_templates.dart';
 import '../templates/core/services_templates.dart';
+import '../templates/misc/android_templates.dart';
 import '../templates/misc/dev_templates.dart';
 import '../templates/misc/docs_templates.dart';
 import '../templates/misc/ios_templates.dart';
@@ -95,6 +96,12 @@ class ScaffoldContext {
   /// The biometric service was generated — `AppButton` varies with it.
   bool get hasBiometric => hasFile('lib/core/security/biometric_service.dart');
 
+  /// The maintenance gate was generated. `main.dart` mounts it in
+  /// `MaterialApp.builder`, so refreshing main without checking would quietly
+  /// unmount the one widget whose whole job is to be unavoidable.
+  bool get hasMaintenanceGate =>
+      hasFile('lib/shared/widgets/maintenance_gate.dart');
+
   /// Firestore is installed.
   bool get hasFirestore => hasPackage('cloud_firestore');
 
@@ -168,6 +175,7 @@ abstract final class ScaffoldCatalog {
     'Workflows',
     'Project',
     'iOS',
+    'Android',
   ];
 
   /// Group slug → category, for `moarch update core`, `moarch update docs`…
@@ -185,6 +193,7 @@ abstract final class ScaffoldCatalog {
     'workflows': 'Workflows',
     'project': 'Project',
     'ios': 'iOS',
+    'android': 'Android',
   };
 
   /// Every non-widget file the CLI generates.
@@ -262,6 +271,7 @@ abstract final class ScaffoldCatalog {
         withFirebaseNotifications: c.hasFirebaseNotifications,
         withCrashlytics: c.hasCrashlytics,
         withFirebase: c.hasFirebase || c.hasCrashlytics,
+        withMaintenanceGate: c.hasMaintenanceGate,
       ),
       description:
           'The entry point: ProviderScope, theme, router and the services the project selected.',
@@ -744,6 +754,17 @@ abstract final class ScaffoldCatalog {
       template: (_) => IosTemplates.addFilesToXcodeScript(),
       description:
           'Relinks GoogleService-Info.plist into the Xcode project during CI.',
+    ),
+
+    // ── Android ─────────────────────────────────────────────────────────────
+    ScaffoldSpec(
+      name: 'proguard',
+      title: 'proguard-rules.pro',
+      path: 'android/app/proguard-rules.pro',
+      category: 'Android',
+      template: (_) => AndroidTemplates.proguardRules(),
+      description:
+          'R8 keep rules for the Flutter engine, Firebase, OkHttp and coroutines.',
     ),
   ];
 

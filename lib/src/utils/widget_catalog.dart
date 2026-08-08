@@ -1,3 +1,7 @@
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+
 import '../templates/ui/async_templates.dart';
 import '../templates/ui/audio_templates.dart';
 import '../templates/ui/calendar_templates.dart';
@@ -6,12 +10,58 @@ import '../templates/ui/country_templates.dart';
 import '../templates/ui/dialogs_templates.dart';
 import '../templates/ui/drag_templates.dart';
 import '../templates/ui/inputs_templates.dart';
+import '../templates/ui/maintenance_templates.dart';
 import '../templates/ui/modals_templates.dart';
 import '../templates/ui/navigation_templates.dart';
 import '../templates/ui/phone_templates.dart';
 import '../templates/ui/shared_templates.dart';
 import '../templates/ui/table_templates.dart';
 import '../templates/ui/text_templates.dart';
+
+/// The project options a widget's source can vary with.
+///
+/// A widget that reads one of these is generated differently per project, so
+/// every caller — `init` from its checklist, `create widget` and `update` from
+/// what is on disk — has to agree on the answer. Passing this around is what
+/// keeps them from drifting.
+class WidgetVariants {
+  /// Creates a variant set. Everything defaults to absent.
+  const WidgetVariants({
+    this.hasBiometric = false,
+    this.hasFirestore = false,
+    this.hasDio = false,
+  });
+
+  /// Reads the options back off a project's `lib/`, for the callers working
+  /// from a directory rather than from a checklist.
+  factory WidgetVariants.detect(String libPath) => WidgetVariants(
+        hasBiometric: File(
+          p.join(libPath, 'core', 'security', 'biometric_service.dart'),
+        ).existsSync(),
+        hasFirestore: _hasFirestoreProvider(libPath),
+        hasDio: File(p.join(libPath, 'core', 'network', 'dio_client.dart'))
+            .existsSync(),
+      );
+
+  /// `firebase_providers.dart` is generated for Firebase Auth too, so its
+  /// presence alone does not mean there is a Firestore instance to read.
+  static bool _hasFirestoreProvider(String libPath) {
+    final file =
+        File(p.join(libPath, 'config', 'firebase', 'firebase_providers.dart'));
+    return file.existsSync() &&
+        file.readAsStringSync().contains('firebaseDbProvider');
+  }
+
+  /// `core/security/biometric_service.dart` was generated — `AppButton` can
+  /// gate a press on it.
+  final bool hasBiometric;
+
+  /// Firestore is available, so a backend flag can be watched live.
+  final bool hasFirestore;
+
+  /// The Dio client was generated, so a backend flag can be polled.
+  final bool hasDio;
+}
 
 /// One entry in the shared-widget kit: everything needed to generate a widget
 /// on demand and to document it in `docs/UI_KIT.md`.
@@ -24,6 +74,7 @@ class WidgetSpec {
     required this.template,
     required this.category,
     required this.description,
+    this.variantTemplate,
     this.deps = const [],
     this.packages = const [],
     this.common = false,
@@ -39,8 +90,18 @@ class WidgetSpec {
   /// Path relative to `lib/shared/widgets`, e.g. `inputs/app_switch.dart`.
   final String file;
 
-  /// Produces the widget's source.
+  /// Produces the widget's source in its plainest form — no options taken.
+  ///
+  /// Used for the catalog doc and by any caller that has no project to read
+  /// options off. Generators go through [WidgetCatalog.sourceFor] instead.
   final String Function() template;
+
+  /// Produces the widget's source for a project, when it varies with one.
+  ///
+  /// Null for the widgets that read the same everywhere, which is most of
+  /// them. Never call it directly — [WidgetCatalog.sourceFor] falls back to
+  /// [template] when it is absent.
+  final String Function(WidgetVariants variants)? variantTemplate;
 
   /// Grouping used by the generated catalog doc.
   final String category;
@@ -388,6 +449,8 @@ abstract final class WidgetCatalog {
       title: 'AppButton',
       file: 'buttons/app_button.dart',
       template: SharedTemplates.appButton,
+      variantTemplate: (v) =>
+          SharedTemplates.appButton(hasBiometricAuth: v.hasBiometric),
       category: 'Buttons & icons',
       common: true,
       description:
@@ -654,6 +717,20 @@ abstract final class WidgetCatalog {
       description: 'Context-free bottom-sheet helper (via rootNavigatorKey).',
     ),
     WidgetSpec(
+      name: 'maintenance-gate',
+      title: 'MaintenanceGate',
+      file: 'maintenance_gate.dart',
+      template: MaintenanceTemplates.maintenanceGate,
+      variantTemplate: (v) => MaintenanceTemplates.maintenanceGate(
+        withFirestore: v.hasFirestore,
+        withDio: v.hasDio && !v.hasFirestore,
+      ),
+      category: 'Overlays',
+      deps: ['error-view'],
+      description:
+          'Empties the app while a backend flag says maintenance — mounted in MaterialApp.builder, fails open.',
+    ),
+    WidgetSpec(
       name: 'confirm-dialog',
       title: 'AppConfirmDialog',
       file: 'overlays/app_confirm_dialog.dart',
@@ -827,6 +904,15 @@ abstract final class WidgetCatalog {
 
   /// The widgets generated by `moarch init`.
   static List<WidgetSpec> get common => all.where((w) => w.common).toList();
+
+  /// The source [spec] should be written with for a project described by
+  /// [variants].
+  ///
+  /// The one place that knows a widget can vary, so `init`, `create widget`
+  /// and `update` cannot each answer it differently — the bug that shows up as
+  /// `update` reporting a file as edited the moment it was generated.
+  static String sourceFor(WidgetSpec spec, WidgetVariants variants) =>
+      spec.variantTemplate?.call(variants) ?? spec.template();
 
   /// Looks up a spec by its CLI slug, or null if unknown.
   static WidgetSpec? byName(String name) {
