@@ -470,6 +470,15 @@ abstract final class WidgetCatalog {
           'AppListTile on its own AppCard surface — a standalone tappable row.',
     ),
     WidgetSpec(
+      name: 'heading',
+      title: 'AppHeading',
+      file: 'text/app_heading.dart',
+      template: TextTemplates.appHeading,
+      category: 'Layout & content',
+      description:
+          'The title before a thing — page, list, settings group. Five sizes from a hero display down to the uppercased eyebrow, the kit\'s color roles, alignment, an optional icon, subtitle, trailing slot and rule; announced as a header.',
+    ),
+    WidgetSpec(
       name: 'rich-text',
       title: 'AppRichText',
       file: 'text/app_rich_text.dart',

@@ -7819,6 +7819,7 @@ import '../widgets/inputs/app_switch.dart';
 import '../widgets/inputs/app_time_input.dart';
 import '../widgets/layouts/app_single_scroll_view.dart';
 import '../widgets/tables/app_table.dart';
+import '../widgets/text/app_heading.dart';
 import '../widgets/text/app_rich_text.dart';
 import '../widgets/lists/app_card_tile.dart';
 import '../widgets/lists/app_expansion_tile.dart';
@@ -9169,6 +9170,67 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                           onPressed: () {},
                         ),
                       ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── AppHeading ────────────────────────────────────────────────
+              _Section(
+                title: 'AppHeading — sizes',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final size in AppHeadingSize.values)
+                      AppHeading(
+                        title: size.name,
+                        subtitle: 'With a supporting line',
+                        size: size,
+                      ),
+                  ],
+                ),
+              ),
+
+              _Section(
+                title: 'AppHeading — variants, align & extras',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final variant in AppHeadingVariant.values)
+                      AppHeading(
+                        title: variant.name,
+                        size: AppHeadingSize.small,
+                        variant: variant,
+                      ),
+                    const SizedBox(height: AppConstants.space8),
+                    for (final align in AppHeadingAlign.values)
+                      AppHeading(
+                        title: 'Aligned ${align.name}',
+                        subtitle: 'The subtitle follows the title',
+                        size: AppHeadingSize.small,
+                        align: align,
+                      ),
+                    const SizedBox(height: AppConstants.space8),
+                    const AppHeading(
+                      title: 'With an icon',
+                      icon: Icons.tune,
+                      variant: AppHeadingVariant.primary,
+                    ),
+                    AppHeading(
+                      title: 'With a trailing slot',
+                      subtitle: 'And a rule under it',
+                      divider: true,
+                      trailing: AppIconButton(
+                        icon: Icons.more_horiz,
+                        onPressed: () {},
+                      ),
+                    ),
+                    const SizedBox(height: AppConstants.space8),
+                    const AppHeading(
+                      title: 'A title long enough that it has to stop somewhere '
+                          'rather than run on down the screen',
+                      size: AppHeadingSize.small,
+                      maxLines: 1,
                     ),
                   ],
                 ),
