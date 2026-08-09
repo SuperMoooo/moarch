@@ -73,6 +73,7 @@ abstract final class ProjectInspector {
 
     return [
       ..._structure(root, libPath),
+      ..._fvm(root),
       if (pubspec != null) ..._dependencies(libPath, pubspec),
       if (pubspec != null) ..._firebase(root, libPath, pubspec),
       if (pubspec != null) ..._localization(libPath, pubspec),
@@ -102,6 +103,108 @@ abstract final class ProjectInspector {
             hint: 'Run `moarch init` to scaffold it.',
           ),
     ];
+  }
+
+  // ── FVM ─────────────────────────────────────────────────────────────────────
+
+  /// Matches the `dart.flutterSdkPath` entry in `.vscode/settings.json`.
+  ///
+  /// Parsed by hand rather than with `jsonDecode`: the generated file is JSONC
+  /// — the comments explaining the setting would make decoding throw.
+  static final RegExp _sdkPathPattern =
+      RegExp(r'"dart\.flutterSdkPath"\s*:\s*"([^"]*)"');
+
+  /// The editor half of the FVM pin.
+  ///
+  /// A `dart.flutterSdkPath` that points nowhere is the worst case here and
+  /// the reason these checks exist: the Dart extension does not error on it,
+  /// it silently falls back to the first Flutter on PATH. Debug runs, hot
+  /// reload and the analyzer then all use the SDK `.fvmrc` exists to avoid,
+  /// and the only symptom is analyzer output that disagrees with
+  /// `fvm flutter analyze`.
+  static List<Diagnostic> _fvm(String root) {
+    // Not an fvm project — `_structure` already reports the missing .fvmrc.
+    if (!File(p.join(root, '.fvmrc')).existsSync()) return const [];
+
+    final findings = <Diagnostic>[];
+    final settingsFile = File(p.join(root, '.vscode', 'settings.json'));
+    if (!settingsFile.existsSync()) {
+      return [
+        const Diagnostic.warning(
+          '.vscode/settings.json is missing, so the editor ignores .fvmrc',
+          hint: 'Run `moarch init` to scaffold it, or set '
+              '"dart.flutterSdkPath": ".fvm/flutter_sdk" yourself.',
+        ),
+      ];
+    }
+
+    final settings = settingsFile.readAsStringSync();
+    final configured = _sdkPathPattern.firstMatch(settings)?.group(1);
+    if (configured == null) {
+      return [
+        const Diagnostic.warning(
+          '.vscode/settings.json has no dart.flutterSdkPath, so the editor '
+          'runs whatever Flutter is on PATH',
+          hint: 'Add "dart.flutterSdkPath": ".fvm/flutter_sdk" — without it '
+              'the .fvmrc pin only applies to `fvm flutter` on the CLI.',
+        ),
+      ];
+    }
+
+    // `fvm use` rewrites the setting to the resolved version — .fvm/versions/
+    // <version> — which pins the editor a second time, in a second place, and
+    // silently stops tracking .fvmrc the next time the pin changes.
+    if (configured.contains('.fvm/versions/')) {
+      findings.add(
+        Diagnostic.warning(
+          'dart.flutterSdkPath is "$configured", a versioned path that stops '
+          'following .fvmrc',
+          hint: 'Point it at ".fvm/flutter_sdk" instead — that symlink '
+              'follows the pin, so switching SDKs needs no editor change.',
+          fix: () async {
+            await settingsFile.writeAsString(
+              settings.replaceFirst(
+                _sdkPathPattern,
+                '"dart.flutterSdkPath": ".fvm/flutter_sdk"',
+              ),
+            );
+            return 'pointed dart.flutterSdkPath back at .fvm/flutter_sdk '
+                '(reload the VS Code window)';
+          },
+        ),
+      );
+    }
+
+    // Only a project-relative path is ours to check — an absolute one is a
+    // deliberate override of the pin.
+    if (p.isAbsolute(configured)) return findings;
+
+    final sdkPath = p.join(root, p.normalize(configured));
+    final linked = FileSystemEntity.typeSync(sdkPath, followLinks: false) !=
+        FileSystemEntityType.notFound;
+    if (!linked) {
+      findings.add(
+        Diagnostic.error(
+          'dart.flutterSdkPath points at $configured, which does not exist — '
+          'the editor is silently using the Flutter on your PATH',
+          hint: 'Run `fvm use` in the project root to create it, then reload '
+              'the VS Code window. `.fvm/` is gitignored, so every fresh '
+              'clone needs this once.',
+        ),
+      );
+    } else if (!Directory(sdkPath).existsSync()) {
+      // The symlink survived but its target did not — usually the pinned
+      // version was removed from the fvm cache.
+      findings.add(
+        Diagnostic.error(
+          '$configured is a dangling link — the pinned SDK is not installed',
+          hint: 'Run `fvm install` to restore the version .fvmrc pins, then '
+              'reload the VS Code window.',
+        ),
+      );
+    }
+
+    return findings;
   }
 
   // ── Dependencies ────────────────────────────────────────────────────────────

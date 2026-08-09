@@ -7817,6 +7817,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
+import '../../config/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/errors/app_exception.dart';
 import '../widgets/app_async_view.dart';
@@ -8003,9 +8004,10 @@ class _DesignSystemViewState extends State<DesignSystemView> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       themeMode: _mode,
-      // TODO: replace with your actual AppTheme
-      theme: ThemeData(useMaterial3: true),
-      darkTheme: ThemeData(useMaterial3: true, brightness: Brightness.dark),
+      // The app's real themes, so what this screen previews is what ships —
+      // edit config/theme/app_theme.dart and every widget below follows.
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
       home: Builder(
         builder: (context) => Scaffold(
           // The screen's own chrome is AppAppBar, so this doubles as its

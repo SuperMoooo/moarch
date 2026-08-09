@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/utils/file_utils.dart';
 import 'package:moarch/src/utils/project_inspector.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
@@ -20,6 +21,13 @@ void main() {
     await File(p.join(libPath, 'main.dart')).writeAsString('void main() {}');
     await File(p.join(root, '.env')).writeAsString('API_URL=http://x');
     await File(p.join(root, '.fvmrc')).writeAsString('{}');
+    await File(p.join(root, '.vscode', 'settings.json'))
+        .create(recursive: true)
+        .then((file) => file.writeAsString(DevTemplates.vscodeSettings()));
+    // Stands in for the symlink `fvm use` creates — the checks only ask that
+    // the path resolves, and a real directory does that on every platform
+    // without needing the privileges a Windows symlink would.
+    await Directory(p.join(root, '.fvm', 'flutter_sdk')).create(recursive: true);
     await File(p.join(root, 'pubspec.yaml')).writeAsString('''
 name: demo
 
@@ -63,6 +71,92 @@ dependencies:
       final findings = await ProjectInspector.inspect(root);
       expect(matching(findings, 'lib/core/'), hasLength(1));
       expect(matching(findings, '.env'), hasLength(1));
+    });
+  });
+
+  group('fvm', () {
+    String settingsPath() => p.join(root, '.vscode', 'settings.json');
+
+    test('flags an SDK path that points nowhere, because the editor does not',
+        () async {
+      await scaffoldHealthyProject();
+      // What a fresh clone looks like: .fvm/ is gitignored, so the symlink
+      // the committed settings.json points at is simply absent.
+      await Directory(p.join(root, '.fvm', 'flutter_sdk')).delete();
+
+      final findings = await ProjectInspector.inspect(root);
+      final finding = matching(findings, 'does not exist').single;
+      expect(finding.severity, DiagnosticSeverity.error);
+      expect(finding.hint, contains('fvm use'));
+      // Only a human running fvm can create it.
+      expect(finding.isFixable, isFalse);
+    });
+
+    test('flags a versioned SDK path, and --fix points it back at the symlink',
+        () async {
+      await scaffoldHealthyProject();
+      // What `fvm use` leaves behind when it rewrites the file.
+      await File(settingsPath()).writeAsString(
+        '{"dart.flutterSdkPath": ".fvm/versions/stable"}',
+      );
+
+      final finding =
+          matching(await ProjectInspector.inspect(root), 'versioned path')
+              .single;
+      expect(finding.severity, DiagnosticSeverity.warning);
+      expect(finding.isFixable, isTrue);
+
+      await finding.fix!();
+
+      expect(
+        await File(settingsPath()).readAsString(),
+        contains('"dart.flutterSdkPath": ".fvm/flutter_sdk"'),
+      );
+      // The rewritten path resolves again, so the whole group falls silent.
+      expect(await ProjectInspector.inspect(root), isEmpty);
+    });
+
+    test('flags settings.json when it is missing entirely', () async {
+      await scaffoldHealthyProject();
+      await File(settingsPath()).delete();
+
+      final finding = matching(
+        await ProjectInspector.inspect(root),
+        '.vscode/settings.json is missing',
+      ).single;
+      expect(finding.severity, DiagnosticSeverity.warning);
+    });
+
+    test('flags settings.json that never sets dart.flutterSdkPath', () async {
+      await scaffoldHealthyProject();
+      await File(settingsPath()).writeAsString('{"editor.tabSize": 2}');
+
+      expect(
+        matching(await ProjectInspector.inspect(root), 'no dart.flutterSdkPath'),
+        hasLength(1),
+      );
+    });
+
+    test('leaves an absolute SDK path alone — that is a deliberate override',
+        () async {
+      await scaffoldHealthyProject();
+      await File(settingsPath()).writeAsString(
+        '{"dart.flutterSdkPath": "${p.join(root, 'lib').replaceAll(r'\', r'\\')}"}',
+      );
+
+      expect(await ProjectInspector.inspect(root), isEmpty);
+    });
+
+    test('says nothing about a project that does not use fvm', () async {
+      await scaffoldHealthyProject();
+      await File(p.join(root, '.fvmrc')).delete();
+      await File(settingsPath()).delete();
+
+      // The missing .fvmrc is the structural check's finding, not this
+      // group's — no editor-config noise piled on top of it.
+      final findings = await ProjectInspector.inspect(root);
+      expect(matching(findings, '.fvmrc'), hasLength(1));
+      expect(matching(findings, 'settings.json'), isEmpty);
     });
   });
 

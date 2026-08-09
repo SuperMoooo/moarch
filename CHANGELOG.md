@@ -2,6 +2,45 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 3.1.4
+
+### Fixes
+
+- **The design-system preview renders in the app's real theme.** It built its
+  own `ThemeData(useMaterial3: true)` behind a `TODO`, so the one screen whose
+  job is showing what the kit looks like was the one screen not showing it —
+  every widget previewed in stock Material colors and type instead of the
+  project's. It now uses `AppTheme.light` / `AppTheme.dark`, the same themes
+  `main.dart` mounts, so editing `lib/config/theme/app_theme.dart` moves the
+  preview with it. `app_theme.dart` is written unconditionally by `init`, so
+  the new import needs nothing the scaffold did not already have.
+
+- **`init` and `doctor` now surface the `fvm use` step.** `init` writes a
+  `.vscode/settings.json` pointing `dart.flutterSdkPath` at `.fvm/flutter_sdk`,
+  but only `fvm use` creates that symlink and `.fvm/` is gitignored — so on a
+  fresh scaffold or a fresh clone the path did not exist. Nothing reports that:
+  the Dart extension silently falls back to the first Flutter on `PATH`, and
+  debug, hot reload and the analyzer all run the SDK the `.fvmrc` pin exists to
+  avoid. The only symptom is analyzer output that disagrees with
+  `fvm flutter analyze`. `init` now prints `fvm use` as the first step, ahead of
+  `pub get`, and `moarch doctor` grew a check for it:
+  - `dart.flutterSdkPath` pointing at a path that does not exist — **error**,
+    with the `fvm use` fix.
+  - the symlink present but dangling, the pinned SDK not installed — **error**,
+    pointing at `fvm install`.
+  - a versioned `.fvm/versions/<version>` path, which is what `fvm use` rewrites
+    the setting to and which stops following `.fvmrc` — **warning**, and
+    `doctor --fix` points it back at `.fvm/flutter_sdk`.
+  - `settings.json` missing, or carrying no `dart.flutterSdkPath` — **warning**.
+
+  An absolute path is left alone as a deliberate override, and a project with no
+  `.fvmrc` gets none of these findings.
+
+- The README documents that the generated `.fvmrc` pins the `stable` *alias*
+  rather than a version, so `fvm install` on CI or a teammate's machine can
+  resolve to a different SDK than your cache holds, and how to pin for real once
+  the project ships.
+
 ## 3.1.3
 
 ### Features

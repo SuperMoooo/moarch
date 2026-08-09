@@ -25,11 +25,32 @@ If `moarch` is not found, make sure your Pub bin folder is on your `PATH`.
 flutter create my_app
 cd my_app
 moarch init
-flutter pub get
-dart run build_runner build --delete-conflicting-outputs  # generates app_env.g.dart
+fvm use          # creates .fvm/flutter_sdk — see below, do this before opening the editor
+fvm flutter pub get
+fvm dart run build_runner build --delete-conflicting-outputs  # generates app_env.g.dart
 moarch create feature auth
 moarch create model auth login_response
 ```
+
+`init` writes a `.fvmrc` pin and a `.vscode/settings.json` that points
+`dart.flutterSdkPath` at `.fvm/flutter_sdk` — the symlink `fvm use` creates.
+`.fvm/` is gitignored, so **every fresh clone has to run `fvm use` once**.
+Skip it and nothing errors: the Dart extension quietly falls back to the first
+Flutter on your `PATH`, so debug, hot reload and the analyzer all run the SDK
+the pin exists to avoid. `moarch doctor` flags it if you forget.
+
+The generated `.fvmrc` says `"flutter": "stable"` so a new project starts on the
+current stable. That is an alias, not a pin — `fvm install` on CI or a
+teammate's machine resolves it to whatever `stable` is *that day*, which can be
+a different SDK than your cache holds. Once the project ships, pin it for real:
+
+```bash
+fvm use 3.41.4   # rewrites .fvmrc to that exact version
+```
+
+`fvm use` also rewrites `.vscode/settings.json` to a versioned path and strips
+its comments. Put `".fvm/flutter_sdk"` back — it follows `.fvmrc`, so later SDK
+switches never touch the editor config. `moarch doctor --fix` does exactly that.
 
 ## Commands
 
@@ -694,8 +715,11 @@ The kit covers:
 
 Every control shares one vocabulary — `variant`, `type`, `shape`, `size` — and
 `moarch create widget design-system` (or `all`) generates a screen previewing them
-all in light/dark. Set `AppConstants.fontFamily` (or swap in `google_fonts`) to
-restyle the whole app's typography from one place.
+all in light/dark. It renders with `AppTheme.light` / `AppTheme.dark` — the same
+themes `main.dart` uses — so what you see there is what ships: edit
+`lib/config/theme/app_theme.dart` and the preview follows. Set
+`AppConstants.fontFamily` (or swap in `google_fonts`) to restyle the whole app's
+typography from one place.
 
 ## Models from a JSON sample
 

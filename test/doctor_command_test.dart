@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/commands/doctor_command.dart';
+import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -20,6 +21,12 @@ void main() {
     await File(p.join(libPath, 'main.dart')).writeAsString('void main() {}');
     await File(p.join(root, '.env')).writeAsString('API_URL=http://x');
     await File(p.join(root, '.fvmrc')).writeAsString('{}');
+    await File(p.join(root, '.vscode', 'settings.json'))
+        .create(recursive: true)
+        .then((file) => file.writeAsString(DevTemplates.vscodeSettings()));
+    // Stands in for the symlink `fvm use` creates — a real directory resolves
+    // the same way without needing Windows symlink privileges.
+    await Directory(p.join(root, '.fvm', 'flutter_sdk')).create(recursive: true);
     await File(p.join(root, 'pubspec.yaml')).writeAsString('''
 name: demo
 

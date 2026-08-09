@@ -41,8 +41,19 @@ linter:
   /// Dart/Flutter extension at the SDK [fvmrc] pins.
   static String vscodeSettings() => '''
 {
-    // The symlink `fvm use stable` creates. `.fvm/` is gitignored, so a fresh
-    // clone must run `fvm use stable` once before this path exists.
+    // The symlink `fvm use` creates. `.fvm/` is gitignored, so every fresh
+    // clone must run `fvm use` once before this path exists.
+    //
+    // Nothing errors when it does not: the Dart extension falls back to the
+    // first Flutter on PATH, silently, so F5 / hot reload / the analyzer all
+    // run the SDK the pin exists to avoid. If a deprecation or an analyzer
+    // error shows up that `fvm flutter analyze` does not report, this is why —
+    // run `fvm use` and reload the window.
+    //
+    // Kept version-agnostic on purpose: `flutter_sdk` follows .fvmrc, so
+    // switching SDKs never touches this file. Re-running `fvm use` rewrites
+    // this file with a versioned path and strips these comments — put them
+    // back, or run `moarch doctor`, which flags the versioned form.
     "dart.flutterSdkPath": ".fvm/flutter_sdk",
 
     // Without these, search and the file watcher index the whole SDK.

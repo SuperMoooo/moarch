@@ -768,14 +768,22 @@ class InitCommand extends Command<int> {
     _logger.success('');
     _logger.success('✅  Project scaffolded!');
     _logger.info('');
+    // .vscode/settings.json points dart.flutterSdkPath at .fvm/flutter_sdk,
+    // and only `fvm use` creates it. Until then the Dart extension does not
+    // complain — it quietly falls back to the Flutter on PATH, which is the
+    // version .fvmrc exists to stop using. So this comes before pub get.
+    _logger.info('  Run: fvm use   (creates .fvm/flutter_sdk, which');
+    _logger.info('       .vscode/settings.json points the editor at — until it');
+    _logger.info('       exists, debug and the analyzer use your PATH Flutter)');
+    _logger.info('');
     _logger.info(
         '  The selected scaffold dependencies were added to pubspec.yaml.');
-    _logger.info('  Run: flutter pub get');
+    _logger.info('  Then:  fvm flutter pub get');
     // config/env/app_env.dart is a `part` of an envied-generated file, so the
     // project does not analyze cleanly until build_runner has produced
     // app_env.g.dart. Say so here rather than letting it look like a bug.
     _logger.info(
-        '  Then:  dart run build_runner build --delete-conflicting-outputs');
+        '  Then:  fvm dart run build_runner build --delete-conflicting-outputs');
     _logger.info(
         '         (generates config/env/app_env.g.dart from .env — required)');
     _logger.info('');
