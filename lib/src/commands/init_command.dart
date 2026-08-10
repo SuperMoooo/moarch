@@ -50,6 +50,7 @@ const _kNotificationsService = 'Notifications service';
 const _kFirebaseNotifications = 'Firebase push notifications (FCM)';
 const _kBiometricAuth = 'Biometric authentication';
 const _kMaintenanceGate = 'Maintenance gate (backend kill switch)';
+const _kMoAdapt = 'MoAdapt (proportional UI scaling)';
 const _kLocalizations = 'Localization (l10n)';
 const _kEasyLocalization = 'Localization (easy_localization)';
 
@@ -113,6 +114,7 @@ class InitCommand extends Command<int> {
         _kNotificationsService,
         _kBiometricAuth,
         _kMaintenanceGate,
+        _kMoAdapt,
         _kLocalizations,
       };
     } else {
@@ -207,6 +209,13 @@ class InitCommand extends Command<int> {
               description:
                   'Empties the app while a backend flag says maintenance; '
                   'fails open if the flag cannot be read.',
+            ),
+            const ChecklistItem(
+              _kMoAdapt,
+              defaultOn: true,
+              description:
+                  'Wraps the app so every fixed dimension scales '
+                  'proportionally to the screen from a 390×844 design frame.',
             ),
             const ChecklistItem(
               _kLocalizations,
@@ -443,6 +452,7 @@ class InitCommand extends Command<int> {
               stack.contains(_kFirebaseAuth) ||
               stack.contains(_kCrashlytics),
           withMaintenanceGate: stack.contains(_kMaintenanceGate),
+          withMoAdapt: stack.contains(_kMoAdapt),
         ),
         overwriteWhen: _isFlutterCounterDemo,
       );
@@ -1471,6 +1481,7 @@ class InitCommand extends Command<int> {
       ...WidgetCatalog.common,
       if (stack.contains(_kMaintenanceGate))
         ...WidgetCatalog.resolve(['maintenance-gate']),
+      if (stack.contains(_kMoAdapt)) ...WidgetCatalog.resolve(['mo-adapt']),
     ];
 
     for (final spec in {for (final spec in specs) spec.name: spec}.values) {

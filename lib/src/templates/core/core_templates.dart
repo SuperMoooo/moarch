@@ -15,6 +15,7 @@ class CoreTemplates {
     bool withCrashlytics = false,
     bool withFirebase = false,
     bool withMaintenanceGate = false,
+    bool withMoAdapt = false,
   }) {
     if (withEasyLocalization) withLocalization = false;
 
@@ -44,16 +45,55 @@ class CoreTemplates {
         ? 'UncontrolledProviderScope(container: container, child: const App())'
         : 'const ProviderScope(child: App())';
 
-    final runAppCall = withEasyLocalization
-        ? '''runApp(
+    // MoAdapt is the outermost widget so the entire app — EasyLocalization,
+    // provider scopes, MaterialApp — renders in design-space coordinates.
+    final String runAppCall;
+    if (withEasyLocalization && withMoAdapt) {
+      runAppCall = '''runApp(
+    MoAdapt(
+      // The frame the UI is designed against; every fixed dimension scales
+      // proportionally from it. Tune with scaleMode / minScale / maxScale.
+      designSize: const Size(390, 844),
+      child: EasyLocalization(
+        supportedLocales: const [Locale('en'), Locale('pt')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en'),
+        child: $rootScope,
+      ),
+    ),
+  );''';
+    } else if (withEasyLocalization) {
+      runAppCall = '''runApp(
     EasyLocalization(
       supportedLocales: const [Locale('en'), Locale('pt')],
       path: 'assets/translations',
       fallbackLocale: const Locale('en'),
       child: $rootScope,
     ),
+  );''';
+    } else if (withMoAdapt) {
+      // With a plain ProviderScope the whole tree is const, so the const
+      // keyword moves to MoAdapt; with a container it cannot be const at all.
+      runAppCall = needsContainer
+          ? '''runApp(
+    MoAdapt(
+      // The frame the UI is designed against; every fixed dimension scales
+      // proportionally from it. Tune with scaleMode / minScale / maxScale.
+      designSize: const Size(390, 844),
+      child: $rootScope,
+    ),
   );'''
-        : 'runApp($rootScope);';
+          : '''runApp(
+    const MoAdapt(
+      // The frame the UI is designed against; every fixed dimension scales
+      // proportionally from it. Tune with scaleMode / minScale / maxScale.
+      designSize: Size(390, 844),
+      child: ProviderScope(child: App()),
+    ),
+  );''';
+    } else {
+      runAppCall = 'runApp($rootScope);';
+    }
 
     final containerSetup =
         needsContainer ? '\n  final container = ProviderContainer();\n' : '';
@@ -140,6 +180,9 @@ final locale = ref.watch(languageProvider).locale;
         ? "\nimport 'shared/widgets/maintenance_gate.dart';"
         : '';
 
+    final moAdaptImport =
+        withMoAdapt ? "\nimport 'shared/widgets/mo_adapt.dart';" : '';
+
     // Inside `builder`, so it wraps the Navigator rather than sitting in a
     // route: a gate below the Navigator could be pushed on top of.
     final maintenanceOpen =
@@ -153,7 +196,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$firebaseImports
 import 'core/utils/app_logger.dart';
-import 'shared/widgets/error_view.dart';$maintenanceImport
+import 'shared/widgets/error_view.dart';$maintenanceImport$moAdaptImport
 import 'config/theme/app_theme.dart';
 import 'config/router/app_router.dart';
 
@@ -233,7 +276,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$firebaseImports
 import 'core/utils/app_logger.dart';
-import 'shared/widgets/error_view.dart';$maintenanceImport
+import 'shared/widgets/error_view.dart';$maintenanceImport$moAdaptImport
 import 'config/theme/app_theme.dart';
 
 Future<void> main() async {

@@ -25,6 +25,9 @@ const _notPreviewed = {
   // Replaces the app instead of rendering into it, so there is no way to show
   // it inside the preview — and what it draws is ErrorView, already covered.
   'maintenance-gate': 'replaces the whole app; its screen is ErrorView',
+  // Wraps the whole app from main.dart; inside the preview it would only
+  // rescale the widgets already on screen, showing nothing of its own.
+  'mo-adapt': 'mounted above MaterialApp; draws nothing of its own',
 };
 
 void main() {

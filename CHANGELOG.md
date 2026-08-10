@@ -2,6 +2,12 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 3.1.5
+
+### Features
+
+- Adapt widget for size dimensions
+
 ## 3.1.4
 
 ### Fixes
@@ -24,19 +30,19 @@ All notable changes to this package are documented in this file, newest first.
   avoid. The only symptom is analyzer output that disagrees with
   `fvm flutter analyze`. `init` now prints `fvm use` as the first step, ahead of
   `pub get`, and `moarch doctor` grew a check for it:
-  - `dart.flutterSdkPath` pointing at a path that does not exist — **error**,
-    with the `fvm use` fix.
-  - the symlink present but dangling, the pinned SDK not installed — **error**,
-    pointing at `fvm install`.
-  - a versioned `.fvm/versions/<version>` path, which is what `fvm use` rewrites
-    the setting to and which stops following `.fvmrc` — **warning**, and
-    `doctor --fix` points it back at `.fvm/flutter_sdk`.
-  - `settings.json` missing, or carrying no `dart.flutterSdkPath` — **warning**.
+    - `dart.flutterSdkPath` pointing at a path that does not exist — **error**,
+      with the `fvm use` fix.
+    - the symlink present but dangling, the pinned SDK not installed — **error**,
+      pointing at `fvm install`.
+    - a versioned `.fvm/versions/<version>` path, which is what `fvm use` rewrites
+      the setting to and which stops following `.fvmrc` — **warning**, and
+      `doctor --fix` points it back at `.fvm/flutter_sdk`.
+    - `settings.json` missing, or carrying no `dart.flutterSdkPath` — **warning**.
 
-  An absolute path is left alone as a deliberate override, and a project with no
-  `.fvmrc` gets none of these findings.
+            An absolute path is left alone as a deliberate override, and a project with no
+            `.fvmrc` gets none of these findings.
 
-- The README documents that the generated `.fvmrc` pins the `stable` *alias*
+- The README documents that the generated `.fvmrc` pins the `stable` _alias_
   rather than a version, so `fvm install` on CI or a teammate's machine can
   resolve to a different SDK than your cache holds, and how to pin for real once
   the project ships.

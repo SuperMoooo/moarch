@@ -102,6 +102,11 @@ class ScaffoldContext {
   bool get hasMaintenanceGate =>
       hasFile('lib/shared/widgets/maintenance_gate.dart');
 
+  /// MoAdapt was generated. `main.dart` mounts it above the whole app, so
+  /// refreshing main without checking would silently drop the proportional
+  /// scaling every screen was built against.
+  bool get hasMoAdapt => hasFile('lib/shared/widgets/mo_adapt.dart');
+
   /// Firestore is installed.
   bool get hasFirestore => hasPackage('cloud_firestore');
 
@@ -272,6 +277,7 @@ abstract final class ScaffoldCatalog {
         withCrashlytics: c.hasCrashlytics,
         withFirebase: c.hasFirebase || c.hasCrashlytics,
         withMaintenanceGate: c.hasMaintenanceGate,
+        withMoAdapt: c.hasMoAdapt,
       ),
       description:
           'The entry point: ProviderScope, theme, router and the services the project selected.',

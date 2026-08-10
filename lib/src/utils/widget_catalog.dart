@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../templates/ui/adapt_templates.dart';
 import '../templates/ui/async_templates.dart';
 import '../templates/ui/audio_templates.dart';
 import '../templates/ui/calendar_templates.dart';
@@ -496,6 +497,16 @@ abstract final class WidgetCatalog {
     ),
 
     // ── Layout & content ──────────────────────────────────────────────────────
+    WidgetSpec(
+      name: 'mo-adapt',
+      title: 'MoAdapt',
+      file: 'mo_adapt.dart',
+      template: AdaptTemplates.moAdapt,
+      category: 'Layout & content',
+      description:
+          'Scales the whole UI proportionally from a reference design size — '
+          'mounted once above MaterialApp, no .w/.sp accessors needed.',
+    ),
     WidgetSpec(
       name: 'single-scroll-view',
       title: 'AppSingleScrollView',
