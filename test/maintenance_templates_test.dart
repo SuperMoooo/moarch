@@ -17,6 +17,18 @@ void main() {
       }
     });
 
+    test('blank copy falls back to the default wording', () {
+      // A document seeded from the console starts as `title: ""`, and an empty
+      // string is not null — without this the gate would close on a screen with
+      // no heading and no body, which reads as a crash rather than an outage.
+      final source = MaintenanceTemplates.maintenanceGate();
+
+      expect(source, contains("title: _text(map['title'])"));
+      expect(source, contains("message: _text(map['message'])"));
+      expect(source, contains('trimmed.isEmpty ? null : trimmed'));
+      expect(source, contains("status.title ?? 'Under maintenance'"));
+    });
+
     test('blocks by replacing the app, not by covering it', () {
       final source = MaintenanceTemplates.maintenanceGate();
 

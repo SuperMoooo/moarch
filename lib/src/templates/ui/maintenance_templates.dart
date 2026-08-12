@@ -66,12 +66,23 @@ class MaintenanceStatus {
 
   /// Reads the flag, defaulting every field. A malformed payload must not be
   /// able to gate the app, so anything unparseable reads as `active: false`.
+  ///
+  /// Blank copy is read as absent rather than as text: a document seeded with
+  /// `"title": ""` is the normal starting state, and it has to fall back to
+  /// [MaintenanceView]'s defaults instead of rendering an empty heading.
   factory MaintenanceStatus.fromMap(Map<String, dynamic> map) =>
       MaintenanceStatus(
         isActive: map['active'] as bool? ?? false,
-        title: map['title'] as String?,
-        message: map['message'] as String?,
+        title: _text(map['title']),
+        message: _text(map['message']),
       );
+
+  /// The value as copy, or null if it is missing, not a string, or blank.
+  static String? _text(Object? value) {
+    if (value is! String) return null;
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
 
   /// Whether the app should be blocked.
   final bool isActive;
