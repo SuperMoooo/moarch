@@ -246,7 +246,7 @@ class App extends ConsumerWidget {
     return MaterialApp.router(
       title: 'App',
       theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
+      //darkTheme: AppTheme.dark,
       $localizationConfig
       routerConfig: router,
       debugShowCheckedModeBanner: false,
@@ -324,7 +324,7 @@ class App extends ConsumerWidget {
     return MaterialApp(
       title: 'App',
       theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
+      //darkTheme: AppTheme.dark,
 $localizationConfig      debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return MediaQuery(

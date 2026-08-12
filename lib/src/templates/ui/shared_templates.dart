@@ -8007,7 +8007,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
       // The app's real themes, so what this screen previews is what ships —
       // edit config/theme/app_theme.dart and every widget below follows.
       theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
+      //darkTheme: AppTheme.dark,
       home: Builder(
         builder: (context) => Scaffold(
           // The screen's own chrome is AppAppBar, so this doubles as its
