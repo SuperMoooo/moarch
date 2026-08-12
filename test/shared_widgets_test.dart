@@ -209,9 +209,23 @@ void main() {
       // a light-palette green on a dark card if the theme changed in between.
       expect(output,
           contains('final isDark = theme.brightness == Brightness.dark;'));
-      expect(output,
-          contains('final (accent, icon) = AppToast._resolve(type, isDark);'));
+      expect(
+          output, contains('final (accent, icon) = AppToast._resolve(type);'));
       expect(output, contains('required this.type,'));
+    });
+
+    test('picks the status color per brightness only with a dark theme', () {
+      final dark = SharedTemplates.appToast(withDark: true);
+      expect(dark,
+          contains('final (accent, icon) = AppToast._resolve(type, isDark);'));
+      expect(dark,
+          contains('isDark ? AppConstants.successDark : AppConstants.success'));
+
+      // With one brand theme those *Dark constants are not generated at all,
+      // so reading them would not compile.
+      expect(output, isNot(contains('Dark :')));
+      expect(output, isNot(contains('AppConstants.successDark')));
+      expect(output, contains('AppConstants.success,'));
     });
 
     test('sits on an elevated surface in dark, a plain one in light', () {

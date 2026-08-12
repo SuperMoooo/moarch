@@ -67,6 +67,8 @@ moarch create entity-copys <featureName> # inject copyWith into the feature's en
 moarch create widget <name>        # add a UI-kit widget on demand (e.g. switch, otp, list-tile)
 moarch create widget all           # generate the whole UI kit + the preview screen
 moarch create widget --list        # list every available widget
+moarch create theme --dark         # add the dark palette + AppTheme.dark to a one-theme project
+moarch create theme --no-dark      # ...and drop back to the single brand theme
 
 moarch update        # refresh every generated file against the current templates
 moarch update <name> # ...or just one (e.g. validation, extensions, theme)
@@ -216,8 +218,8 @@ number formatting (`formatCurrency`, `formatDecimal`, `formatCompact`,
 ## Design system
 
 `moarch init` sets up the design foundation — tokens (spacing, radius, a wired-up
-type scale, colors) in `core/constants/app_constants.dart`, a light/dark `AppTheme`,
-and a **lean common set** of widgets under `lib/shared/widgets/`: inputs (`AppInput`,
+type scale, colors) in `core/constants/app_constants.dart`, an `AppTheme` built
+from them, and a **lean common set** of widgets under `lib/shared/widgets/`: inputs (`AppInput`,
 `AppInputFormat`, `AppInputStyle`, `InputTitle`), `AppButton`, `AppLeadingIcon`, the
 state screens (`AppAsyncView`, `ErrorView`, `EmptyView`, `AppLoadingData`) and
 overlays (`AppToast`, `AppConfirmDialog`, dialog/bottom-sheet helpers).
@@ -715,11 +717,39 @@ The kit covers:
 
 Every control shares one vocabulary — `variant`, `type`, `shape`, `size` — and
 `moarch create widget design-system` (or `all`) generates a screen previewing them
-all in light/dark. It renders with `AppTheme.light` / `AppTheme.dark` — the same
-themes `main.dart` uses — so what you see there is what ships: edit
-`lib/config/theme/app_theme.dart` and the preview follows. Set
+all. It renders with the same `AppTheme` `main.dart` uses — so what you see there
+is what ships: edit `lib/config/theme/app_theme.dart` and the preview follows
+(with a light/dark toggle in its app bar when the project has both themes). Set
 `AppConstants.fontFamily` (or swap in `google_fonts`) to restyle the whole app's
 typography from one place.
+
+### One theme, or two
+
+A project scaffolds with **one brand palette**: `AppConstants` declares a single
+set of colors and `AppTheme` has a single `light` getter that `main.dart` hands
+to `MaterialApp`. That is the common case, and it keeps the file you actually
+edit — the palette — half the size.
+
+Tick **Dark theme** in the `init` checklist to get the other half: a `*Dark`
+counterpart for every color token, an `AppTheme.dark` built from them, and
+`darkTheme` + `themeMode: ThemeMode.system` wired into `main.dart`. `AppToast`
+then picks its status color per brightness, and the design-system preview gets
+its toggle.
+
+Either way it is reversible, and moarch reads the scope off `app_theme.dart`
+rather than remembering it, so `moarch update` keeps regenerating what the
+project actually is:
+
+```bash
+moarch create theme --dark      # add the dark half to a one-theme project
+moarch create theme --no-dark   # drop it again
+moarch create theme --dark -d   # ...or just print the diff first
+```
+
+The palette and everything reading it are generated against each other, so the
+switch is all of those files at once. Files moarch wrote and nobody edited are
+rewritten silently; if you have edited one, nothing is written and the diffs are
+yours to apply (or `--force`).
 
 ## Models from a JSON sample
 

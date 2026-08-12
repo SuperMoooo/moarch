@@ -16,6 +16,7 @@ class CoreTemplates {
     bool withFirebase = false,
     bool withMaintenanceGate = false,
     bool withMoAdapt = false,
+    bool withDarkTheme = false,
   }) {
     if (withEasyLocalization) withLocalization = false;
 
@@ -183,6 +184,17 @@ final locale = ref.watch(languageProvider).locale;
     final moAdaptImport =
         withMoAdapt ? "\nimport 'shared/widgets/mo_adapt.dart';" : '';
 
+    // With one palette there is no second ThemeData to hand MaterialApp, and
+    // no themeMode worth setting: every mode would resolve to the same theme.
+    final themeConfig = withDarkTheme
+        ? '''
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,'''
+        : '''
+      // One brand theme. `moarch create theme --dark` adds the dark half.
+      theme: AppTheme.light,''';
+
     // Inside `builder`, so it wraps the Navigator rather than sitting in a
     // route: a gate below the Navigator could be pushed on top of.
     final maintenanceOpen =
@@ -245,10 +257,8 @@ class App extends ConsumerWidget {
 
     return MaterialApp.router(
       title: 'App',
-      theme: AppTheme.light,
-      //darkTheme: AppTheme.dark,
-      $localizationConfig
-      routerConfig: router,
+$themeConfig
+$localizationConfig      routerConfig: router,
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return MediaQuery(
@@ -323,8 +333,7 @@ class App extends ConsumerWidget {
 
     return MaterialApp(
       title: 'App',
-      theme: AppTheme.light,
-      //darkTheme: AppTheme.dark,
+$themeConfig
 $localizationConfig      debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return MediaQuery(
@@ -788,20 +797,16 @@ const _unaccented = 'AAAAAAaaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuNnCc';
 ''';
 
   /// Returns the generated appConstants template.
-  static String appConstants() => r'''
-import 'package:flutter/material.dart';
-
-abstract final class AppConstants {
-  // ── Palette (light) ───────────────────────────────────────────────────────
-  static const Color primary   = Color(0xFF000000);
-  static const Color secondary = Color(0xFF000000);
-  static const Color tertiary  = Color(0xFF000000);
-  static const Color surface   = Color(0xFF000000);
-  static const Color onSurface = Color(0xFF000000);
-  static const Color outline   = Color(0xFF000000);
-  static const Color error     = Color(0xFFba1a1a);
+  ///
+  /// [withDark] adds the second palette `AppTheme.dark` is built from. Without
+  /// it the file holds one brand palette and nothing else — see
+  /// `moarch create theme --dark` for adding the dark half later.
+  static String appConstants({bool withDark = false}) {
+    final darkPalette = withDark
+        ? r'''
 
   // ── Palette (dark) ────────────────────────────────────────────────────────
+  // Every token above has a counterpart here; AppTheme.dark reads this half.
   static const Color primaryDark   = Color(0xFFFFFFFF);
   static const Color secondaryDark = Color(0xFFFFFFFF);
   static const Color tertiaryDark  = Color(0xFFFFFFFF);
@@ -810,35 +815,45 @@ abstract final class AppConstants {
   static const Color outlineDark   = Color(0xFFFFFFFF);
   static const Color errorDark     = Color(0xFFffb4ab);
 
-  // ── Status colors ─────────────────────────────────────────────────────────
-  // Kept out of the palette so they read the same whatever the brand becomes.
-  static const Color success = Color(0xFF2E7D32);
-  static const Color warning = Color(0xFFED6C02);
-  static const Color info    = Color(0xFF0288D1);
+  static const Color surfaceContainerLowestDark  = Color(0xFF0A0A0A);
+  static const Color surfaceContainerLowDark     = Color(0xFF1E1E1E);
+  static const Color surfaceContainerHighestDark = Color(0xFF2C2C2C);
 
   static const Color successDark = Color(0xFF66BB6A);
   static const Color warningDark = Color(0xFFFFA726);
   static const Color infoDark    = Color(0xFF29B6F6);
+'''
+        : '';
 
-  // ── Accent tokens ─────────────────────────────────────────────────────────
-  static const Color accentActive      = Color(0xFF000000);
-  static const Color accentRestorative = Color(0xFF000000);
-  static const Color accentEnergetic   = Color(0xFF000000);
+    return '''
+import 'package:flutter/material.dart';
 
-  // ── Type ──────────────────────────────────────────────────────────────────
-  // Null uses the platform default. Declare a font under `flutter: fonts:` in
-  // pubspec.yaml and name it here, or add google_fonts and swap AppTheme's
-  // textTheme for GoogleFonts.interTextTheme(...).
-  static const String? fontFamily = null;
+abstract final class AppConstants {
+  // ── Brand palette ─────────────────────────────────────────────────────────
+  static const Color primary   = Color(0xFF000000);
+  static const Color secondary = Color(0xFF000000);
+  static const Color tertiary  = Color(0xFF000000);
+  static const Color surface   = Color(0xFF000000);
+  static const Color onSurface = Color(0xFF000000);
+  static const Color outline   = Color(0xFF000000);
+  static const Color error     = Color(0xFFba1a1a);
 
   // ── Surface layers ────────────────────────────────────────────────────────
   static const Color surfaceContainerLowest  = Color(0xFF000000);
   static const Color surfaceContainerLow     = Color(0xFF000000);
   static const Color surfaceContainerHighest = Color(0xFF000000);
 
-  static const Color surfaceContainerLowestDark  = Color(0xFF0A0A0A);
-  static const Color surfaceContainerLowDark     = Color(0xFF1E1E1E);
-  static const Color surfaceContainerHighestDark = Color(0xFF2C2C2C);
+  // ── Status colors ─────────────────────────────────────────────────────────
+  // Kept out of the palette so they read the same whatever the brand becomes.
+  static const Color success = Color(0xFF2E7D32);
+  static const Color warning = Color(0xFFED6C02);
+  static const Color info    = Color(0xFF0288D1);
+$darkPalette
+  // ── Type ──────────────────────────────────────────────────────────────────
+  // Null uses the platform default. Declare a font under `flutter: fonts:` in
+  // pubspec.yaml and name it here, or add google_fonts and swap AppTheme's
+  // textTheme for GoogleFonts.interTextTheme(...).
+  static const String? fontFamily = null;
 
   // ── Avatar background fallbacks ───────────────────────────────────────────
   static const List<Color> avatarPalette = [
@@ -859,15 +874,11 @@ abstract final class AppConstants {
 
   // ── Padding helpers ───────────────────────────────────────────────────────
   static const padding4  = EdgeInsets.all(space4);
-  static const padding8  = EdgeInsets.all(space8);
   static const padding12 = EdgeInsets.all(space12);
   static const padding16 = EdgeInsets.all(space16);
   static const padding24 = EdgeInsets.all(space24);
 
-  static const paddingH16 = EdgeInsets.symmetric(horizontal: space16);
-  static const paddingH24 = EdgeInsets.symmetric(horizontal: space24);
-  static const paddingV8  = EdgeInsets.symmetric(vertical: space8);
-  static const paddingV16 = EdgeInsets.symmetric(vertical: space16);
+  static const paddingV8 = EdgeInsets.symmetric(vertical: space8);
 
   static const paddingPage = EdgeInsets.symmetric(
     horizontal: space12,
@@ -907,16 +918,15 @@ abstract final class AppConstants {
   static final borderRadius8    = BorderRadius.circular(radius8);
   static final borderRadius12   = BorderRadius.circular(radius12);
   static final borderRadius16   = BorderRadius.circular(radius16);
-  static final borderRadius24   = BorderRadius.circular(radius24);
   static final borderRadiusFull = BorderRadius.circular(radiusFull);
 
   // ── Animation durations ───────────────────────────────────────────────────
-  static const Duration duration100 = Duration(milliseconds: 100);
   static const Duration duration200 = Duration(milliseconds: 200);
   static const Duration duration300 = Duration(milliseconds: 300);
   static const Duration duration500 = Duration(milliseconds: 500);
 }
 ''';
+  }
 
   /// Returns the generated actionNotifier template — the shared runAction
   /// helper used by all feature notifiers.

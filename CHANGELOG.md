@@ -2,6 +2,54 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 3.2.0
+
+### Features
+
+- The dark theme is now a choice. `init` asks for it (**Dark theme**, off by
+  default): with it off, `AppConstants` declares one brand palette and
+  `AppTheme` one `light` getter — around 290 fewer lines in the files you
+  actually edit. With it on, every color token gains its `*Dark` counterpart,
+  `AppTheme.dark` is generated, and `main.dart` gets `darkTheme` +
+  `themeMode: ThemeMode.system`.
+- `moarch create theme --dark` adds the dark half to a project scaffolded
+  without it, and `--no-dark` takes it away again. The palette, the theme,
+  `main.dart`, `AppToast` and the design-system preview are generated against
+  each other, so the switch is all of them at once: files moarch wrote and
+  nobody edited are rewritten silently, and an edited one stops the run with a
+  diff instead (`--diff`, `--dry-run`, `--force`, `--yes`).
+- The scope is read off `app_theme.dart` rather than remembered, so
+  `moarch update` and `moarch create widget` follow what the project actually
+  is — including after switching.
+
+### Fixes
+
+- `main.dart` shipped `darkTheme: AppTheme.dark` commented out, so a generated
+  app was light-only whatever the palette said. The design-system preview had
+  the same line commented out under a working brightness toggle, leaving a
+  button that did nothing. Both are now wired when the project takes dark.
+
+### Changes
+
+- `AppConstants` drops the tokens nothing in the kit read: `accentActive`,
+  `accentRestorative`, `accentEnergetic` (the tab indicator uses `primary`),
+  `padding8`, `paddingH16`, `paddingH24`, `paddingV16`, `borderRadius24` and
+  `duration100`. The remaining colors are grouped brand → surfaces → status,
+  with the dark palette (when present) in one block rather than three.
+
+### Upgrading
+
+An existing project keeps its dark theme — the scope is read off
+`app_theme.dart`, so `moarch update` sees what is already there. Two things to
+look at in the diff it offers:
+
+- `moarch update constants` removes the tokens listed above. If your own code
+  reads one of them, keep it: it is your palette now.
+- `moarch update main` uncomments `darkTheme` and sets `themeMode`, which is
+  what the dark palette was always for — but it does mean the app starts
+  following the system brightness. `moarch create theme --no-dark` is the way
+  out if it was never meant to.
+
 ## 3.1.9
 
 ### Fixes

@@ -174,7 +174,14 @@ abstract final class AppEnv {
 ''';
 
   /// Returns the generated appTheme template.
-  static String appTheme() => r'''
+  ///
+  /// [withDark] adds the `dark` getter, built from the `*Dark` half of
+  /// `AppConstants`. Without it the file holds the one brand theme the app
+  /// ships — `moarch create theme --dark` adds the other later.
+  static String appTheme({bool withDark = false}) {
+    final darkGetter = withDark ? _darkThemeGetter : '';
+
+    return '''
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_constants.dart';
@@ -284,7 +291,7 @@ abstract final class AppTheme {
     ),
 
     tabBarTheme: TabBarThemeData(
-      indicatorColor: AppConstants.accentActive,
+      indicatorColor: AppConstants.primary,
       tabAlignment: TabAlignment.fill,
       indicatorSize: TabBarIndicatorSize.tab,
       indicatorAnimation: TabIndicatorAnimation.elastic,
@@ -474,6 +481,16 @@ abstract final class AppTheme {
       elevation: 0,
     ),
   );
+$darkGetter}
+''';
+  }
+
+  /// The `dark` counterpart of the `light` getter in [appTheme], appended to it
+  /// when the project took the dark palette.
+  ///
+  /// It reads the `*Dark` half of `AppConstants`, so the two travel together:
+  /// neither compiles without the other.
+  static const String _darkThemeGetter = r'''
 
   static ThemeData get dark => ThemeData(
     useMaterial3: true,
@@ -557,7 +574,7 @@ abstract final class AppTheme {
     ),
 
     tabBarTheme: TabBarThemeData(
-      indicatorColor: AppConstants.accentActive,
+      indicatorColor: AppConstants.primaryDark,
       tabAlignment: TabAlignment.fill,
       indicatorSize: TabBarIndicatorSize.tab,
       indicatorAnimation: TabIndicatorAnimation.elastic,
@@ -750,7 +767,5 @@ abstract final class AppTheme {
       elevation: 0,
     ),
   );
-}
-
 ''';
 }

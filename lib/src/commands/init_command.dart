@@ -50,6 +50,7 @@ const _kNotificationsService = 'Notifications service';
 const _kFirebaseNotifications = 'Firebase push notifications (FCM)';
 const _kBiometricAuth = 'Biometric authentication';
 const _kMaintenanceGate = 'Maintenance gate (backend kill switch)';
+const _kDarkTheme = 'Dark theme (second palette)';
 const _kMoAdapt = 'MoAdapt (proportional UI scaling)';
 const _kLocalizations = 'Localization (l10n)';
 const _kEasyLocalization = 'Localization (easy_localization)';
@@ -115,6 +116,7 @@ class InitCommand extends Command<int> {
         _kBiometricAuth,
         _kMaintenanceGate,
         _kMoAdapt,
+        _kDarkTheme,
         _kLocalizations,
       };
     } else {
@@ -215,6 +217,14 @@ class InitCommand extends Command<int> {
               defaultOn: true,
               description: 'Wraps the app so every fixed dimension scales '
                   'proportionally to the screen from a 390×844 design frame.',
+            ),
+            const ChecklistItem(
+              _kDarkTheme,
+              defaultOn: false,
+              description:
+                  'A dark half for AppConstants and AppTheme, followed by '
+                  'MaterialApp through themeMode. Off leaves one brand theme; '
+                  'add it later with `moarch create theme --dark`.',
             ),
             const ChecklistItem(
               _kLocalizations,
@@ -452,6 +462,7 @@ class InitCommand extends Command<int> {
               stack.contains(_kCrashlytics),
           withMaintenanceGate: stack.contains(_kMaintenanceGate),
           withMoAdapt: stack.contains(_kMoAdapt),
+          withDarkTheme: stack.contains(_kDarkTheme),
         ),
         overwriteWhen: _isFlutterCounterDemo,
       );
@@ -842,6 +853,15 @@ class InitCommand extends Command<int> {
       _logger.info(
           '  Firebase selected — run `flutterfire configure` before the first');
       _logger.info('  launch. See docs/FIREBASE_SETUP.md.');
+      _logger.info('');
+    }
+    // Said here rather than left to the docs: the palette is the first file
+    // most people open, and it is the one place the choice is invisible.
+    if (!stack.contains(_kDarkTheme)) {
+      _logger
+          .info('  One brand palette in core/constants/app_constants.dart —');
+      _logger
+          .info('  add the dark half later with `moarch create theme --dark`.');
       _logger.info('');
     }
     _logger.info('  moarch create feature <name>   → generate a feature');
@@ -1239,7 +1259,7 @@ class InitCommand extends Command<int> {
     );
     await FileUtils.writeFile(
       p.join(c, 'constants', 'app_constants.dart'),
-      CoreTemplates.appConstants(),
+      CoreTemplates.appConstants(withDark: stack.contains(_kDarkTheme)),
     );
     await FileUtils.writeFile(
       p.join(c, 'constants', 'api_constants.dart'),
@@ -1442,7 +1462,7 @@ class InitCommand extends Command<int> {
     );
     await FileUtils.writeFile(
       p.join(c, 'theme', 'app_theme.dart'),
-      ConfigTemplates.appTheme(),
+      ConfigTemplates.appTheme(withDark: stack.contains(_kDarkTheme)),
     );
     if (stack.contains(_kRouter)) {
       await FileUtils.writeFile(
@@ -1474,6 +1494,7 @@ class InitCommand extends Command<int> {
       hasBiometric: stack.contains(_kBiometricAuth),
       hasFirestore: stack.contains(_kFirestore),
       hasDio: stack.contains(_kDio),
+      hasDarkTheme: stack.contains(_kDarkTheme),
     );
 
     // Only the common set (see WidgetCatalog) is scaffolded here; the rest of

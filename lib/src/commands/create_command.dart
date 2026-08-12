@@ -5,6 +5,7 @@ import 'package:moarch/src/commands/create/create_entity_copys_command.dart';
 import 'package:moarch/src/commands/create/create_feature_command.dart';
 import 'package:moarch/src/commands/create/create_flavors_command.dart';
 import 'package:moarch/src/commands/create/create_model_command.dart';
+import 'package:moarch/src/commands/create/create_theme_command.dart';
 import 'package:moarch/src/commands/create/create_widget_command.dart';
 
 /// Creates the feature-scaffolding CLI command.
@@ -16,6 +17,7 @@ class CreateCommand extends Command<int> {
     addSubcommand(CreateEmptyFactoriesCommand(logger: logger));
     addSubcommand(CreateEntityCopysCommand(logger: logger));
     addSubcommand(CreateWidgetCommand(logger: logger));
+    addSubcommand(CreateThemeCommand(logger: logger));
     addSubcommand(CreateFlavorsCommand(logger: logger));
   }
 

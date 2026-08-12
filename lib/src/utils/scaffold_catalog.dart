@@ -79,6 +79,13 @@ class ScaffoldContext {
   /// The GoRouter setup was generated.
   bool get hasRouter => hasFile('lib/config/router/app_router.dart');
 
+  /// The project took the dark palette: `AppTheme` has a `dark` getter, and
+  /// with it the `*Dark` half of `AppConstants`.
+  ///
+  /// Read off `app_theme.dart` rather than remembered from the checklist, so a
+  /// project that added dark later — or removed it — refreshes as what it is.
+  bool get hasDarkTheme => WidgetVariants.hasDarkThemeIn(resolve('lib'));
+
   /// `flutter_localizations` (the `.arb` approach) is installed.
   bool get hasLocalization => hasPackage('flutter_localizations');
 
@@ -251,7 +258,7 @@ abstract final class ScaffoldCatalog {
       title: 'AppConstants',
       path: 'lib/core/constants/app_constants.dart',
       category: 'Core',
-      template: (_) => CoreTemplates.appConstants(),
+      template: (c) => CoreTemplates.appConstants(withDark: c.hasDarkTheme),
       description:
           'Colors, spacing, radii and typography — the values the whole UI kit reads.',
     ),
@@ -278,6 +285,7 @@ abstract final class ScaffoldCatalog {
         withFirebase: c.hasFirebase || c.hasCrashlytics,
         withMaintenanceGate: c.hasMaintenanceGate,
         withMoAdapt: c.hasMoAdapt,
+        withDarkTheme: c.hasDarkTheme,
       ),
       description:
           'The entry point: ProviderScope, theme, router and the services the project selected.',
@@ -417,8 +425,9 @@ abstract final class ScaffoldCatalog {
       title: 'AppTheme',
       path: 'lib/config/theme/app_theme.dart',
       category: 'Config',
-      template: (_) => ConfigTemplates.appTheme(),
-      description: 'Light and dark ThemeData built from AppConstants.',
+      template: (c) => ConfigTemplates.appTheme(withDark: c.hasDarkTheme),
+      description: 'The ThemeData built from AppConstants — light, plus dark '
+          'when the project took it.',
     ),
     ScaffoldSpec(
       name: 'router',

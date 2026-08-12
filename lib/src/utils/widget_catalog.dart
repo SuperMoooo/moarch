@@ -31,6 +31,7 @@ class WidgetVariants {
     this.hasBiometric = false,
     this.hasFirestore = false,
     this.hasDio = false,
+    this.hasDarkTheme = false,
   });
 
   /// Reads the options back off a project's `lib/`, for the callers working
@@ -42,7 +43,19 @@ class WidgetVariants {
         hasFirestore: _hasFirestoreProvider(libPath),
         hasDio: File(p.join(libPath, 'core', 'network', 'dio_client.dart'))
             .existsSync(),
+        hasDarkTheme: hasDarkThemeIn(libPath),
       );
+
+  /// Whether `lib/config/theme/app_theme.dart` declares a `dark` theme.
+  ///
+  /// Read off the file rather than off a package or a path: both themes live
+  /// in the one file a project always has, so its content is the only thing
+  /// that says which halves of `AppConstants` exist.
+  static bool hasDarkThemeIn(String libPath) {
+    final file = File(p.join(libPath, 'config', 'theme', 'app_theme.dart'));
+    return file.existsSync() &&
+        RegExp(r'ThemeData\s+get\s+dark\b').hasMatch(file.readAsStringSync());
+  }
 
   /// `firebase_providers.dart` is generated for Firebase Auth too, so its
   /// presence alone does not mean there is a Firestore instance to read.
@@ -62,6 +75,10 @@ class WidgetVariants {
 
   /// The Dio client was generated, so a backend flag can be polled.
   final bool hasDio;
+
+  /// `AppTheme.dark` was generated, so the `*Dark` half of `AppConstants`
+  /// exists and a widget may pick its colors per brightness.
+  final bool hasDarkTheme;
 }
 
 /// One entry in the shared-widget kit: everything needed to generate a widget
@@ -150,11 +167,14 @@ abstract final class WidgetCatalog {
       title: 'DesignSystemView',
       file: 'design_system_view.dart',
       template: SharedTemplates.designSystemView,
+      variantTemplate: (v) =>
+          SharedTemplates.designSystemView(withDark: v.hasDarkTheme),
       category: 'Preview',
       needsRouter: true,
       deps: [for (final spec in _kit) spec.name],
       description:
-          'A screen previewing the kit in light/dark. Pulls in every other widget.',
+          'A screen previewing the kit in your theme — with a light/dark toggle '
+          'when the project has both. Pulls in every other widget.',
     ),
   ];
 
@@ -768,6 +788,8 @@ abstract final class WidgetCatalog {
       title: 'AppToast',
       file: 'overlays/app_toast.dart',
       template: SharedTemplates.appToast,
+      variantTemplate: (v) =>
+          SharedTemplates.appToast(withDark: v.hasDarkTheme),
       category: 'Overlays',
       common: true,
       description: 'Themed success/error/warning/info toast on the root '

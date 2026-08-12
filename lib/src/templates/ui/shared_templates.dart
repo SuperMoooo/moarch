@@ -5065,7 +5065,24 @@ class _AppNavItem extends StatelessWidget {
 ''';
 
   /// Returns the generated appToast template.
-  static String appToast() => r'''
+  ///
+  /// [withDark] picks the status color per brightness; with a single brand
+  /// theme there is only ever one, so the lookup drops the flag rather than
+  /// reading `*Dark` constants the project does not have.
+  static String appToast({bool withDark = false}) {
+    final resolveSignature = withDark
+        ? 'static (Color, IconData) _resolve(AppToastType type, bool isDark) =>'
+        : 'static (Color, IconData) _resolve(AppToastType type) =>';
+
+    final resolveCall = withDark
+        ? 'AppToast._resolve(type, isDark)'
+        : 'AppToast._resolve(type)';
+
+    String status(String name) => withDark
+        ? 'isDark ? AppConstants.${name}Dark : AppConstants.$name'
+        : 'AppConstants.$name';
+
+    return '''
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -5237,22 +5254,22 @@ class AppToast {
         AppToastType.info => HapticFeedback.selectionClick(),
       };
 
-  static (Color, IconData) _resolve(AppToastType type, bool isDark) =>
+  $resolveSignature
       switch (type) {
         AppToastType.success => (
-            isDark ? AppConstants.successDark : AppConstants.success,
+            ${status('success')},
             Icons.check_circle_outline,
           ),
         AppToastType.error => (
-            isDark ? AppConstants.errorDark : AppConstants.error,
+            ${status('error')},
             Icons.error_outline,
           ),
         AppToastType.warning => (
-            isDark ? AppConstants.warningDark : AppConstants.warning,
+            ${status('warning')},
             Icons.warning_amber_rounded,
           ),
         AppToastType.info => (
-            isDark ? AppConstants.infoDark : AppConstants.info,
+            ${status('info')},
             Icons.info_outline,
           ),
       };
@@ -5486,7 +5503,7 @@ class _ToastCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final (accent, icon) = AppToast._resolve(type, isDark);
+    final (accent, icon) = $resolveCall;
     final heading = title;
     final hasAction = actionLabel != null && onAction != null;
 
@@ -5601,6 +5618,7 @@ class _ToastCard extends StatelessWidget {
   }
 }
 ''';
+  }
 
   /// Returns the generated appBottomSheetScaffold template.
   static String appBottomSheetScaffold() => r'''
@@ -7812,7 +7830,48 @@ class _NumberedStep extends StatelessWidget {
 ''';
 
   /// Returns the generated designSystemView template.
-  static String designSystemView() => r'''
+  static String designSystemView({bool withDark = false}) {
+    // The brightness toggle only means something when there is a second theme
+    // to switch to; with one brand theme the button would be a no-op, so the
+    // state it drives goes with it.
+    final themeState = withDark ? '\n  ThemeMode _mode = ThemeMode.light;' : '';
+
+    final toggleMethod = withDark
+        ? '''
+
+  void _toggleTheme() => setState(() {
+        _mode = _mode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+      });
+'''
+        : '';
+
+    final toggleDoc = withDark
+        ? '\n/// Toggle light/dark using the icon in the app bar.'
+        : '';
+
+    final themeConfig = withDark
+        ? '''      themeMode: _mode,
+      // The app's real themes, so what this screen previews is what ships —
+      // edit config/theme/app_theme.dart and every widget below follows.
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,'''
+        : '''      // The app's real theme, so what this screen previews is what ships —
+      // edit config/theme/app_theme.dart and every widget below follows.
+      theme: AppTheme.light,''';
+
+    final toggleAction = withDark
+        ? '''
+              AppIconButton(
+                icon: _mode == ThemeMode.light
+                    ? Icons.dark_mode_outlined
+                    : Icons.light_mode_outlined,
+                onPressed: _toggleTheme,
+                tooltip: 'Toggle theme',
+              ),
+'''
+        : '';
+
+    return '''
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
@@ -7886,8 +7945,7 @@ import '../widgets/overlays/app_confirm_dialog.dart';
 import '../widgets/overlays/app_toast.dart';
 
 /// Design system preview screen.
-/// Shows all shared widgets rendered with your current theme.
-/// Toggle light/dark using the icon in the app bar.
+/// Shows all shared widgets rendered with your current theme.$toggleDoc
 ///
 /// Add to your router temporarily:
 ///   GoRoute(
@@ -7901,8 +7959,7 @@ class DesignSystemView extends StatefulWidget {
   State<DesignSystemView> createState() => _DesignSystemViewState();
 }
 
-class _DesignSystemViewState extends State<DesignSystemView> {
-  ThemeMode _mode = ThemeMode.light;
+class _DesignSystemViewState extends State<DesignSystemView> {$themeState
   String? _selectedDropdown;
   String? _selectedRow;
   bool _accepted = false;
@@ -7963,11 +8020,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
       label: 'Profile',
     ),
   ];
-
-  void _toggleTheme() => setState(() {
-        _mode = _mode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
-      });
-
+$toggleMethod
   /// [style] is forced by two of the buttons so one device can preview the
   /// platform shape it is not running on.
   Future<void> _showActionSheet(
@@ -7996,18 +8049,14 @@ class _DesignSystemViewState extends State<DesignSystemView> {
       ],
     );
     if (!context.mounted) return;
-    AppToast.info(context, picked == null ? 'Dismissed' : 'Picked: $picked');
+    AppToast.info(context, picked == null ? 'Dismissed' : 'Picked: \$picked');
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      themeMode: _mode,
-      // The app's real themes, so what this screen previews is what ships —
-      // edit config/theme/app_theme.dart and every widget below follows.
-      theme: AppTheme.light,
-      //darkTheme: AppTheme.dark,
+$themeConfig
       home: Builder(
         builder: (context) => Scaffold(
           // The screen's own chrome is AppAppBar, so this doubles as its
@@ -8017,14 +8066,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
             subtitle: 'Every shared widget, in your theme',
             showBack: false,
             actions: [
-              AppIconButton(
-                icon: _mode == ThemeMode.light
-                    ? Icons.dark_mode_outlined
-                    : Icons.light_mode_outlined,
-                onPressed: _toggleTheme,
-                tooltip: 'Toggle theme',
-              ),
-              const SizedBox(width: AppConstants.space8),
+$toggleAction              const SizedBox(width: AppConstants.space8),
             ],
           ),
           body: ListView(
@@ -8130,7 +8172,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                         AppButton(
                           variant: variant,
                           type: type,
-                          label: '${variant.name} / ${type.name}',
+                          label: '\${variant.name} / \${type.name}',
                           onPressed: () {},
                         ),
                         const SizedBox(height: AppConstants.space8),
@@ -8185,7 +8227,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                     // app follows — these four override it per field.
                     for (final mode in AppInputLabelMode.values) ...[
                       AppInput(
-                        label: 'Label mode: ${mode.name}',
+                        label: 'Label mode: \${mode.name}',
                         hint: 'Hint text',
                         required: true,
                         labelMode: mode,
@@ -8205,7 +8247,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                     for (final format in AppInputFormat.values) ...[
                       AppInput(
                         label: format.name,
-                        hint: 'Format: ${format.name}',
+                        hint: 'Format: \${format.name}',
                         format: format,
                       ),
                       const SizedBox(height: AppConstants.space12),
@@ -8221,7 +8263,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                     for (final type in AppInputType.values) ...[
                       AppInput(
                         label: type.name,
-                        hint: 'Type: ${type.name}',
+                        hint: 'Type: \${type.name}',
                         type: type,
                         prefixIcon: const Icon(Icons.search),
                       ),
@@ -8238,7 +8280,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                     for (final variant in AppInputVariant.values) ...[
                       AppInput(
                         label: variant.name,
-                        hint: 'Variant: ${variant.name}',
+                        hint: 'Variant: \${variant.name}',
                         required: true,
                         variant: variant,
                         prefixIcon: const Icon(Icons.person_outline),
@@ -8278,7 +8320,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                     for (final size in AppInputSize.values) ...[
                       AppInput(
                         label: size.name,
-                        hint: 'Size: ${size.name}',
+                        hint: 'Size: \${size.name}',
                         size: size,
                         prefixIcon: const Icon(Icons.tag),
                       ),
@@ -8299,7 +8341,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                     ]) ...[
                       AppInput(
                         label: align.name,
-                        hint: 'Aligned ${align.name}',
+                        hint: 'Aligned \${align.name}',
                         required: true,
                         textAlign: align,
                       ),
@@ -8320,7 +8362,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                       label: 'Dropdown',
                       items: const ['a', 'b', 'c'],
                       idOf: (item) => item,
-                      labelOf: (item) => 'Option ${item.toUpperCase()}',
+                      labelOf: (item) => 'Option \${item.toUpperCase()}',
                       selectedId: _selectedDropdown,
                       variant: AppInputVariant.secondary,
                       onChanged: (v) => setState(() => _selectedDropdown = v),
@@ -8333,9 +8375,9 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                       label: 'Auto-searchable',
                       required: true,
                       items: List.generate(60, (index) => index),
-                      idOf: (item) => '$item',
-                      labelOf: (item) => 'Row ${item + 1}',
-                      trailingLabelOf: (item) => '#$item',
+                      idOf: (item) => '\$item',
+                      labelOf: (item) => 'Row \${item + 1}',
+                      trailingLabelOf: (item) => '#\$item',
                       selectedId: _selectedRow,
                       variant: AppInputVariant.secondary,
                       onChanged: (v) => setState(() => _selectedRow = v),
@@ -8353,7 +8395,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                   children: [
                     for (final variant in AppInputVariant.values)
                       AppCheckboxLabel(
-                        label: 'Notify me (${variant.name})',
+                        label: 'Notify me (\${variant.name})',
                         subtitle: variant == AppInputVariant.primary
                             ? 'With a subtitle'
                             : null,
@@ -8452,7 +8494,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                     );
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Confirmed: ${confirmed ?? false}')),
+                        SnackBar(content: Text('Confirmed: \${confirmed ?? false}')),
                       );
                     }
                   },
@@ -8735,7 +8777,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                 child: AppSlider(
                   value: _sliderValue,
                   divisions: 10,
-                  label: '${(_sliderValue * 100).round()}%',
+                  label: '\${(_sliderValue * 100).round()}%',
                   onChanged: (v) => setState(() => _sliderValue = v),
                 ),
               ),
@@ -8786,7 +8828,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                         type: type,
                         child: Row(
                           children: [
-                            Expanded(child: Text('${type.name} card')),
+                            Expanded(child: Text('\${type.name} card')),
                             const Icon(Icons.chevron_right),
                           ],
                         ),
@@ -8811,7 +8853,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                       child: Column(
                         children: [
                           for (var i = 1; i <= 8; i++)
-                            AppListTile(title: 'Scrollable row $i'),
+                            AppListTile(title: 'Scrollable row \$i'),
                         ],
                       ),
                     ),
@@ -8978,7 +9020,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                     // whether the bar is a band or a card — every combination
                     // is valid, and they all drive the one index.
                     for (final style in AppBottomNavStyle.values) ...[
-                      Text('${style.name}:'),
+                      Text('\${style.name}:'),
                       const SizedBox(height: AppConstants.space8),
                       AppBottomNav(
                         index: _navIndex,
@@ -9022,7 +9064,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const Text(
-                            'Send \$120.00 to Jane Doe?',
+                            'Send \\\$120.00 to Jane Doe?',
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: AppConstants.space24),
@@ -9260,7 +9302,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                     const SizedBox(height: AppConstants.space8),
                     for (final align in AppHeadingAlign.values)
                       AppHeading(
-                        title: 'Aligned ${align.name}',
+                        title: 'Aligned \${align.name}',
                         subtitle: 'The subtitle follows the title',
                         size: AppHeadingSize.small,
                         align: align,
@@ -9403,7 +9445,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                     Text(
                       _query.isEmpty
                           ? 'Type in AppSearchField above to change the query.'
-                          : 'Matching "$_query"',
+                          : 'Matching "\$_query"',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
@@ -9422,7 +9464,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                     ),
                     const SizedBox(height: AppConstants.space8),
                     Text(
-                      _query.isEmpty ? 'Query: (empty)' : 'Query: $_query',
+                      _query.isEmpty ? 'Query: (empty)' : 'Query: \$_query',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: AppConstants.space12),
@@ -9845,7 +9887,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                       label: 'Tags',
                       items: const ['a', 'b', 'c', 'd', 'e'],
                       idOf: (item) => item,
-                      labelOf: (item) => 'Tag ${item.toUpperCase()}',
+                      labelOf: (item) => 'Tag \${item.toUpperCase()}',
                       selectedIds: _selectedTags,
                       required: true,
                       maxSelected: 3,
@@ -9857,7 +9899,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                       label: 'Same field, counted',
                       items: const ['a', 'b', 'c', 'd', 'e'],
                       idOf: (item) => item,
-                      labelOf: (item) => 'Tag ${item.toUpperCase()}',
+                      labelOf: (item) => 'Tag \${item.toUpperCase()}',
                       selectedIds: _selectedTags,
                       display: AppMultiSelectDisplay.count,
                       variant: AppInputVariant.secondary,
@@ -10146,7 +10188,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                       Container(
                         color: color.withValues(alpha: 0.35),
                         alignment: Alignment.center,
-                        child: Text('Page ${index + 1}'),
+                        child: Text('Page \${index + 1}'),
                       ),
                   ],
                 ),
@@ -10271,7 +10313,7 @@ class _SpacingRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppConstants.space8),
-          Text('${value.toInt()}pt', style: Theme.of(context).textTheme.labelSmall),
+          Text('\${value.toInt()}pt', style: Theme.of(context).textTheme.labelSmall),
         ],
       ),
     );
@@ -10302,4 +10344,5 @@ class _RadiusChip extends StatelessWidget {
   }
 }
 ''';
+  }
 }
