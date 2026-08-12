@@ -870,8 +870,8 @@ abstract final class AppConstants {
   static const paddingV16 = EdgeInsets.symmetric(vertical: space16);
 
   static const paddingPage = EdgeInsets.symmetric(
-    horizontal: space16,
-    vertical: space16,
+    horizontal: space12,
+    vertical: space12,
   );
 
   // ── Icon sizes ────────────────────────────────────────────────────────────
