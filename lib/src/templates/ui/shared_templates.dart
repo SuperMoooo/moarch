@@ -9213,6 +9213,19 @@ class _DesignSystemViewState extends State<DesignSystemView> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: AppConstants.space16),
+                    // Bare drops the button box; the alignment claims the width
+                    // it needs to push the label to the edge.
+                    const Text('Bare + aligned right — just the link:'),
+                    const SizedBox(height: AppConstants.space8),
+                    AppTextButton(
+                      label: 'Forgot password?',
+                      type: AppTextButtonType.underlined,
+                      size: AppTextButtonSize.small,
+                      bare: true,
+                      alignment: Alignment.centerRight,
+                      onPressed: () {},
+                    ),
                   ],
                 ),
               ),

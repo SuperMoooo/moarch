@@ -213,8 +213,7 @@ class InitCommand extends Command<int> {
             const ChecklistItem(
               _kMoAdapt,
               defaultOn: true,
-              description:
-                  'Wraps the app so every fixed dimension scales '
+              description: 'Wraps the app so every fixed dimension scales '
                   'proportionally to the screen from a 390×844 design frame.',
             ),
             const ChecklistItem(
@@ -783,8 +782,10 @@ class InitCommand extends Command<int> {
     // complain — it quietly falls back to the Flutter on PATH, which is the
     // version .fvmrc exists to stop using. So this comes before pub get.
     _logger.info('  Run: fvm use   (creates .fvm/flutter_sdk, which');
-    _logger.info('       .vscode/settings.json points the editor at — until it');
-    _logger.info('       exists, debug and the analyzer use your PATH Flutter)');
+    _logger
+        .info('       .vscode/settings.json points the editor at — until it');
+    _logger
+        .info('       exists, debug and the analyzer use your PATH Flutter)');
     _logger.info('');
     _logger.info(
         '  The selected scaffold dependencies were added to pubspec.yaml.');

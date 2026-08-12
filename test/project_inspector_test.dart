@@ -27,7 +27,8 @@ void main() {
     // Stands in for the symlink `fvm use` creates — the checks only ask that
     // the path resolves, and a real directory does that on every platform
     // without needing the privileges a Windows symlink would.
-    await Directory(p.join(root, '.fvm', 'flutter_sdk')).create(recursive: true);
+    await Directory(p.join(root, '.fvm', 'flutter_sdk'))
+        .create(recursive: true);
     await File(p.join(root, 'pubspec.yaml')).writeAsString('''
 name: demo
 
@@ -132,7 +133,8 @@ dependencies:
       await File(settingsPath()).writeAsString('{"editor.tabSize": 2}');
 
       expect(
-        matching(await ProjectInspector.inspect(root), 'no dart.flutterSdkPath'),
+        matching(
+            await ProjectInspector.inspect(root), 'no dart.flutterSdkPath'),
         hasLength(1),
       );
     });

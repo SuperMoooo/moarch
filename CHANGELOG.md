@@ -2,6 +2,17 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 3.1.8
+
+### Fixes
+
+- `AppTextButton` alignment now moves the label: it reaches the row and the
+  text, and claims the parent's width to align inside of
+
+### Features
+
+- `AppTextButton` gains `bare`, dropping the button box around the label
+
 ## 3.1.7
 
 ### Features

@@ -26,7 +26,8 @@ void main() {
         .then((file) => file.writeAsString(DevTemplates.vscodeSettings()));
     // Stands in for the symlink `fvm use` creates — a real directory resolves
     // the same way without needing Windows symlink privileges.
-    await Directory(p.join(root, '.fvm', 'flutter_sdk')).create(recursive: true);
+    await Directory(p.join(root, '.fvm', 'flutter_sdk'))
+        .create(recursive: true);
     await File(p.join(root, 'pubspec.yaml')).writeAsString('''
 name: demo
 

@@ -21,7 +21,8 @@ enum AppTextButtonVariant { primary, secondary, tertiary, danger, neutral }
 /// size — any combination works.
 ///
 /// - [plain]: bare colored label, the quietest.
-/// - [underlined]: the inline-link look, for an action inside a sentence.
+/// - [underlined]: the inline-link look, for an action inside a sentence —
+///   pair it with `bare: true` to drop the button box around it.
 /// - [tonal]: label on a soft tinted pill, findable at a glance.
 enum AppTextButtonType { plain, underlined, tonal }
 
@@ -46,6 +47,8 @@ typedef _TextButtonSizeConfig = ({
 ///   label: 'Forgot password?',
 ///   variant: AppTextButtonVariant.primary,
 ///   type: AppTextButtonType.underlined,
+///   bare: true,
+///   alignment: Alignment.centerRight,
 ///   onPressed: () => context.push('/reset'),
 /// )
 /// ```
@@ -67,6 +70,7 @@ class AppTextButton extends StatelessWidget {
     this.expand = false,
     this.alignment,
     this.dense = false,
+    this.bare = false,
     this.tooltip,
   });
 
@@ -103,13 +107,22 @@ class AppTextButton extends StatelessWidget {
   /// normally takes only the room its label needs.
   final bool expand;
 
-  /// Where the label sits when the button is wider than it — with [expand], or
-  /// inside a stretched Column. Defaults to centered.
+  /// Where the label sits. Setting it also gives the button the parent's width
+  /// to align inside of, so `Alignment.centerRight` puts the label on the right
+  /// of the row or column it sits in rather than only inside its own box.
+  /// Defaults to centered.
   final Alignment? alignment;
 
   /// Drops the 48dp touch target and the padding, for an action that has to
   /// sit tight against something else. Keep it for already-tappable rows.
   final bool dense;
+
+  /// Drops the button itself — no padding, no minimum size, no ripple, no
+  /// container — leaving the label and its tap handler. What an underlined
+  /// link needs to sit inline with the text around it, where a button's box
+  /// would show. Makes [dense], [shape] and the [AppTextButtonType.tonal] fill
+  /// moot: there is nothing left to pad, shape or paint.
+  final bool bare;
 
   /// Long-press label. Worth setting when the label is abbreviated by
   /// [maxLines] on a narrow screen.
@@ -226,9 +239,19 @@ class AppTextButton extends StatelessWidget {
           fontWeight: fontWeight ?? _defaultWeight,
         );
 
+    // The alignment has to reach the row and the label too: a row that always
+    // centers, holding a label that always centers, pins the text to the middle
+    // of a stretched button whatever the button's own alignment says.
+    final resolvedAlignment = alignment ?? Alignment.center;
+    final (rowAlignment, textAlign) = switch (resolvedAlignment.x) {
+      < 0 => (MainAxisAlignment.start, TextAlign.left),
+      > 0 => (MainAxisAlignment.end, TextAlign.right),
+      _ => (MainAxisAlignment.center, TextAlign.center),
+    };
+
     final content = Row(
       mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment: rowAlignment,
       children: [
         if (prefixIcon != null) ...[
           Icon(prefixIcon, size: sizeConfig.iconSize, color: foreground),
@@ -241,7 +264,7 @@ class AppTextButton extends StatelessWidget {
             label,
             maxLines: maxLines,
             overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
+            textAlign: textAlign,
             style: textStyle,
           ),
         ),
@@ -252,20 +275,57 @@ class AppTextButton extends StatelessWidget {
       ],
     );
 
+    final handleTap = enabled
+        ? () {
+            HapticFeedback.selectionClick();
+            onPressed!();
+          }
+        : null;
+
+    final child = isLoading
+        // Stacked under a transparent copy of the label so the button keeps
+        // the exact width it had, and the row around it doesn't jump.
+        ? Stack(
+            alignment: resolvedAlignment,
+            children: [
+              Opacity(opacity: 0, child: content),
+              SizedBox.square(
+                dimension: sizeConfig.iconSize,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: foreground,
+                ),
+              ),
+            ],
+          )
+        : content;
+
+    // Nothing around the label: no padding to fake away, no minimum size, no
+    // ripple, no shape — the label is the whole widget, and the tap is on it.
+    if (bare) {
+      final bareButton = MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+        child: GestureDetector(
+          // Only the label takes the tap. An opaque box would take the whole
+          // width a stretched parent hands down, so a tap far to the side of a
+          // short link would still fire it.
+          behavior: HitTestBehavior.deferToChild,
+          onTap: handleTap,
+          child: child,
+        ),
+      );
+      return _wrap(bareButton);
+    }
+
     final button = TextButton(
-      onPressed: enabled
-          ? () {
-              HapticFeedback.selectionClick();
-              onPressed!();
-            }
-          : null,
+      onPressed: handleTap,
       style: TextButton.styleFrom(
         backgroundColor: resolvedBackground,
         disabledBackgroundColor: resolvedBackground,
         foregroundColor: foreground,
         disabledForegroundColor: foreground,
         padding: dense ? EdgeInsets.zero : sizeConfig.padding,
-        alignment: alignment ?? Alignment.center,
+        alignment: resolvedAlignment,
         // A dense button gives up its 48dp target for the layout's sake; every
         // other one keeps a target a finger can actually land on.
         minimumSize: dense ? Size.zero : Size(0, sizeConfig.minHeight),
@@ -278,28 +338,26 @@ class AppTextButton extends StatelessWidget {
           },
         ),
       ),
-      child: isLoading
-          // Stacked under a transparent copy of the label so the button keeps
-          // the exact width it had, and the row around it doesn't jump.
-          ? Stack(
-              alignment: Alignment.center,
-              children: [
-                Opacity(opacity: 0, child: content),
-                SizedBox.square(
-                  dimension: sizeConfig.iconSize,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: foreground,
-                  ),
-                ),
-              ],
-            )
-          : content,
+      child: child,
     );
 
-    final sized = expand ? SizedBox(width: double.infinity, child: button) : button;
-    if (tooltip == null) return sized;
-    return Tooltip(message: tooltip!, child: sized);
+    return _wrap(button);
+  }
+
+  /// Gives [button] the width [expand] and [alignment] ask for, then the
+  /// tooltip. Shared by the bare label and the real button.
+  Widget _wrap(Widget button) {
+    final sized =
+        expand ? SizedBox(width: double.infinity, child: button) : button;
+    // A button only as wide as its label has nothing to align inside of, so an
+    // alignment claims the width the parent offers to align against. In an
+    // unbounded parent — a Row, a scrolling Column — Align shrink-wraps, so
+    // this costs nothing where there is no room to move into.
+    final aligned = alignment != null && !expand
+        ? Align(alignment: alignment!, child: sized)
+        : sized;
+    if (tooltip == null) return aligned;
+    return Tooltip(message: tooltip!, child: aligned);
   }
 }
 ''';

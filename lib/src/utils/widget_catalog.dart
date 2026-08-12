@@ -464,7 +464,7 @@ abstract final class WidgetCatalog {
       template: TextTemplates.appTextButton,
       category: 'Buttons & icons',
       description:
-          'AppButton\'s quiet sibling, where the label is the button — plain, underlined or on a tonal pill, with a neutral variant the louder controls don\'t have, and a loading state that keeps the label\'s exact width.',
+          'AppButton\'s quiet sibling, where the label is the button — plain, underlined or on a tonal pill, bare when even the button box is too much, with a neutral variant the louder controls don\'t have, and a loading state that keeps the label\'s exact width.',
     ),
     WidgetSpec(
       name: 'leading-icon',

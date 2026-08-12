@@ -75,6 +75,45 @@ void main() {
       );
     });
 
+    test('bare leaves the label and the tap, and nothing else', () {
+      // No TextButton means no padding, no minimum size, no ripple and no
+      // shape — what an underlined link inside a sentence needs.
+      expect(output, contains('if (bare) {'));
+      expect(output, contains('GestureDetector('));
+      expect(output, contains('onTap: handleTap,'));
+      // The tap area is the label, not the width a stretched parent hands down.
+      expect(output, contains('behavior: HitTestBehavior.deferToChild,'));
+      // Both paths tap the same way, so bare keeps the haptic.
+      expect(output, contains('final handleTap = enabled'));
+      expect(output, contains('onPressed: handleTap,'));
+    });
+
+    test('the alignment reaches the row and the label, not just the box', () {
+      // A row and a label that always center pin the text to the middle of a
+      // stretched button, whatever the button style's alignment says.
+      expect(output, contains('mainAxisAlignment: rowAlignment,'));
+      expect(output, contains('textAlign: textAlign,'));
+      expect(output, contains('alignment: resolvedAlignment,'));
+      expect(
+        output,
+        contains(
+            'final (rowAlignment, textAlign) = switch (resolvedAlignment.x) {\n'
+            '      < 0 => (MainAxisAlignment.start, TextAlign.left),\n'
+            '      > 0 => (MainAxisAlignment.end, TextAlign.right),'),
+      );
+    });
+
+    test('an alignment claims the width it needs to align inside of', () {
+      // A button only as wide as its label has nothing to move within; Align
+      // shrink-wraps where the parent is unbounded, so it costs nothing there.
+      expect(
+        output,
+        contains('final aligned = alignment != null && !expand\n'
+            '        ? Align(alignment: alignment!, child: sized)\n'
+            '        : sized;'),
+      );
+    });
+
     test('a label wider than its room truncates instead of overflowing', () {
       expect(output, contains('overflow: TextOverflow.ellipsis,'));
       expect(output, contains('Flexible('));
