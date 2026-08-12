@@ -53,7 +53,7 @@ class CoreTemplates {
     MoAdapt(
       // The frame the UI is designed against; every fixed dimension scales
       // proportionally from it. Tune with scaleMode / minScale / maxScale.
-      designSize: const Size(390, 844),
+      designSize: const Size(412, 924),
       child: EasyLocalization(
         supportedLocales: const [Locale('en'), Locale('pt')],
         path: 'assets/translations',
@@ -79,7 +79,7 @@ class CoreTemplates {
     MoAdapt(
       // The frame the UI is designed against; every fixed dimension scales
       // proportionally from it. Tune with scaleMode / minScale / maxScale.
-      designSize: const Size(390, 844),
+      designSize: const Size(412, 924),
       child: $rootScope,
     ),
   );'''
@@ -87,7 +87,7 @@ class CoreTemplates {
     const MoAdapt(
       // The frame the UI is designed against; every fixed dimension scales
       // proportionally from it. Tune with scaleMode / minScale / maxScale.
-      designSize: Size(390, 844),
+      designSize: Size(412, 924),
       child: ProviderScope(child: App()),
     ),
   );''';

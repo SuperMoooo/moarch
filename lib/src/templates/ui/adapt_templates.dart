@@ -106,7 +106,7 @@ class MoAdaptData {
 /// void main() {
 ///   runApp(
 ///     const MoAdapt(
-///       designSize: Size(390, 844),
+///       designSize: Size(412, 924),
 ///       child: MyApp(), // your existing MaterialApp, unchanged
 ///     ),
 ///   );
@@ -141,7 +141,7 @@ class MoAdapt extends StatelessWidget {
     this.enabled = true,
   });
 
-  /// The logical size of the reference design, e.g. `Size(390, 844)` for an
+  /// The logical size of the reference design, e.g. `Size(412, 924)` for an
   /// iPhone-14-sized Figma frame.
   final Size designSize;
 
