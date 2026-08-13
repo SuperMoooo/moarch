@@ -2,6 +2,18 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 3.2.2
+
+### Fixes
+
+- `moarch create widget` recorded only the files it wrote this run, so a widget
+  already on disk stayed out of `.moarch.yaml` — and `moarch update` then read
+  it as a file it could not vouch for. `create widget <name>` and
+  `create widget all` now also record a widget they skipped when its content is
+  still exactly what the current templates generate, whether it got there from
+  an earlier run, a copy, or a run that stopped before saving. A file that
+  differs is still left out: that content is yours.
+
 ## 3.2.1
 
 ### Features
@@ -129,8 +141,8 @@ look at in the diff it offers:
       `doctor --fix` points it back at `.fvm/flutter_sdk`.
     - `settings.json` missing, or carrying no `dart.flutterSdkPath` — **warning**.
 
-                                    An absolute path is left alone as a deliberate override, and a project with no
-                                    `.fvmrc` gets none of these findings.
+                                          An absolute path is left alone as a deliberate override, and a project with no
+                                          `.fvmrc` gets none of these findings.
 
 - The README documents that the generated `.fvmrc` pins the `stable` _alias_
   rather than a version, so `fvm install` on CI or a teammate's machine can
