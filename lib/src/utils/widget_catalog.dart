@@ -878,7 +878,7 @@ abstract final class WidgetCatalog {
       category: 'Navigation',
       deps: ['input-style'],
       description:
-          'Bottom navigation in four looks — Material 3, classic, expanding pill and minimal dot — any of which can float as a rounded card. Owns the AppNavDestination type the rail and drawer read.',
+          'Bottom navigation in four looks — Material 3, classic, expanding pill and minimal dot — with the labels beside the icons, under them or nowhere, and any of it floating as a stadium, rounded or square card. Owns the AppNavDestination type the rail and drawer read.',
     ),
     WidgetSpec(
       name: 'app-bar',

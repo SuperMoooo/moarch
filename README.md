@@ -712,7 +712,8 @@ The kit covers:
   `ErrorView`, `EmptyView`
 - **media** — `AppAvatar`, `AppImage`, `AppCarousel`, `AppAudioPlayer`
 - **navigation** — `AppAppBar`, `AppBottomNav` (Material 3, classic, pill or
-  dot, each of which can float), `AppTabs`, `AppDrawer`,
+  dot; labels beside, below or nowhere; each of which can float as a stadium,
+  rounded or square card), `AppTabs`, `AppDrawer`,
   `AppNavRail` / `AppAdaptiveNav`, `AppStepIndicator`
 
 Every control shares one vocabulary — `variant`, `type`, `shape`, `size` — and

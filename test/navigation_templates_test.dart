@@ -130,13 +130,20 @@ void main() {
           contains('bottom: inset > 0 ? inset : AppConstants.space16,'));
     });
 
-    test('only the pill is sized by what is in it', () {
-      // The other two divide the width; a pill that stretched to an even share
-      // would not be a pill.
+    test('only the pill that opens is sized by what is in it', () {
+      // The other layouts divide the width; a pill that stretched to an even
+      // share would not be a pill — but a stacked one hugs its content inside
+      // that share, so it is only the opening pill the row has to size.
       expect(
           output,
-          contains('if (style != AppBottomNavStyle.pill)\n'
+          contains('if (!_opens)\n'
               '              Expanded(child: _item(i))'));
+      expect(
+        output,
+        contains('  bool get _opens =>\n'
+            '      style == AppBottomNavStyle.pill && '
+            'labels == AppBottomNavLabels.auto;'),
+      );
       expect(
           output,
           contains('else if (i == index)\n'
@@ -158,7 +165,129 @@ void main() {
       expect(output, contains('child: ExcludeSemantics(child: content),'));
       expect(output, contains('return MergeSemantics('));
       expect(output, contains('Widget _tooltipped({required Widget child}) {'));
-      expect(output, contains('if (labelled) return child;'));
+      // The tooltip and the layouts read one answer, so a label that is drawn
+      // is never also spoken by a tooltip, whatever put it there.
+      expect(output, contains('if (_labelled) return child;'));
+    });
+
+    test('where the labels go is asked apart from how selection is marked', () {
+      expect(
+        output,
+        contains('enum AppBottomNavLabels { auto, below, none }'),
+      );
+      expect(output, contains('final AppBottomNavLabels labels;'));
+      // Projects generated before the knob existed keep the bar they had.
+      expect(output, contains('this.labels = AppBottomNavLabels.auto,'));
+      expect(
+        output,
+        contains('  bool get _labelled => switch (labels) {\n'
+            '        AppBottomNavLabels.none => false,\n'
+            '        AppBottomNavLabels.below => true,'),
+      );
+      // Under `auto` each style still answers for itself.
+      expect(output, contains('AppBottomNavStyle.pill => selected,'));
+      expect(output, contains('AppBottomNavStyle.dot => false,'));
+    });
+
+    test('a stacked pill fills behind the label as well as the icon', () {
+      // The label joins the column inside the fill, and the opening animation
+      // goes with the layout it belonged to.
+      expect(
+        output,
+        contains('    final stacked = <Widget>[\n'
+            '      icon,\n'
+            '      if (_labelled) ...['),
+      );
+      expect(output, contains('child: _opens\n'));
+      expect(
+        output,
+        contains('              : Column(\n'
+            '                  mainAxisSize: MainAxisSize.min,\n'
+            '                  children: stacked,\n'
+            '                ),'),
+      );
+      // Stacked, the open pill's vertical air would push it past the bar.
+      expect(
+        output,
+        contains('            vertical:\n'
+            '                _labelled && !_opens ? AppConstants.space4 : '
+            'AppConstants.space8,'),
+      );
+    });
+
+    test('material answers the same question with its own label behavior', () {
+      expect(
+        output,
+        contains('      labelBehavior: switch (labels) {\n'
+            '        AppBottomNavLabels.auto => null,'),
+      );
+      expect(
+          output, contains('NavigationDestinationLabelBehavior.alwaysHide,'));
+    });
+
+    test('the floating card and the pill each take a corner', () {
+      expect(
+          output, contains('enum AppBottomNavShape { full, rounded, square }'));
+      // One resolver, read twice — the card's corner and the fill's.
+      expect(
+        output,
+        contains('  static BorderRadius _radiusOf(AppBottomNavShape shape) => '
+            'switch (shape) {\n'
+            '        AppBottomNavShape.full => AppConstants.borderRadiusFull,\n'
+            '        AppBottomNavShape.rounded => AppConstants.borderRadius16,\n'
+            '        AppBottomNavShape.square => BorderRadius.zero,\n'
+            '      };'),
+      );
+      expect(output, contains('this.floatingShape = AppBottomNavShape.full,'));
+      expect(output, contains('final BorderRadius? floatingBorderRadius;'));
+      expect(output, contains('final BorderRadius? pillBorderRadius;'));
+      expect(
+        output,
+        contains('  BorderRadius get _radius => '
+            'floatingBorderRadius ?? _radiusOf(floatingShape);'),
+      );
+      // Both layers of the card are cut with it, or the fill would square off
+      // inside a rounded clip.
+      expect(output, contains('borderRadius: radius,\n'));
+      expect(output, contains('borderRadius: pillRadius,'));
+    });
+
+    test('a project that named no pill corner keeps every style\'s own', () {
+      // Null rather than a default value, so Material's indicator is left to
+      // NavigationBarTheme and the drawn pill stays a stadium.
+      expect(output, contains('final AppBottomNavShape? pillShape;'));
+      expect(
+        output,
+        contains('      indicatorShape: pillRadius == null\n'
+            '          ? null\n'
+            '          : RoundedRectangleBorder(borderRadius: pillRadius),'),
+      );
+      // Stacked over a label the pill is taller than it is wide, and a stadium
+      // there is a lozenge — so the two layouts fall back differently.
+      expect(
+        output,
+        contains('        pillRadius: _pillRadius ??\n'
+            '            (_opens\n'
+            '                ? AppConstants.borderRadiusFull\n'
+            '                : AppConstants.borderRadius16),'),
+      );
+    });
+
+    test('the room inside the card tracks the corner it has to clear', () {
+      // A square card has no curve for a label to be clipped by, so it spends
+      // the room on the items instead.
+      expect(
+        output,
+        contains('    final clearance = switch (radius.topLeft.x) {\n'
+            '      >= AppConstants.radius24 => AppConstants.space8,\n'
+            '      > 0 => AppConstants.space4,\n'
+            '      _ => 0.0,\n'
+            '    };'),
+      );
+      expect(
+        output,
+        contains('padding: EdgeInsets.symmetric(horizontal: clearance),'),
+      );
     });
 
     test('reduce motion reaches the same layouts', () {
@@ -257,6 +386,21 @@ void main() {
       expect(output, contains('floating: floatingBottomNav,'));
       // The bar took a variant before the rail did not pass it one.
       expect(output, contains('variant: variant,'));
+    });
+
+    test('AppAdaptiveNav hands down every knob the bar has', () {
+      // A look reachable from AppBottomNav but not from the shell is one a
+      // project has to leave the shell to get.
+      expect(
+          output, contains('this.bottomNavLabels = AppBottomNavLabels.auto,'));
+      expect(output, contains('this.bottomNavShape = AppBottomNavShape.full,'));
+      expect(output, contains('final BorderRadius? bottomNavBorderRadius;'));
+      expect(output, contains('final AppBottomNavShape? bottomNavPillShape;'));
+      expect(output, contains('labels: bottomNavLabels,'));
+      expect(output, contains('floatingShape: bottomNavShape,'));
+      expect(output, contains('floatingBorderRadius: bottomNavBorderRadius,'));
+      expect(output, contains('pillShape: bottomNavPillShape,'));
+      expect(output, contains('pillBorderRadius: bottomNavPillBorderRadius,'));
     });
 
     test('a floating bar gets a body that runs under it', () {

@@ -4692,6 +4692,32 @@ class AppNavDestination {
 ///   four, for a bar whose icons speak for themselves.
 enum AppBottomNavStyle { material, classic, pill, dot }
 
+/// Where [AppBottomNav] writes its labels, on top of what the
+/// [AppBottomNavStyle] says by itself.
+///
+/// - [auto]: whatever the style does on its own — [AppBottomNavStyle.material]
+///   and [AppBottomNavStyle.classic] write the label under every icon,
+///   [AppBottomNavStyle.pill] beside the selected one, [AppBottomNavStyle.dot]
+///   nowhere.
+/// - [below]: every destination carries its label under its icon, whichever
+///   style is drawing. The pill then fills behind the icon *and* the label
+///   instead of opening sideways; the dot keeps its mark under both.
+/// - [none]: icons only. The label still reaches a screen reader, and a long
+///   press still names the icon.
+enum AppBottomNavLabels { auto, below, none }
+
+/// A corner [AppBottomNav] cuts something with — the floating card it rides in
+/// ([AppBottomNav.floatingShape]) and the fill behind the selected destination
+/// ([AppBottomNav.pillShape]) are each asked this separately.
+///
+/// - [full]: a stadium, as round at the ends as the thing is tall.
+/// - [rounded]: the corner an elevated card wears.
+/// - [square]: sharp corners.
+///
+/// [AppBottomNav.floatingBorderRadius] and [AppBottomNav.pillBorderRadius]
+/// override the three where a project wants a number of its own.
+enum AppBottomNavShape { full, rounded, square }
+
 /// The app's bottom navigation. Feed it the current [index], the
 /// [destinations], and an [onDestinationSelected] callback. For go_router,
 /// drive [index] from a `StatefulShellRoute` and switch branch in the callback:
@@ -4702,14 +4728,19 @@ enum AppBottomNavStyle { material, classic, pill, dot }
 ///   destinations: destinations,
 ///   onDestinationSelected: shell.goBranch,
 ///   style: AppBottomNavStyle.pill,
+///   labels: AppBottomNavLabels.below,
 ///   floating: true,
+///   floatingShape: AppBottomNavShape.rounded,
 /// )
 /// ```
 ///
-/// [style] is how the selected destination is marked; [floating] is the
-/// separate question of whether the bar is a band across the bottom edge or a
-/// rounded card riding above it. The two combine freely — a floating [pill] is
-/// the look most modern apps wear, but every style floats.
+/// Each knob answers one question and combines freely with the rest: [style] is
+/// how the selected destination is marked, [labels] is where the names are
+/// written, [floating] is whether the bar is a band across the bottom edge or a
+/// card riding above it, [floatingShape] is the corner that card is cut with,
+/// and [pillShape] the corner of the fill behind the selection. A floating
+/// [pill] is the look most modern apps wear, but every style floats and every
+/// style can carry labels.
 ///
 /// A floating bar wants `Scaffold(extendBody: true)` under it, so the content
 /// runs through the gap instead of stopping at it. [AppAdaptiveNav] sets that
@@ -4721,7 +4752,12 @@ class AppBottomNav extends StatelessWidget {
     required this.destinations,
     required this.onDestinationSelected,
     this.style = AppBottomNavStyle.material,
+    this.labels = AppBottomNavLabels.auto,
     this.floating = false,
+    this.floatingShape = AppBottomNavShape.full,
+    this.floatingBorderRadius,
+    this.pillShape,
+    this.pillBorderRadius,
     this.variant,
   });
 
@@ -4731,9 +4767,32 @@ class AppBottomNav extends StatelessWidget {
 
   final AppBottomNavStyle style;
 
-  /// Detaches the bar from the bottom edge: a rounded card with a margin around
-  /// it and a shadow under it. Works with every [style].
+  /// Where the destination names are written. Defaults to whatever [style]
+  /// does on its own.
+  final AppBottomNavLabels labels;
+
+  /// Detaches the bar from the bottom edge: a card with a margin around it and
+  /// a shadow under it. Works with every [style].
   final bool floating;
+
+  /// The corner that card is cut with. Only read when [floating].
+  final AppBottomNavShape floatingShape;
+
+  /// A corner of the project's own, overriding [floatingShape]. Only read when
+  /// [floating].
+  final BorderRadius? floatingBorderRadius;
+
+  /// The corner of the fill behind the selected destination: the pill an
+  /// [AppBottomNavStyle.pill] draws, and the indicator Material's own bar
+  /// slides behind its selection.
+  ///
+  /// Null leaves each of them the corner it wears by itself — a stadium for a
+  /// pill that opens sideways, a card's corner for one stacked over its label,
+  /// and the theme's for Material's indicator.
+  final AppBottomNavShape? pillShape;
+
+  /// A corner of the project's own for that fill, overriding [pillShape].
+  final BorderRadius? pillBorderRadius;
 
   /// Null follows [AppInputConfig.defaults].
   final AppInputVariant? variant;
@@ -4742,6 +4801,29 @@ class AppBottomNav extends StatelessWidget {
   /// safe-area inset: a row of touch targets with a little air around it.
   /// Material's own bar measures itself and is left alone.
   static const double _height = 64;
+
+  static BorderRadius _radiusOf(AppBottomNavShape shape) => switch (shape) {
+        AppBottomNavShape.full => AppConstants.borderRadiusFull,
+        AppBottomNavShape.rounded => AppConstants.borderRadius16,
+        AppBottomNavShape.square => BorderRadius.zero,
+      };
+
+  /// The corner the floating card is cut with: the project's own where it named
+  /// one, the shape's otherwise.
+  BorderRadius get _radius => floatingBorderRadius ?? _radiusOf(floatingShape);
+
+  /// The corner asked for behind the selected destination, or null where none
+  /// was and every style keeps the one it draws by itself.
+  BorderRadius? get _pillRadius {
+    final shape = pillShape;
+    return pillBorderRadius ?? (shape == null ? null : _radiusOf(shape));
+  }
+
+  /// Whether the selected destination opens sideways into a labelled pill. That
+  /// is the pill style's own layout, and it is the one thing asking for labels
+  /// [AppBottomNavLabels.below] — or for none — takes away.
+  bool get _opens =>
+      style == AppBottomNavStyle.pill && labels == AppBottomNavLabels.auto;
 
   void _select(int i) {
     HapticFeedback.selectionClick();
@@ -4773,6 +4855,7 @@ class AppBottomNav extends StatelessWidget {
   /// destinations for free.
   Widget _material(BuildContext context) {
     final accent = AppInputStyle.accentOf(context, variant);
+    final pillRadius = _pillRadius;
 
     return NavigationBar(
       selectedIndex: index,
@@ -4784,6 +4867,22 @@ class AppBottomNav extends StatelessWidget {
       indicatorColor: accent.withValues(
         alpha: AppInputStyle.config.fillOpacity * 2,
       ),
+      // Material's indicator is the same fill the pill style draws by hand, so
+      // a project that named a corner for one means it for both. Null leaves
+      // NavigationBarTheme's own.
+      indicatorShape: pillRadius == null
+          ? null
+          : RoundedRectangleBorder(borderRadius: pillRadius),
+      // Material's bar writes a label under every icon on its own, so `auto`
+      // and `below` are the same answer here — and null is the one that lets a
+      // NavigationBarTheme still have its say.
+      labelBehavior: switch (labels) {
+        AppBottomNavLabels.auto => null,
+        AppBottomNavLabels.below =>
+          NavigationDestinationLabelBehavior.alwaysShow,
+        AppBottomNavLabels.none =>
+          NavigationDestinationLabelBehavior.alwaysHide,
+      },
       onDestinationSelected: _select,
       destinations: [
         for (final destination in destinations)
@@ -4805,9 +4904,11 @@ class AppBottomNav extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           for (var i = 0; i < destinations.length; i++)
-            // Only the pill grows with its label, so only the pill is sized by
-            // its content — the other two divide the width evenly.
-            if (style != AppBottomNavStyle.pill)
+            // Only a pill that opens sideways grows with its label, so only
+            // that one is sized by its content — every other layout divides the
+            // width evenly. A stacked pill still hugs its own content inside
+            // its even share, which is what keeps it a pill.
+            if (!_opens)
               Expanded(child: _item(i))
             // The open pill is the one item that can want more room than it is
             // given: Flexible lets its label ellipsize on a narrow screen
@@ -4844,14 +4945,34 @@ class AppBottomNav extends StatelessWidget {
         destination: destinations[i],
         selected: i == index,
         style: style,
+        labels: labels,
+        // A pill that opens sideways is a stadium, which is what it has always
+        // been. Stacked over a label it is taller than it is wide, and a
+        // stadium there is a lozenge — so that one defaults to a card's corner,
+        // the same one Material's stacked indicator wears.
+        pillRadius: _pillRadius ??
+            (_opens
+                ? AppConstants.borderRadiusFull
+                : AppConstants.borderRadius16),
         variant: variant,
         onTap: () => _select(i),
       );
 
-  /// The card a floating bar rides in: the margin off the edges, the rounded
-  /// edge, and the shadow that lifts it off the content passing underneath.
+  /// The card a floating bar rides in: the margin off the edges, the corner it
+  /// is cut with, and the shadow that lifts it off the content passing
+  /// underneath.
   Widget _floated(BuildContext context, Widget bar) {
     final inset = MediaQuery.paddingOf(context).bottom;
+    final radius = _radius;
+
+    // A rounded end curves in over the outermost destination, and this is the
+    // room that keeps it clear of the curve — so it tracks the corner rather
+    // than being spent on a square card that has no curve to clear.
+    final clearance = switch (radius.topLeft.x) {
+      >= AppConstants.radius24 => AppConstants.space8,
+      > 0 => AppConstants.space4,
+      _ => 0.0,
+    };
 
     return Padding(
       padding: EdgeInsets.only(
@@ -4866,7 +4987,7 @@ class AppBottomNav extends StatelessWidget {
         // The same shadow an elevated AppCard casts, so the two read as
         // siblings rather than as two ideas of what "raised" looks like.
         decoration: BoxDecoration(
-          borderRadius: AppConstants.borderRadiusFull,
+          borderRadius: radius,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.08),
@@ -4880,19 +5001,14 @@ class AppBottomNav extends StatelessWidget {
           // dark theme, where the shadow under it is not.
           color: context.colorScheme.surfaceContainer,
           clipBehavior: Clip.antiAlias,
-          borderRadius: AppConstants.borderRadiusFull,
+          borderRadius: radius,
           // The bar inside must not inset itself as well — NavigationBar wraps
           // itself in a SafeArea, which here would pad the inside of the card.
           child: MediaQuery.removePadding(
             context: context,
             removeBottom: true,
-            // A rounded end curves in over the last destination's label. The
-            // inset keeps the outermost label clear of that curve, which a
-            // long one on a narrow phone would otherwise be clipped by.
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppConstants.space8,
-              ),
+              padding: EdgeInsets.symmetric(horizontal: clearance),
               child: bar,
             ),
           ),
@@ -4908,6 +5024,8 @@ class _AppNavItem extends StatelessWidget {
     required this.destination,
     required this.selected,
     required this.style,
+    required this.labels,
+    required this.pillRadius,
     required this.variant,
     required this.onTap,
   });
@@ -4915,12 +5033,36 @@ class _AppNavItem extends StatelessWidget {
   final AppNavDestination destination;
   final bool selected;
   final AppBottomNavStyle style;
+  final AppBottomNavLabels labels;
+
+  /// The corner of the fill behind a selected [AppBottomNavStyle.pill].
+  final BorderRadius pillRadius;
+
   final AppInputVariant? variant;
   final VoidCallback onTap;
 
   /// The mark under a selected [AppBottomNavStyle.dot] icon. Small enough to
   /// read as a mark rather than as a second icon.
   static const double _dotSize = 6;
+
+  /// Whether this destination's name is written on screen — which decides both
+  /// whether the layouts below make room for it and whether a tooltip naming
+  /// the icon would be repeating what is already there.
+  bool get _labelled => switch (labels) {
+        AppBottomNavLabels.none => false,
+        AppBottomNavLabels.below => true,
+        AppBottomNavLabels.auto => switch (style) {
+            AppBottomNavStyle.material || AppBottomNavStyle.classic => true,
+            // The pill writes its label only once it has opened to hold it.
+            AppBottomNavStyle.pill => selected,
+            AppBottomNavStyle.dot => false,
+          },
+      };
+
+  /// Whether this item is a pill that opens sideways on selection, as opposed
+  /// to one stacked over its label or holding an icon alone.
+  bool get _opens =>
+      style == AppBottomNavStyle.pill && labels == AppBottomNavLabels.auto;
 
   @override
   Widget build(BuildContext context) {
@@ -4954,23 +5096,36 @@ class _AppNavItem extends StatelessWidget {
       ),
     );
 
+    // Icon over name, or the icon alone where the name is not written. What
+    // every layout here but the opening pill is built from.
+    // The label is not Flexible here the way it is inside an open pill: down
+    // the column, flex would hand it the leftover height instead of letting it
+    // ellipsize, and the width it has to fit is the item's own either way.
+    final stacked = <Widget>[
+      icon,
+      if (_labelled) ...[
+        const SizedBox(height: AppConstants.space4),
+        label,
+      ],
+    ];
+
     final Widget content = switch (style) {
       // The material style is a NavigationBar, not a row of these, so it never
       // arrives here — answering with the nearest layout beats an empty box if
       // that ever stops being true.
       AppBottomNavStyle.classic || AppBottomNavStyle.material => Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            icon,
-            const SizedBox(height: AppConstants.space4),
-            label,
-          ],
+          children: stacked,
         ),
       AppBottomNavStyle.dot => Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            icon,
-            const SizedBox(height: AppConstants.space8),
+            ...stacked,
+            // Closer under a label than under a bare icon, so the dot reads as
+            // this destination's mark either way.
+            SizedBox(
+              height: _labelled ? AppConstants.space4 : AppConstants.space8,
+            ),
             // The dot's room is held whether or not it is drawn, so the icons
             // do not hop as the selection moves.
             SizedBox(
@@ -4993,29 +5148,42 @@ class _AppNavItem extends StatelessWidget {
           duration: duration,
           curve: Curves.easeOut,
           padding: EdgeInsets.symmetric(
-            horizontal: selected ? AppConstants.space16 : AppConstants.space12,
-            vertical: AppConstants.space8,
+            horizontal:
+                _opens && selected ? AppConstants.space16 : AppConstants.space12,
+            // Stacked, the label is inside the fill, and the air an open pill
+            // wears above and below it would push the whole thing past the
+            // height of the bar.
+            vertical:
+                _labelled && !_opens ? AppConstants.space4 : AppConstants.space8,
           ),
           decoration: BoxDecoration(
             color: selected ? accent : Colors.transparent,
-            borderRadius: AppConstants.borderRadiusFull,
+            borderRadius: pillRadius,
           ),
-          // The label is only in the tree while selected; AnimatedSize is what
-          // turns its arrival into the pill opening rather than a jump.
-          child: AnimatedSize(
-            duration: duration,
-            curve: Curves.easeOut,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                icon,
-                if (selected) ...[
-                  const SizedBox(width: AppConstants.space8),
-                  Flexible(child: label),
-                ],
-              ],
-            ),
-          ),
+          child: _opens
+              // The label is only in the tree while selected; AnimatedSize is
+              // what turns its arrival into the pill opening rather than a
+              // jump.
+              ? AnimatedSize(
+                  duration: duration,
+                  curve: Curves.easeOut,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      icon,
+                      if (selected) ...[
+                        const SizedBox(width: AppConstants.space8),
+                        Flexible(child: label),
+                      ],
+                    ],
+                  ),
+                )
+              // Stacked, every item holds the same layout whether or not it is
+              // selected, so there is nothing to animate but the fill.
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: stacked,
+                ),
         ),
     };
 
@@ -5039,13 +5207,17 @@ class _AppNavItem extends StatelessWidget {
     return MergeSemantics(
       child: Semantics(
         selected: selected,
-        // Two of the three styles never draw the label, and a row of unnamed
+        // Some of these layouts never draw the label, and a row of unnamed
         // icons is unusable with a screen reader.
         label: destination.label,
         child: _tooltipped(
+          // The ripple follows the fill it lands on where there is one, so a
+          // squared-off pill is not tapped with a round splash.
           child: InkWell(
             onTap: onTap,
-            borderRadius: AppConstants.borderRadiusFull,
+            borderRadius: style == AppBottomNavStyle.pill
+                ? pillRadius
+                : AppConstants.borderRadiusFull,
             child: target,
           ),
         ),
@@ -5056,9 +5228,7 @@ class _AppNavItem extends StatelessWidget {
   /// Names the icon on a long press — but only where the label is not already
   /// written beside it, so a tooltip never repeats what is on screen.
   Widget _tooltipped({required Widget child}) {
-    final labelled = style == AppBottomNavStyle.classic ||
-        (style == AppBottomNavStyle.pill && selected);
-    if (labelled) return child;
+    if (_labelled) return child;
     return Tooltip(message: destination.label, child: child);
   }
 }
@@ -9031,20 +9201,77 @@ $toggleAction              const SizedBox(width: AppConstants.space8),
                       ),
                       const SizedBox(height: AppConstants.space16),
                     ],
-                    const Text('pill / floating:'),
-                    // The surface behind it is the point: a floating bar is
-                    // meant to have content passing under its margin.
-                    ColoredBox(
-                      color: Theme.of(context).colorScheme.surfaceContainerLowest,
-                      child: AppBottomNav(
-                        index: _navIndex,
-                        style: AppBottomNavStyle.pill,
-                        floating: true,
-                        onDestinationSelected: (i) =>
-                            setState(() => _navIndex = i),
-                        destinations: _navDestinations,
-                      ),
+                    // Where the names are written is its own question: the pill
+                    // stacks over its label instead of opening sideways, and
+                    // the dot picks up a label it does not have by itself.
+                    const Text('pill / labels below:'),
+                    const SizedBox(height: AppConstants.space8),
+                    AppBottomNav(
+                      index: _navIndex,
+                      style: AppBottomNavStyle.pill,
+                      labels: AppBottomNavLabels.below,
+                      onDestinationSelected: (i) =>
+                          setState(() => _navIndex = i),
+                      destinations: _navDestinations,
                     ),
+                    const SizedBox(height: AppConstants.space16),
+                    const Text('dot / labels below:'),
+                    const SizedBox(height: AppConstants.space8),
+                    AppBottomNav(
+                      index: _navIndex,
+                      style: AppBottomNavStyle.dot,
+                      labels: AppBottomNavLabels.below,
+                      onDestinationSelected: (i) =>
+                          setState(() => _navIndex = i),
+                      destinations: _navDestinations,
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    // The fill behind the selection takes a corner of its own,
+                    // whichever one the style would have picked.
+                    const Text('pill / labels below / square pill:'),
+                    const SizedBox(height: AppConstants.space8),
+                    AppBottomNav(
+                      index: _navIndex,
+                      style: AppBottomNavStyle.pill,
+                      labels: AppBottomNavLabels.below,
+                      pillShape: AppBottomNavShape.square,
+                      onDestinationSelected: (i) =>
+                          setState(() => _navIndex = i),
+                      destinations: _navDestinations,
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    const Text('classic / labels none:'),
+                    const SizedBox(height: AppConstants.space8),
+                    AppBottomNav(
+                      index: _navIndex,
+                      style: AppBottomNavStyle.classic,
+                      labels: AppBottomNavLabels.none,
+                      onDestinationSelected: (i) =>
+                          setState(() => _navIndex = i),
+                      destinations: _navDestinations,
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    // Floating, in each corner it can be cut with. The surface
+                    // behind them is the point: a floating bar is meant to have
+                    // content passing under its margin.
+                    for (final shape in AppBottomNavShape.values) ...[
+                      Text('pill / floating / \${shape.name}:'),
+                      const SizedBox(height: AppConstants.space8),
+                      ColoredBox(
+                        color:
+                            Theme.of(context).colorScheme.surfaceContainerLowest,
+                        child: AppBottomNav(
+                          index: _navIndex,
+                          style: AppBottomNavStyle.pill,
+                          floating: true,
+                          floatingShape: shape,
+                          onDestinationSelected: (i) =>
+                              setState(() => _navIndex = i),
+                          destinations: _navDestinations,
+                        ),
+                      ),
+                      const SizedBox(height: AppConstants.space16),
+                    ],
                   ],
                 ),
               ),

@@ -530,8 +530,9 @@ class AppNavRail extends StatelessWidget {
 /// )
 /// ```
 ///
-/// The phone half of it is an [AppBottomNav], so [bottomNavStyle] and
-/// [floatingBottomNav] pick which of its looks that half wears.
+/// The phone half of it is an [AppBottomNav], so [bottomNavStyle],
+/// [bottomNavLabels], [floatingBottomNav] and [bottomNavShape] pick which of
+/// its looks that half wears.
 class AppAdaptiveNav extends StatelessWidget {
   const AppAdaptiveNav({
     super.key,
@@ -544,7 +545,12 @@ class AppAdaptiveNav extends StatelessWidget {
     this.drawer,
     this.extendedRail = false,
     this.bottomNavStyle = AppBottomNavStyle.material,
+    this.bottomNavLabels = AppBottomNavLabels.auto,
     this.floatingBottomNav = false,
+    this.bottomNavShape = AppBottomNavShape.full,
+    this.bottomNavBorderRadius,
+    this.bottomNavPillShape,
+    this.bottomNavPillBorderRadius,
     this.variant,
   });
 
@@ -568,10 +574,28 @@ class AppAdaptiveNav extends StatelessWidget {
   /// layout — the rail draws its own indicator either way.
   final AppBottomNavStyle bottomNavStyle;
 
+  /// Where the bar writes its destination names. Only read on the phone
+  /// layout — the rail writes its own beside or under its icons.
+  final AppBottomNavLabels bottomNavLabels;
+
   /// Whether the bar floats above the content instead of sitting on the bottom
   /// edge. Only read on the phone layout, where it also turns on
   /// [Scaffold.extendBody] so the body runs under the card.
   final bool floatingBottomNav;
+
+  /// The corner that floating card is cut with. Only read on the phone layout,
+  /// and only when [floatingBottomNav] is on.
+  final AppBottomNavShape bottomNavShape;
+
+  /// A corner of the project's own, overriding [bottomNavShape].
+  final BorderRadius? bottomNavBorderRadius;
+
+  /// The corner of the fill behind the bar's selected destination. Null leaves
+  /// each style the one it draws by itself.
+  final AppBottomNavShape? bottomNavPillShape;
+
+  /// A corner of the project's own, overriding [bottomNavPillShape].
+  final BorderRadius? bottomNavPillBorderRadius;
 
   /// Null follows [AppInputConfig.defaults].
   final AppInputVariant? variant;
@@ -611,7 +635,12 @@ class AppAdaptiveNav extends StatelessWidget {
               destinations: destinations,
               onDestinationSelected: onDestinationSelected,
               style: bottomNavStyle,
+              labels: bottomNavLabels,
               floating: floatingBottomNav,
+              floatingShape: bottomNavShape,
+              floatingBorderRadius: bottomNavBorderRadius,
+              pillShape: bottomNavPillShape,
+              pillBorderRadius: bottomNavPillBorderRadius,
               variant: variant,
             ),
     );

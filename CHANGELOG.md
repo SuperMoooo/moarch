@@ -6,6 +6,19 @@ All notable changes to this package are documented in this file, newest first.
 
 ### Features
 
+- `AppBottomNav` takes two more looks apart from its `style`. `labels`
+  (`auto` / `below` / `none`) says where the destination names are written, so
+  the pill can stack over its label instead of opening sideways, the dot can
+  carry one at all, and any style can drop to icons only — a label that is not
+  drawn still reaches a screen reader and still names its icon on a long press.
+  `floatingShape` (`full` / `rounded` / `square`) cuts the floating card's
+  corner, and `pillShape` the corner of the fill behind the selection — which
+  Material's own bar reads too, as its indicator. Both take a
+  `BorderRadius` of the project's own (`floatingBorderRadius`,
+  `pillBorderRadius`) where the three names are not the number wanted.
+  `AppAdaptiveNav` passes all four down as `bottomNavLabels`,
+  `bottomNavShape`, `bottomNavPillShape` and their radius pair. Defaults are
+  what the bar drew before.
 - The dark theme is now a choice. `init` asks for it (**Dark theme**, off by
   default): with it off, `AppConstants` declares one brand palette and
   `AppTheme` one `light` getter — around 290 fewer lines in the files you
