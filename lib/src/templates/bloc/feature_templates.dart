@@ -523,9 +523,10 @@ $entityImport
 /// Sealed: adding a member makes any `switch` over it fail to compile until
 /// the new case is handled, which is the point of events over method calls.
 ///
-/// [Equatable] so two of the same event compare equal — what `bloc_test`
-/// asserts on, and what an `EventTransformer` like `distinct()` needs. It
-/// does not dedupe anything on its own: every event added is still handled.
+/// [Equatable] so two of the same event compare equal — what an
+/// `EventTransformer` like `distinct()` needs, and what a test asserts on.
+/// It does not dedupe anything on its own: every event added is still
+/// handled.
 sealed class ${cls}Event extends Equatable {
   const ${cls}Event();
 

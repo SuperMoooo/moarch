@@ -479,7 +479,9 @@ class InitCommand extends Command<int> {
       // `dart pub global activate bloc_tools`); analysis_options.yaml
       // carries the ruleset.
       if (stateManagement.isBloc) 'bloc_lint: ',
-      if (stateManagement.isBloc) 'bloc_test: ',
+      // No bloc_test: moarch scaffolds no tests, and mogen_unit_tests above
+      // is the testing story for both stacks. Add it the day you write a
+      // bloc test by hand — `flutter pub add --dev bloc_test`.
     ];
 
     // False when a main.dart the developer wrote was left in place, which is

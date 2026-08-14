@@ -108,7 +108,7 @@ layers, the same file names, the same `AppException` reaching the same
 | you call | `ref.read(p.notifier).refresh()` | `context.read<OrdersBloc>().add(const OrdersRefreshed())` |
 | the view uses | `AppAsyncView` + `ref.listenAction` | `BlocBuilder` + a `switch` |
 | dependencies | a provider beside each class | `get_it`, in `config/di/injector.dart` |
-| extra packages | — | `flutter_bloc`, `bloc`, `equatable`, `get_it`, `bloc_lint`, `bloc_test` |
+| extra packages | — | `flutter_bloc`, `bloc`, `equatable`, `get_it`, `bloc_lint` |
 
 Every command reads the choice back off `pubspec.yaml`, so there is no flag to
 remember: `moarch create feature orders` in a bloc project generates a bloc.
