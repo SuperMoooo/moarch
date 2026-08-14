@@ -5,6 +5,8 @@ import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
 import 'package:moarch/src/utils/scaffold_catalog.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
+import 'package:moarch/src/templates/riverpod/app_templates.dart'
+    as riverpod;
 import 'package:test/test.dart';
 
 /// Every `AppConstants.<token>` a source refers to.
@@ -53,7 +55,7 @@ void main() {
 
       final used = <String>{
         ..._referenced(ConfigTemplates.appTheme()),
-        ..._referenced(CoreTemplates.mainDart()),
+        ..._referenced(riverpod.AppTemplates.mainDart()),
         for (final spec in WidgetCatalog.all)
           ..._referenced(WidgetCatalog.sourceFor(spec, everything)),
       };
@@ -81,7 +83,7 @@ void main() {
 
         final sources = <String, String>{
           'app_theme.dart': ConfigTemplates.appTheme(withDark: dark),
-          'main.dart': CoreTemplates.mainDart(withDarkTheme: dark),
+          'main.dart': riverpod.AppTemplates.mainDart(withDarkTheme: dark),
           for (final spec in WidgetCatalog.all)
             spec.file: WidgetCatalog.sourceFor(spec, variants),
         };
@@ -115,7 +117,7 @@ void main() {
   group('main.dart', () {
     for (final withRouter in [true, false]) {
       test('hands MaterialApp one theme by default (router: $withRouter)', () {
-        final output = CoreTemplates.mainDart(withRouter: withRouter);
+        final output = riverpod.AppTemplates.mainDart(withRouter: withRouter);
 
         expect(output, contains('theme: AppTheme.light,'));
         expect(output, isNot(contains('AppTheme.dark')));
@@ -125,7 +127,7 @@ void main() {
       });
 
       test('follows the system brightness with dark (router: $withRouter)', () {
-        final output = CoreTemplates.mainDart(
+        final output = riverpod.AppTemplates.mainDart(
           withRouter: withRouter,
           withDarkTheme: true,
         );

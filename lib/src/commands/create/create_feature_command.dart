@@ -6,13 +6,14 @@ import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/core/services_templates.dart';
 import 'package:path/path.dart' as p;
 
-import '../../templates/config/config_templates.dart';
-import '../../templates/ui/feature_templates.dart';
+import '../../templates/stack_templates.dart';
 import '../../utils/checklist.dart';
 import '../../utils/file_utils.dart';
+import '../../utils/injector_utils.dart';
 import '../../utils/project_manifest.dart';
 import '../../utils/pubspec_utils.dart';
 import '../../utils/scaffold_catalog.dart';
+import '../../utils/state_management.dart';
 import '../../utils/string_utils.dart';
 import '../../utils/widget_catalog.dart';
 
@@ -25,7 +26,6 @@ const _kFirestoreDatasource = 'Remote Datasource (Firestore)';
 const _kLocalDatasource = 'Local/Cache Datasource';
 const _kRepository = 'Repository (interface + impl)';
 const _kUseCases = 'Use Cases';
-const _kStateNotifier = 'State + Notifier';
 const _kView = 'View';
 
 /// Creates the feature subcommand for scaffolding.
@@ -75,6 +75,14 @@ class CreateFeatureCommand extends Command<int> {
     final featurePath = p.join(libPath, 'features', featureName);
     final featureExists = Directory(featurePath).existsSync();
 
+    // Which stack this project took, read off pubspec.yaml rather than asked:
+    // a feature in a bloc project has to be a bloc, and the project already
+    // knows which it is.
+    final templates = StackTemplates(StateManagement.detect(libPath));
+    // The layer's label follows the stack, so the checklist reads as what it
+    // will actually generate.
+    final holderItem = templates.holderChecklistItem;
+
     // ── Existing feature — offer tests only ───────────────────────────────────
     if (featureExists) {
       _logger.warn('Feature "$featureName" already exists at $featurePath');
@@ -94,11 +102,11 @@ class CreateFeatureCommand extends Command<int> {
         'repositories',
         '${featureName}_repository_impl.dart',
       )).existsSync();
-      final hasNotifier = File(p.join(
+      final hasHolder = File(p.join(
         featurePath,
         'presentation',
-        'notifiers',
-        '${featureName}_notifier.dart',
+        templates.holderDir,
+        templates.holderFile(featureName),
       )).existsSync();
       final hasUseCase = File(p.join(
         featurePath,
@@ -110,7 +118,7 @@ class CreateFeatureCommand extends Command<int> {
       final selected = <String>{
         if (hasRemote) _kRemoteDatasource,
         if (hasRepo) _kRepository,
-        if (hasNotifier) _kStateNotifier,
+        if (hasHolder) holderItem,
         if (hasUseCase) _kUseCases,
       };
 
@@ -118,6 +126,8 @@ class CreateFeatureCommand extends Command<int> {
         featureName,
         className,
         selected,
+        templates,
+        holderItem,
         includeUnit: false,
         includeIntegration: false,
         testsOnly: true,
@@ -150,7 +160,7 @@ class CreateFeatureCommand extends Command<int> {
         _kLocalDatasource,
         _kRepository,
         _kUseCases,
-        _kStateNotifier,
+        holderItem,
         _kView,
       };
     } else {
@@ -197,15 +207,18 @@ class CreateFeatureCommand extends Command<int> {
               description:
                   'Domain-layer use case wrapping the repository call.',
             ),
-            const ChecklistItem(
-              _kStateNotifier,
+            ChecklistItem(
+              holderItem,
               defaultOn: true,
-              description: 'Riverpod state + notifier for this feature.',
+              description: templates.isBloc
+                  ? 'State, a sealed event family and the bloc handling them.'
+                  : 'Riverpod state + notifier for this feature.',
             ),
-            const ChecklistItem(
+            ChecklistItem(
               _kView,
               defaultOn: true,
-              description: 'Basic Flutter view wired to the notifier.',
+              description:
+                  'Basic Flutter view wired to the ${templates.holderLabel}.',
             ),
           ],
         );
@@ -226,13 +239,13 @@ class CreateFeatureCommand extends Command<int> {
       useFirestore = false;
     }
 
-    // The use case and notifier templates depend on the repository provider,
-    // so generating them without it would produce broken imports.
-    if ((selected.contains(_kUseCases) || selected.contains(_kStateNotifier)) &&
+    // The use case and state holder depend on the repository, so generating
+    // them without it would produce broken imports.
+    if ((selected.contains(_kUseCases) || selected.contains(holderItem)) &&
         !selected.contains(_kRepository)) {
       selected.add(_kRepository);
-      _logger.info(
-          '  Note: Repository layer added — Use Cases / Notifier depend on it.');
+      _logger.info('  Note: Repository layer added — Use Cases / '
+          '${templates.holderLabel} depend on it.');
     }
 
     _logger.info('');
@@ -249,6 +262,8 @@ class CreateFeatureCommand extends Command<int> {
     final progress = _logger.progress('Scaffolding');
     FileUtils.beginSession();
 
+    var registeredInInjector = false;
+
     try {
       if (selected.contains(_kRemoteDatasource)) {
         await _writeRemoteDatasource(
@@ -256,19 +271,19 @@ class CreateFeatureCommand extends Command<int> {
           featureName,
           className,
           varName,
-          hasRepo: selected.contains(_kRepository),
+          templates,
           useFirestore: useFirestore,
         );
         if (useFirestore) {
-          // The datasource imports the Firebase providers and the safe-call
+          // The datasource imports the Firebase wiring and the safe-call
           // wrapper. A project that took Firestore through `moarch init` has
           // both; one that added cloud_firestore by hand does not.
-          await _ensureFirebaseFiles(libPath, context);
+          await _ensureFirebaseFiles(libPath, context, templates);
         }
       }
       if (selected.contains(_kLocalDatasource)) {
         await _writeLocalDatasource(
-            featurePath, featureName, className, varName, libPath);
+            featurePath, featureName, className, varName, libPath, templates);
       }
       if (selected.contains(_kRepository)) {
         await _writeRepository(
@@ -276,37 +291,43 @@ class CreateFeatureCommand extends Command<int> {
           featureName,
           className,
           varName,
+          templates,
           hasRemote: selected.contains(_kRemoteDatasource),
           hasLocal: selected.contains(_kLocalDatasource),
           useFirestore: useFirestore,
         );
       }
       if (needsDataLayer) {
-        await _writeModel(featurePath, featureName, className,
+        await _writeModel(featurePath, featureName, className, templates,
             useFirestore: useFirestore);
-        await _writeEntity(featurePath, featureName, className,
+        await _writeEntity(featurePath, featureName, className, templates,
             useFirestore: useFirestore);
       }
       if (selected.contains(_kUseCases)) {
-        await _writeUsecase(featurePath, featureName, className, varName);
+        await _writeUsecase(
+            featurePath, featureName, className, varName, templates);
       }
-      if (selected.contains(_kStateNotifier)) {
-        await _writeState(featurePath, featureName, className,
+      if (selected.contains(holderItem)) {
+        await _writeState(featurePath, featureName, className, templates,
             useFirestore: useFirestore);
-        await _writeNotifier(
+        await _writeHolder(
           featurePath,
           featureName,
           className,
           varName,
+          templates,
           hasUseCase: selected.contains(_kUseCases),
           useFirestore: useFirestore,
         );
-        // The state/notifier depend on the shared runAction helper — write it
-        // if the project doesn't have it yet (writeFile never overwrites).
-        await FileUtils.writeFile(
-          p.join(libPath, 'core', 'utils', 'action_notifier.dart'),
-          CoreTemplates.actionNotifier(),
-        );
+        // The Riverpod state/notifier depend on the shared runAction helper —
+        // write it if the project doesn't have it yet (writeFile never
+        // overwrites). A bloc's sealed state needs nothing central.
+        if (templates.hasActionBase) {
+          await FileUtils.writeFile(
+            p.join(libPath, 'core', 'utils', templates.actionBaseFile),
+            templates.actionBase(),
+          );
+        }
       }
       if (selected.contains(_kView)) {
         await _writeView(
@@ -314,12 +335,43 @@ class CreateFeatureCommand extends Command<int> {
           featureName,
           className,
           varName,
-          hasNotifier: selected.contains(_kStateNotifier),
+          templates,
+          hasHolder: selected.contains(holderItem),
           useFirestore: useFirestore,
         );
-        if (selected.contains(_kStateNotifier)) {
+        if (selected.contains(holderItem)) {
           await _ensureViewWidgets(libPath);
         }
+      }
+
+      // Riverpod declares a provider beside each class, so a feature's wiring
+      // is already written by this point. A bloc project keeps it in one
+      // file, which has to be patched — the same way `init` patches gradle
+      // and the manifest.
+      if (templates.isBloc) {
+        registeredInInjector = await InjectorUtils.register(
+          libPath,
+          className: className,
+          registrations: InjectorUtils.registrationsFor(
+            featureName: featureName,
+            className: className,
+            hasRemote: selected.contains(_kRemoteDatasource),
+            hasLocal: selected.contains(_kLocalDatasource),
+            hasRepository: selected.contains(_kRepository),
+            hasUseCase: selected.contains(_kUseCases),
+            hasBloc: selected.contains(holderItem),
+            useFirestore: useFirestore,
+          ),
+          imports: InjectorUtils.importsFor(
+            featureName: featureName,
+            hasRemote: selected.contains(_kRemoteDatasource),
+            hasLocal: selected.contains(_kLocalDatasource),
+            hasRepository: selected.contains(_kRepository),
+            hasUseCase: selected.contains(_kUseCases),
+            hasBloc: selected.contains(holderItem),
+            useFirestore: useFirestore,
+          ),
+        );
       }
 
       progress.complete('Feature scaffolded');
@@ -334,6 +386,8 @@ class CreateFeatureCommand extends Command<int> {
       featureName,
       className,
       selected,
+      templates,
+      holderItem,
       includeUnit: false,
       includeIntegration: false,
     );
@@ -343,23 +397,30 @@ class CreateFeatureCommand extends Command<int> {
       _logger.info('  at your collection, and check your security rules.');
       _logger.info('');
     }
+    if (templates.isBloc) {
+      if (registeredInInjector) {
+        _logger.info('  Registered in ${InjectorUtils.path}.');
+      } else {
+        // Either there is no locator, or the anchor comment was removed. Both
+        // leave the feature unresolvable, and neither is guessable from the
+        // error the app throws at runtime.
+        _logger.warn(
+            '  Nothing was registered in ${InjectorUtils.path} — add the');
+        _logger
+            .info('  datasource, repository and bloc there yourself, or put');
+        _logger.info('  back the `${InjectorUtils.anchor}` comment.');
+      }
+      _logger.info('');
+    }
     _logger.info(
         'If you want tests, use the mogen_unit_tests and mogen_integration_tests package on pub.dev.');
     return 0;
   }
 
-  // ── Interactive prompt ────────────────────────────────────────────────────────
-
-  /* bool _askYesNo(String question) {
-    stdout.write(question);
-    final input = stdin.readLineSync()?.trim().toLowerCase() ?? '';
-    return input.isEmpty || input == 'y' || input == 'yes';
-  }
-*/
   // ── Writers ─────────────────────────────────────────────────────────────────
 
   /// Writes the kit widgets the generated view imports — [AppAsyncView] and
-  /// `listenAction` — along with everything they import in turn.
+  /// the action listener — along with everything they import in turn.
   ///
   /// A no-op on a project scaffolded by this version ([FileUtils.writeFile]
   /// never overwrites); it is older projects that would otherwise get a view
@@ -367,14 +428,23 @@ class CreateFeatureCommand extends Command<int> {
   Future<void> _ensureViewWidgets(String libPath) async {
     final projectRoot = p.dirname(p.absolute(libPath));
     final widgetsRoot = p.join(libPath, 'shared', 'widgets');
-    final specs = WidgetCatalog.resolve(['async-view', 'action-listener']);
+    // Read off the project, so these come out for the stack the view uses.
+    final variants = WidgetVariants.detect(libPath);
+    final specs = WidgetCatalog.resolve(
+      // A bloc view imports the kit's error and empty screens directly, and
+      // draws the rest from its own sealed state.
+      variants.hasBloc
+          ? ['error-view', 'empty-view', 'toast']
+          : ['async-view', 'action-listener'],
+      stateManagement: variants.stateManagement,
+    );
     final manifest = ProjectManifest.loadOrCreate(projectRoot);
 
     var wroteAny = false;
     final packages = <String>{};
 
     for (final spec in specs) {
-      final content = spec.template();
+      final content = WidgetCatalog.sourceFor(spec, variants);
       final path = p.join(widgetsRoot, spec.file);
       final wrote = await FileUtils.writeFile(path, content);
       if (!wrote) continue;
@@ -404,13 +474,14 @@ class CreateFeatureCommand extends Command<int> {
   Future<void> _ensureFirebaseFiles(
     String libPath,
     ScaffoldContext context,
+    StackTemplates templates,
   ) async {
     final projectRoot = p.dirname(p.absolute(libPath));
     final manifest = ProjectManifest.loadOrCreate(projectRoot);
 
     final files = <String, String>{
       p.join(libPath, 'config', 'firebase', 'firebase_providers.dart'):
-          ConfigTemplates.firebaseProviders(
+          templates.firebaseProviders(
         hasAuth: context.hasFirebaseAuth,
         hasDb: true,
       ),
@@ -429,6 +500,10 @@ class CreateFeatureCommand extends Command<int> {
 
     if (wroteAny) await manifest.save(projectRoot);
 
+    // On bloc the instances live in the locator, and the registration patch
+    // is what adds a missing one — nothing to check here.
+    if (templates.isBloc) return;
+
     // A project scaffolded with Firebase Auth but no Firestore has a providers
     // file with no firebaseDbProvider in it, and the file above was left alone
     // because it already existed — so the new datasource would not compile.
@@ -443,59 +518,87 @@ class CreateFeatureCommand extends Command<int> {
   }
 
   Future<void> _writeRemoteDatasource(
-      String fp, String name, String cls, String varName,
-      {required bool hasRepo, bool useFirestore = false}) async {
+    String fp,
+    String name,
+    String cls,
+    String varName,
+    StackTemplates templates, {
+    bool useFirestore = false,
+  }) async {
     await FileUtils.writeFile(
       p.join(fp, 'data', 'datasources', '${name}_remote_datasource.dart'),
-      FeatureTemplates.remoteDatasource(name, cls, varName,
+      templates.featureRemoteDatasource(name, cls, varName,
           useFirestore: useFirestore),
     );
   }
 
-  Future<void> _writeLocalDatasource(String fp, String name, String cls,
-      String varName, String libPath) async {
+  Future<void> _writeLocalDatasource(
+    String fp,
+    String name,
+    String cls,
+    String varName,
+    String libPath,
+    StackTemplates templates,
+  ) async {
     await FileUtils.writeFile(
       p.join(fp, 'data', 'datasources', '${name}_local_datasource.dart'),
-      FeatureTemplates.localDatasource(name, cls, varName),
+      templates.featureLocalDatasource(name, cls, varName),
     );
     // CONN SERVICE
     final c = p.join(libPath, 'core');
     await FileUtils.writeFile(
       p.join(c, 'services', 'connectivity_service.dart'),
-      ServicesTemplates.connectivityService(),
+      ServicesTemplates.connectivityService(
+        stateManagement: templates.stateManagement,
+      ),
     );
   }
 
   Future<void> _writeRepository(
-      String fp, String name, String cls, String varName,
-      {required bool hasRemote,
-      required bool hasLocal,
-      bool useFirestore = false}) async {
+    String fp,
+    String name,
+    String cls,
+    String varName,
+    StackTemplates templates, {
+    required bool hasRemote,
+    required bool hasLocal,
+    bool useFirestore = false,
+  }) async {
     await FileUtils.writeFile(
       p.join(fp, 'domain', 'repositories', '${name}_repository.dart'),
-      FeatureTemplates.repositoryInterface(name, cls,
+      templates.featureRepositoryInterface(name, cls,
           useFirestore: useFirestore),
     );
     await FileUtils.writeFile(
       p.join(fp, 'data', 'repositories', '${name}_repository_impl.dart'),
-      FeatureTemplates.repositoryImpl(name, cls, varName,
+      templates.featureRepositoryImpl(name, cls, varName,
           hasRemote: hasRemote, hasLocal: hasLocal, useFirestore: useFirestore),
     );
   }
 
-  Future<void> _writeModel(String fp, String name, String cls,
-      {bool useFirestore = false}) async {
+  Future<void> _writeModel(
+    String fp,
+    String name,
+    String cls,
+    StackTemplates templates, {
+    bool useFirestore = false,
+  }) async {
     await FileUtils.writeFile(
       p.join(fp, 'data', 'models', '${name}_model.dart'),
-      FeatureTemplates.model(name, cls, useFirestore: useFirestore),
+      templates.featureModel(name, cls, useFirestore: useFirestore),
     );
   }
 
-  Future<void> _writeEntity(String fp, String name, String cls,
-      {bool useFirestore = false}) async {
+  Future<void> _writeEntity(
+    String fp,
+    String name,
+    String cls,
+    StackTemplates templates, {
+    bool useFirestore = false,
+  }) async {
     await FileUtils.writeFile(
       p.join(fp, 'domain', 'entities', '${name}_entity.dart'),
-      FeatureTemplates.entity(name, cls, useFirestore: useFirestore),
+      templates.featureEntity(name, cls, useFirestore: useFirestore),
     );
   }
 
@@ -504,37 +607,65 @@ class CreateFeatureCommand extends Command<int> {
     String name,
     String cls,
     String varName,
+    StackTemplates templates,
   ) async {
     await FileUtils.writeFile(
       p.join(fp, 'domain', 'usecases', 'get_$name.dart'),
-      FeatureTemplates.usecase(name, cls, varName),
+      templates.featureUsecase(name, cls, varName),
     );
   }
 
-  Future<void> _writeState(String fp, String name, String cls,
-      {bool useFirestore = false}) async {
+  Future<void> _writeState(
+    String fp,
+    String name,
+    String cls,
+    StackTemplates templates, {
+    bool useFirestore = false,
+  }) async {
     await FileUtils.writeFile(
       p.join(fp, 'presentation', 'states', '${name}_state.dart'),
-      FeatureTemplates.state(name, cls, useFirestore: useFirestore),
+      templates.featureState(name, cls, useFirestore: useFirestore),
     );
   }
 
-  Future<void> _writeNotifier(
-      String fp, String name, String cls, String varName,
-      {required bool hasUseCase, bool useFirestore = false}) async {
+  /// The state holder, plus the event family when the stack has one.
+  Future<void> _writeHolder(
+    String fp,
+    String name,
+    String cls,
+    String varName,
+    StackTemplates templates, {
+    required bool hasUseCase,
+    bool useFirestore = false,
+  }) async {
+    final eventFile = templates.eventFile(name);
+    if (eventFile != null) {
+      await FileUtils.writeFile(
+        p.join(fp, 'presentation', templates.holderDir, eventFile),
+        templates.featureEvent(name, cls, useFirestore: useFirestore),
+      );
+    }
     await FileUtils.writeFile(
-      p.join(fp, 'presentation', 'notifiers', '${name}_notifier.dart'),
-      FeatureTemplates.notifier(name, cls, varName,
+      p.join(
+          fp, 'presentation', templates.holderDir, templates.holderFile(name)),
+      templates.featureHolder(name, cls, varName,
           hasUseCase: hasUseCase, useFirestore: useFirestore),
     );
   }
 
-  Future<void> _writeView(String fp, String name, String cls, String varName,
-      {required bool hasNotifier, bool useFirestore = false}) async {
+  Future<void> _writeView(
+    String fp,
+    String name,
+    String cls,
+    String varName,
+    StackTemplates templates, {
+    required bool hasHolder,
+    bool useFirestore = false,
+  }) async {
     await FileUtils.writeFile(
       p.join(fp, 'presentation', 'views', '${name}_view.dart'),
-      FeatureTemplates.view(name, cls, varName,
-          hasNotifier: hasNotifier, useFirestore: useFirestore),
+      templates.featureView(name, cls, varName,
+          hasHolder: hasHolder, useFirestore: useFirestore),
     );
   }
 
@@ -543,16 +674,14 @@ class CreateFeatureCommand extends Command<int> {
   void _printTree(
     String name,
     String cls,
-    Set<String> selected, {
+    Set<String> selected,
+    StackTemplates templates,
+    String holderItem, {
     bool includeUnit = true,
     bool includeIntegration = true,
     bool testsOnly = false,
   }) {
     _logger.success('');
-    /* _logger.success(testsOnly
-        ? '✅  Tests generated for $cls'
-        : '✅  $cls created at lib/features/$name/');
-    _logger.info('');*/
 
     void line(String s) => _logger.info('  $s');
 
@@ -589,9 +718,13 @@ class CreateFeatureCommand extends Command<int> {
       }
 
       line('presentation/');
-      if (selected.contains(_kStateNotifier)) {
+      if (selected.contains(holderItem)) {
         line('├── states/${name}_state.dart');
-        line('├── notifiers/${name}_notifier.dart');
+        final eventFile = templates.eventFile(name);
+        if (eventFile != null) {
+          line('├── ${templates.holderDir}/$eventFile');
+        }
+        line('├── ${templates.holderDir}/${templates.holderFile(name)}');
       }
       if (selected.contains(_kView)) {
         line('└── views/${name}_view.dart');

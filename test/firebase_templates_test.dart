@@ -2,8 +2,10 @@ import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/core/error_templates.dart';
 import 'package:moarch/src/templates/core/services_templates.dart';
 import 'package:moarch/src/templates/misc/docs_templates.dart';
-import 'package:moarch/src/templates/ui/feature_templates.dart';
-import 'package:moarch/src/templates/ui/firebase_auth_templates.dart';
+import 'package:moarch/src/templates/riverpod/feature_templates.dart';
+import 'package:moarch/src/templates/riverpod/firebase_auth_templates.dart';
+import 'package:moarch/src/templates/riverpod/app_templates.dart'
+    as riverpod;
 import 'package:test/test.dart';
 
 void main() {
@@ -106,7 +108,7 @@ void main() {
 
   group('main.dart', () {
     test('initializes Firebase for Firestore/Auth, not only Crashlytics', () {
-      final output = CoreTemplates.mainDart(withFirebase: true);
+      final output = riverpod.AppTemplates.mainDart(withFirebase: true);
 
       expect(output,
           contains("import 'package:firebase_core/firebase_core.dart';"));
@@ -116,7 +118,7 @@ void main() {
     });
 
     test('initializes Firebase exactly once when both are selected', () {
-      final output = CoreTemplates.mainDart(
+      final output = riverpod.AppTemplates.mainDart(
         withFirebase: true,
         withCrashlytics: true,
       );
@@ -136,7 +138,7 @@ void main() {
     });
 
     test('leaves a project without Firebase untouched', () {
-      final output = CoreTemplates.mainDart();
+      final output = riverpod.AppTemplates.mainDart();
 
       expect(output, isNot(contains('firebase_core')));
       expect(output, isNot(contains('Firebase.initializeApp')));

@@ -1,48 +1,75 @@
+import '../../utils/state_management.dart';
+
 /// Services Template
+///
+/// These service bodies are identical in both stacks — only how the service
+/// is *reached* differs — so each takes a [StateManagement] rather than being
+/// copied into `templates/riverpod/` and `templates/bloc/`. Riverpod declares
+/// a provider beside the class; a bloc project registers it in
+/// `config/di/injector.dart` and pulls it out with `getIt<Thing>()`.
+///
+/// The genuinely different service — the language holder, a `Notifier` on one
+/// side and a `Cubit` on the other — lives in each stack's own
+/// `app_templates.dart` instead.
 class ServicesTemplates {
   ServicesTemplates._();
 
-  /// Returns a language service scaffold.
-  static String languageService() => '''
-import 'dart:ui';
-
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-final languageProvider = NotifierProvider<LanguageService, LanguageState>(
-  LanguageService.new,
-);
-
-class LanguageState {
-  const LanguageState({required this.locale});
-
-  final Locale locale;
-}
-
-class LanguageService extends Notifier<LanguageState> {
-  @override
-  LanguageState build() {
-    // TODO: load the saved locale (e.g. from secure storage) if you persist it.
-    return const LanguageState(locale: Locale('en'));
-  }
-
-  Future<void> changeLanguage(String languageCode) async {
-    state = LanguageState(locale: Locale(languageCode));
-  }
-}
-''';
+  /// The `flutter_riverpod` import line, or nothing for a bloc project.
+  static String _riverpodImport(StateManagement sm) => sm.isBloc
+      ? ''
+      : "import 'package:flutter_riverpod/flutter_riverpod.dart';\n";
 
   /// Returns a notification service scaffold.
-  static String notificationsService() => r'''
+  static String notificationsService({
+    StateManagement stateManagement = StateManagement.riverpod,
+  }) {
+    final isBloc = stateManagement.isBloc;
+
+    final provider = isBloc
+        ? ''
+        : '''
+/// Read this to reach the service: `ref.read(notificationServiceProvider)`.
+final notificationServiceProvider = Provider<NotificationService>((ref) {
+  return NotificationService(ref);
+});
+
+''';
+
+    // Riverpod hands the service a Ref so it can reach other providers — to
+    // navigate on tap, say. With get_it there is nothing to hold: the locator
+    // is global, so a tap handler calls getIt<Thing>() where it needs one.
+    final constructor = isBloc
+        ? '''  NotificationService();
+
+  // Reach other services from here with `getIt<Thing>()`, e.g. to navigate
+  // on tap.
+'''
+        : '''  NotificationService(this._ref);
+
+  /// Read other providers from here, e.g. to navigate on tap.
+  // ignore: unused_field
+  final Ref _ref;
+''';
+
+    final ensureInitHint = isBloc
+        ? 'Call getIt<NotificationService>().init() first.'
+        : 'Call ref.read(notificationServiceProvider).init() first.';
+
+    return '''
 import 'dart:io';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:timezone/data/latest_all.dart' as tz;
+${_riverpodImport(stateManagement)}import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../core/constants/app_constants.dart';
 import '../../core/utils/app_logger.dart';
+$_notificationsPreamble$provider${_notificationsBody(constructor, ensureInitHint)}''';
+  }
 
+  /// Everything above the class: the platform notes, the logger and the
+  /// top-level background handler.
+  static const String _notificationsPreamble = r'''
 // Android: AndroidManifest.xml needs RECEIVE_BOOT_COMPLETED, SCHEDULE_EXACT_ALARM,
 // USE_EXACT_ALARM and POST_NOTIFICATIONS.
 // iOS: `moarch init` sets UNUserNotificationCenter.current().delegate in
@@ -61,18 +88,13 @@ void _backgroundHandler(NotificationResponse response) {
 
 enum NotificationPriority { defaultPriority, high }
 
-/// Read this to reach the service: `ref.read(notificationServiceProvider)`.
-final notificationServiceProvider = Provider<NotificationService>((ref) {
-  return NotificationService(ref);
-});
+''';
 
+  /// The service class. Only its constructor and the init-failure hint vary
+  /// with the stack, so the rest is written once.
+  static String _notificationsBody(String constructor, String hint) => '''
 class NotificationService {
-  NotificationService(this._ref);
-
-  /// Read other providers from here, e.g. to navigate on tap.
-  // ignore: unused_field
-  final Ref _ref;
-
+$constructor
   bool _initialized = false;
 
   final FlutterLocalNotificationsPlugin _plugin =
@@ -93,7 +115,19 @@ class NotificationService {
   static const int defaultId = 0;
   static const int scheduledId = 1;
   static const int periodicId = 2;
+$_notificationsMethods
+  void _ensureInit() {
+    if (!_initialized) {
+      throw StateError(
+        'NotificationService not initialized. '
+        '$hint',
+      );
+    }
+  }
+}
+''';
 
+  static const String _notificationsMethods = r'''
   Future<void> init() async {
     if (_initialized) return;
 
@@ -149,7 +183,7 @@ class NotificationService {
         playSound: true,
       ),
     );
- 
+
     await androidPlugin?.createNotificationChannel(
       const AndroidNotificationChannel(
         _scheduledChannelId,
@@ -159,7 +193,7 @@ class NotificationService {
         playSound: true,
       ),
     );
- 
+
     await androidPlugin?.createNotificationChannel(
       const AndroidNotificationChannel(
         _highPriorityChannelId,
@@ -243,7 +277,7 @@ class NotificationService {
 
     _log.i('Scheduled at $tzDate (id: $id)');
   }
- 
+
   /// Schedule a notification [delay] from now.
   Future<void> scheduleAfter({
     int id = scheduledId,
@@ -260,7 +294,7 @@ class NotificationService {
       payload: payload,
     );
   }
- 
+
   /// Schedule a daily notification at [hour]:[minute].
   Future<void> scheduleDailyAt({
     int id = scheduledId,
@@ -415,26 +449,50 @@ class NotificationService {
     return scheduledDate;
   }
 
-  void _ensureInit() {
-    if (!_initialized) {
-      throw StateError(
-        'NotificationService not initialized. '
-        'Call ref.read(notificationServiceProvider).init() first.',
-      );
-    }
-  }
-}
-
 ''';
 
   /// Returns a Firebase Cloud Messaging (push notifications) service scaffold.
-  static String firebaseNotificationsService() => r'''
+  static String firebaseNotificationsService({
+    StateManagement stateManagement = StateManagement.riverpod,
+  }) {
+    final isBloc = stateManagement.isBloc;
+
+    final provider = isBloc
+        ? ''
+        : '''
+/// Read this to reach the service:
+/// `ref.read(firebaseNotificationsServiceProvider)`.
+final firebaseNotificationsServiceProvider =
+    Provider<FirebaseNotificationsService>((ref) {
+  return FirebaseNotificationsService(ref);
+});
+
+''';
+
+    final constructor = isBloc
+        ? '''  FirebaseNotificationsService();
+
+  // Reach other services from here with `getIt<Thing>()`, e.g. to navigate
+  // on tap.
+'''
+        : '''  FirebaseNotificationsService(this._ref);
+
+  /// Read other providers from here, e.g. to navigate on tap.
+  // ignore: unused_field
+  final Ref _ref;
+''';
+
+    return '''
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/utils/app_logger.dart';
+${_riverpodImport(stateManagement)}import '../../core/utils/app_logger.dart';
+$_firebaseNotificationsPreamble$provider'''
+        'class FirebaseNotificationsService {\n'
+        '$constructor$_firebaseNotificationsBody';
+  }
 
+  static const String _firebaseNotificationsPreamble = r'''
 // Setup:
 // 1. Run `flutterfire configure`.
 // 2. iOS: enable the Push Notifications and Background Modes (remote
@@ -452,20 +510,9 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   _log.i('Background message | id: ${message.messageId}');
 }
 
-/// Read this to reach the service:
-/// `ref.read(firebaseNotificationsServiceProvider)`.
-final firebaseNotificationsServiceProvider =
-    Provider<FirebaseNotificationsService>((ref) {
-  return FirebaseNotificationsService(ref);
-});
+''';
 
-class FirebaseNotificationsService {
-  FirebaseNotificationsService(this._ref);
-
-  /// Read other providers from here, e.g. to navigate on tap.
-  // ignore: unused_field
-  final Ref _ref;
-
+  static const String _firebaseNotificationsBody = r'''
   static const int _tokenRetries = 5;
   static const Duration _tokenRetryDelay = Duration(seconds: 1);
 
@@ -632,22 +679,32 @@ class FirebaseNotificationsService {
 ''';
 
   /// Returns the generated mediaService template.
-  static String mediaService() => r'''
-import 'dart:io';
-
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
-
-import 'permission_service.dart';
-
+  static String mediaService({
+    StateManagement stateManagement = StateManagement.riverpod,
+  }) {
+    final provider = stateManagement.isBloc
+        ? ''
+        : '''
 final mediaServiceProvider = Provider.autoDispose<MediaService>((ref) {
   final permissionService = ref.watch(permissionProvider);
   return MediaService(permissionService);
 });
 
-class MediaService {
+''';
+
+    return '''
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
+${_riverpodImport(stateManagement)}import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+import 'permission_service.dart';
+
+$provider$_mediaServiceBody''';
+  }
+
+  static const String _mediaServiceBody = r'''class MediaService {
   MediaService(this._permissionService);
 
   final PermissionService _permissionService;
@@ -773,17 +830,27 @@ class MediaService {
 ''';
 
   /// Returns the generated launchUrlService template.
-  static String launchUrlService() => r'''
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
-
-import '../../core/security/validation_service.dart';
-
+  static String launchUrlService({
+    StateManagement stateManagement = StateManagement.riverpod,
+  }) {
+    final provider = stateManagement.isBloc
+        ? ''
+        : '''
 final urlLauncherProvider = Provider.autoDispose<UrlLauncherService>((ref) {
   return UrlLauncherService();
 });
 
-class UrlLauncherService {
+''';
+
+    return '''
+${_riverpodImport(stateManagement)}import 'package:url_launcher/url_launcher.dart';
+
+import '../../core/security/validation_service.dart';
+
+$provider$_launchUrlServiceBody''';
+  }
+
+  static const String _launchUrlServiceBody = r'''class UrlLauncherService {
   UrlLauncherService();
 
   /// Launch a URL string.
@@ -809,16 +876,15 @@ class UrlLauncherService {
     }
   }
 }
-
-  ''';
+''';
 
   /// Returns the generated connectivityService template.
-  static String connectivityService() => r'''
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../utils/app_logger.dart';
-
-final _log = appLogger.scoped('Connectivity');
+  static String connectivityService({
+    StateManagement stateManagement = StateManagement.riverpod,
+  }) {
+    final providers = stateManagement.isBloc
+        ? ''
+        : '''
 
 final connectivityProvider = Provider<ConnectivityService>((ref) {
   return ConnectivityService();
@@ -828,8 +894,18 @@ final hasInternetProvider = StreamProvider<bool>((ref) {
   final connectivityService = ref.watch(connectivityProvider);
   return connectivityService.hasInternetStream;
 });
+''';
 
-class ConnectivityService {
+    return '''
+import 'package:connectivity_plus/connectivity_plus.dart';
+${_riverpodImport(stateManagement)}import '../utils/app_logger.dart';
+
+final _log = appLogger.scoped('Connectivity');
+$providers
+$_connectivityServiceBody''';
+  }
+
+  static const String _connectivityServiceBody = r'''class ConnectivityService {
   final Connectivity _connectivity = Connectivity();
 
   Stream<bool> get hasInternetStream =>
@@ -842,19 +918,28 @@ class ConnectivityService {
     return !results.contains(ConnectivityResult.none);
   }
 }
-
 ''';
 
   /// Returns the generated debouncerService template.
-  static String debouncerService() => r'''
-import 'dart:async';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+  static String debouncerService({
+    StateManagement stateManagement = StateManagement.riverpod,
+  }) {
+    final provider = stateManagement.isBloc
+        ? ''
+        : '''
 final debouncerProvider = Provider<DebouncerService>((ref) {
   return DebouncerService();
 });
 
-class DebouncerService {
+''';
+
+    return '''
+import 'dart:async';
+${_riverpodImport(stateManagement)}
+$provider$_debouncerServiceBody''';
+  }
+
+  static const String _debouncerServiceBody = r'''class DebouncerService {
   final Duration delay;
   Timer? _timer;
 
@@ -872,15 +957,25 @@ class DebouncerService {
 ''';
 
   /// Returns the generated permissionService template.
-  static String permissionService() => r'''
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:permission_handler/permission_handler.dart';
-
+  static String permissionService({
+    StateManagement stateManagement = StateManagement.riverpod,
+  }) {
+    final provider = stateManagement.isBloc
+        ? ''
+        : '''
 final permissionProvider = Provider<PermissionService>((ref) {
   return PermissionService();
 });
 
-class PermissionService {
+''';
+
+    return '''
+${_riverpodImport(stateManagement)}import 'package:permission_handler/permission_handler.dart';
+
+$provider$_permissionServiceBody''';
+  }
+
+  static const String _permissionServiceBody = r'''class PermissionService {
   /// Request a specific permission.
   Future<bool> request({required Permission permission}) async {
     final status = await permission.status;
@@ -904,6 +999,5 @@ class PermissionService {
     }
   }
 }
-
 ''';
 }

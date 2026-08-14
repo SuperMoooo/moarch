@@ -1,3 +1,5 @@
+import '../../utils/state_management.dart';
+
 /// Dev Template
 class DevTemplates {
   DevTemplates._();
@@ -6,7 +8,39 @@ class DevTemplates {
   ///
   /// `strong-mode: implicit-dynamic` is absent on purpose — the analyzer
   /// dropped it; `strict-raw-types` covers the same ground.
-  static String analysisOptions() => '''
+  ///
+  /// A bloc project also carries the `bloc:` section. That one is **not** read
+  /// by `dart analyze` — the rules are the bloc analysis server's, run with
+  /// `bloc lint .` or through the Bloc VS Code extension. Keeping it in the
+  /// same file is what the bloc docs prescribe, and it means one place to
+  /// tune lint rules whichever tool is reading them.
+  static String analysisOptions({
+    StateManagement stateManagement = StateManagement.riverpod,
+  }) {
+    final blocRules = stateManagement.isBloc
+        ? '''
+
+# Read by the bloc analysis server (`bloc lint .`), not by `dart analyze`.
+# Install the CLI once with: dart pub global activate bloc_tools
+#
+# The recommended set. `prefer_bloc` and `prefer_cubit` are deliberately left
+# out: moarch scaffolds features as event-driven Blocs, but a holder with one
+# value and no vocabulary of events — the locale, the maintenance flag — is a
+# Cubit on purpose, and neither rule can tell the two cases apart.
+bloc:
+    rules:
+        - avoid_flutter_imports
+        - avoid_public_bloc_methods
+        - avoid_public_fields
+        - prefer_file_naming_conventions
+        - prefer_void_public_cubit_methods
+'''
+        : '';
+
+    return '$_analysisOptionsBody$blocRules';
+  }
+
+  static const String _analysisOptionsBody = '''
 include: package:flutter_lints/flutter.yaml
 
 analyzer:

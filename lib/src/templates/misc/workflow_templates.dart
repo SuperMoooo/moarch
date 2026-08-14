@@ -1,9 +1,38 @@
+import '../../utils/state_management.dart';
+
 /// Generates CI and security workflow templates.
 class WorkflowTemplates {
   WorkflowTemplates._();
 
   /// Returns the unified workflow template, combining every job in order.
-  static String unifiedWorkflow() => r'''
+  ///
+  /// [stateManagement] adds the `bloc lint` step to the analyze job: the bloc
+  /// rules live in `analysis_options.yaml` but are read by the bloc analysis
+  /// server, not by `dart analyze`, so CI has to run that tool too or the
+  /// rules only ever fire in the editor.
+  static String unifiedWorkflow({
+    StateManagement stateManagement = StateManagement.riverpod,
+  }) {
+    final blocLint = stateManagement.isBloc
+        ? '''
+
+            # The bloc rules in analysis_options.yaml are the bloc analysis
+            # server's, and `flutter analyze` above does not read them.
+            - name: Bloc lint
+              run: |
+                  dart pub global activate bloc_tools
+                  dart pub global run bloc_tools:bloc lint .
+'''
+        : '';
+
+    return _unifiedWorkflow.replaceFirst(_blocLintAnchor, blocLint);
+  }
+
+  /// Where [unifiedWorkflow] splices the bloc lint step in — right after the
+  /// analyze step, so a lint failure stops the run before the tests.
+  static const String _blocLintAnchor = '{{bloc_lint}}';
+
+  static const String _unifiedWorkflow = r'''
 # ── Unified Pipeline ──────────────────────────────────────────────────────────
 # Runs all jobs in order. Build only triggers if every check passes.
 #
@@ -57,7 +86,7 @@ jobs:
 
             - name: Analyze
               run: flutter analyze --no-fatal-warnings
-
+{{bloc_lint}}
             - name: Unit tests
               run: |
                   if [ -d test/unit ] && [ -n "$(find test/unit -name '*_test.dart')" ]; then

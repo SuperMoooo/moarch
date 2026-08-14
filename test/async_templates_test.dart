@@ -1,5 +1,5 @@
-import 'package:moarch/src/templates/ui/async_templates.dart';
-import 'package:moarch/src/templates/ui/feature_templates.dart';
+import 'package:moarch/src/templates/riverpod/async_templates.dart';
+import 'package:moarch/src/templates/riverpod/feature_templates.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
 import 'package:test/test.dart';
 

@@ -1,13 +1,15 @@
 import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/core/error_templates.dart';
-import 'package:moarch/src/templates/ui/feature_templates.dart';
+import 'package:moarch/src/templates/riverpod/feature_templates.dart';
 import 'package:moarch/src/templates/ui/modals_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
+import 'package:moarch/src/templates/riverpod/app_templates.dart'
+    as riverpod;
 import 'package:test/test.dart';
 
 void main() {
   test('mainDart adds notification initialization when requested', () {
-    final output = CoreTemplates.mainDart(
+    final output = riverpod.AppTemplates.mainDart(
       withRouter: false,
       withNotificationsService: true,
     );
@@ -24,7 +26,7 @@ void main() {
   });
 
   test('mainDart omits notification initialization by default', () {
-    final output = CoreTemplates.mainDart(withRouter: false);
+    final output = riverpod.AppTemplates.mainDart(withRouter: false);
 
     expect(output,
         isNot(contains("import 'core/services/notifications_service.dart';")));
@@ -36,7 +38,7 @@ void main() {
   });
 
   test('mainDart wires easy_localization when requested', () {
-    final output = CoreTemplates.mainDart(
+    final output = riverpod.AppTemplates.mainDart(
       withRouter: false,
       withEasyLocalization: true,
     );
@@ -56,7 +58,7 @@ void main() {
 
   test('mainDart prefers easy_localization when both localizations are set',
       () {
-    final output = CoreTemplates.mainDart(
+    final output = riverpod.AppTemplates.mainDart(
       withRouter: true,
       withLocalization: true,
       withEasyLocalization: true,
@@ -68,14 +70,14 @@ void main() {
   });
 
   test('mainDart omits easy_localization by default', () {
-    final output = CoreTemplates.mainDart(withRouter: false);
+    final output = riverpod.AppTemplates.mainDart(withRouter: false);
 
     expect(output, isNot(contains('EasyLocalization')));
     expect(output, contains('runApp(const ProviderScope(child: App()));'));
   });
 
   test('mainDart adds Firebase notification initialization when requested', () {
-    final output = CoreTemplates.mainDart(
+    final output = riverpod.AppTemplates.mainDart(
       withRouter: false,
       withFirebaseNotifications: true,
     );
@@ -96,7 +98,7 @@ void main() {
   });
 
   test('mainDart omits Firebase notification initialization by default', () {
-    final output = CoreTemplates.mainDart(withRouter: false);
+    final output = riverpod.AppTemplates.mainDart(withRouter: false);
 
     expect(
         output,
@@ -109,7 +111,7 @@ void main() {
   });
 
   test('mainDart wires Crashlytics into error handlers when requested', () {
-    final output = CoreTemplates.mainDart(
+    final output = riverpod.AppTemplates.mainDart(
       withRouter: false,
       withCrashlytics: true,
     );
@@ -134,7 +136,7 @@ void main() {
   });
 
   test('mainDart omits Crashlytics by default', () {
-    final output = CoreTemplates.mainDart(withRouter: false);
+    final output = riverpod.AppTemplates.mainDart(withRouter: false);
 
     expect(output, isNot(contains('FirebaseCrashlytics')));
     expect(output, isNot(contains('Firebase.initializeApp')));
@@ -233,7 +235,7 @@ void main() {
   });
 
   test('dioClient leaves redaction to the logger', () {
-    final output = CoreTemplates.dioClient();
+    final output = riverpod.AppTemplates.dioClient();
 
     expect(output, contains("final _log = appLogger.scoped('Dio');"));
     // The interceptor hands over raw bodies; app_logger.dart scrubs them.

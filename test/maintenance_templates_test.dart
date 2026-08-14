@@ -1,4 +1,4 @@
-import 'package:moarch/src/templates/ui/maintenance_templates.dart';
+import 'package:moarch/src/templates/riverpod/maintenance_templates.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
 import 'package:test/test.dart';
 

@@ -2,6 +2,61 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 4.0.0
+
+**Riverpod projects are unaffected by this release** — every template, field
+and file path on that side is unchanged. Everything below is the new stack.
+
+### Features
+
+- **flutter_bloc is a supported stack.** `moarch init` now asks which state
+  management the project uses before anything else — Riverpod, as before, or
+  flutter_bloc with `get_it` for dependency injection. Every state-bearing
+  template exists in both, under `lib/src/templates/riverpod/` and
+  `lib/src/templates/bloc/`: the feature scaffold, both auth features,
+  `AppAsyncView`, the action listener, the maintenance gate, the router, the
+  Dio client and `main.dart`. Same layers, same file names, same layer
+  boundaries — a project reads the same way whichever it took.
+- A bloc feature is **sealed on both sides**: a `<Feature>Event` family, and a
+  `<Feature>State` family of `Initial` / `Loading` / `Success` / `Failure`, so
+  the view is a `switch` the compiler checks for completeness. The family is
+  the status — there is no flag or enum on top of it. States and events extend
+  `Equatable`, which is load-bearing: bloc drops an emit equal to the current
+  state and `BlocBuilder` rebuilds on the same test, so without it every emit
+  repaints.
+- `AuthState` follows the same shape: `AuthInitial` (restoring, which is what
+  parks the router on splash), `AuthLoading`, `AuthAuthenticated`,
+  `AuthUnauthenticated`, `AuthFailure`.
+- Bloc views are **plain flutter_bloc**: `BlocProvider` in a `Page`,
+  `BlocBuilder` and a `switch` in the `View`. `AppAsyncView`,
+  `ref.listenAction` and any shared action base are not generated into a bloc
+  project — they exist to map Riverpod's opaque `AsyncValue` onto four
+  screens, and a sealed family needs no wrapper. `moarch create widget
+async-view` says so rather than writing a file that cannot compile.
+- `moarch create feature` reads the stack off `pubspec.yaml` and generates for
+  it — no new flag. In a bloc project it also **registers what it generated**
+  in `lib/config/di/injector.dart`, at the `// moarch:registrations` anchor.
+- `moarch create bloc <feature> <name>` adds a state + event + bloc trio to a
+  feature that already exists, wired to that feature's repository.
+- `moarch init --state riverpod|bloc` picks the stack without the checklist,
+  so `--all` can reach either one.
+- Generated bloc projects get `bloc_lint` in dev dependencies, the recommended
+  ruleset in `analysis_options.yaml`, and a `bloc lint` step in the CI
+  workflow. A freshly scaffolded project passes it with no findings.
+- `moarch doctor` checks what the project's own stack needs: `get_it` and a
+  locator with its anchor comment for bloc, `flutter_riverpod` otherwise.
+
+### Changes
+
+- `main.dart`, `action_notifier.dart`, `app_router.dart`, `dio_client.dart`,
+  `firebase_providers.dart` and `language_service.dart` moved out of
+  `CoreTemplates` / `ConfigTemplates` / `ServicesTemplates` into the per-stack
+  `AppTemplates`. Nothing changes in what a Riverpod project generates.
+- Templates that differ only in how a service is reached — the services, secure
+  storage, the biometric service, `AppButton`, the dialog and modal helpers,
+  the design-system preview — take the stack as a parameter instead of being
+  duplicated, so there is one body to maintain.
+
 ## 3.2.2
 
 ### Fixes
@@ -141,8 +196,8 @@ look at in the diff it offers:
       `doctor --fix` points it back at `.fvm/flutter_sdk`.
     - `settings.json` missing, or carrying no `dart.flutterSdkPath` — **warning**.
 
-                                          An absolute path is left alone as a deliberate override, and a project with no
-                                          `.fvmrc` gets none of these findings.
+                                                An absolute path is left alone as a deliberate override, and a project with no
+                                                `.fvmrc` gets none of these findings.
 
 - The README documents that the generated `.fvmrc` pins the `stable` _alias_
   rather than a version, so `fvm install` on CI or a teammate's machine can

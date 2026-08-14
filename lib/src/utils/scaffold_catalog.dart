@@ -12,8 +12,8 @@ import '../templates/misc/dev_templates.dart';
 import '../templates/misc/docs_templates.dart';
 import '../templates/misc/ios_templates.dart';
 import '../templates/misc/workflow_templates.dart';
-import '../templates/ui/auth_templates.dart';
-import '../templates/ui/firebase_auth_templates.dart';
+import '../templates/stack_templates.dart';
+import 'state_management.dart';
 import 'widget_catalog.dart';
 
 /// The options a generated file's template varies with, read back off a
@@ -63,6 +63,17 @@ class ScaffoldContext {
   /// The project talks to a REST API through Dio.
   bool get hasDio =>
       hasFile('lib/core/network/dio_client.dart') || hasPackage('dio');
+
+  /// The state-management stack the project was generated against, read off
+  /// `pubspec.yaml` — `flutter_bloc` says bloc, anything else says riverpod.
+  StateManagement get stateManagement => StateManagement.fromPubspec(pubspec);
+
+  /// The templates for this project's stack — what every state-bearing spec
+  /// below generates through.
+  StackTemplates get stack => StackTemplates(stateManagement);
+
+  /// The project uses flutter_bloc rather than Riverpod.
+  bool get hasBloc => stateManagement.isBloc;
 
   /// Firestore or Firebase Auth is installed — either brings in
   /// `firebase_core`, and with it `FirebaseException`.
@@ -121,9 +132,10 @@ class ScaffoldContext {
   bool get hasFirebaseAuth => hasPackage('firebase_auth');
 
   /// The auth feature was generated, in either variant — the router's redirect
-  /// reads its notifier.
+  /// reads its notifier (riverpod) or its bloc.
   bool get hasAuthFeature =>
-      hasFile('lib/features/auth/presentation/notifiers/auth_notifier.dart');
+      hasFile('lib/features/auth/presentation/notifiers/auth_notifier.dart') ||
+      hasFile('lib/features/auth/presentation/blocs/auth_bloc.dart');
 
   /// The auth feature was generated against Firebase Auth rather than the
   /// REST client.
@@ -244,14 +256,17 @@ abstract final class ScaffoldCatalog {
       description:
           'The app-wide logger, forwarding to Crashlytics when it is installed.',
     ),
+    // Riverpod only, and `generated` filters on the file being there, so a
+    // bloc project never reports it: its sealed states carry what this
+    // declares centrally.
     ScaffoldSpec(
       name: 'action-notifier',
       title: 'ActionNotifier',
       path: 'lib/core/utils/action_notifier.dart',
       category: 'Core',
-      template: (_) => CoreTemplates.actionNotifier(),
+      template: (c) => c.stack.actionBase(),
       description:
-          'The notifier base that turns a one-shot action into error/success fields.',
+          'The notifier base that turns a one-shot action into error/success fields (Riverpod).',
     ),
     ScaffoldSpec(
       name: 'constants',
@@ -275,7 +290,7 @@ abstract final class ScaffoldCatalog {
       title: 'main.dart',
       path: 'lib/main.dart',
       category: 'Core',
-      template: (c) => CoreTemplates.mainDart(
+      template: (c) => c.stack.mainDart(
         withRouter: c.hasRouter,
         withLocalization: c.hasLocalization,
         withEasyLocalization: c.hasEasyLocalization,
@@ -286,9 +301,10 @@ abstract final class ScaffoldCatalog {
         withMaintenanceGate: c.hasMaintenanceGate,
         withMoAdapt: c.hasMoAdapt,
         withDarkTheme: c.hasDarkTheme,
+        withAuthFeature: c.hasAuthFeature,
       ),
       description:
-          'The entry point: ProviderScope, theme, router and the services the project selected.',
+          'The entry point: the root scope, theme, router and the services the project selected.',
     ),
 
     // ── Network ─────────────────────────────────────────────────────────────
@@ -297,7 +313,7 @@ abstract final class ScaffoldCatalog {
       title: 'DioClient',
       path: 'lib/core/network/dio_client.dart',
       category: 'Network',
-      template: (_) => CoreTemplates.dioClient(),
+      template: (c) => c.stack.dioClient(),
       description:
           'REST client with retry and the secure-storage auth/refresh interceptor.',
     ),
@@ -328,7 +344,8 @@ abstract final class ScaffoldCatalog {
       title: 'SecureStorage',
       path: 'lib/core/security/secure_storage.dart',
       category: 'Security',
-      template: (_) => SecurityTemplates.secureStorage(),
+      template: (c) =>
+          SecurityTemplates.secureStorage(stateManagement: c.stateManagement),
       description: 'Keychain/Keystore wrapper holding tokens and the user id.',
     ),
     ScaffoldSpec(
@@ -345,7 +362,8 @@ abstract final class ScaffoldCatalog {
       title: 'BiometricService',
       path: 'lib/core/security/biometric_service.dart',
       category: 'Security',
-      template: (_) => SecurityTemplates.biometricService(),
+      template: (c) =>
+          SecurityTemplates.biometricService(stateManagement: c.stateManagement),
       description: 'Face ID / fingerprint via local_auth, behind one call.',
     ),
 
@@ -355,7 +373,8 @@ abstract final class ScaffoldCatalog {
       title: 'MediaService',
       path: 'lib/core/services/media_service.dart',
       category: 'Services',
-      template: (_) => ServicesTemplates.mediaService(),
+      template: (c) =>
+          ServicesTemplates.mediaService(stateManagement: c.stateManagement),
       description:
           'Image and file pickers with the permission handling around them.',
     ),
@@ -364,7 +383,8 @@ abstract final class ScaffoldCatalog {
       title: 'UrlLauncherService',
       path: 'lib/core/services/url_launcher_service.dart',
       category: 'Services',
-      template: (_) => ServicesTemplates.launchUrlService(),
+      template: (c) =>
+          ServicesTemplates.launchUrlService(stateManagement: c.stateManagement),
       description: 'Opens external links, with the in-app web view fallback.',
     ),
     ScaffoldSpec(
@@ -372,7 +392,9 @@ abstract final class ScaffoldCatalog {
       title: 'NotificationsService',
       path: 'lib/core/services/notifications_service.dart',
       category: 'Services',
-      template: (_) => ServicesTemplates.notificationsService(),
+      template: (c) => ServicesTemplates.notificationsService(
+        stateManagement: c.stateManagement,
+      ),
       description: 'Local notifications: permissions, channels and scheduling.',
     ),
     ScaffoldSpec(
@@ -380,7 +402,9 @@ abstract final class ScaffoldCatalog {
       title: 'FirebaseNotificationsService',
       path: 'lib/core/services/firebase_notifications_service.dart',
       category: 'Services',
-      template: (_) => ServicesTemplates.firebaseNotificationsService(),
+      template: (c) => ServicesTemplates.firebaseNotificationsService(
+        stateManagement: c.stateManagement,
+      ),
       description:
           'FCM tokens, foreground/background handlers and topic subscriptions.',
     ),
@@ -389,7 +413,8 @@ abstract final class ScaffoldCatalog {
       title: 'DebouncerService',
       path: 'lib/core/services/debouncer_service.dart',
       category: 'Services',
-      template: (_) => ServicesTemplates.debouncerService(),
+      template: (c) =>
+          ServicesTemplates.debouncerService(stateManagement: c.stateManagement),
       description: 'Debounces rapid actions, e.g. a search field.',
     ),
     ScaffoldSpec(
@@ -397,7 +422,8 @@ abstract final class ScaffoldCatalog {
       title: 'PermissionService',
       path: 'lib/core/services/permission_service.dart',
       category: 'Services',
-      template: (_) => ServicesTemplates.permissionService(),
+      template: (c) =>
+          ServicesTemplates.permissionService(stateManagement: c.stateManagement),
       description:
           'One place to request a permission and handle the permanently-denied case.',
     ),
@@ -406,9 +432,9 @@ abstract final class ScaffoldCatalog {
       title: 'LanguageService',
       path: 'lib/core/services/language_service.dart',
       category: 'Services',
-      template: (_) => ServicesTemplates.languageService(),
-      description:
-          'Holds and persists the selected locale (flutter_localizations).',
+      template: (c) => c.stack.languageService(),
+      description: 'Holds the selected locale — a Notifier on Riverpod, a '
+          'Cubit on bloc (flutter_localizations).',
     ),
 
     // ── Config ──────────────────────────────────────────────────────────────
@@ -434,7 +460,7 @@ abstract final class ScaffoldCatalog {
       title: 'AppRouter',
       path: 'lib/config/router/app_router.dart',
       category: 'Config',
-      template: (c) => ConfigTemplates.appRouter(withAuth: c.hasAuthFeature),
+      template: (c) => c.stack.appRouter(withAuth: c.hasAuthFeature),
       description:
           'GoRouter with the auth-aware redirect and rootNavigatorKey.',
     ),
@@ -451,22 +477,48 @@ abstract final class ScaffoldCatalog {
       title: 'Firebase providers',
       path: 'lib/config/firebase/firebase_providers.dart',
       category: 'Config',
-      template: (c) => ConfigTemplates.firebaseProviders(
+      template: (c) => c.stack.firebaseProviders(
         hasAuth: c.hasFirebaseAuth,
         hasDb: c.hasFirestore,
       ),
-      description: 'Riverpod providers for FirebaseAuth and Firestore.',
+      description: 'Where FirebaseAuth and Firestore come from — providers on '
+          'Riverpod, a signpost to the locator on bloc.',
+    ),
+    ScaffoldSpec(
+      name: 'injector',
+      title: 'Injector',
+      path: 'lib/config/di/injector.dart',
+      category: 'Config',
+      template: (c) => c.stack.injector(
+        withDio: c.hasDio,
+        withFirestore: c.hasFirestore,
+        withFirebaseAuth: c.hasFirebaseAuth,
+        withAuthFeature: c.hasAuthFeature,
+        withFirebaseAuthFeature: c.hasFirebaseAuthFeature,
+        withMedia: c.hasFile('lib/core/services/media_service.dart'),
+        withUrlLauncher: c.hasFile('lib/core/services/url_launcher_service.dart'),
+        withNotifications: c.hasNotifications,
+        withFirebaseNotifications: c.hasFirebaseNotifications,
+        withDebouncer: c.hasFile('lib/core/services/debouncer_service.dart'),
+        withBiometric: c.hasBiometric,
+        withLocalization: c.hasLocalization,
+        withConnectivity: c.hasFile('lib/core/services/connectivity_service.dart'),
+      ),
+      description: 'The get_it service locator every dependency is registered '
+          'in (flutter_bloc projects).',
     ),
 
     // ── Auth feature ────────────────────────────────────────────────────────
     // The files below the entity are shared by both backends: same path, same
-    // provider names, a template chosen by which entity the project has.
+    // class names, a template chosen by which entity the project has. The
+    // state holder is the one that differs by *stack* as well as by backend —
+    // hence the separate notifier / bloc / event entries at the end.
     ScaffoldSpec(
       name: 'auth-entity',
       title: 'AuthTokensEntity',
       path: 'lib/features/auth/domain/entities/auth_tokens_entity.dart',
       category: 'Auth feature',
-      template: (_) => AuthTemplates.entity(),
+      template: (c) => c.stack.authEntity(),
       description: 'The domain view of an access/refresh token pair.',
     ),
     ScaffoldSpec(
@@ -474,7 +526,7 @@ abstract final class ScaffoldCatalog {
       title: 'AuthUserEntity',
       path: 'lib/features/auth/domain/entities/auth_user_entity.dart',
       category: 'Auth feature',
-      template: (_) => FirebaseAuthTemplates.entity(),
+      template: (c) => c.stack.firebaseAuthEntity(),
       description: 'The domain view of a signed-in Firebase user.',
     ),
     ScaffoldSpec(
@@ -483,20 +535,20 @@ abstract final class ScaffoldCatalog {
       path: 'lib/features/auth/domain/repositories/auth_repository.dart',
       category: 'Auth feature',
       template: (c) => c.hasFirebaseAuthFeature
-          ? FirebaseAuthTemplates.repositoryInterface(
+          ? c.stack.firebaseAuthRepositoryInterface(
               withPushNotifications: c.hasFirebaseNotifications,
             )
-          : AuthTemplates.repositoryInterface(
+          : c.stack.authRepositoryInterface(
               withPushNotifications: c.hasFirebaseNotifications,
             ),
-      description: 'The repository contract the notifier depends on.',
+      description: 'The repository contract the state holder depends on.',
     ),
     ScaffoldSpec(
       name: 'auth-model',
       title: 'AuthTokensModel',
       path: 'lib/features/auth/data/models/auth_tokens_model.dart',
       category: 'Auth feature',
-      template: (_) => AuthTemplates.model(),
+      template: (c) => c.stack.authModel(),
       description: 'JSON ↔ entity mapping for the token pair.',
     ),
     ScaffoldSpec(
@@ -504,7 +556,7 @@ abstract final class ScaffoldCatalog {
       title: 'AuthUserModel',
       path: 'lib/features/auth/data/models/auth_user_model.dart',
       category: 'Auth feature',
-      template: (c) => FirebaseAuthTemplates.model(
+      template: (c) => c.stack.firebaseAuthModel(
         withFirestore: c.hasFirestore,
       ),
       description:
@@ -516,11 +568,11 @@ abstract final class ScaffoldCatalog {
       path: 'lib/features/auth/data/datasources/auth_remote_datasource.dart',
       category: 'Auth feature',
       template: (c) => c.hasFirebaseAuthFeature
-          ? FirebaseAuthTemplates.remoteDatasource(
+          ? c.stack.firebaseAuthRemoteDatasource(
               withFirestore: c.hasFirestore,
               withPushNotifications: c.hasFirebaseNotifications,
             )
-          : AuthTemplates.remoteDatasource(
+          : c.stack.authRemoteDatasource(
               withPushNotifications: c.hasFirebaseNotifications,
             ),
       description:
@@ -532,11 +584,11 @@ abstract final class ScaffoldCatalog {
       path: 'lib/features/auth/data/repositories/auth_repository_impl.dart',
       category: 'Auth feature',
       template: (c) => c.hasFirebaseAuthFeature
-          ? FirebaseAuthTemplates.repositoryImpl(
+          ? c.stack.firebaseAuthRepositoryImpl(
               withFirestore: c.hasFirestore,
               withPushNotifications: c.hasFirebaseNotifications,
             )
-          : AuthTemplates.repositoryImpl(
+          : c.stack.authRepositoryImpl(
               withPushNotifications: c.hasFirebaseNotifications,
             ),
       description:
@@ -548,9 +600,9 @@ abstract final class ScaffoldCatalog {
       path: 'lib/features/auth/presentation/states/auth_state.dart',
       category: 'Auth feature',
       template: (c) => c.hasFirebaseAuthFeature
-          ? FirebaseAuthTemplates.state()
-          : AuthTemplates.state(),
-      description: 'The state the auth notifier exposes.',
+          ? c.stack.firebaseAuthState()
+          : c.stack.authState(),
+      description: 'The state the auth notifier or bloc exposes.',
     ),
     ScaffoldSpec(
       name: 'auth-notifier',
@@ -558,14 +610,39 @@ abstract final class ScaffoldCatalog {
       path: 'lib/features/auth/presentation/notifiers/auth_notifier.dart',
       category: 'Auth feature',
       template: (c) => c.hasFirebaseAuthFeature
-          ? FirebaseAuthTemplates.notifier(
+          ? c.stack.firebaseAuthHolder(
               withPushNotifications: c.hasFirebaseNotifications,
             )
-          : AuthTemplates.notifier(
+          : c.stack.authHolder(
               withPushNotifications: c.hasFirebaseNotifications,
             ),
-      description:
-          'Login, register, refresh, logout, delete and session restore.',
+      description: 'Login, register, refresh, logout, delete and session '
+          'restore (Riverpod).',
+    ),
+    ScaffoldSpec(
+      name: 'auth-bloc',
+      title: 'AuthBloc',
+      path: 'lib/features/auth/presentation/blocs/auth_bloc.dart',
+      category: 'Auth feature',
+      template: (c) => c.hasFirebaseAuthFeature
+          ? c.stack.firebaseAuthHolder(
+              withPushNotifications: c.hasFirebaseNotifications,
+            )
+          : c.stack.authHolder(
+              withPushNotifications: c.hasFirebaseNotifications,
+            ),
+      description: 'Login, register, refresh, logout, delete and session '
+          'restore (flutter_bloc).',
+    ),
+    ScaffoldSpec(
+      name: 'auth-event',
+      title: 'AuthEvent',
+      path: 'lib/features/auth/presentation/blocs/auth_event.dart',
+      category: 'Auth feature',
+      template: (c) => c.hasFirebaseAuthFeature
+          ? c.stack.firebaseAuthEvent()
+          : c.stack.authEvent(),
+      description: 'The sealed event family AuthBloc handles (flutter_bloc).',
     ),
     ScaffoldSpec(
       name: 'auth-login-view',
@@ -573,8 +650,8 @@ abstract final class ScaffoldCatalog {
       path: 'lib/features/auth/presentation/views/login_view.dart',
       category: 'Auth feature',
       template: (c) => c.hasFirebaseAuthFeature
-          ? FirebaseAuthTemplates.loginView()
-          : AuthTemplates.loginView(),
+          ? c.stack.firebaseAuthLoginView()
+          : c.stack.authLoginView(),
       description: 'The login screen built from the UI kit.',
     ),
     ScaffoldSpec(
@@ -583,8 +660,8 @@ abstract final class ScaffoldCatalog {
       path: 'lib/features/auth/presentation/views/register_view.dart',
       category: 'Auth feature',
       template: (c) => c.hasFirebaseAuthFeature
-          ? FirebaseAuthTemplates.registerView()
-          : AuthTemplates.registerView(),
+          ? c.stack.firebaseAuthRegisterView()
+          : c.stack.authRegisterView(),
       description: 'The register screen built from the UI kit.',
     ),
 
@@ -652,7 +729,9 @@ abstract final class ScaffoldCatalog {
       title: 'CI workflow',
       path: '.github/workflows/unified_workflow.yml',
       category: 'Workflows',
-      template: (_) => WorkflowTemplates.unifiedWorkflow(),
+      template: (c) => WorkflowTemplates.unifiedWorkflow(
+        stateManagement: c.stateManagement,
+      ),
       description: 'Analyze, test and build on every push.',
     ),
     ScaffoldSpec(

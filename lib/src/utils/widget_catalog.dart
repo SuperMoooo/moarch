@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../templates/ui/adapt_templates.dart';
-import '../templates/ui/async_templates.dart';
+import '../templates/riverpod/async_templates.dart';
 import '../templates/ui/audio_templates.dart';
 import '../templates/ui/calendar_templates.dart';
 import '../templates/ui/content_templates.dart';
@@ -11,13 +11,15 @@ import '../templates/ui/country_templates.dart';
 import '../templates/ui/dialogs_templates.dart';
 import '../templates/ui/drag_templates.dart';
 import '../templates/ui/inputs_templates.dart';
-import '../templates/ui/maintenance_templates.dart';
+import '../templates/riverpod/maintenance_templates.dart';
 import '../templates/ui/modals_templates.dart';
 import '../templates/ui/navigation_templates.dart';
 import '../templates/ui/phone_templates.dart';
 import '../templates/ui/shared_templates.dart';
+import '../templates/stack_templates.dart';
 import '../templates/ui/table_templates.dart';
 import '../templates/ui/text_templates.dart';
+import 'state_management.dart';
 
 /// The project options a widget's source can vary with.
 ///
@@ -32,6 +34,7 @@ class WidgetVariants {
     this.hasFirestore = false,
     this.hasDio = false,
     this.hasDarkTheme = false,
+    this.stateManagement = StateManagement.riverpod,
   });
 
   /// Reads the options back off a project's `lib/`, for the callers working
@@ -40,10 +43,11 @@ class WidgetVariants {
         hasBiometric: File(
           p.join(libPath, 'core', 'security', 'biometric_service.dart'),
         ).existsSync(),
-        hasFirestore: _hasFirestoreProvider(libPath),
+        hasFirestore: _hasFirestoreSource(libPath),
         hasDio: File(p.join(libPath, 'core', 'network', 'dio_client.dart'))
             .existsSync(),
         hasDarkTheme: hasDarkThemeIn(libPath),
+        stateManagement: StateManagement.detect(libPath),
       );
 
   /// Whether `lib/config/theme/app_theme.dart` declares a `dark` theme.
@@ -58,12 +62,21 @@ class WidgetVariants {
   }
 
   /// `firebase_providers.dart` is generated for Firebase Auth too, so its
-  /// presence alone does not mean there is a Firestore instance to read.
-  static bool _hasFirestoreProvider(String libPath) {
+  /// presence alone does not mean there is a Firestore instance to read. A
+  /// bloc project has no providers file at all — there the pubspec is the
+  /// only record.
+  static bool _hasFirestoreSource(String libPath) {
     final file =
         File(p.join(libPath, 'config', 'firebase', 'firebase_providers.dart'));
-    return file.existsSync() &&
-        file.readAsStringSync().contains('firebaseDbProvider');
+    if (file.existsSync() &&
+        file.readAsStringSync().contains('firebaseDbProvider')) {
+      return true;
+    }
+    final pubspecFile =
+        File(p.join(p.dirname(p.absolute(libPath)), 'pubspec.yaml'));
+    return pubspecFile.existsSync() &&
+        RegExp(r'^\s+cloud_firestore:', multiLine: true)
+            .hasMatch(pubspecFile.readAsStringSync());
   }
 
   /// `core/security/biometric_service.dart` was generated — `AppButton` can
@@ -79,6 +92,14 @@ class WidgetVariants {
   /// `AppTheme.dark` was generated, so the `*Dark` half of `AppConstants`
   /// exists and a widget may pick its colors per brightness.
   final bool hasDarkTheme;
+
+  /// The stack the project's state-bearing widgets are generated against —
+  /// AppAsyncView, the action listener, the maintenance gate and AppButton
+  /// all read it.
+  final StateManagement stateManagement;
+
+  /// Shorthand the variant templates branch on.
+  bool get hasBloc => stateManagement.isBloc;
 }
 
 /// One entry in the shared-widget kit: everything needed to generate a widget
@@ -97,6 +118,7 @@ class WidgetSpec {
     this.packages = const [],
     this.common = false,
     this.needsRouter = false,
+    this.stacks = const {},
   });
 
   /// CLI slug, e.g. `switch` → `moarch create widget switch`.
@@ -138,6 +160,18 @@ class WidgetSpec {
 
   /// Imports `config/router/app_router.dart` — needs the GoRouter option.
   final bool needsRouter;
+
+  /// The stacks this widget exists for. Empty means every stack.
+  ///
+  /// A widget that only makes sense in one of them is not generated in the
+  /// other, rather than generated and left uncompilable: `AppAsyncView` maps
+  /// Riverpod's opaque `AsyncValue` onto four screens, and a bloc project has
+  /// a sealed state a `switch` already covers.
+  final Set<StateManagement> stacks;
+
+  /// Whether this widget belongs in a project using [stateManagement].
+  bool supports(StateManagement stateManagement) =>
+      stacks.isEmpty || stacks.contains(stateManagement);
 }
 
 /// The shared-widget kit `moarch` can scaffold: a lean common set on `init`,
@@ -167,8 +201,10 @@ abstract final class WidgetCatalog {
       title: 'DesignSystemView',
       file: 'design_system_view.dart',
       template: SharedTemplates.designSystemView,
-      variantTemplate: (v) =>
-          SharedTemplates.designSystemView(withDark: v.hasDarkTheme),
+      variantTemplate: (v) => SharedTemplates.designSystemView(
+        withDark: v.hasDarkTheme,
+        stateManagement: v.stateManagement,
+      ),
       category: 'Preview',
       needsRouter: true,
       deps: [for (final spec in _kit) spec.name],
@@ -470,8 +506,10 @@ abstract final class WidgetCatalog {
       title: 'AppButton',
       file: 'buttons/app_button.dart',
       template: SharedTemplates.appButton,
-      variantTemplate: (v) =>
-          SharedTemplates.appButton(hasBiometricAuth: v.hasBiometric),
+      variantTemplate: (v) => SharedTemplates.appButton(
+        hasBiometricAuth: v.hasBiometric,
+        stateManagement: v.stateManagement,
+      ),
       category: 'Buttons & icons',
       common: true,
       description:
@@ -636,6 +674,10 @@ abstract final class WidgetCatalog {
       common: true,
       deps: ['error-view', 'empty-view'],
       packages: ['skeletonizer: '],
+      // Riverpod only: `AsyncValue` is one opaque type that something has to
+      // map onto four screens. A bloc's states are a sealed family, and a
+      // `switch` inside a plain `BlocBuilder` covers them already.
+      stacks: {StateManagement.riverpod},
       description:
           'Renders an AsyncValue, a Stream or a Future as the four states it can be in — skeleton, error, empty, data — and keeps the old data on screen through a refresh.',
     ),
@@ -647,8 +689,11 @@ abstract final class WidgetCatalog {
       category: 'Feedback & loading',
       common: true,
       deps: ['toast'],
+      // Riverpod only, for the same reason: a bloc screen reports its outcome
+      // from `BlocConsumer`'s own listener.
+      stacks: {StateManagement.riverpod},
       description:
-          '`ref.listenAction(...)` — turns a notifier\'s one-shot error/success fields into a toast, or into whatever you pass instead.',
+          '`ref.listenAction(...)` — turns a notifier\'s one-shot action outcome into a toast, or into whatever you pass instead.',
     ),
     WidgetSpec(
       name: 'loading-data',
@@ -731,6 +776,8 @@ abstract final class WidgetCatalog {
       title: 'AppDialogs',
       file: 'overlays/app_dialogs.dart',
       template: DialogsTemplates.appDialog,
+      variantTemplate: (v) =>
+          DialogsTemplates.appDialog(stateManagement: v.stateManagement),
       category: 'Overlays',
       common: true,
       needsRouter: true,
@@ -742,6 +789,8 @@ abstract final class WidgetCatalog {
       title: 'AppBottomModals',
       file: 'overlays/app_bottom_modals.dart',
       template: ModalsTemplates.appBottomModals,
+      variantTemplate: (v) =>
+          ModalsTemplates.appBottomModals(stateManagement: v.stateManagement),
       category: 'Overlays',
       common: true,
       needsRouter: true,
@@ -752,7 +801,7 @@ abstract final class WidgetCatalog {
       title: 'MaintenanceGate',
       file: 'maintenance_gate.dart',
       template: MaintenanceTemplates.maintenanceGate,
-      variantTemplate: (v) => MaintenanceTemplates.maintenanceGate(
+      variantTemplate: (v) => v.stateManagement.templates.maintenanceGate(
         withFirestore: v.hasFirestore,
         withDio: v.hasDio && !v.hasFirestore,
       ),
@@ -935,8 +984,12 @@ abstract final class WidgetCatalog {
   /// Every catalog slug.
   static List<String> get names => all.map((w) => w.name).toList();
 
-  /// The widgets generated by `moarch init`.
+  /// The widgets generated by `moarch init`, for every stack.
   static List<WidgetSpec> get common => all.where((w) => w.common).toList();
+
+  /// The widgets `moarch init` generates for a [stateManagement] project.
+  static List<WidgetSpec> commonFor(StateManagement stateManagement) =>
+      all.where((w) => w.common && w.supports(stateManagement)).toList();
 
   /// The source [spec] should be written with for a project described by
   /// [variants].
@@ -957,12 +1010,20 @@ abstract final class WidgetCatalog {
 
   /// Resolves [requested] to themselves plus all transitive [WidgetSpec.deps],
   /// de-duplicated. Unknown names are ignored (validate before calling).
-  static List<WidgetSpec> resolve(Iterable<String> requested) {
+  ///
+  /// [stateManagement] drops the widgets that stack does not have, itself
+  /// included — a bloc project asking for the whole kit gets the kit minus
+  /// the two Riverpod-only pieces, not two files it cannot compile.
+  static List<WidgetSpec> resolve(
+    Iterable<String> requested, {
+    StateManagement? stateManagement,
+  }) {
     final resolved = <String, WidgetSpec>{};
     void visit(String name) {
       if (resolved.containsKey(name)) return;
       final spec = byName(name);
       if (spec == null) return;
+      if (stateManagement != null && !spec.supports(stateManagement)) return;
       resolved[name] = spec;
       for (final dep in spec.deps) {
         visit(dep);

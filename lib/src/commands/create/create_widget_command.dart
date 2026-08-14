@@ -71,15 +71,34 @@ class CreateWidgetCommand extends Command<int> {
       return 1;
     }
 
-    final specs = WidgetCatalog.resolve(requested);
-    final widgetsRoot = p.join(libPath, 'shared', 'widgets');
-    final packages = <String>{for (final spec in specs) ...spec.packages};
-
     // Some widgets are generated against the project's options — AppButton
     // against the biometric service, MaintenanceGate against the backend.
     // Read them off the project, so adding a widget later matches what `init`
     // would have written for it.
     final variants = WidgetVariants.detect(libPath);
+
+    // A widget the project's stack has no use for is dropped rather than
+    // written: `create widget all` on a bloc project leaves out the two
+    // Riverpod-only pieces instead of adding files that cannot compile.
+    final specs = WidgetCatalog.resolve(
+      requested,
+      stateManagement: variants.stateManagement,
+    );
+    final unsupported = requested
+        .where((name) => !specs.any((spec) => spec.name == name))
+        .toList();
+    if (unsupported.isNotEmpty && !rest.contains('all')) {
+      _logger.warn('Not available on '
+          '${variants.hasBloc ? 'flutter_bloc' : 'Riverpod'}: '
+          '${unsupported.join(', ')}');
+    }
+    if (specs.isEmpty) {
+      _logger.info('Nothing to generate.');
+      return 0;
+    }
+
+    final widgetsRoot = p.join(libPath, 'shared', 'widgets');
+    final packages = <String>{for (final spec in specs) ...spec.packages};
 
     _logger.info('');
     _logger.info('🧱 Generating ${specs.length} widget(s)');

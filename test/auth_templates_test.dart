@@ -1,8 +1,8 @@
-import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/core/error_templates.dart';
 import 'package:moarch/src/templates/core/security_templates.dart';
-import 'package:moarch/src/templates/ui/auth_templates.dart';
-import 'package:moarch/src/templates/ui/feature_templates.dart';
+import 'package:moarch/src/templates/riverpod/app_templates.dart' as riverpod;
+import 'package:moarch/src/templates/riverpod/auth_templates.dart';
+import 'package:moarch/src/templates/riverpod/feature_templates.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -19,7 +19,7 @@ void main() {
   });
 
   test('dioClient refreshes the session on 401 and retries once', () {
-    final output = CoreTemplates.dioClient();
+    final output = riverpod.AppTemplates.dioClient();
 
     expect(
         output, contains('final storage = ref.watch(tokenStorageProvider);'));
@@ -132,7 +132,7 @@ void main() {
   });
 
   test('notifiers share the global runAction helper', () {
-    final helper = CoreTemplates.actionNotifier();
+    final helper = riverpod.AppTemplates.actionNotifier();
     expect(helper, contains('mixin ActionNotifierMixin'));
     expect(helper, contains('Future<void> runAction'));
     expect(helper, contains('abstract interface class ActionState<T>'));

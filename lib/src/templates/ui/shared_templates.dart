@@ -1,4 +1,11 @@
+import '../../utils/state_management.dart';
+
 /// Generates reusable shared widget templates.
+///
+/// The kit is stack-agnostic apart from two widgets: `AppButton`, when it
+/// gates a press on biometrics, and the design-system preview, which shows
+/// `AppAsyncView`. Both take a [StateManagement] rather than being copied
+/// into the per-stack folders.
 class SharedTemplates {
   SharedTemplates._();
 
@@ -204,13 +211,26 @@ class AppImage extends StatelessWidget {
   /// BiometricService.verifyUserLocalAuth before [onPressed]; the import and
   /// flag are left out otherwise, since core/security/biometric_service.dart
   /// is only generated when that feature is selected.
-  static String appButton({bool hasBiometricAuth = false}) {
-    final biometricImports = hasBiometricAuth
-        ? "\nimport 'package:flutter_riverpod/flutter_riverpod.dart';"
-            "\nimport '../../../core/security/biometric_service.dart';"
-        : '';
+  ///
+  /// Only how the service is reached varies with [stateManagement] — a `ref`
+  /// on Riverpod, `getIt` on bloc — so the button itself is one template.
+  static String appButton({
+    bool hasBiometricAuth = false,
+    StateManagement stateManagement = StateManagement.riverpod,
+  }) {
+    final isBloc = stateManagement.isBloc;
 
-    final classDeclaration = hasBiometricAuth
+    final biometricImports = !hasBiometricAuth
+        ? ''
+        : isBloc
+            ? "\nimport '../../../config/di/injector.dart';"
+                "\nimport '../../../core/security/biometric_service.dart';"
+            : "\nimport 'package:flutter_riverpod/flutter_riverpod.dart';"
+                "\nimport '../../../core/security/biometric_service.dart';";
+
+    // A bloc project reads the locator, which needs no element of its own, so
+    // the button stays a StatelessWidget there.
+    final classDeclaration = hasBiometricAuth && !isBloc
         ? 'class AppButton extends ConsumerWidget {'
         : 'class AppButton extends StatelessWidget {';
 
@@ -223,9 +243,16 @@ class AppImage extends StatelessWidget {
             '  /// is cancelled when it fails.\n'
             '  final bool requireAuth;';
 
-    final buildSignature = hasBiometricAuth
+    final buildSignature = hasBiometricAuth && !isBloc
         ? 'Widget build(BuildContext context, WidgetRef ref) {'
         : 'Widget build(BuildContext context) {';
+
+    final verifyCall = isBloc
+        ? '                final verified = await getIt<BiometricService>()\n'
+            '                    .verifyUserLocalAuth(context);\n'
+        : '                final verified = await ref\n'
+            '                    .read(biometricServiceProvider)\n'
+            '                    .verifyUserLocalAuth(context);\n';
 
     final onPressedWiring = !hasBiometricAuth
         ? 'isLoading || onPressed == null\n'
@@ -242,9 +269,7 @@ class AppImage extends StatelessWidget {
             '                  onPressed!();\n'
             '                  return;\n'
             '                }\n'
-            '                final verified = await ref\n'
-            '                    .read(biometricServiceProvider)\n'
-            '                    .verifyUserLocalAuth(context);\n'
+            '$verifyCall'
             '                if (verified) onPressed!();\n'
             '              }';
 
@@ -8000,7 +8025,13 @@ class _NumberedStep extends StatelessWidget {
 ''';
 
   /// Returns the generated designSystemView template.
-  static String designSystemView({bool withDark = false}) {
+  ///
+  /// [stateManagement] only decides which async type the `AppAsyncView`
+  /// section is previewed with — the rest of the kit is stack-agnostic.
+  static String designSystemView({
+    bool withDark = false,
+    StateManagement stateManagement = StateManagement.riverpod,
+  }) {
     // The brightness toggle only means something when there is a second theme
     // to switch to; with one brand theme the button would be a no-op, so the
     // state it drives goes with it.
@@ -8041,9 +8072,40 @@ class _NumberedStep extends StatelessWidget {
 '''
         : '';
 
+    // The preview's fake async value comes from whichever type the project's
+    // AppAsyncView takes: Riverpod's AsyncValue, or the AsyncState the bloc
+    // stack declares in core/utils/action_bloc.dart.
+    final asyncImport = stateManagement.isBloc
+        ? "import '../../core/utils/action_bloc.dart';"
+        : "import 'package:flutter_riverpod/flutter_riverpod.dart';";
+
+    final previewAsync = stateManagement.isBloc
+        ? '''  AsyncState<List<String>> get _previewAsync => switch (_asyncState) {
+    1 => const AsyncLoading<List<String>>(),
+    2 => AsyncFailure<List<String>>(
+      AppException.noInternet(),
+      StackTrace.empty,
+    ),
+    3 => const AsyncData<List<String>>([]),
+    _ => const AsyncData<List<String>>(['One', 'Two', 'Three']),
+  };'''
+        : '''  AsyncValue<List<String>> get _previewAsync => switch (_asyncState) {
+    1 => const AsyncValue<List<String>>.loading(),
+    2 => AsyncValue<List<String>>.error(
+      AppException.noInternet(),
+      StackTrace.empty,
+    ),
+    3 => const AsyncValue<List<String>>.data([]),
+    _ => const AsyncValue<List<String>>.data(['One', 'Two', 'Three']),
+  };''';
+
+    final previewAsyncDoc = stateManagement.isBloc
+        ? 'Stands in for a bloc\'s state, so the four states'
+        : 'Stands in for `ref.watch(someNotifierProvider)`, so the four states';
+
     return '''
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+$asyncImport
 import 'package:skeletonizer/skeletonizer.dart';
 
 import '../../config/theme/app_theme.dart';
@@ -8159,17 +8221,9 @@ class _DesignSystemViewState extends State<DesignSystemView> {$themeState
   int _railIndex = 0;
   int _asyncState = 0;
 
-  /// Stands in for `ref.watch(someNotifierProvider)`, so the four states
+  /// $previewAsyncDoc
   /// [AppAsyncView] draws can be stepped through here.
-  AsyncValue<List<String>> get _previewAsync => switch (_asyncState) {
-    1 => const AsyncValue<List<String>>.loading(),
-    2 => AsyncValue<List<String>>.error(
-      AppException.noInternet(),
-      StackTrace.empty,
-    ),
-    3 => const AsyncValue<List<String>>.data([]),
-    _ => const AsyncValue<List<String>>.data(['One', 'Two', 'Three']),
-  };
+$previewAsync
 
   /// One destination list behind the bottom bar, the rail and the drawer —
   /// which is the whole point of them sharing [AppNavDestination].

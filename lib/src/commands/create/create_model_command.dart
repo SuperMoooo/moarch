@@ -6,7 +6,7 @@ import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/utils/model_field_parser.dart';
 import 'package:path/path.dart' as p;
 
-import '../../templates/ui/feature_templates.dart';
+import '../../templates/riverpod/feature_templates.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/json_model_builder.dart';
 import '../../utils/string_utils.dart';

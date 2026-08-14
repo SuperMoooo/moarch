@@ -1,18 +1,34 @@
+import '../../utils/state_management.dart';
+
 /// Helper template
 class DialogsTemplates {
   DialogsTemplates._();
 
   /// Template for app Dialog
-  static String appDialog() => '''
-import 'package:flutter/material.dart';
-import '../../../config/router/app_router.dart';
-
+  ///
+  /// The helper reaches the navigator through `rootNavigatorKey`, so it needs
+  /// no context. [stateManagement] only decides whether a provider is
+  /// declared for it — a bloc project registers `AppDialogs` in the locator,
+  /// or just calls the class directly, since it holds no state.
+  static String appDialog({
+    StateManagement stateManagement = StateManagement.riverpod,
+  }) {
+    final provider = stateManagement.isBloc
+        ? ''
+        : '''
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final dialogProvider = Provider<IAppDialogs>((ref) {
   return AppDialogs();
 });
 
+''';
+
+    return '''
+import 'package:flutter/material.dart';
+import '../../../config/router/app_router.dart';
+
+$provider
 
 abstract class IAppDialogs {
   Future<T?> showAppDialog<T>({
@@ -60,6 +76,7 @@ Future<T?> showAppDialog<T>({
 
 }
 ''';
+  }
 
   /// Template for the confirm/cancel dialog, built from [AppButton] and
   /// [AppLeadingIcon].

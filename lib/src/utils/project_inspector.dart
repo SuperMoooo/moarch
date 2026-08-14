@@ -3,9 +3,11 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import 'file_utils.dart';
+import 'injector_utils.dart';
 import 'plist_utils.dart';
 import 'project_manifest.dart';
 import 'pubspec_utils.dart';
+import 'state_management.dart';
 import 'widget_catalog.dart';
 
 /// How much a [Diagnostic] matters.
@@ -210,8 +212,18 @@ abstract final class ProjectInspector {
   // ── Dependencies ────────────────────────────────────────────────────────────
 
   static List<Diagnostic> _dependencies(String libPath, String pubspec) {
+    final stateManagement = StateManagement.fromPubspec(pubspec);
+
     final findings = <Diagnostic>[
-      if (!pubspec.contains('flutter_riverpod:'))
+      // Which one is required follows the stack the project took: a bloc
+      // project has no providers to miss, and vice versa.
+      if (stateManagement.isBloc && !pubspec.contains('get_it:'))
+        const Diagnostic.error(
+          'get_it is missing from pubspec.yaml',
+          hint: 'config/di/injector.dart registers every dependency in it, '
+              'and the generated views resolve blocs through it.',
+        ),
+      if (!stateManagement.isBloc && !pubspec.contains('flutter_riverpod:'))
         const Diagnostic.error(
           'flutter_riverpod is missing from pubspec.yaml',
           hint: 'The generated notifiers and providers need it.',
@@ -222,6 +234,33 @@ abstract final class ProjectInspector {
           hint: 'config/env/app_env.dart is generated from .env by envied.',
         ),
     ];
+
+    // A bloc project with no locator has nothing to resolve a bloc from, and
+    // the failure is a runtime "Object/factory with type X is not registered".
+    if (stateManagement.isBloc) {
+      final injector = File(p.join(libPath, 'config', 'di', 'injector.dart'));
+      if (!injector.existsSync()) {
+        findings.add(
+          const Diagnostic.error(
+            'lib/config/di/injector.dart is missing',
+            hint: 'The generated views resolve their blocs with `getIt<...>()`. '
+                'Run `moarch update injector`, or write it by hand.',
+          ),
+        );
+      } else if (!injector
+          .readAsStringSync()
+          .contains(InjectorUtils.anchor)) {
+        findings.add(
+          const Diagnostic.warning(
+            'lib/config/di/injector.dart has no `${InjectorUtils.anchor}` '
+            'comment',
+            hint: 'That line is where `moarch create feature` inserts new '
+                'registrations. Without it a generated feature is written but '
+                'never wired up. Put it back anywhere inside setupInjector().',
+          ),
+        );
+      }
+    }
 
     // go_router and config/router/ are generated together — one without the
     // other means an edit went half-applied.

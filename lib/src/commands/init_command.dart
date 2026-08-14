@@ -10,13 +10,12 @@ import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/templates/misc/docs_templates.dart';
 import 'package:moarch/src/templates/misc/ios_templates.dart';
 import 'package:moarch/src/templates/misc/workflow_templates.dart';
-import 'package:moarch/src/templates/ui/auth_templates.dart';
-import 'package:moarch/src/templates/ui/firebase_auth_templates.dart';
 import 'package:moarch/src/utils/checklist.dart';
 import 'package:path/path.dart' as p;
 
 import '../templates/config/config_templates.dart';
 import '../templates/core/core_templates.dart';
+import '../templates/stack_templates.dart';
 import '../utils/file_utils.dart';
 import '../utils/gradle_utils.dart';
 import '../utils/kotlin_utils.dart';
@@ -25,9 +24,16 @@ import '../utils/plist_utils.dart';
 import '../utils/project_manifest.dart';
 import '../utils/podfile_utils.dart';
 import '../utils/pubspec_utils.dart';
+import '../utils/state_management.dart';
 import '../utils/swift_utils.dart';
 import '../utils/widget_catalog.dart';
 import '../version.dart';
+
+// ── State management ──────────────────────────────────────────────────────────
+// The first choice, because every state-bearing file below follows it.
+
+const _kRiverpod = 'Riverpod (providers + AsyncNotifier)';
+const _kBloc = 'flutter_bloc (events + Bloc, get_it for DI)';
 
 // ── Stack options ─────────────────────────────────────────────────────────────
 // Add a new const + ChecklistItem + if block to support a new option.
@@ -72,6 +78,13 @@ class InitCommand extends Command<int> {
         negatable: false,
         help: 'Skip checklist and generate everything.',
       )
+      ..addOption(
+        'state',
+        abbr: 's',
+        allowed: ['riverpod', 'bloc'],
+        help: 'State management. Skips that checklist; the only way to pick '
+            'one with --all.',
+      )
       ..addFlag(
         'dry-run',
         negatable: false,
@@ -102,6 +115,11 @@ class InitCommand extends Command<int> {
     // What backend/networking does this project use?
 
     late Set<String> stack;
+    // Riverpod unless told otherwise — the stack every project scaffolded
+    // before this option existed uses.
+    final stateFlag = argResults?['state'] as String?;
+    var stateManagement =
+        stateFlag == 'bloc' ? StateManagement.bloc : StateManagement.riverpod;
 
     if (skipChecklist) {
       stack = {
@@ -121,6 +139,35 @@ class InitCommand extends Command<int> {
       };
     } else {
       try {
+        // Asked first, and on its own: it decides the shape of every
+        // state-bearing file the two checklists below select. Skipped when
+        // --state already answered it.
+        if (stateFlag == null) {
+          final stateChoice = Checklist.prompt(
+            title: '  State management:',
+            items: [
+              const ChecklistItem(
+                _kRiverpod,
+                defaultOn: true,
+                description:
+                    'Providers next to each class, AsyncNotifier + runAction.',
+                excludes: {_kBloc},
+              ),
+              const ChecklistItem(
+                _kBloc,
+                defaultOn: false,
+                description: 'A sealed event family and a Bloc per feature, '
+                    'wired through a get_it service locator. Adds bloc_lint.',
+                excludes: {_kRiverpod},
+              ),
+            ],
+          );
+          // Neither ticked is not a third stack — it is the default.
+          stateManagement = stateChoice.contains(_kBloc)
+              ? StateManagement.bloc
+              : StateManagement.riverpod;
+        }
+
         stack = Checklist.prompt(
           title: '  Backend / networking:',
           items: [
@@ -280,16 +327,25 @@ class InitCommand extends Command<int> {
           '  Note: flutter_localizations dropped — easy_localization selected.');
     }
 
+    // Every state-bearing template goes through this rather than through the
+    // riverpod/ or bloc/ folder directly.
+    final templates = StackTemplates(stateManagement);
+
     final progress = _logger.progress(
       dryRun ? 'Previewing structure' : 'Creating structure',
     );
 
     // Records the stack and a hash of every file written, so `moarch update`
     // can later tell an untouched generated file from one the user edited.
+    // The state management goes in as a checklist entry so the record reads
+    // as what was chosen, though every command re-detects it from pubspec.
     final manifest = ProjectManifest(
       version: packageVersion,
       generatedAt: DateTime.now(),
-      stack: stack.toList()..sort(),
+      stack: [
+        ...stack,
+        stateManagement.isBloc ? _kBloc : _kRiverpod,
+      ]..sort(),
     );
 
     FileUtils.beginSession(
@@ -351,7 +407,21 @@ class InitCommand extends Command<int> {
     // that break when it does carry a constraint of their own below.
     final defaultDependencies = <String>[
       'flutter:\n    sdk: flutter',
-      'flutter_riverpod: ',
+      if (stateManagement.isBloc) ...[
+        'flutter_bloc: ',
+        // Declared as well as flutter_bloc, which re-exports it: the blocs
+        // import `package:bloc/bloc.dart` so they stay pure Dart — which is
+        // what the avoid_flutter_imports lint rule is there to keep true.
+        'bloc: ',
+        // Value equality on states and events. Bloc drops an emit whose state
+        // equals the current one and BlocBuilder rebuilds on the same test,
+        // so without it every emit repaints.
+        'equatable: ',
+        // The service locator. Riverpod needs no counterpart — its providers
+        // are the wiring.
+        'get_it: ',
+      ] else
+        'flutter_riverpod: ',
       'flutter_native_splash: ',
       'envied: ',
       'skeletonizer: ',
@@ -404,6 +474,12 @@ class InitCommand extends Command<int> {
       'mogen_unit_tests: ',
       'mogen_integration_tests: ',
       'flutter_lints: ',
+      // The bloc team's own rules — file naming, no Flutter imports in a
+      // bloc, no public fields on a state. Run with `bloc lint .` (see
+      // `dart pub global activate bloc_tools`); analysis_options.yaml
+      // carries the ruleset.
+      if (stateManagement.isBloc) 'bloc_lint: ',
+      if (stateManagement.isBloc) 'bloc_test: ',
     ];
 
     // False when a main.dart the developer wrote was left in place, which is
@@ -411,20 +487,22 @@ class InitCommand extends Command<int> {
     var wroteMainDart = false;
 
     try {
-      await _buildCore(libPath, stack);
-      await _buildConfig(libPath, stack);
-      await _buildShared(libPath, stack);
+      await _buildCore(libPath, stack, templates);
+      await _buildConfig(libPath, stack, templates);
+      await _buildShared(libPath, stack, stateManagement);
       await FileUtils.createDir(p.join(libPath, 'features'));
       if (stack.contains(_kAuthFeature)) {
         if (firebaseAuthFeature) {
           await _buildFirebaseAuthFeature(
             libPath,
+            templates,
             withFirestore: stack.contains(_kFirestore),
             withPushNotifications: stack.contains(_kFirebaseNotifications),
           );
         } else {
           await _buildAuthFeature(
             libPath,
+            templates,
             withPushNotifications: stack.contains(_kFirebaseNotifications),
           );
         }
@@ -448,7 +526,7 @@ class InitCommand extends Command<int> {
       // Anything the developer wrote is left alone.
       wroteMainDart = await FileUtils.writeFile(
         p.join(libPath, 'main.dart'),
-        CoreTemplates.mainDart(
+        templates.mainDart(
           withRouter: stack.contains(_kRouter),
           withLocalization: stack.contains(_kLocalizations),
           withEasyLocalization: stack.contains(_kEasyLocalization),
@@ -463,6 +541,7 @@ class InitCommand extends Command<int> {
           withMaintenanceGate: stack.contains(_kMaintenanceGate),
           withMoAdapt: stack.contains(_kMoAdapt),
           withDarkTheme: stack.contains(_kDarkTheme),
+          withAuthFeature: stack.contains(_kAuthFeature),
         ),
         overwriteWhen: _isFlutterCounterDemo,
       );
@@ -495,7 +574,7 @@ class InitCommand extends Command<int> {
 
       await FileUtils.writeFile(
           p.join(p.absolute(targetPath), 'analysis_options.yaml'),
-          DevTemplates.analysisOptions());
+          DevTemplates.analysisOptions(stateManagement: stateManagement));
 
       await FileUtils.writeFile(
         p.join(
@@ -541,7 +620,9 @@ class InitCommand extends Command<int> {
         await FileUtils.writeFile(
           p.join(p.absolute(targetPath), '.github', 'workflows',
               'unified_workflow.yml'),
-          WorkflowTemplates.unifiedWorkflow(),
+          WorkflowTemplates.unifiedWorkflow(
+            stateManagement: stateManagement,
+          ),
         );
         await FileUtils.writeFile(
           p.join(p.absolute(targetPath), '.github', 'workflows', 'csa.yml'),
@@ -665,7 +746,7 @@ class InitCommand extends Command<int> {
         await FileUtils.writeFile(
           p.join(p.absolute(targetPath), 'lib', 'core', 'services',
               'language_service.dart'),
-          ServicesTemplates.languageService(),
+          templates.languageService(),
         );
       }
 
@@ -809,14 +890,30 @@ class InitCommand extends Command<int> {
     _logger.info(
         '         (generates config/env/app_env.g.dart from .env — required)');
     _logger.info('');
-    // Nothing in the scaffold works without a ProviderScope at the root, and a
+    // Nothing in the scaffold is reachable without its root wiring, and a
     // main.dart moarch was not allowed to touch has none.
     if (!wroteMainDart) {
       _logger.warn('  lib/main.dart is yours, so it was left alone.');
-      _logger.info('    Wrap your app in a ProviderScope and initialise the');
-      _logger.info(
-          '    services you selected — see the App widget moarch generates');
-      _logger.info('    for the shape it expects.');
+      if (stateManagement.isBloc) {
+        _logger.info('    Call `await setupInjector()` before runApp and');
+        _logger.info(
+            '    provide the app-wide blocs — see the App widget moarch');
+        _logger.info('    generates for the shape it expects.');
+      } else {
+        _logger.info('    Wrap your app in a ProviderScope and initialise the');
+        _logger.info(
+            '    services you selected — see the App widget moarch generates');
+        _logger.info('    for the shape it expects.');
+      }
+      _logger.info('');
+    }
+    if (stateManagement.isBloc) {
+      _logger.info('  flutter_bloc + get_it — dependencies are registered in');
+      _logger.info('  lib/config/di/injector.dart, and `moarch create feature`');
+      _logger.info('  adds to it. For the bloc lint rules in');
+      _logger.info('  analysis_options.yaml, install the CLI once:');
+      _logger.info('    dart pub global activate bloc_tools');
+      _logger.info('    bloc lint .');
       _logger.info('');
     }
     if (stack.contains(_kAuthFeature) && !firebaseAuthFeature) {
@@ -1231,7 +1328,11 @@ class InitCommand extends Command<int> {
     return null;
   }
 
-  Future<void> _buildCore(String libPath, Set<String> stack) async {
+  Future<void> _buildCore(
+    String libPath,
+    Set<String> stack,
+    StackTemplates templates,
+  ) async {
     final c = p.join(libPath, 'core');
 
     await FileUtils.writeFile(
@@ -1253,10 +1354,14 @@ class InitCommand extends Command<int> {
       p.join(c, 'utils', 'app_logger.dart'),
       CoreTemplates.appLogger(withCrashlytics: stack.contains(_kCrashlytics)),
     );
-    await FileUtils.writeFile(
-      p.join(c, 'utils', 'action_notifier.dart'),
-      CoreTemplates.actionNotifier(),
-    );
+    // Riverpod's notifiers share a runAction mixin; a bloc's sealed states
+    // leave nothing central to declare.
+    if (templates.hasActionBase) {
+      await FileUtils.writeFile(
+        p.join(c, 'utils', templates.actionBaseFile),
+        templates.actionBase(),
+      );
+    }
     await FileUtils.writeFile(
       p.join(c, 'constants', 'app_constants.dart'),
       CoreTemplates.appConstants(withDark: stack.contains(_kDarkTheme)),
@@ -1268,7 +1373,7 @@ class InitCommand extends Command<int> {
     if (stack.contains(_kDio)) {
       await FileUtils.writeFile(
         p.join(c, 'network', 'dio_client.dart'),
-        CoreTemplates.dioClient(),
+        templates.dioClient(),
       );
       await FileUtils.writeFile(
         p.join(c, 'network', 'safe_api_call.dart'),
@@ -1288,7 +1393,7 @@ class InitCommand extends Command<int> {
     }
     await FileUtils.writeFile(
       p.join(c, 'security', 'secure_storage.dart'),
-      SecurityTemplates.secureStorage(),
+      SecurityTemplates.secureStorage(stateManagement: templates.stateManagement),
     );
     await FileUtils.writeFile(
       p.join(c, 'security', 'validation_service.dart'),
@@ -1297,99 +1402,121 @@ class InitCommand extends Command<int> {
     if (stack.contains(_kBiometricAuth)) {
       await FileUtils.writeFile(
         p.join(c, 'security', 'biometric_service.dart'),
-        SecurityTemplates.biometricService(),
+        SecurityTemplates.biometricService(
+          stateManagement: templates.stateManagement,
+        ),
       );
     }
 
     if (stack.contains(_kMediaService)) {
       await FileUtils.writeFile(
         p.join(c, 'services', 'media_service.dart'),
-        ServicesTemplates.mediaService(),
+        ServicesTemplates.mediaService(
+          stateManagement: templates.stateManagement,
+        ),
       );
     }
     if (stack.contains(_kLaunchUrlService)) {
       await FileUtils.writeFile(
         p.join(c, 'services', 'url_launcher_service.dart'),
-        ServicesTemplates.launchUrlService(),
+        ServicesTemplates.launchUrlService(
+          stateManagement: templates.stateManagement,
+        ),
       );
     }
     if (stack.contains(_kNotificationsService)) {
       await FileUtils.writeFile(
         p.join(c, 'services', 'notifications_service.dart'),
-        ServicesTemplates.notificationsService(),
+        ServicesTemplates.notificationsService(
+          stateManagement: templates.stateManagement,
+        ),
       );
     }
     if (stack.contains(_kFirebaseNotifications)) {
       await FileUtils.writeFile(
         p.join(c, 'services', 'firebase_notifications_service.dart'),
-        ServicesTemplates.firebaseNotificationsService(),
+        ServicesTemplates.firebaseNotificationsService(
+          stateManagement: templates.stateManagement,
+        ),
       );
     }
 
     if (stack.contains(_kDebouncerService)) {
       await FileUtils.writeFile(
         p.join(c, 'services', 'debouncer_service.dart'),
-        ServicesTemplates.debouncerService(),
+        ServicesTemplates.debouncerService(
+          stateManagement: templates.stateManagement,
+        ),
       );
     }
 
     await FileUtils.writeFile(
       p.join(c, 'services', 'permission_service.dart'),
-      ServicesTemplates.permissionService(),
+      ServicesTemplates.permissionService(
+        stateManagement: templates.stateManagement,
+      ),
     );
   }
 
   /// [withPushNotifications] registers the device's FCM token with the backend
   /// on login, on register and on session restore.
   Future<void> _buildAuthFeature(
-    String libPath, {
+    String libPath,
+    StackTemplates templates, {
     required bool withPushNotifications,
   }) async {
     final f = p.join(libPath, 'features', 'auth');
 
     await FileUtils.writeFile(
       p.join(f, 'domain', 'entities', 'auth_tokens_entity.dart'),
-      AuthTemplates.entity(),
+      templates.authEntity(),
     );
     await FileUtils.writeFile(
       p.join(f, 'domain', 'repositories', 'auth_repository.dart'),
-      AuthTemplates.repositoryInterface(
+      templates.authRepositoryInterface(
         withPushNotifications: withPushNotifications,
       ),
     );
     await FileUtils.writeFile(
       p.join(f, 'data', 'models', 'auth_tokens_model.dart'),
-      AuthTemplates.model(),
+      templates.authModel(),
     );
     await FileUtils.writeFile(
       p.join(f, 'data', 'datasources', 'auth_remote_datasource.dart'),
-      AuthTemplates.remoteDatasource(
+      templates.authRemoteDatasource(
         withPushNotifications: withPushNotifications,
       ),
     );
     await FileUtils.writeFile(
       p.join(f, 'data', 'repositories', 'auth_repository_impl.dart'),
-      AuthTemplates.repositoryImpl(
+      templates.authRepositoryImpl(
         withPushNotifications: withPushNotifications,
       ),
     );
     await FileUtils.writeFile(
       p.join(f, 'presentation', 'states', 'auth_state.dart'),
-      AuthTemplates.state(),
+      templates.authState(),
     );
+    if (templates.isBloc) {
+      await FileUtils.writeFile(
+        p.join(f, 'presentation', 'blocs', 'auth_event.dart'),
+        templates.authEvent(),
+      );
+    }
     await FileUtils.writeFile(
-      p.join(f, 'presentation', 'notifiers', 'auth_notifier.dart'),
-      AuthTemplates.notifier(
+      p.join(f, 'presentation', templates.holderDir,
+          templates.holderFile('auth')),
+      templates.authHolder(
         withPushNotifications: withPushNotifications,
       ),
     );
     await FileUtils.writeFile(
       p.join(f, 'presentation', 'views', 'login_view.dart'),
-      AuthTemplates.loginView(),
+      templates.authLoginView(),
     );
     await FileUtils.writeFile(
       p.join(f, 'presentation', 'views', 'register_view.dart'),
-      AuthTemplates.registerView(),
+      templates.authRegisterView(),
     );
   }
 
@@ -1400,7 +1527,8 @@ class InitCommand extends Command<int> {
   /// step with the account, and [withPushNotifications] registers the device's
   /// FCM token against the user on sign-in and on session restore.
   Future<void> _buildFirebaseAuthFeature(
-    String libPath, {
+    String libPath,
+    StackTemplates templates, {
     required bool withFirestore,
     required bool withPushNotifications,
   }) async {
@@ -1408,53 +1536,64 @@ class InitCommand extends Command<int> {
 
     await FileUtils.writeFile(
       p.join(f, 'domain', 'entities', 'auth_user_entity.dart'),
-      FirebaseAuthTemplates.entity(),
+      templates.firebaseAuthEntity(),
     );
     await FileUtils.writeFile(
       p.join(f, 'domain', 'repositories', 'auth_repository.dart'),
-      FirebaseAuthTemplates.repositoryInterface(
+      templates.firebaseAuthRepositoryInterface(
         withPushNotifications: withPushNotifications,
       ),
     );
     await FileUtils.writeFile(
       p.join(f, 'data', 'models', 'auth_user_model.dart'),
-      FirebaseAuthTemplates.model(withFirestore: withFirestore),
+      templates.firebaseAuthModel(withFirestore: withFirestore),
     );
     await FileUtils.writeFile(
       p.join(f, 'data', 'datasources', 'auth_remote_datasource.dart'),
-      FirebaseAuthTemplates.remoteDatasource(
+      templates.firebaseAuthRemoteDatasource(
         withFirestore: withFirestore,
         withPushNotifications: withPushNotifications,
       ),
     );
     await FileUtils.writeFile(
       p.join(f, 'data', 'repositories', 'auth_repository_impl.dart'),
-      FirebaseAuthTemplates.repositoryImpl(
+      templates.firebaseAuthRepositoryImpl(
         withFirestore: withFirestore,
         withPushNotifications: withPushNotifications,
       ),
     );
     await FileUtils.writeFile(
       p.join(f, 'presentation', 'states', 'auth_state.dart'),
-      FirebaseAuthTemplates.state(),
+      templates.firebaseAuthState(),
     );
+    if (templates.isBloc) {
+      await FileUtils.writeFile(
+        p.join(f, 'presentation', 'blocs', 'auth_event.dart'),
+        templates.firebaseAuthEvent(),
+      );
+    }
     await FileUtils.writeFile(
-      p.join(f, 'presentation', 'notifiers', 'auth_notifier.dart'),
-      FirebaseAuthTemplates.notifier(
+      p.join(f, 'presentation', templates.holderDir,
+          templates.holderFile('auth')),
+      templates.firebaseAuthHolder(
         withPushNotifications: withPushNotifications,
       ),
     );
     await FileUtils.writeFile(
       p.join(f, 'presentation', 'views', 'login_view.dart'),
-      FirebaseAuthTemplates.loginView(),
+      templates.firebaseAuthLoginView(),
     );
     await FileUtils.writeFile(
       p.join(f, 'presentation', 'views', 'register_view.dart'),
-      FirebaseAuthTemplates.registerView(),
+      templates.firebaseAuthRegisterView(),
     );
   }
 
-  Future<void> _buildConfig(String libPath, Set<String> stack) async {
+  Future<void> _buildConfig(
+    String libPath,
+    Set<String> stack,
+    StackTemplates templates,
+  ) async {
     final c = p.join(libPath, 'config');
     await FileUtils.writeFile(
       p.join(c, 'env', 'app_env.dart'),
@@ -1467,7 +1606,7 @@ class InitCommand extends Command<int> {
     if (stack.contains(_kRouter)) {
       await FileUtils.writeFile(
         p.join(c, 'router', 'app_router.dart'),
-        ConfigTemplates.appRouter(withAuth: stack.contains(_kAuthFeature)),
+        templates.appRouter(withAuth: stack.contains(_kAuthFeature)),
       );
       await FileUtils.writeFile(
         p.join(c, 'router', 'app_routes.dart'),
@@ -1477,14 +1616,42 @@ class InitCommand extends Command<int> {
     if (stack.contains(_kFirestore) || stack.contains(_kFirebaseAuth)) {
       await FileUtils.writeFile(
         p.join(c, 'firebase', 'firebase_providers.dart'),
-        ConfigTemplates.firebaseProviders(
+        templates.firebaseProviders(
             hasAuth: stack.contains(_kFirebaseAuth),
             hasDb: stack.contains(_kFirestore)),
       );
     }
+
+    // The get_it wiring — everything the checklist selected, registered in one
+    // place. Riverpod has no counterpart: its providers sit next to the
+    // classes they build.
+    if (templates.isBloc) {
+      await FileUtils.writeFile(
+        p.join(c, 'di', 'injector.dart'),
+        templates.injector(
+          withDio: stack.contains(_kDio),
+          withFirestore: stack.contains(_kFirestore),
+          withFirebaseAuth: stack.contains(_kFirebaseAuth),
+          withAuthFeature: stack.contains(_kAuthFeature),
+          withFirebaseAuthFeature: stack.contains(_kAuthFeature) &&
+              stack.contains(_kFirebaseAuth),
+          withMedia: stack.contains(_kMediaService),
+          withUrlLauncher: stack.contains(_kLaunchUrlService),
+          withNotifications: stack.contains(_kNotificationsService),
+          withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
+          withDebouncer: stack.contains(_kDebouncerService),
+          withBiometric: stack.contains(_kBiometricAuth),
+          withLocalization: stack.contains(_kLocalizations),
+        ),
+      );
+    }
   }
 
-  Future<void> _buildShared(String libPath, Set<String> stack) async {
+  Future<void> _buildShared(
+    String libPath,
+    Set<String> stack,
+    StateManagement stateManagement,
+  ) async {
     final s = p.join(libPath, 'shared', 'widgets');
     final hasRouter = stack.contains(_kRouter);
 
@@ -1495,15 +1662,20 @@ class InitCommand extends Command<int> {
       hasFirestore: stack.contains(_kFirestore),
       hasDio: stack.contains(_kDio),
       hasDarkTheme: stack.contains(_kDarkTheme),
+      stateManagement: stateManagement,
     );
 
     // Only the common set (see WidgetCatalog) is scaffolded here; the rest of
     // the kit is added on demand with `moarch create widget <name>`.
     final specs = [
-      ...WidgetCatalog.common,
+      ...WidgetCatalog.commonFor(stateManagement),
       if (stack.contains(_kMaintenanceGate))
-        ...WidgetCatalog.resolve(['maintenance-gate']),
-      if (stack.contains(_kMoAdapt)) ...WidgetCatalog.resolve(['mo-adapt']),
+        ...WidgetCatalog.resolve(
+          ['maintenance-gate'],
+          stateManagement: stateManagement,
+        ),
+      if (stack.contains(_kMoAdapt))
+        ...WidgetCatalog.resolve(['mo-adapt'], stateManagement: stateManagement),
     ];
 
     for (final spec in {for (final spec in specs) spec.name: spec}.values) {

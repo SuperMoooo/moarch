@@ -14,7 +14,8 @@ class MoarchRunner {
       : _logger = Logger(),
         _runner = CommandRunner<int>(
           'moarch',
-          '🧱 moarch — Flutter scaffold CLI with Clean Architecture & Riverpod',
+          '🧱 moarch — Flutter scaffold CLI with Clean Architecture, '
+              'Riverpod or flutter_bloc',
         ) {
     _runner
       ..addCommand(InitCommand(logger: _logger))

@@ -57,6 +57,7 @@ switches never touch the editor config. `moarch doctor --fix` does exactly that.
 ```bash
 moarch init          # interactive scaffold
 moarch init --all    # generate the default structure without prompts
+moarch init --state bloc   # pick the stack without the checklist (riverpod | bloc)
 moarch create feature <featureName>
 moarch create model <featureName> <modelName> # generate the model and entity
 moarch create model <featureName> <modelName> --from-json sample.json # infer the fields from a JSON payload
@@ -64,6 +65,7 @@ moarch create model --empty <featureName> <modelName> # Inject a .empty() factor
 moarch create flavors # dev/staging/prod via flutter_flavorizr — one main.dart, untouched
 moarch create empty-factories # generate .empty() in all entities
 moarch create entity-copys <featureName> # inject copyWith into the feature's entities (omit name for all features)
+moarch create bloc <featureName> <blocName> # add a state+event+bloc trio to an existing feature
 moarch create widget <name>        # add a UI-kit widget on demand (e.g. switch, otp, list-tile)
 moarch create widget all           # generate the whole UI kit + the preview screen
 moarch create widget --list        # list every available widget
@@ -81,7 +83,7 @@ moarch doctor --fix  # ...and apply the ones that don't need a decision
 ## What it generates
 
 - `lib/main.dart`, `core/`, `config/`, `shared/`, and `features/`
-- Riverpod + optional GoRouter setup
+- Riverpod **or** flutter_bloc (see below) + optional GoRouter setup
 - Envied-based `.env` support
 - secure storage, logger, helpers, and a full shared UI kit / design system (see below)
 - optional services such as notifications (local or Firebase push), URL launcher, media, debounce
@@ -90,6 +92,171 @@ moarch doctor --fix  # ...and apply the ones that don't need a decision
 - a backend: Dio against a REST API, Firebase (Firestore / Auth), or both (see below)
 - `.vscode/` — `settings.json` pointing the Dart extension at the fvm SDK `.fvmrc` pins, and `launch.json` with debug/profile/release entries plus a flavored pair for `dev`, `staging` and `prod` (ready for when the native side declares them)
 - `android/app/proguard-rules.pro` — the R8 keep rules for the Flutter engine, Firebase, OkHttp and coroutines. Inert until you enable minification for the release build type, so it costs the debug build nothing; the gradle block that turns it on is in `docs/SECURITY_BEFORE_DEPLOYMENT.md`
+
+## Riverpod or flutter_bloc
+
+The first question `moarch init` asks. It decides the shape of every
+state-bearing file, and nothing else about the architecture moves: the same
+layers, the same file names, the same `AppException` reaching the same
+`AppAsyncView`.
+
+| | Riverpod | flutter_bloc |
+| --- | --- | --- |
+| state holder | `AsyncNotifier<OrdersState>` | `Bloc<OrdersEvent, OrdersState>` |
+| lives in | `presentation/notifiers/orders_notifier.dart` | `presentation/blocs/orders_bloc.dart` (+ `orders_event.dart`) |
+| the state | one class inside `AsyncValue` | a sealed family: `Initial` / `Loading` / `Success` / `Failure` |
+| you call | `ref.read(p.notifier).refresh()` | `context.read<OrdersBloc>().add(const OrdersRefreshed())` |
+| the view uses | `AppAsyncView` + `ref.listenAction` | `BlocBuilder` + a `switch` |
+| dependencies | a provider beside each class | `get_it`, in `config/di/injector.dart` |
+| extra packages | — | `flutter_bloc`, `bloc`, `equatable`, `get_it`, `bloc_lint`, `bloc_test` |
+
+Every command reads the choice back off `pubspec.yaml`, so there is no flag to
+remember: `moarch create feature orders` in a bloc project generates a bloc.
+
+### The state a screen is in
+
+The two stacks answer this differently on purpose, because they already
+disagree about it.
+
+**Riverpod** has `AsyncValue`, which is the four states, so the generated
+`OrdersState` is only the data plus the one-shot action fields — unchanged
+from previous versions:
+
+```dart
+class OrdersState implements ActionState<OrdersState> {
+  final bool isLoadingAction;
+  final String? error;      // cleared by every copyWith, so it toasts once
+  final String? success;
+}
+```
+
+**Bloc** gets a sealed family, the same shape as its events — which is what
+makes the view a `switch` the compiler checks:
+
+```dart
+sealed class OrdersState extends Equatable { const OrdersState(); }
+
+final class OrdersInitial extends OrdersState {}
+final class OrdersLoading extends OrdersState {}
+final class OrdersSuccess extends OrdersState { final List<OrderEntity> items; }
+final class OrdersFailure extends OrdersState { final String message; }
+```
+
+There is no status flag or enum on top of that. **The family is the status** —
+a second way to say what the screen is doing is one way too many, and the
+whole point of sealing it is that the compiler can check you handled every
+case.
+
+`Equatable` is load-bearing rather than decorative: bloc drops an emit whose
+state equals the current one, and `BlocBuilder` rebuilds on the same test.
+Without value equality every emit is a new object, so every emit repaints —
+including the Firestore snapshots that changed nothing.
+
+### A bloc feature
+
+```dart
+sealed class OrdersEvent extends Equatable {}
+final class OrdersStarted   extends OrdersEvent {}   // dispatched by the route
+final class OrdersRefreshed extends OrdersEvent {}   // the retry button
+// TODO: one per action the screen can take
+
+class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
+  OrdersBloc(this._repo) : super(const OrdersInitial()) {
+    on<OrdersStarted>(_onStarted);
+    on<OrdersRefreshed>(_onStarted);
+
+    on<OrdersDeleted>((event, emit) async {
+      emit(const OrdersLoading());
+      try {
+        await _repo.delete(event.id);
+        emit(const OrdersSuccess());
+      } on AppException catch (e) {
+        emit(OrdersFailure(e.message));
+      }
+    });
+  }
+}
+```
+
+No mixin and no base class of moarch's own — that is the whole handler.
+
+The view is plain `flutter_bloc`. `Page` owns the bloc so leaving the route
+closes it, and with it any Firestore subscription; `View` draws it with one
+`switch`:
+
+```dart
+class OrdersPage extends StatelessWidget {
+  Widget build(context) => BlocProvider(
+    create: (_) => getIt<OrdersBloc>()..add(const OrdersStarted()),
+    child: const OrdersView(),
+  );
+}
+
+// inside OrdersView
+BlocBuilder<OrdersBloc, OrdersState>(
+  builder: (context, state) => switch (state) {
+    OrdersInitial() || OrdersLoading() =>
+        Skeletonizer(child: _body(context, OrdersSuccess.placeholder)),
+    OrdersFailure(:final message) => ErrorView(message: message, onRetry: ...),
+    OrdersSuccess(:final items) when items.isEmpty => const EmptyView(),
+    OrdersSuccess() => _body(context, state),
+  },
+)
+```
+
+Add a state and that `switch` stops compiling until it is drawn.
+
+`AppAsyncView` and `ref.listenAction` are **not** generated into a bloc
+project, and neither is any shared action base. They exist because Riverpod's
+`AsyncValue` is one opaque type that something has to map onto four screens; a
+sealed family needs no such wrapper. `moarch create widget async-view` in a
+bloc project says so rather than writing a file that cannot compile.
+
+`AuthState` follows the same shape: `AuthInitial` (restoring — what parks the
+router on splash), `AuthLoading`, `AuthAuthenticated`, `AuthUnauthenticated`
+and `AuthFailure`.
+
+### Dependencies live in one file
+
+`lib/config/di/injector.dart` is the bloc stack's answer to a provider beside
+each class. `moarch create feature` **writes into it** — the datasource, the
+repository, the use case and the bloc — at the `// moarch:registrations`
+anchor:
+
+```dart
+getIt.registerLazySingleton<OrdersRepository>(
+  () => OrdersRepositoryImpl(getIt<OrdersRemoteDataSource>()),
+);
+// A factory, not a singleton: the screen's BlocProvider creates it and
+// closing the route closes it, subscriptions and all.
+getIt.registerFactory<OrdersBloc>(() => OrdersBloc(getIt<OrdersRepository>()));
+```
+
+That anchor comment is load-bearing. Delete it and `create feature` still
+generates the feature but says it could not register it; `moarch doctor`
+flags it too.
+
+`AuthBloc` is the one bloc registered as a **singleton**: the router's redirect
+and every screen have to read the same session.
+
+### bloc_lint
+
+A bloc project gets `bloc_lint` as a dev dependency and the recommended
+ruleset in `analysis_options.yaml`. Those rules are read by the bloc analysis
+server rather than by `dart analyze`, so they need their own run:
+
+```bash
+dart pub global activate bloc_tools   # once
+bloc lint .
+```
+
+The generated CI workflow runs it alongside `flutter analyze`, and a freshly
+scaffolded project passes with no findings.
+
+`prefer_bloc` and `prefer_cubit` are deliberately left out of the generated
+ruleset. Features scaffold as event-driven Blocs, but a holder with one value
+and no vocabulary of events — the locale, the maintenance flag — is a Cubit on
+purpose, and neither rule can tell the two cases apart.
 
 ### Dio or Firebase
 
@@ -836,12 +1003,12 @@ its own:
 | group | what's in it |
 | --- | --- |
 | `widgets` | the whole `lib/shared/widgets/` kit (`input`, `button`, `toast`…) |
-| `core` | `extensions`, `logger`, `constants`, `api-constants`, `action-notifier`, `exception`, `main` |
+| `core` | `extensions`, `logger`, `constants`, `api-constants`, `action-notifier` / `action-bloc`, `exception`, `main` |
 | `network` | `dio-client`, `safe-api-call`, `safe-firebase-call` |
 | `security` | `validation`, `secure-storage`, `biometric` |
 | `services` | `media-service`, `notifications-service`, `permission-service`, `debouncer`… |
-| `config` | `theme`, `env`, `router`, `routes`, `firebase-providers` |
-| `auth` | the nine files of the generated auth feature, REST or Firebase |
+| `config` | `theme`, `env`, `router`, `routes`, `firebase-providers`, `injector` |
+| `auth` | the generated auth feature, REST or Firebase, notifier or bloc |
 | `docs` | `ui-kit`, `deploy-checklist`, `security-checklist`, `jks-doc`, `workflow-doc`, `firebase-doc` |
 | `workflows` | the five GitHub Actions workflows |
 | `project` | `analysis-options`, `splash`, `fvmrc`, `widget-test`, `vscode-settings`, `vscode-launch` |

@@ -1,13 +1,27 @@
+import '../../utils/state_management.dart';
+
 /// Security Template
+///
+/// The classes here are the same in both stacks; only how they are reached
+/// differs. Riverpod declares a provider beside each one, a bloc project
+/// registers it in `config/di/injector.dart`.
 class SecurityTemplates {
   SecurityTemplates._();
 
   /// Returns the generated secureStorage template.
-  static String secureStorage() => r'''
-import 'dart:convert';
+  static String secureStorage({
+    StateManagement stateManagement = StateManagement.riverpod,
+  }) {
+    final isBloc = stateManagement.isBloc;
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+    final imports = isBloc
+        ? "import 'package:flutter_secure_storage/flutter_secure_storage.dart';"
+        : "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
+            "import 'package:flutter_secure_storage/flutter_secure_storage.dart';";
+
+    final providers = isBloc
+        ? ''
+        : '''
 
 final secureStorageProvider = Provider<FlutterSecureStorage>(
   (ref) => const FlutterSecureStorage(),
@@ -16,8 +30,17 @@ final secureStorageProvider = Provider<FlutterSecureStorage>(
 final tokenStorageProvider = Provider<TokenStorage>(
   (ref) => TokenStorage(ref.watch(secureStorageProvider)),
 );
+''';
 
-/// Single owner of the auth session kept in secure storage — used by the Dio
+    return '''
+import 'dart:convert';
+
+$imports
+$providers
+$_tokenStorageBody''';
+  }
+
+  static const String _tokenStorageBody = r'''/// Single owner of the auth session kept in secure storage — used by the Dio
 /// client and by the auth repository.
 class TokenStorage {
   const TokenStorage(this._storage);
@@ -71,24 +94,48 @@ class TokenStorage {
 ''';
 
   /// Returns the generated biometricService template.
-  static String biometricService() => r'''
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:local_auth/local_auth.dart';
-import 'package:local_auth_android/local_auth_android.dart';
-import 'package:local_auth_darwin/types/auth_messages_ios.dart';
+  ///
+  /// The bloc flavor defaults its own `LocalAuthentication`, so
+  /// `registerLazySingleton(BiometricService.new)` needs nothing passed to it.
+  static String biometricService({
+    StateManagement stateManagement = StateManagement.riverpod,
+  }) {
+    final isBloc = stateManagement.isBloc;
 
-import '../utils/app_logger.dart';
+    final riverpodImport = isBloc
+        ? ''
+        : "import 'package:flutter_riverpod/flutter_riverpod.dart';\n";
+
+    final provider = isBloc
+        ? ''
+        : '''
 
 final biometricServiceProvider = Provider<BiometricService>((ref) {
   return BiometricService(LocalAuthentication());
 });
+''';
 
+    final constructor = isBloc
+        ? '''  BiometricService([LocalAuthentication? auth])
+      : _auth = auth ?? LocalAuthentication();'''
+        : '  BiometricService(this._auth);';
+
+    return '''
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+${riverpodImport}import 'package:local_auth/local_auth.dart';
+import 'package:local_auth_android/local_auth_android.dart';
+import 'package:local_auth_darwin/types/auth_messages_ios.dart';
+
+import '../utils/app_logger.dart';
+$provider
 class BiometricService {
-  BiometricService(this._auth);
+$constructor
 
-  final LocalAuthentication _auth;
+  final LocalAuthentication _auth;$_biometricServiceBody''';
+  }
+
+  static const String _biometricServiceBody = r'''
 
   // True when the device has a lock screen, biometrics enrolled or not.
   Future<bool> canAuthenticate() => _auth.isDeviceSupported();

@@ -279,7 +279,7 @@ class CreateThemeCommand extends Command<int> {
           CoreTemplates.appConstants(withDark: target),
       'lib/config/theme/app_theme.dart':
           ConfigTemplates.appTheme(withDark: target),
-      'lib/main.dart': CoreTemplates.mainDart(
+      'lib/main.dart': context.stack.mainDart(
         withRouter: context.hasRouter,
         withLocalization: context.hasLocalization,
         withEasyLocalization: context.hasEasyLocalization,
@@ -290,11 +290,15 @@ class CreateThemeCommand extends Command<int> {
         withMaintenanceGate: context.hasMaintenanceGate,
         withMoAdapt: context.hasMoAdapt,
         withDarkTheme: target,
+        withAuthFeature: context.hasAuthFeature,
       ),
       'lib/shared/widgets/overlays/app_toast.dart':
           SharedTemplates.appToast(withDark: target),
       'lib/shared/widgets/design_system_view.dart':
-          SharedTemplates.designSystemView(withDark: target),
+          SharedTemplates.designSystemView(
+        withDark: target,
+        stateManagement: context.stateManagement,
+      ),
     };
 
     final files = <_ThemeFile>[];
