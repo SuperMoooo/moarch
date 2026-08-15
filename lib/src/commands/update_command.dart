@@ -423,8 +423,8 @@ class UpdateCommand extends Command<int> {
         name: spec.name,
         title: spec.title,
         category: spec.category,
-        displayPath: spec.path,
-        path: context.resolve(spec.path),
+        displayPath: spec.pathIn(context),
+        path: context.resolve(spec.pathIn(context)),
         generate: () => spec.template(context),
       );
       if (candidate != null) candidates.add(candidate);
@@ -510,7 +510,12 @@ class UpdateCommand extends Command<int> {
       if (items.isEmpty) continue;
       _logger.info('  $category');
       for (final spec in items) {
-        _logger.info('    ${spec.name.padRight(24)} ${spec.path}');
+        // `--list` is the catalog, not a project, so a spec whose path depends
+        // on the stack has to show both rather than guess at one.
+        final path = spec.blocPath == null
+            ? spec.path
+            : '${spec.path}\n${' '.padRight(28)}${spec.blocPath} (bloc)';
+        _logger.info('    ${spec.name.padRight(24)} $path');
       }
       _logger.info('');
     }

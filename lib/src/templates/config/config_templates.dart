@@ -638,4 +638,27 @@ $darkGetter}
     ),
   );
 ''';
+
+  /// Returns the Firebase instance registrations note.
+  ///
+  /// The instances themselves are registered in the locator, in both stacks.
+  /// This file keeps the name and the place the layout has always given
+  /// them, so a reader looking for `FirebaseAuth` finds a signpost rather
+  /// than nothing at all.
+  static String firebaseProviders({bool hasAuth = false, bool hasDb = false}) {
+    final instances = [
+      if (hasAuth) 'FirebaseAuth',
+      if (hasDb) 'FirebaseFirestore',
+    ];
+
+    return '''
+// Firebase instances are registered in the service locator, not here.
+//
+// See `lib/config/di/injector.dart`:
+//
+${instances.map((i) => '//   getIt<$i>()').join('\n')}
+//
+// Nothing imports this file. Delete it if you have no use for the signpost.
+''';
+  }
 }

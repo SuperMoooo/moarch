@@ -44,14 +44,18 @@ void main() {
           MaintenanceTemplates.maintenanceGate(withFirestore: true);
       final dio = MaintenanceTemplates.maintenanceGate(withDio: true);
 
-      expect(firestore, contains('firebaseDbProvider'));
+      // The status is state, so it stays a Riverpod provider; what it reads
+      // is a dependency, so that comes out of the locator.
+      expect(firestore, contains('getIt<FirebaseFirestore>()'));
+      expect(firestore, contains('final maintenanceStatusProvider'));
       expect(firestore, contains('.snapshots()'));
       expect(firestore, isNot(contains('Timer.periodic')));
 
-      expect(dio, contains('dioClientProvider'));
+      expect(dio, contains('getIt<Dio>()'));
+      expect(dio, contains('final maintenanceStatusProvider'));
       expect(dio, contains('Timer.periodic'));
       expect(dio, contains('AppLifecycleListener'));
-      expect(dio, isNot(contains('firebaseDbProvider')));
+      expect(dio, isNot(contains('FirebaseFirestore')));
     });
 
     test('a polled source is torn down with the provider', () {
@@ -71,16 +75,21 @@ void main() {
           MaintenanceTemplates.maintenanceGate(withFirestore: true);
       final dio = MaintenanceTemplates.maintenanceGate(withDio: true);
 
-      expect(stub, isNot(contains('firebase_providers.dart')));
-      expect(stub, isNot(contains('dio_client.dart')));
+      // The stub reads nothing, so it needs neither the locator nor a client.
+      expect(stub, isNot(contains('injector.dart')));
+      expect(stub, isNot(contains('package:dio/dio.dart')));
+      expect(stub, isNot(contains('cloud_firestore')));
       expect(stub, isNot(contains("import 'dart:async'")));
 
-      expect(firestore, contains('firebase_providers.dart'));
-      expect(firestore, isNot(contains('dio_client.dart')));
+      expect(firestore,
+          contains("import 'package:cloud_firestore/cloud_firestore.dart';"));
+      expect(firestore, contains("import '../../config/di/injector.dart';"));
+      expect(firestore, isNot(contains('package:dio/dio.dart')));
 
-      expect(dio, contains('dio_client.dart'));
+      expect(dio, contains("import 'package:dio/dio.dart';"));
+      expect(dio, contains("import '../../config/di/injector.dart';"));
       expect(dio, contains("import 'dart:async'"));
-      expect(dio, isNot(contains('firebase_providers.dart')));
+      expect(dio, isNot(contains('cloud_firestore')));
 
       // ErrorView does the drawing in all three.
       for (final source in [stub, firestore, dio]) {

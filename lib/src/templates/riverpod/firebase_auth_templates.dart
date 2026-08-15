@@ -187,9 +187,6 @@ class AuthUserModel extends AuthUserEntity {
         ? "import 'package:cloud_firestore/cloud_firestore.dart';\n"
         : '';
 
-    final firestoreProviderArg =
-        withFirestore ? '\n    ref.watch(firebaseDbProvider),' : '';
-
     final firestoreField = withFirestore
         ? r'''
   final FirebaseFirestore _firestore;
@@ -289,10 +286,8 @@ class AuthUserModel extends AuthUserEntity {
 
     return '''
 ${firestoreImport}import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-import '../../../../config/firebase/firebase_providers.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/network/safe_firebase_call.dart';
 import '../models/auth_user_model.dart';
@@ -304,13 +299,6 @@ import '../models/auth_user_model.dart';
 /// GoogleService-Info.plist and this can stay null. Set it when sign-in comes
 /// back without an ID token, or when you target web or desktop.
 const String? kGoogleServerClientId = null;
-
-final authRemoteDataSourceProvider = Provider<AuthRemoteDataSource>(
-  (ref) => AuthRemoteDataSource(
-    ref.watch(firebaseAuthProvider),
-    GoogleSignIn.instance,$firestoreProviderArg
-  ),
-);
 
 class AuthRemoteDataSource {
   AuthRemoteDataSource(this._auth, this._googleSignIn$firestoreCtorParam);
@@ -472,19 +460,6 @@ $firestoreMethods$deviceTokenMethod}
             "import '../../../../core/utils/app_logger.dart';\n"
         : '';
 
-    final pushProvider = withPushNotifications
-        ? '''
-final authRepositoryProvider = Provider<AuthRepository>(
-  (ref) => AuthRepositoryImpl(
-    ref.watch(authRemoteDataSourceProvider),
-    ref.watch(firebaseNotificationsServiceProvider),
-  ),
-);'''
-        : '''
-final authRepositoryProvider = Provider<AuthRepository>(
-  (ref) => AuthRepositoryImpl(ref.watch(authRemoteDataSourceProvider)),
-);''';
-
     final pushCtorParam = withPushNotifications ? ', this._push' : '';
 
     final pushField = withPushNotifications
@@ -530,13 +505,9 @@ final authRepositoryProvider = Provider<AuthRepository>(
         : '';
 
     return '''
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 ${pushImports}import '../../domain/entities/auth_user_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_datasource.dart';
-
-$pushProvider
 
 class AuthRepositoryImpl implements AuthRepository {
   const AuthRepositoryImpl(this._remote$pushCtorParam);
@@ -690,9 +661,9 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../config/di/injector.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/utils/action_notifier.dart';
-import '../../data/repositories/auth_repository_impl.dart';
 import '../../domain/entities/auth_user_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../states/auth_state.dart';
@@ -702,7 +673,10 @@ final authNotifierProvider =
 
 class AuthNotifier extends AsyncNotifier<AuthState>
     with ActionNotifierMixin<AuthState> {
-  AuthRepository get _repo => ref.read(authRepositoryProvider);
+  // Out of the locator, not off another provider: the data layer is wired in
+  // `config/di/injector.dart`, and this notifier is the seam between it and
+  // Riverpod.
+  AuthRepository get _repo => getIt<AuthRepository>();
 
   @override
   FutureOr<AuthState> build() async {

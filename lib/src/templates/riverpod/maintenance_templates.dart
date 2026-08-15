@@ -14,10 +14,11 @@ class MaintenanceTemplates {
     bool withDio = false,
   }) {
     final imports = withFirestore
-        ? "import 'package:flutter/material.dart';\n"
+        ? "import 'package:cloud_firestore/cloud_firestore.dart';\n"
+            "import 'package:flutter/material.dart';\n"
             "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
             '\n'
-            "import '../../config/firebase/firebase_providers.dart';\n"
+            "import '../../config/di/injector.dart';\n"
             "import 'error_view.dart';\n"
         : withDio
             ? "import 'dart:async';\n"
@@ -26,7 +27,7 @@ class MaintenanceTemplates {
                 "import 'package:flutter/material.dart';\n"
                 "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
                 '\n'
-                "import '../../core/network/dio_client.dart';\n"
+                "import '../../config/di/injector.dart';\n"
                 "import 'error_view.dart';\n"
             : "import 'package:flutter/material.dart';\n"
                 "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
@@ -113,9 +114,11 @@ class MaintenanceStatus {
 /// A rule requiring sign-in would hide the flag from signed-out users, who are
 /// exactly the ones you cannot afford to let through during an outage — and
 /// the denial fails open.
+/// A Riverpod provider over a get_it dependency: the status is state, so it
+/// belongs to Riverpod, and Firestore is a dependency, so it comes out of the
+/// locator.
 final maintenanceStatusProvider = StreamProvider<MaintenanceStatus>((ref) {
-  return ref
-      .watch(firebaseDbProvider)
+  return getIt<FirebaseFirestore>()
       .collection('config')
       .doc('maintenance')
       .snapshots()
@@ -138,8 +141,11 @@ const _pollInterval = Duration(minutes: 5);
 /// The endpoint must be reachable **without a token**: a signed-out user, or
 /// one whose session expired during the outage, still has to be told the app
 /// is down. Add it to `_kPublicEndpoints` in `dio_client.dart`.
+/// A Riverpod provider over a get_it dependency: the status is state, so it
+/// belongs to Riverpod, and the client is a dependency, so it comes out of the
+/// locator.
 final maintenanceStatusProvider = StreamProvider<MaintenanceStatus>((ref) {
-  final dio = ref.watch(dioClientProvider);
+  final dio = getIt<Dio>();
   final controller = StreamController<MaintenanceStatus>();
 
   Future<void> poll() async {

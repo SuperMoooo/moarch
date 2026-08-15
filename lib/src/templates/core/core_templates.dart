@@ -692,4 +692,187 @@ $authStreamCatch    if (error is FirebaseException) {
 }
 ''';
   }
+
+  /// Returns the generated dioClient template.
+  ///
+  /// The same client in both stacks: `buildDioClient` takes the
+  /// `TokenStorage` the locator holds, and `injector.dart` registers the
+  /// result as a lazy singleton. Nothing about a REST client depends on how
+  /// state is held, so there is one of these rather than two.
+  static String dioClient() => r'''
+import 'dart:io';
+
+import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
+import 'package:dio_smart_retry/dio_smart_retry.dart';
+import 'package:flutter/foundation.dart';
+
+import '../../config/env/app_env.dart';
+import '../constants/api_constants.dart';
+import '../security/secure_storage.dart';
+import '../utils/app_logger.dart';
+
+final _log = appLogger.scoped('Dio');
+
+const _kPublicEndpoints = <String>[
+  // Routes that never receive the Authorization header (and are never
+  // retried after a token refresh). Adjust to your API contract.
+  '/auth/login',
+  '/auth/register',
+  '/auth/refresh',
+];
+
+bool _isPublicPath(String path) {
+  final cleanPath = path.split('?').first;
+  return _kPublicEndpoints.any(
+    (endpoint) => cleanPath == endpoint || cleanPath.startsWith('$endpoint/'),
+  );
+}
+
+/// Builds the app's one Dio client. Registered as a lazy singleton in
+/// `config/di/injector.dart` — the auth interceptor and the single-flight
+/// refresh guard below only work if every call shares the same instance.
+Dio buildDioClient(TokenStorage storage) {
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: AppEnv.baseUrl,
+      connectTimeout: ApiConstants.connectTimeout,
+      receiveTimeout: ApiConstants.receiveTimeout,
+      headers: const {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    ),
+  );
+
+  _configureHttpClient(dio);
+
+  dio
+    ..interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          final isPublicEndpoint = _isPublicPath(options.path);
+          if (!isPublicEndpoint) {
+            final token = await storage.accessToken;
+            if (token != null) {
+              options.headers['Authorization'] = 'Bearer $token';
+            }
+          }
+          handler.next(options);
+        },
+        onError: (error, handler) async {
+          final status = error.response?.statusCode;
+          final alreadyRetried =
+              error.requestOptions.extra[_kRetriedAfterRefresh] == true;
+          if (status != 401 ||
+              alreadyRetried ||
+              _isPublicPath(error.requestOptions.path)) {
+            return handler.next(error);
+          }
+
+          // Session expired — refresh the access token, then retry once.
+          final refreshed = await _refreshSession(storage);
+          if (!refreshed) {
+            // Refresh token missing/expired: clear the session so the auth
+            // state holder / router redirect can send the user back to login.
+            await storage.clearSession();
+            return handler.next(error);
+          }
+
+          try {
+            final options = error.requestOptions
+              ..extra[_kRetriedAfterRefresh] = true;
+            // Re-entering the chain lets onRequest attach the new token.
+            final response = await dio.fetch<dynamic>(options);
+            return handler.resolve(response);
+          } on DioException catch (retryError) {
+            return handler.next(retryError);
+          }
+        },
+      ),
+    )
+    ..interceptors.add(
+      RetryInterceptor(dio: dio, logPrint: (msg) => _log.d(msg.toString())),
+    )
+    // Bodies and headers are safe to hand over whole: app_logger.dart redacts
+    // credentials at the sink, so nothing here has to remember to.
+    ..interceptors.add(
+      LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+        logPrint: (msg) => _log.d(msg.toString()),
+      ),
+    );
+
+  return dio;
+}
+
+const _kRetriedAfterRefresh = '__retried_after_refresh__';
+
+/// Single-flight guard: concurrent 401s share one refresh call instead of
+/// racing each other with the same refresh token.
+Future<bool>? _ongoingRefresh;
+
+Future<bool> _refreshSession(TokenStorage storage) {
+  return _ongoingRefresh ??= _doRefresh(storage).whenComplete(() {
+    _ongoingRefresh = null;
+  });
+}
+
+Future<bool> _doRefresh(TokenStorage storage) async {
+  final refreshToken = await storage.refreshToken;
+  if (refreshToken == null) return false;
+  try {
+    // Bare client (no interceptors), so a failing refresh can't loop back
+    // into the 401 handler above.
+    final refreshDio = Dio(
+      BaseOptions(
+        baseUrl: AppEnv.baseUrl,
+        connectTimeout: ApiConstants.connectTimeout,
+        receiveTimeout: ApiConstants.receiveTimeout,
+        headers: const {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ),
+    );
+    _configureHttpClient(refreshDio);
+    final response = await refreshDio.post<dynamic>(
+      '/auth/refresh',
+      data: {'refreshToken': refreshToken},
+    );
+    final data = response.data as Map<String, dynamic>;
+    // Adjust the keys to your API contract. Backends that don't rotate the
+    // refresh token only return a new access token.
+    final newAccessToken = data['accessToken'] as String?;
+    final newRefreshToken = data['refreshToken'] as String? ?? refreshToken;
+    if (newAccessToken == null) return false;
+    await storage.saveSession(
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    );
+    return true;
+  } catch (error) {
+    _log.w('Session refresh failed', error: error);
+    return false;
+  }
+}
+
+void _configureHttpClient(Dio dio) {
+  dio.httpClientAdapter = IOHttpClientAdapter(
+    createHttpClient: () {
+      final client = HttpClient();
+      if (kDebugMode) {
+        client.badCertificateCallback = (cert, host, port) {
+          _log.w(
+            'Certificate verification skipped for $host (debug mode)',
+          );
+          return true;
+        };
+      }
+      return client;
+    },
+  );
+}
+''';
 }

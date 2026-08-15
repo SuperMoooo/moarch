@@ -748,8 +748,8 @@ import 'package:bloc/bloc.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../domain/entities/auth_user_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
-import '../states/auth_state.dart';
 import 'auth_event.dart';
+import 'auth_state.dart';
 
 /// The session, as the whole app sees it.
 ///

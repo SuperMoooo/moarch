@@ -5,10 +5,10 @@ import 'package:path/path.dart' as p;
 /// Adds a generated feature's `get_it` registrations to
 /// `lib/config/di/injector.dart`.
 ///
-/// The bloc counterpart of the provider a Riverpod feature declares beside
-/// each class: there the wiring travels with the file, here it has to be put
-/// somewhere central, so `moarch create feature` patches it in the same way
-/// `init` patches gradle, plist and the manifest.
+/// Both stacks: the data layer is wired in one central file, so
+/// `moarch create feature` patches it the same way `init` patches gradle,
+/// plist and the manifest. The state holder is the only difference — a bloc is
+/// registered here, a Riverpod notifier stays behind its provider.
 abstract final class InjectorUtils {
   /// The line new registrations are inserted above.
   ///
@@ -88,9 +88,7 @@ ${[
     required bool hasUseCase,
     required bool useFirestore,
   }) =>
-      hasUseCase && !useFirestore
-          ? 'Get$className'
-          : '${className}Repository';
+      hasUseCase && !useFirestore ? 'Get$className' : '${className}Repository';
 
   /// The import lines a feature's registrations need.
   static List<String> importsFor({
@@ -152,8 +150,8 @@ ${[
   /// Adds any of [imports] the file does not already have, after the last
   /// existing import line.
   static String _withImports(String source, List<String> imports) {
-    final missing =
-        imports.where((line) => !source.contains(line)).toList()..sort();
+    final missing = imports.where((line) => !source.contains(line)).toList()
+      ..sort();
     if (missing.isEmpty) return source;
 
     final importPattern = RegExp(r"^import\s+'[^']+';$", multiLine: true);

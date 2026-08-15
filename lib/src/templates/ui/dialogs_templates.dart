@@ -1,5 +1,3 @@
-import '../../utils/state_management.dart';
-
 /// Helper template
 class DialogsTemplates {
   DialogsTemplates._();
@@ -7,28 +5,13 @@ class DialogsTemplates {
   /// Template for app Dialog
   ///
   /// The helper reaches the navigator through `rootNavigatorKey`, so it needs
-  /// no context. [stateManagement] only decides whether a provider is
-  /// declared for it — a bloc project registers `AppDialogs` in the locator,
-  /// or just calls the class directly, since it holds no state.
-  static String appDialog({
-    StateManagement stateManagement = StateManagement.riverpod,
-  }) {
-    final provider = stateManagement.isBloc
-        ? ''
-        : '''
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-final dialogProvider = Provider<IAppDialogs>((ref) {
-  return AppDialogs();
-});
-
-''';
-
+  /// no context — and it holds no state, so a project either registers
+  /// `AppDialogs` in the locator or calls the class directly.
+  static String appDialog() {
     return '''
 import 'package:flutter/material.dart';
 import '../../../config/router/app_router.dart';
 
-$provider
 
 abstract class IAppDialogs {
   Future<T?> showAppDialog<T>({

@@ -1,5 +1,3 @@
-import '../../utils/state_management.dart';
-
 /// Helper template
 class ModalsTemplates {
   ModalsTemplates._();
@@ -7,27 +5,13 @@ class ModalsTemplates {
   /// Template for app Modal
   ///
   /// The helper reaches the navigator through `rootNavigatorKey`, so it needs
-  /// no context. [stateManagement] only decides whether a provider is
-  /// declared for it — a bloc project registers `AppBottomModals` in the
-  /// locator, or just calls the class directly, since it holds no state.
-  static String appBottomModals({
-    StateManagement stateManagement = StateManagement.riverpod,
-  }) {
-    final provider = stateManagement.isBloc
-        ? ''
-        : '''
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-final modalProvider = Provider<IAppBottomModals>((ref) {
-  return AppBottomModals();
-});
-''';
-
+  /// no context — and it holds no state, so a project either registers
+  /// `AppBottomModals` in the locator or calls the class directly.
+  static String appBottomModals() {
     return '''
 import 'package:flutter/material.dart';
 import '../../../config/router/app_router.dart';
 import '../../../core/constants/app_constants.dart';
-$provider
 
 abstract class IAppBottomModals {
   Future<T?> showAppBottomModal<T>({

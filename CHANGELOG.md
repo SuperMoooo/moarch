@@ -2,6 +2,87 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 5.0.0
+
+**Breaking for both stacks.** A project generated with 5.0.0 does not look like
+one generated with 4.x. Nothing migrates an existing project: `moarch update`
+refreshes a file where the current templates put it, so a 4.x bloc project
+keeps its `presentation/states/` folder — and `update` stops refreshing what is
+in it — until the files are moved by hand. A 4.x Riverpod project keeps its
+providers and is not touched.
+
+### Riverpod uses get_it for dependency injection
+
+Riverpod declared a provider beside every class it built. It no longer does.
+`lib/config/di/injector.dart` — the file the bloc stack has had since 4.0.0 —
+is now generated for **both** stacks, and holds the same things in both:
+clients, services, datasources, repositories and use cases.
+
+- Gone from a Riverpod project: `dioClientProvider`, `secureStorageProvider`,
+  `tokenStorageProvider`, `firebaseAuthProvider`, `firebaseDbProvider`,
+  `permissionProvider`, `mediaServiceProvider`, `urlLauncherProvider`,
+  `notificationServiceProvider`, `firebaseNotificationsServiceProvider`,
+  `biometricServiceProvider`, `connectivityProvider`, `debouncerProvider`,
+  `dialogProvider`, `modalProvider`, and the per-feature
+  `<x>RemoteDataSourceProvider` / `<x>LocalDataSourceProvider` /
+  `<x>RepositoryProvider` / `get<X>Provider`. Each is a `getIt<Thing>()` now.
+- **Riverpod holds the state; get_it holds everything the state is built
+  from.** What stays a provider is what actually holds state: the feature
+  notifiers, `authNotifierProvider`, `languageProvider`, `routerProvider`,
+  `hasInternetProvider` and `maintenanceStatusProvider` — and those read their
+  dependencies out of the locator.
+- A notifier is the seam between the two. `AsyncNotifier` needs the `Ref` only
+  Riverpod can hand it, so it is not registered in get_it; it declares
+  `OrdersRepository get _repo => getIt<OrdersRepository>();` in place of
+  `ref.watch(ordersRepositoryProvider)`.
+- `moarch create feature` now registers what it generated in a Riverpod
+  project too — the datasource, the repository and the use case, at the
+  `// moarch:registrations` anchor. The notifier is the only thing it leaves
+  out, because there is nothing to register.
+- `main.dart` calls `await setupInjector()` before `runApp` in both stacks.
+  The `ProviderContainer` / `UncontrolledProviderScope` dance a Riverpod
+  project needed when a service held a `Ref` is gone with the services: it is
+  a plain `ProviderScope` again, whatever is selected.
+- `get_it` is a dependency of both stacks. `moarch doctor` checks for it and
+  for the locator in both.
+- The services that only differed in how they were reached — secure storage,
+  biometrics, permissions, media, URL launcher, notifications, FCM, debouncer,
+  dialogs, modals, `AppButton` — now have one body instead of two.
+  `config/firebase/firebase_providers.dart` and `core/network/dio_client.dart`
+  are the same file in both stacks and moved out of the per-stack
+  `AppTemplates`.
+
+### A bloc's state lives with its bloc
+
+`presentation/states/<x>_state.dart` moves to `presentation/blocs/<x>_state.dart`
+on the bloc stack, beside the events and the bloc. The three are one unit — the
+handlers emit the states — and a change to any of them is usually a change to
+all three. Riverpod is unchanged: `presentation/states/` beside
+`presentation/notifiers/`.
+
+### Bloc views are `BlocConsumer`
+
+The generated view is a `BlocConsumer` rather than a `BlocBuilder`, with a
+`listener` prepared for the states the feature has and
+`listenWhen: (previous, current) => previous != current`. It is the bloc answer
+to `ref.listen`: `listener` runs once per new state — where a toast, a dialog
+or a `context.push` belongs — while `builder` runs on every rebuild.
+
+### Fixes
+
+- `moarch create bloc` wrote Riverpod's `core/utils/action_notifier.dart` into
+  a bloc project, importing `flutter_riverpod` in a project that does not have
+  it. It also named a mixin (`ActionBlocMixin`) that has never existed. The
+  file is no longer written.
+- The Riverpod feature notifier declared a repository getter it never called,
+  which the analyzer reports as an unused element, and imported the use case
+  without using it. It now calls its dependency in `build()` and takes the use
+  case when there is one — the same rule the bloc has followed since 4.0.0
+  (the repository regardless on the Firestore variant, whose live query no use
+  case wraps).
+- The Riverpod repository implementation imported `app_exception.dart` without
+  using it, and the local datasource imported its model without using it.
+
 ## 4.0.0
 
 **Riverpod projects are unaffected by this release** — every template, field

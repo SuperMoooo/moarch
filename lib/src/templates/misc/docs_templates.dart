@@ -246,7 +246,7 @@ Authentication logic must be robust and not bypassable on the client side.
 **Example — the generated biometric gate:**
 ```dart
 // Returns false and shows a snackbar on failure, so callers only need the bool.
-final ok = await ref.read(biometricServiceProvider).verifyUserLocalAuth(context);
+final ok = await getIt<BiometricService>().verifyUserLocalAuth(context);
 if (!ok) return;
 ```
 
@@ -647,7 +647,7 @@ Sensitive data at rest must be protected appropriately.
 **Example — the generated session store:**
 ```dart
 // core/security/secure_storage.dart
-final storage = ref.read(tokenStorageProvider);
+final storage = getIt<TokenStorage>();
 
 await storage.saveSession(accessToken: access, refreshToken: refresh);
 final token = await storage.accessToken;

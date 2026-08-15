@@ -7,8 +7,7 @@ import 'package:moarch/src/templates/config/config_templates.dart';
 import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
 import 'package:moarch/src/utils/project_manifest.dart';
-import 'package:moarch/src/templates/riverpod/app_templates.dart'
-    as riverpod;
+import 'package:moarch/src/templates/riverpod/app_templates.dart' as riverpod;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -44,7 +43,8 @@ void main() {
       CoreTemplates.appConstants(),
     );
     await place('lib/config/theme/app_theme.dart', ConfigTemplates.appTheme());
-    await place('lib/main.dart', riverpod.AppTemplates.mainDart(withRouter: false));
+    await place(
+        'lib/main.dart', riverpod.AppTemplates.mainDart(withRouter: false));
     await place(
       'lib/shared/widgets/overlays/app_toast.dart',
       SharedTemplates.appToast(),

@@ -3,8 +3,7 @@ import 'package:moarch/src/templates/core/error_templates.dart';
 import 'package:moarch/src/templates/riverpod/feature_templates.dart';
 import 'package:moarch/src/templates/ui/modals_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
-import 'package:moarch/src/templates/riverpod/app_templates.dart'
-    as riverpod;
+import 'package:moarch/src/templates/riverpod/app_templates.dart' as riverpod;
 import 'package:test/test.dart';
 
 void main() {
@@ -16,13 +15,12 @@ void main() {
 
     expect(
         output, contains("import 'core/services/notifications_service.dart';"));
-    expect(output,
-        contains('await container.read(notificationServiceProvider).init();'));
-    expect(output, contains('final container = ProviderContainer();'));
-    expect(
-        output,
-        contains(
-            'UncontrolledProviderScope(container: container, child: const App())'));
+    // Out of the locator, so main() needs no container of its own — one
+    // ProviderScope over the app is all Riverpod is here for.
+    expect(output, contains('await getIt<NotificationService>().init();'));
+    expect(output, contains('await setupInjector();'));
+    expect(output, isNot(contains('ProviderContainer')));
+    expect(output, contains('const ProviderScope(child: App())'));
   });
 
   test('mainDart omits notification initialization by default', () {
@@ -30,11 +28,8 @@ void main() {
 
     expect(output,
         isNot(contains("import 'core/services/notifications_service.dart';")));
-    expect(
-        output,
-        isNot(contains(
-            'await container.read(notificationServiceProvider).init();')));
-    expect(output, isNot(contains('final container = ProviderContainer();')));
+    expect(output, isNot(contains('getIt<NotificationService>()')));
+    expect(output, isNot(contains('ProviderContainer')));
   });
 
   test('mainDart wires easy_localization when requested', () {
@@ -86,15 +81,10 @@ void main() {
         output,
         contains(
             "import 'core/services/firebase_notifications_service.dart';"));
-    expect(
-        output,
-        contains(
-            'await container.read(firebaseNotificationsServiceProvider).init();'));
-    expect(output, contains('final container = ProviderContainer();'));
-    expect(
-        output,
-        contains(
-            'UncontrolledProviderScope(container: container, child: const App())'));
+    expect(output,
+        contains('await getIt<FirebaseNotificationsService>().init();'));
+    expect(output, isNot(contains('ProviderContainer')));
+    expect(output, contains('const ProviderScope(child: App())'));
   });
 
   test('mainDart omits Firebase notification initialization by default', () {
@@ -104,10 +94,7 @@ void main() {
         output,
         isNot(contains(
             "import 'core/services/firebase_notifications_service.dart';")));
-    expect(
-        output,
-        isNot(contains(
-            'await container.read(firebaseNotificationsServiceProvider).init();')));
+    expect(output, isNot(contains('getIt<FirebaseNotificationsService>()')));
   });
 
   test('mainDart wires Crashlytics into error handlers when requested', () {
@@ -235,7 +222,7 @@ void main() {
   });
 
   test('dioClient leaves redaction to the logger', () {
-    final output = riverpod.AppTemplates.dioClient();
+    final output = CoreTemplates.dioClient();
 
     expect(output, contains("final _log = appLogger.scoped('Dio');"));
     // The interceptor hands over raw bodies; app_logger.dart scrubs them.

@@ -9,11 +9,15 @@ import 'package:path/path.dart' as p;
 /// this is the switch that picks between them. `moarch init` asks; every
 /// other command reads it back off the project with [detect], the only record
 /// that stays true once the checklist is forgotten.
+///
+/// It picks the *state* half only. Dependency injection is get_it in both:
+/// see `lib/src/templates/config/injector_templates.dart`.
 enum StateManagement {
-  /// Riverpod providers + AsyncNotifier — the original moarch stack.
+  /// Riverpod `AsyncNotifier` + the `runAction` mixin — the original moarch
+  /// stack.
   riverpod,
 
-  /// flutter_bloc (event-driven Blocs) with get_it as the service locator.
+  /// flutter_bloc: an event-driven `Bloc` per feature.
   bloc;
 
   /// Matched as a whole pubspec entry rather than a substring, so `bloc` is

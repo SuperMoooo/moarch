@@ -395,7 +395,8 @@ $methods
 '''
         : '';
 
-    final itemsParam = useFirestore ? '{\n    this.items = const [],\n  }' : '()';
+    final itemsParam =
+        useFirestore ? '{\n    this.items = const [],\n  }' : '()';
 
     // `copyWith` only earns its place where there is a field to copy.
     final copyWith = useFirestore
@@ -631,8 +632,8 @@ import 'package:bloc/bloc.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../domain/entities/${repoName}_entity.dart';
 import '../../domain/repositories/${repoName}_repository.dart';
-import '../states/${name}_state.dart';
 import '${name}_event.dart';
+import '${name}_state.dart';
 
 class ${cls}Bloc extends Bloc<${cls}Event, ${cls}State> {
   ${cls}Bloc(this._repo) : super(const ${cls}Initial()) {
@@ -717,8 +718,8 @@ class ${cls}Bloc extends Bloc<${cls}Event, ${cls}State> {
 import 'package:bloc/bloc.dart';
 
 import '../../../../core/errors/app_exception.dart';
-$usecaseImport${repoImport}import '../states/${name}_state.dart';
-import '${name}_event.dart';
+$usecaseImport${repoImport}import '${name}_event.dart';
+import '${name}_state.dart';
 
 class ${cls}Bloc extends Bloc<${cls}Event, ${cls}State> {
 $repoDependency
@@ -840,9 +841,10 @@ import 'package:skeletonizer/skeletonizer.dart';
 
 import '../../../../config/di/injector.dart';
 ${emptyImport}import '../../../../shared/widgets/error_view.dart';
+import '../../../../shared/widgets/overlays/app_toast.dart';
 import '../blocs/${name}_bloc.dart';
 import '../blocs/${name}_event.dart';
-import '../states/${name}_state.dart';
+import '../blocs/${name}_state.dart';
 
 /// Creates the bloc and owns it: leaving the route closes it, and with it
 /// any subscription it holds.
@@ -871,9 +873,29 @@ class ${cls}View extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('$cls')),
-      // One switch over the sealed state, checked for completeness: add a
-      // state and this stops compiling until it is drawn.
-      body: BlocBuilder<${cls}Bloc, ${cls}State>(
+      // Consumer, not Builder: `listener` is for what happens *once* on a new
+      // state — a toast, a dialog, a push — and `builder` for what is drawn
+      // from it. Doing the first from inside the second would repeat it on
+      // every rebuild.
+      body: BlocConsumer<${cls}Bloc, ${cls}State>(
+        // Only on an actual change. The states are Equatable, so an emit of a
+        // state equal to the current one does not reach the listener.
+        listenWhen: (previous, current) => previous != current,
+        listener: (context, state) {
+          switch (state) {
+            case ${cls}Failure(:final message):
+              AppToast.error(context, message);
+            case ${cls}Success():
+              // TODO: what should happen once, on a load that finished —
+              // AppToast.success(context, '...'), a pop, a redirect.
+              break;
+            case ${cls}Initial():
+            case ${cls}Loading():
+              break;
+          }
+        },
+        // One switch over the sealed state, checked for completeness: add a
+        // state and this stops compiling until it is drawn.
         builder: (context, state) => switch (state) {
           // Shimmered while a load runs: the same body, traced from
           // `${cls}Success.placeholder`. That has to be *fake data* —

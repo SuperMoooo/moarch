@@ -62,15 +62,21 @@ class WidgetVariants {
   }
 
   /// `firebase_providers.dart` is generated for Firebase Auth too, so its
-  /// presence alone does not mean there is a Firestore instance to read. A
-  /// bloc project has no providers file at all — there the pubspec is the
-  /// only record.
+  /// presence alone does not mean there is a Firestore instance to read.
+  ///
+  /// Both markers are accepted: the file is a signpost to the locator now, and
+  /// `firebaseDbProvider` is what a project scaffolded before 5.0.0 has. The
+  /// pubspec is the fallback, and the only record for a project whose signpost
+  /// was deleted.
   static bool _hasFirestoreSource(String libPath) {
     final file =
         File(p.join(libPath, 'config', 'firebase', 'firebase_providers.dart'));
-    if (file.existsSync() &&
-        file.readAsStringSync().contains('firebaseDbProvider')) {
-      return true;
+    if (file.existsSync()) {
+      final source = file.readAsStringSync();
+      if (source.contains('firebaseDbProvider') ||
+          source.contains('getIt<FirebaseFirestore>')) {
+        return true;
+      }
     }
     final pubspecFile =
         File(p.join(p.dirname(p.absolute(libPath)), 'pubspec.yaml'));
@@ -506,10 +512,8 @@ abstract final class WidgetCatalog {
       title: 'AppButton',
       file: 'buttons/app_button.dart',
       template: SharedTemplates.appButton,
-      variantTemplate: (v) => SharedTemplates.appButton(
-        hasBiometricAuth: v.hasBiometric,
-        stateManagement: v.stateManagement,
-      ),
+      variantTemplate: (v) =>
+          SharedTemplates.appButton(hasBiometricAuth: v.hasBiometric),
       category: 'Buttons & icons',
       common: true,
       description:
@@ -776,8 +780,7 @@ abstract final class WidgetCatalog {
       title: 'AppDialogs',
       file: 'overlays/app_dialogs.dart',
       template: DialogsTemplates.appDialog,
-      variantTemplate: (v) =>
-          DialogsTemplates.appDialog(stateManagement: v.stateManagement),
+      variantTemplate: (v) => DialogsTemplates.appDialog(),
       category: 'Overlays',
       common: true,
       needsRouter: true,
@@ -789,8 +792,7 @@ abstract final class WidgetCatalog {
       title: 'AppBottomModals',
       file: 'overlays/app_bottom_modals.dart',
       template: ModalsTemplates.appBottomModals,
-      variantTemplate: (v) =>
-          ModalsTemplates.appBottomModals(stateManagement: v.stateManagement),
+      variantTemplate: (v) => ModalsTemplates.appBottomModals(),
       category: 'Overlays',
       common: true,
       needsRouter: true,

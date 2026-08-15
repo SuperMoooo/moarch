@@ -32,8 +32,8 @@ import '../version.dart';
 // ── State management ──────────────────────────────────────────────────────────
 // The first choice, because every state-bearing file below follows it.
 
-const _kRiverpod = 'Riverpod (providers + AsyncNotifier)';
-const _kBloc = 'flutter_bloc (events + Bloc, get_it for DI)';
+const _kRiverpod = 'Riverpod (AsyncNotifier + runAction)';
+const _kBloc = 'flutter_bloc (events + Bloc)';
 
 // ── Stack options ─────────────────────────────────────────────────────────────
 // Add a new const + ChecklistItem + if block to support a new option.
@@ -149,15 +149,15 @@ class InitCommand extends Command<int> {
               const ChecklistItem(
                 _kRiverpod,
                 defaultOn: true,
-                description:
-                    'Providers next to each class, AsyncNotifier + runAction.',
+                description: 'An AsyncNotifier + runAction per feature, over a '
+                    'get_it service locator.',
                 excludes: {_kBloc},
               ),
               const ChecklistItem(
                 _kBloc,
                 defaultOn: false,
                 description: 'A sealed event family and a Bloc per feature, '
-                    'wired through a get_it service locator. Adds bloc_lint.',
+                    'over the same get_it locator. Adds bloc_lint.',
                 excludes: {_kRiverpod},
               ),
             ],
@@ -414,14 +414,15 @@ class InitCommand extends Command<int> {
         // what the avoid_flutter_imports lint rule is there to keep true.
         'bloc: ',
         // Value equality on states and events. Bloc drops an emit whose state
-        // equals the current one and BlocBuilder rebuilds on the same test,
+        // equals the current one and BlocConsumer rebuilds on the same test,
         // so without it every emit repaints.
         'equatable: ',
-        // The service locator. Riverpod needs no counterpart — its providers
-        // are the wiring.
-        'get_it: ',
       ] else
         'flutter_riverpod: ',
+      // The service locator, in both stacks: dependency injection is get_it's
+      // job either way. What Riverpod keeps is state — the notifiers, which
+      // read what they depend on out of here.
+      'get_it: ',
       'flutter_native_splash: ',
       'envied: ',
       'skeletonizer: ',
@@ -896,24 +897,27 @@ class InitCommand extends Command<int> {
     // main.dart moarch was not allowed to touch has none.
     if (!wroteMainDart) {
       _logger.warn('  lib/main.dart is yours, so it was left alone.');
+      _logger.info('    Call `await setupInjector()` before runApp and');
       if (stateManagement.isBloc) {
-        _logger.info('    Call `await setupInjector()` before runApp and');
-        _logger.info(
-            '    provide the app-wide blocs — see the App widget moarch');
+        _logger
+            .info('    provide the app-wide blocs — see the App widget moarch');
         _logger.info('    generates for the shape it expects.');
       } else {
-        _logger.info('    Wrap your app in a ProviderScope and initialise the');
-        _logger.info(
-            '    services you selected — see the App widget moarch generates');
-        _logger.info('    for the shape it expects.');
+        _logger.info('    wrap your app in a ProviderScope — see the App');
+        _logger.info('    widget moarch generates for the shape it expects.');
       }
       _logger.info('');
     }
+    _logger
+        .info('  Dependencies are registered in lib/config/di/injector.dart,');
+    _logger.info('  and `moarch create feature` adds to it.');
+    if (!stateManagement.isBloc) {
+      _logger.info('  Notifiers stay Riverpod providers and read the locator.');
+    }
+    _logger.info('');
     if (stateManagement.isBloc) {
-      _logger.info('  flutter_bloc + get_it — dependencies are registered in');
-      _logger.info('  lib/config/di/injector.dart, and `moarch create feature`');
-      _logger.info('  adds to it. For the bloc lint rules in');
-      _logger.info('  analysis_options.yaml, install the CLI once:');
+      _logger.info('  For the bloc lint rules in analysis_options.yaml,');
+      _logger.info('  install the CLI once:');
       _logger.info('    dart pub global activate bloc_tools');
       _logger.info('    bloc lint .');
       _logger.info('');
@@ -1395,7 +1399,7 @@ class InitCommand extends Command<int> {
     }
     await FileUtils.writeFile(
       p.join(c, 'security', 'secure_storage.dart'),
-      SecurityTemplates.secureStorage(stateManagement: templates.stateManagement),
+      SecurityTemplates.secureStorage(),
     );
     await FileUtils.writeFile(
       p.join(c, 'security', 'validation_service.dart'),
@@ -1404,59 +1408,45 @@ class InitCommand extends Command<int> {
     if (stack.contains(_kBiometricAuth)) {
       await FileUtils.writeFile(
         p.join(c, 'security', 'biometric_service.dart'),
-        SecurityTemplates.biometricService(
-          stateManagement: templates.stateManagement,
-        ),
+        SecurityTemplates.biometricService(),
       );
     }
 
     if (stack.contains(_kMediaService)) {
       await FileUtils.writeFile(
         p.join(c, 'services', 'media_service.dart'),
-        ServicesTemplates.mediaService(
-          stateManagement: templates.stateManagement,
-        ),
+        ServicesTemplates.mediaService(),
       );
     }
     if (stack.contains(_kLaunchUrlService)) {
       await FileUtils.writeFile(
         p.join(c, 'services', 'url_launcher_service.dart'),
-        ServicesTemplates.launchUrlService(
-          stateManagement: templates.stateManagement,
-        ),
+        ServicesTemplates.launchUrlService(),
       );
     }
     if (stack.contains(_kNotificationsService)) {
       await FileUtils.writeFile(
         p.join(c, 'services', 'notifications_service.dart'),
-        ServicesTemplates.notificationsService(
-          stateManagement: templates.stateManagement,
-        ),
+        ServicesTemplates.notificationsService(),
       );
     }
     if (stack.contains(_kFirebaseNotifications)) {
       await FileUtils.writeFile(
         p.join(c, 'services', 'firebase_notifications_service.dart'),
-        ServicesTemplates.firebaseNotificationsService(
-          stateManagement: templates.stateManagement,
-        ),
+        ServicesTemplates.firebaseNotificationsService(),
       );
     }
 
     if (stack.contains(_kDebouncerService)) {
       await FileUtils.writeFile(
         p.join(c, 'services', 'debouncer_service.dart'),
-        ServicesTemplates.debouncerService(
-          stateManagement: templates.stateManagement,
-        ),
+        ServicesTemplates.debouncerService(),
       );
     }
 
     await FileUtils.writeFile(
       p.join(c, 'services', 'permission_service.dart'),
-      ServicesTemplates.permissionService(
-        stateManagement: templates.stateManagement,
-      ),
+      ServicesTemplates.permissionService(),
     );
   }
 
@@ -1496,7 +1486,7 @@ class InitCommand extends Command<int> {
       ),
     );
     await FileUtils.writeFile(
-      p.join(f, 'presentation', 'states', 'auth_state.dart'),
+      p.join(f, 'presentation', templates.stateDir, 'auth_state.dart'),
       templates.authState(),
     );
     if (templates.isBloc) {
@@ -1506,8 +1496,8 @@ class InitCommand extends Command<int> {
       );
     }
     await FileUtils.writeFile(
-      p.join(f, 'presentation', templates.holderDir,
-          templates.holderFile('auth')),
+      p.join(
+          f, 'presentation', templates.holderDir, templates.holderFile('auth')),
       templates.authHolder(
         withPushNotifications: withPushNotifications,
       ),
@@ -1565,7 +1555,7 @@ class InitCommand extends Command<int> {
       ),
     );
     await FileUtils.writeFile(
-      p.join(f, 'presentation', 'states', 'auth_state.dart'),
+      p.join(f, 'presentation', templates.stateDir, 'auth_state.dart'),
       templates.firebaseAuthState(),
     );
     if (templates.isBloc) {
@@ -1575,8 +1565,8 @@ class InitCommand extends Command<int> {
       );
     }
     await FileUtils.writeFile(
-      p.join(f, 'presentation', templates.holderDir,
-          templates.holderFile('auth')),
+      p.join(
+          f, 'presentation', templates.holderDir, templates.holderFile('auth')),
       templates.firebaseAuthHolder(
         withPushNotifications: withPushNotifications,
       ),
@@ -1625,28 +1615,26 @@ class InitCommand extends Command<int> {
     }
 
     // The get_it wiring — everything the checklist selected, registered in one
-    // place. Riverpod has no counterpart: its providers sit next to the
-    // classes they build.
-    if (templates.isBloc) {
-      await FileUtils.writeFile(
-        p.join(c, 'di', 'injector.dart'),
-        templates.injector(
-          withDio: stack.contains(_kDio),
-          withFirestore: stack.contains(_kFirestore),
-          withFirebaseAuth: stack.contains(_kFirebaseAuth),
-          withAuthFeature: stack.contains(_kAuthFeature),
-          withFirebaseAuthFeature: stack.contains(_kAuthFeature) &&
-              stack.contains(_kFirebaseAuth),
-          withMedia: stack.contains(_kMediaService),
-          withUrlLauncher: stack.contains(_kLaunchUrlService),
-          withNotifications: stack.contains(_kNotificationsService),
-          withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
-          withDebouncer: stack.contains(_kDebouncerService),
-          withBiometric: stack.contains(_kBiometricAuth),
-          withLocalization: stack.contains(_kLocalizations),
-        ),
-      );
-    }
+    // place. Both stacks get it: the difference is only that a bloc project's
+    // state holders are in there too.
+    await FileUtils.writeFile(
+      p.join(c, 'di', 'injector.dart'),
+      templates.injector(
+        withDio: stack.contains(_kDio),
+        withFirestore: stack.contains(_kFirestore),
+        withFirebaseAuth: stack.contains(_kFirebaseAuth),
+        withAuthFeature: stack.contains(_kAuthFeature),
+        withFirebaseAuthFeature:
+            stack.contains(_kAuthFeature) && stack.contains(_kFirebaseAuth),
+        withMedia: stack.contains(_kMediaService),
+        withUrlLauncher: stack.contains(_kLaunchUrlService),
+        withNotifications: stack.contains(_kNotificationsService),
+        withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
+        withDebouncer: stack.contains(_kDebouncerService),
+        withBiometric: stack.contains(_kBiometricAuth),
+        withLocalization: stack.contains(_kLocalizations),
+      ),
+    );
   }
 
   Future<void> _buildShared(
@@ -1677,7 +1665,8 @@ class InitCommand extends Command<int> {
           stateManagement: stateManagement,
         ),
       if (stack.contains(_kMoAdapt))
-        ...WidgetCatalog.resolve(['mo-adapt'], stateManagement: stateManagement),
+        ...WidgetCatalog.resolve(['mo-adapt'],
+            stateManagement: stateManagement),
     ];
 
     for (final spec in {for (final spec in specs) spec.name: spec}.values) {

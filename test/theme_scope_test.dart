@@ -5,8 +5,7 @@ import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
 import 'package:moarch/src/utils/scaffold_catalog.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
-import 'package:moarch/src/templates/riverpod/app_templates.dart'
-    as riverpod;
+import 'package:moarch/src/templates/riverpod/app_templates.dart' as riverpod;
 import 'package:test/test.dart';
 
 /// Every `AppConstants.<token>` a source refers to.

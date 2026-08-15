@@ -116,15 +116,9 @@ class AuthTokensModel extends AuthTokensEntity {
 
     return '''
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/network/dio_client.dart';
 import '../../../../core/network/safe_api_call.dart';
 import '../models/auth_tokens_model.dart';
-
-final authRemoteDataSourceProvider = Provider<AuthRemoteDataSource>(
-  (ref) => AuthRemoteDataSource(ref.watch(dioClientProvider)),
-);
 
 class AuthRemoteDataSource {
   const AuthRemoteDataSource(this._dio);
@@ -216,10 +210,6 @@ $saveDeviceToken}
         ? "import '../../../../core/services/firebase_notifications_service.dart';\n"
         : '';
 
-    final pushProviderArg = withPushNotifications
-        ? '\n    ref.watch(firebaseNotificationsServiceProvider),'
-        : '';
-
     final pushCtorParam = withPushNotifications ? ', this._push' : '';
 
     final pushField = withPushNotifications
@@ -245,20 +235,11 @@ $saveDeviceToken}
         : '';
 
     return '''
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/security/secure_storage.dart';
 ${pushImport}import '../../../../core/utils/app_logger.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_datasource.dart';
-
-final authRepositoryProvider = Provider<AuthRepository>(
-  (ref) => AuthRepositoryImpl(
-    ref.watch(authRemoteDataSourceProvider),
-    ref.watch(tokenStorageProvider),$pushProviderArg
-  ),
-);
 
 class AuthRepositoryImpl implements AuthRepository {
   const AuthRepositoryImpl(this._remote, this._tokens$pushCtorParam);
@@ -460,8 +441,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../config/di/injector.dart';
 import '../../../../core/utils/action_notifier.dart';
-import '../../data/repositories/auth_repository_impl.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../states/auth_state.dart';
 
@@ -470,7 +451,10 @@ final authNotifierProvider =
 
 class AuthNotifier extends AsyncNotifier<AuthState>
     with ActionNotifierMixin<AuthState> {
-  AuthRepository get _repo => ref.read(authRepositoryProvider);
+  // Out of the locator, not off another provider: the data layer is wired in
+  // `config/di/injector.dart`, and this notifier is the seam between it and
+  // Riverpod.
+  AuthRepository get _repo => getIt<AuthRepository>();
 
   @override
   FutureOr<AuthState> build() async {

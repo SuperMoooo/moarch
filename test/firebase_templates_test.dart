@@ -4,8 +4,7 @@ import 'package:moarch/src/templates/core/services_templates.dart';
 import 'package:moarch/src/templates/misc/docs_templates.dart';
 import 'package:moarch/src/templates/riverpod/feature_templates.dart';
 import 'package:moarch/src/templates/riverpod/firebase_auth_templates.dart';
-import 'package:moarch/src/templates/riverpod/app_templates.dart'
-    as riverpod;
+import 'package:moarch/src/templates/riverpod/app_templates.dart' as riverpod;
 import 'package:test/test.dart';
 
 void main() {
@@ -159,8 +158,9 @@ void main() {
       expect(output, isNot(contains('_dio')));
       expect(output, isNot(contains('package:dio/dio.dart')));
 
+      // The instance is handed in — injector.dart resolves it.
+      expect(output, isNot(contains('Provider<')));
       // Reads, writes and the live query, all through the Firebase wrapper.
-      expect(output, contains('ref.watch(firebaseDbProvider)'));
       expect(output, contains('safeFirebaseCall<List<OrderModel>>'));
       expect(output, contains('Stream<List<OrderModel>> watchAll()'));
       expect(output, contains('safeFirebaseStream('));
@@ -353,7 +353,9 @@ void main() {
 
       expect(output,
           contains("import 'package:google_sign_in/google_sign_in.dart';"));
-      expect(output, contains('GoogleSignIn.instance'));
+      // The client is handed in — injector.dart registers GoogleSignIn.
+      expect(output,
+          contains('AuthRemoteDataSource(this._auth, this._googleSignIn)'));
       expect(output, contains('_googleSignIn.initialize(serverClientId:'));
       expect(output, contains('await _googleSignIn.authenticate()'));
       expect(output, contains('account.authentication.idToken'));
@@ -407,7 +409,7 @@ void main() {
         expect(output,
             contains('class AuthRepositoryImpl implements AuthRepository'));
         expect(output, contains('Future<AuthUserEntity> signInWithGoogle()'));
-        expect(output, contains('final authRepositoryProvider'));
+        expect(output, isNot(contains('Provider<')));
       }
     });
 
@@ -443,13 +445,17 @@ void main() {
               'if (e.type == AppExceptionType.cancelled) return current;'));
     });
 
-    test('exposes the same provider names as the REST auth feature', () {
+    test('exposes the same names as the REST auth feature', () {
+      // The notifier is the only provider either variant declares — the data
+      // layer below it is registered in the locator.
       expect(FirebaseAuthTemplates.notifier(),
           contains('final authNotifierProvider ='));
-      expect(FirebaseAuthTemplates.repositoryImpl(),
-          contains('final authRepositoryProvider ='));
+      expect(FirebaseAuthTemplates.notifier(),
+          contains('AuthRepository get _repo => getIt<AuthRepository>();'));
+      expect(
+          FirebaseAuthTemplates.repositoryImpl(), isNot(contains('Provider<')));
       expect(FirebaseAuthTemplates.remoteDatasource(),
-          contains('final authRemoteDataSourceProvider ='));
+          isNot(contains('Provider<')));
       expect(FirebaseAuthTemplates.state(),
           contains('implements ActionState<AuthState>'));
     });
@@ -523,7 +529,8 @@ void main() {
               'if (restored != null) unawaited(_repo.syncDeviceToken());'));
 
       expect(interface, contains('Future<void> syncDeviceToken();'));
-      expect(impl, contains('ref.watch(firebaseNotificationsServiceProvider)'));
+      expect(
+          impl, contains('const AuthRepositoryImpl(this._remote, this._push)'));
       expect(impl, contains('final id = await currentUserId();'));
       expect(impl, contains('await _push.getDeviceToken();'));
       expect(

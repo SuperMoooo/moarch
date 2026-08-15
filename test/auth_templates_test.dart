@@ -1,3 +1,4 @@
+import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/core/error_templates.dart';
 import 'package:moarch/src/templates/core/security_templates.dart';
 import 'package:moarch/src/templates/riverpod/app_templates.dart' as riverpod;
@@ -10,7 +11,9 @@ void main() {
     final output = SecurityTemplates.secureStorage();
 
     expect(output, contains('class TokenStorage'));
-    expect(output, contains('final tokenStorageProvider'));
+    // The locator holds it — nothing is declared beside the class.
+    expect(output, isNot(contains('Provider')));
+    expect(output, isNot(contains('flutter_riverpod')));
     expect(output, contains('Future<void> saveSession'));
     expect(output, contains('Future<void> clearSession'));
     // User id is decoded from the access token payload at save time.
@@ -19,10 +22,11 @@ void main() {
   });
 
   test('dioClient refreshes the session on 401 and retries once', () {
-    final output = riverpod.AppTemplates.dioClient();
+    final output = CoreTemplates.dioClient();
 
-    expect(
-        output, contains('final storage = ref.watch(tokenStorageProvider);'));
+    // The client takes its storage rather than reading a provider — the
+    // locator holds both, in either stack.
+    expect(output, contains('Dio buildDioClient(TokenStorage storage) {'));
     expect(output, contains('await storage.accessToken'));
     expect(output, contains('onError: (error, handler) async'));
     expect(output, contains('status != 401'));
@@ -60,7 +64,10 @@ void main() {
     final impl = AuthTemplates.repositoryImpl();
 
     expect(interface, contains('Future<bool> isLoggedIn()'));
-    expect(impl, contains('ref.watch(tokenStorageProvider)'));
+    // Constructor injection, resolved in injector.dart.
+    expect(
+        impl, contains('const AuthRepositoryImpl(this._remote, this._tokens)'));
+    expect(impl, isNot(contains('Provider')));
     expect(impl, contains('await _tokens.saveSession'));
     // isLoggedIn: refresh token present → refresh() → logged in.
     expect(impl, contains('if (refreshToken == null) return false;'));
@@ -107,7 +114,10 @@ void main() {
           AuthTemplates.remoteDatasource(withPushNotifications: true);
 
       expect(interface, contains('Future<void> syncDeviceToken();'));
-      expect(impl, contains('ref.watch(firebaseNotificationsServiceProvider)'));
+      expect(
+          impl,
+          contains(
+              'const AuthRepositoryImpl(this._remote, this._tokens, this._push)'));
       expect(impl, contains('await _push.getDeviceToken();'));
       expect(
           impl, contains('await _remote.saveDeviceToken(token: deviceToken)'));

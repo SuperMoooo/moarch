@@ -104,11 +104,11 @@ layers, the same file names, the same `AppException` reaching the same
 | --- | --- | --- |
 | state holder | `AsyncNotifier<OrdersState>` | `Bloc<OrdersEvent, OrdersState>` |
 | lives in | `presentation/notifiers/orders_notifier.dart` | `presentation/blocs/orders_bloc.dart` (+ `orders_event.dart`) |
-| the state | one class inside `AsyncValue` | a sealed family: `Initial` / `Loading` / `Success` / `Failure` |
+| the state | one class inside `AsyncValue`, in `presentation/states/` | a sealed family: `Initial` / `Loading` / `Success` / `Failure`, in `presentation/blocs/` beside the bloc |
 | you call | `ref.read(p.notifier).refresh()` | `context.read<OrdersBloc>().add(const OrdersRefreshed())` |
-| the view uses | `AppAsyncView` + `ref.listenAction` | `BlocBuilder` + a `switch` |
-| dependencies | a provider beside each class | `get_it`, in `config/di/injector.dart` |
-| extra packages | — | `flutter_bloc`, `bloc`, `equatable`, `get_it`, `bloc_lint` |
+| the view uses | `AppAsyncView` + `ref.listenAction` | `BlocConsumer` + a `switch` |
+| dependencies | `get_it`, in `config/di/injector.dart` | `get_it`, in `config/di/injector.dart` |
+| extra packages | `get_it` | `flutter_bloc`, `bloc`, `equatable`, `get_it`, `bloc_lint` |
 
 Every command reads the choice back off `pubspec.yaml`, so there is no flag to
 remember: `moarch create feature orders` in a bloc project generates a bloc.
@@ -148,7 +148,8 @@ whole point of sealing it is that the compiler can check you handled every
 case.
 
 `Equatable` is load-bearing rather than decorative: bloc drops an emit whose
-state equals the current one, and `BlocBuilder` rebuilds on the same test.
+state equals the current one, and `BlocConsumer` rebuilds — and fires its
+listener — on the same test.
 Without value equality every emit is a new object, so every emit repaints —
 including the Firestore snapshots that changed nothing.
 
@@ -182,7 +183,7 @@ No mixin and no base class of moarch's own — that is the whole handler.
 
 The view is plain `flutter_bloc`. `Page` owns the bloc so leaving the route
 closes it, and with it any Firestore subscription; `View` draws it with one
-`switch`:
+`switch` and reacts to it with one `listener`:
 
 ```dart
 class OrdersPage extends StatelessWidget {
@@ -193,7 +194,21 @@ class OrdersPage extends StatelessWidget {
 }
 
 // inside OrdersView
-BlocBuilder<OrdersBloc, OrdersState>(
+BlocConsumer<OrdersBloc, OrdersState>(
+  // Only on an actual change — the states are Equatable.
+  listenWhen: (previous, current) => previous != current,
+  listener: (context, state) {
+    switch (state) {
+      case OrdersFailure(:final message):
+        AppToast.error(context, message);
+      case OrdersSuccess():
+        // TODO: what should happen once — a toast, a pop, a redirect.
+        break;
+      case OrdersInitial():
+      case OrdersLoading():
+        break;
+    }
+  },
   builder: (context, state) => switch (state) {
     OrdersInitial() || OrdersLoading() =>
         Skeletonizer(child: _body(context, OrdersSuccess.placeholder)),
@@ -205,6 +220,10 @@ BlocBuilder<OrdersBloc, OrdersState>(
 ```
 
 Add a state and that `switch` stops compiling until it is drawn.
+
+`listener` is the bloc answer to `ref.listen`: it runs **once** per new state,
+which is where a toast, a dialog or a `context.push` belongs. `builder` runs on
+every rebuild, so the same toast raised there would repeat.
 
 `AppAsyncView` and `ref.listenAction` are **not** generated into a bloc
 project, and neither is any shared action base. They exist because Riverpod's
@@ -218,19 +237,39 @@ and `AuthFailure`.
 
 ### Dependencies live in one file
 
-`lib/config/di/injector.dart` is the bloc stack's answer to a provider beside
-each class. `moarch create feature` **writes into it** — the datasource, the
-repository, the use case and the bloc — at the `// moarch:registrations`
-anchor:
+`lib/config/di/injector.dart` holds every dependency, **in both stacks**:
+clients, services, datasources, repositories and use cases are constructed
+once and handed out by type. `moarch create feature` **writes into it** at the
+`// moarch:registrations` anchor:
 
 ```dart
 getIt.registerLazySingleton<OrdersRepository>(
   () => OrdersRepositoryImpl(getIt<OrdersRemoteDataSource>()),
 );
-// A factory, not a singleton: the screen's BlocProvider creates it and
-// closing the route closes it, subscriptions and all.
+// bloc only. A factory, not a singleton: the screen's BlocProvider creates it
+// and closing the route closes it, subscriptions and all.
 getIt.registerFactory<OrdersBloc>(() => OrdersBloc(getIt<OrdersRepository>()));
 ```
+
+What differs is only the **state holder**. A bloc is registered like anything
+else. A Riverpod notifier is not: an `AsyncNotifier` needs the `Ref` Riverpod
+hands it, so it stays behind its provider and reaches into the locator from
+there —
+
+```dart
+final ordersNotifierProvider =
+    AsyncNotifierProvider<OrdersNotifier, OrdersState>(OrdersNotifier.new);
+
+class OrdersNotifier extends AsyncNotifier<OrdersState>
+    with ActionNotifierMixin<OrdersState> {
+  OrdersRepository get _repo => getIt<OrdersRepository>();
+}
+```
+
+**Riverpod holds the state; get_it holds everything the state is built from.**
+So `hasInternetProvider`, `maintenanceStatusProvider`, `languageProvider`,
+`routerProvider` and the feature notifiers are still providers — they are
+state — while the services beneath them come out of `getIt`.
 
 That anchor comment is load-bearing. Delete it and `create feature` still
 generates the feature but says it could not register it; `moarch doctor`
@@ -261,7 +300,7 @@ purpose, and neither rule can tell the two cases apart.
 ### Dio or Firebase
 
 The backend you pick in the first checklist decides what the data layer is made
-of. Nothing else about the architecture moves: the same layers, the same provider
+of. Nothing else about the architecture moves: the same layers, the same class
 names, the same `AppException` reaching the same `AppAsyncView`.
 
 | | Dio | Firebase |

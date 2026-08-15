@@ -215,13 +215,13 @@ abstract final class ProjectInspector {
     final stateManagement = StateManagement.fromPubspec(pubspec);
 
     final findings = <Diagnostic>[
-      // Which one is required follows the stack the project took: a bloc
-      // project has no providers to miss, and vice versa.
-      if (stateManagement.isBloc && !pubspec.contains('get_it:'))
+      // Both stacks: get_it is the DI in either. What follows the stack is
+      // only the state-management package beside it.
+      if (!pubspec.contains('get_it:'))
         const Diagnostic.error(
           'get_it is missing from pubspec.yaml',
           hint: 'config/di/injector.dart registers every dependency in it, '
-              'and the generated views resolve blocs through it.',
+              'and the generated code resolves them through it.',
         ),
       if (!stateManagement.isBloc && !pubspec.contains('flutter_riverpod:'))
         const Diagnostic.error(
@@ -235,21 +235,21 @@ abstract final class ProjectInspector {
         ),
     ];
 
-    // A bloc project with no locator has nothing to resolve a bloc from, and
+    // A project with no locator has nothing to resolve a dependency from, and
     // the failure is a runtime "Object/factory with type X is not registered".
-    if (stateManagement.isBloc) {
+    {
       final injector = File(p.join(libPath, 'config', 'di', 'injector.dart'));
       if (!injector.existsSync()) {
         findings.add(
-          const Diagnostic.error(
+          Diagnostic.error(
             'lib/config/di/injector.dart is missing',
-            hint: 'The generated views resolve their blocs with `getIt<...>()`. '
-                'Run `moarch update injector`, or write it by hand.',
+            hint: 'The generated '
+                '${stateManagement.isBloc ? 'views resolve their blocs' : 'notifiers resolve their repositories'} '
+                'with `getIt<...>()`. Run `moarch update injector`, or write '
+                'it by hand.',
           ),
         );
-      } else if (!injector
-          .readAsStringSync()
-          .contains(InjectorUtils.anchor)) {
+      } else if (!injector.readAsStringSync().contains(InjectorUtils.anchor)) {
         findings.add(
           const Diagnostic.warning(
             'lib/config/di/injector.dart has no `${InjectorUtils.anchor}` '

@@ -748,7 +748,7 @@ class AppPickedFile {
 ///   maxFiles: 3,
 ///   required: true,
 ///   onPick: () async {
-///     final picked = await ref.read(mediaServiceProvider).pickFiles();
+///     final picked = await getIt<MediaService>().pickFiles();
 ///     return [for (final f in picked) AppPickedFile(name: f.name, path: f.path)];
 ///   },
 ///   onChanged: (files) => setState(() => _files = files),

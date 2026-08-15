@@ -157,6 +157,7 @@ class ScaffoldSpec {
     required this.template,
     required this.category,
     required this.description,
+    this.blocPath,
   });
 
   /// CLI slug, e.g. `validation` → `moarch update validation`.
@@ -167,7 +168,21 @@ class ScaffoldSpec {
 
   /// Project-relative path with forward slashes, e.g.
   /// `lib/core/security/validation_service.dart`.
+  ///
+  /// Where the file lives in a Riverpod project when [blocPath] is set.
   final String path;
+
+  /// Where the file lives in a bloc project, when that is not [path].
+  ///
+  /// The state is the one file the two stacks disagree about: bloc keeps it in
+  /// `presentation/blocs/` with the events and the bloc, Riverpod in
+  /// `presentation/states/`. Everything else is either at the same path in
+  /// both or has a spec of its own.
+  final String? blocPath;
+
+  /// This file's path in [context]'s project.
+  String pathIn(ScaffoldContext context) =>
+      context.hasBloc ? (blocPath ?? path) : path;
 
   /// Produces the file's current source for a given project.
   final String Function(ScaffoldContext context) template;
@@ -344,8 +359,7 @@ abstract final class ScaffoldCatalog {
       title: 'SecureStorage',
       path: 'lib/core/security/secure_storage.dart',
       category: 'Security',
-      template: (c) =>
-          SecurityTemplates.secureStorage(stateManagement: c.stateManagement),
+      template: (c) => SecurityTemplates.secureStorage(),
       description: 'Keychain/Keystore wrapper holding tokens and the user id.',
     ),
     ScaffoldSpec(
@@ -362,8 +376,7 @@ abstract final class ScaffoldCatalog {
       title: 'BiometricService',
       path: 'lib/core/security/biometric_service.dart',
       category: 'Security',
-      template: (c) =>
-          SecurityTemplates.biometricService(stateManagement: c.stateManagement),
+      template: (c) => SecurityTemplates.biometricService(),
       description: 'Face ID / fingerprint via local_auth, behind one call.',
     ),
 
@@ -373,8 +386,7 @@ abstract final class ScaffoldCatalog {
       title: 'MediaService',
       path: 'lib/core/services/media_service.dart',
       category: 'Services',
-      template: (c) =>
-          ServicesTemplates.mediaService(stateManagement: c.stateManagement),
+      template: (c) => ServicesTemplates.mediaService(),
       description:
           'Image and file pickers with the permission handling around them.',
     ),
@@ -383,8 +395,7 @@ abstract final class ScaffoldCatalog {
       title: 'UrlLauncherService',
       path: 'lib/core/services/url_launcher_service.dart',
       category: 'Services',
-      template: (c) =>
-          ServicesTemplates.launchUrlService(stateManagement: c.stateManagement),
+      template: (c) => ServicesTemplates.launchUrlService(),
       description: 'Opens external links, with the in-app web view fallback.',
     ),
     ScaffoldSpec(
@@ -392,9 +403,7 @@ abstract final class ScaffoldCatalog {
       title: 'NotificationsService',
       path: 'lib/core/services/notifications_service.dart',
       category: 'Services',
-      template: (c) => ServicesTemplates.notificationsService(
-        stateManagement: c.stateManagement,
-      ),
+      template: (c) => ServicesTemplates.notificationsService(),
       description: 'Local notifications: permissions, channels and scheduling.',
     ),
     ScaffoldSpec(
@@ -402,9 +411,7 @@ abstract final class ScaffoldCatalog {
       title: 'FirebaseNotificationsService',
       path: 'lib/core/services/firebase_notifications_service.dart',
       category: 'Services',
-      template: (c) => ServicesTemplates.firebaseNotificationsService(
-        stateManagement: c.stateManagement,
-      ),
+      template: (c) => ServicesTemplates.firebaseNotificationsService(),
       description:
           'FCM tokens, foreground/background handlers and topic subscriptions.',
     ),
@@ -413,8 +420,7 @@ abstract final class ScaffoldCatalog {
       title: 'DebouncerService',
       path: 'lib/core/services/debouncer_service.dart',
       category: 'Services',
-      template: (c) =>
-          ServicesTemplates.debouncerService(stateManagement: c.stateManagement),
+      template: (c) => ServicesTemplates.debouncerService(),
       description: 'Debounces rapid actions, e.g. a search field.',
     ),
     ScaffoldSpec(
@@ -422,8 +428,7 @@ abstract final class ScaffoldCatalog {
       title: 'PermissionService',
       path: 'lib/core/services/permission_service.dart',
       category: 'Services',
-      template: (c) =>
-          ServicesTemplates.permissionService(stateManagement: c.stateManagement),
+      template: (c) => ServicesTemplates.permissionService(),
       description:
           'One place to request a permission and handle the permanently-denied case.',
     ),
@@ -481,8 +486,8 @@ abstract final class ScaffoldCatalog {
         hasAuth: c.hasFirebaseAuth,
         hasDb: c.hasFirestore,
       ),
-      description: 'Where FirebaseAuth and Firestore come from — providers on '
-          'Riverpod, a signpost to the locator on bloc.',
+      description:
+          'Signpost to where FirebaseAuth and Firestore are registered.',
     ),
     ScaffoldSpec(
       name: 'injector',
@@ -496,16 +501,18 @@ abstract final class ScaffoldCatalog {
         withAuthFeature: c.hasAuthFeature,
         withFirebaseAuthFeature: c.hasFirebaseAuthFeature,
         withMedia: c.hasFile('lib/core/services/media_service.dart'),
-        withUrlLauncher: c.hasFile('lib/core/services/url_launcher_service.dart'),
+        withUrlLauncher:
+            c.hasFile('lib/core/services/url_launcher_service.dart'),
         withNotifications: c.hasNotifications,
         withFirebaseNotifications: c.hasFirebaseNotifications,
         withDebouncer: c.hasFile('lib/core/services/debouncer_service.dart'),
         withBiometric: c.hasBiometric,
         withLocalization: c.hasLocalization,
-        withConnectivity: c.hasFile('lib/core/services/connectivity_service.dart'),
+        withConnectivity:
+            c.hasFile('lib/core/services/connectivity_service.dart'),
       ),
-      description: 'The get_it service locator every dependency is registered '
-          'in (flutter_bloc projects).',
+      description:
+          'The get_it service locator every dependency is registered in.',
     ),
 
     // ── Auth feature ────────────────────────────────────────────────────────
@@ -598,6 +605,7 @@ abstract final class ScaffoldCatalog {
       name: 'auth-state',
       title: 'AuthState',
       path: 'lib/features/auth/presentation/states/auth_state.dart',
+      blocPath: 'lib/features/auth/presentation/blocs/auth_state.dart',
       category: 'Auth feature',
       template: (c) => c.hasFirebaseAuthFeature
           ? c.stack.firebaseAuthState()
@@ -885,10 +893,10 @@ abstract final class ScaffoldCatalog {
   /// `update` refreshes what a project already has; a file the project chose
   /// not to generate is not missing, it is declined.
   static List<ScaffoldSpec> generated(String projectRoot) {
-    final root = p.absolute(projectRoot);
+    final context = ScaffoldContext.detect(projectRoot);
     return all
-        .where((spec) =>
-            File(p.joinAll([root, ...p.posix.split(spec.path)])).existsSync())
+        .where(
+            (spec) => File(context.resolve(spec.pathIn(context))).existsSync())
         .toList();
   }
 }

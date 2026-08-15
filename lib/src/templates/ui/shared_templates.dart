@@ -212,27 +212,19 @@ class AppImage extends StatelessWidget {
   /// flag are left out otherwise, since core/security/biometric_service.dart
   /// is only generated when that feature is selected.
   ///
-  /// Only how the service is reached varies with [stateManagement] — a `ref`
-  /// on Riverpod, `getIt` on bloc — so the button itself is one template.
+  /// The service comes out of the locator in both stacks, so there is one
+  /// button rather than two.
   static String appButton({
     bool hasBiometricAuth = false,
-    StateManagement stateManagement = StateManagement.riverpod,
   }) {
-    final isBloc = stateManagement.isBloc;
-
     final biometricImports = !hasBiometricAuth
         ? ''
-        : isBloc
-            ? "\nimport '../../../config/di/injector.dart';"
-                "\nimport '../../../core/security/biometric_service.dart';"
-            : "\nimport 'package:flutter_riverpod/flutter_riverpod.dart';"
-                "\nimport '../../../core/security/biometric_service.dart';";
+        : "\nimport '../../../config/di/injector.dart';"
+            "\nimport '../../../core/security/biometric_service.dart';";
 
-    // A bloc project reads the locator, which needs no element of its own, so
-    // the button stays a StatelessWidget there.
-    final classDeclaration = hasBiometricAuth && !isBloc
-        ? 'class AppButton extends ConsumerWidget {'
-        : 'class AppButton extends StatelessWidget {';
+    // The locator needs no element of its own, so the button stays a
+    // StatelessWidget.
+    const classDeclaration = 'class AppButton extends StatelessWidget {';
 
     final requireAuthParam =
         hasBiometricAuth ? '\n    this.requireAuth = false,' : '';
@@ -243,16 +235,11 @@ class AppImage extends StatelessWidget {
             '  /// is cancelled when it fails.\n'
             '  final bool requireAuth;';
 
-    final buildSignature = hasBiometricAuth && !isBloc
-        ? 'Widget build(BuildContext context, WidgetRef ref) {'
-        : 'Widget build(BuildContext context) {';
+    const buildSignature = 'Widget build(BuildContext context) {';
 
-    final verifyCall = isBloc
-        ? '                final verified = await getIt<BiometricService>()\n'
-            '                    .verifyUserLocalAuth(context);\n'
-        : '                final verified = await ref\n'
-            '                    .read(biometricServiceProvider)\n'
-            '                    .verifyUserLocalAuth(context);\n';
+    const verifyCall =
+        '                final verified = await getIt<BiometricService>()\n'
+        '                    .verifyUserLocalAuth(context);\n';
 
     final onPressedWiring = !hasBiometricAuth
         ? 'isLoading || onPressed == null\n'

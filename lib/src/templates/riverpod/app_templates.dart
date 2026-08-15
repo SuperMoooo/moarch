@@ -38,16 +38,10 @@ class AppTemplates {
         ? '\n  await EasyLocalization.ensureInitialized();\n'
         : '';
 
-    // The notification services are Riverpod providers that hold a `Ref`, so
-    // they must be initialized through a container that also backs the widget
-    // tree. When either is enabled we build that container in main() and hand
-    // it to an UncontrolledProviderScope.
-    final needsContainer =
-        withNotificationsService || withFirebaseNotifications;
-
-    final rootScope = needsContainer
-        ? 'UncontrolledProviderScope(container: container, child: const App())'
-        : 'const ProviderScope(child: App())';
+    // The services come out of the locator now, so nothing in main() needs a
+    // container of its own: one `ProviderScope` over the whole app is all
+    // Riverpod is here for.
+    const rootScope = 'const ProviderScope(child: App())';
 
     // MoAdapt is the outermost widget so the entire app — EasyLocalization,
     // provider scopes, MaterialApp — renders in design-space coordinates.
@@ -76,18 +70,8 @@ class AppTemplates {
     ),
   );''';
     } else if (withMoAdapt) {
-      // With a plain ProviderScope the whole tree is const, so the const
-      // keyword moves to MoAdapt; with a container it cannot be const at all.
-      runAppCall = needsContainer
-          ? '''runApp(
-    MoAdapt(
-      // The frame the UI is designed against; every fixed dimension scales
-      // proportionally from it. Tune with scaleMode / minScale / maxScale.
-      designSize: const Size(412, 924),
-      child: $rootScope,
-    ),
-  );'''
-          : '''runApp(
+      // The whole tree is const, so the const keyword moves to MoAdapt.
+      runAppCall = '''runApp(
     const MoAdapt(
       // The frame the UI is designed against; every fixed dimension scales
       // proportionally from it. Tune with scaleMode / minScale / maxScale.
@@ -99,15 +83,12 @@ class AppTemplates {
       runAppCall = 'runApp($rootScope);';
     }
 
-    final containerSetup =
-        needsContainer ? '\n  final container = ProviderContainer();\n' : '';
-
     final notificationImport = withNotificationsService
         ? "\nimport 'core/services/notifications_service.dart';"
         : '';
 
     final notificationInit = withNotificationsService
-        ? '\n  await container.read(notificationServiceProvider).init();'
+        ? '\n  await getIt<NotificationService>().init();'
         : '';
 
     final firebaseNotificationImport = withFirebaseNotifications
@@ -118,7 +99,7 @@ class AppTemplates {
     // Firebase.initializeApp() runs first; the FCM service only initializes
     // Firebase itself when no one else has.
     final firebaseNotificationInit = withFirebaseNotifications
-        ? '\n  await container.read(firebaseNotificationsServiceProvider).init();'
+        ? '\n  await getIt<FirebaseNotificationsService>().init();'
         : '';
 
     final firebaseImports = [
@@ -128,7 +109,8 @@ class AppTemplates {
         "\nimport 'package:firebase_crashlytics/firebase_crashlytics.dart';",
     ].join();
 
-    // One initializeApp for every Firebase service the project selected.
+    // One initializeApp for every Firebase service the project selected. It
+    // runs before setupInjector() so the locator can register the instances.
     final firebaseInit = needsFirebaseInit
         ? '''
 
@@ -210,6 +192,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$firebaseImports
+import 'config/di/injector.dart';
 import 'core/utils/app_logger.dart';
 import 'shared/widgets/error_view.dart';$maintenanceImport$moAdaptImport
 import 'config/theme/app_theme.dart';
@@ -219,8 +202,12 @@ Future<void> main() async {
   // Preserve the splash before anything else runs.
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-$easyLocalizationInit$containerSetup$notificationInit
-$firebaseInit$firebaseNotificationInit
+$easyLocalizationInit$firebaseInit
+  // Registers every repository, datasource and service. Firebase is up by
+  // this point, so the locator can hand out its instances.
+  await setupInjector();
+$notificationInit$firebaseNotificationInit
+
   PlatformDispatcher.instance.onError = (error, st) {
     appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught
     if (kDebugMode) return false; // false = let Flutter crash normally in dev
@@ -288,6 +275,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$firebaseImports
+import 'config/di/injector.dart';
 import 'core/utils/app_logger.dart';
 import 'shared/widgets/error_view.dart';$maintenanceImport$moAdaptImport
 import 'config/theme/app_theme.dart';
@@ -296,8 +284,12 @@ Future<void> main() async {
   // Preserve the splash before anything else runs.
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-$easyLocalizationInit$containerSetup$notificationInit
-$firebaseInit$firebaseNotificationInit
+$easyLocalizationInit$firebaseInit
+  // Registers every repository, datasource and service. Firebase is up by
+  // this point, so the locator can hand out its instances.
+  await setupInjector();
+$notificationInit$firebaseNotificationInit
+
   PlatformDispatcher.instance.onError = (error, st) {
     appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught
     if (kDebugMode) return false; // false = let Flutter crash normally in dev
@@ -376,7 +368,7 @@ abstract interface class ActionState<T> {
 /// class MyNotifier extends AsyncNotifier<MyState>
 ///     with ActionNotifierMixin<MyState> {
 ///   Future<void> doSomething() => runAction((current) async {
-///     await ref.read(myRepositoryProvider).doSomething();
+///     await getIt<MyRepository>().doSomething();
 ///     return current.copyWith(success: 'Done!');
 ///   });
 /// }
@@ -508,213 +500,6 @@ $authRoutes      GoRoute(
 });$authGuard
 ''';
   }
-
-  /// Returns the generated firebaseProviders template.
-  static String firebaseProviders({bool hasAuth = false, bool hasDb = false}) {
-    final imports = [
-      if (hasDb) "import 'package:cloud_firestore/cloud_firestore.dart';",
-      if (hasAuth) "import 'package:firebase_auth/firebase_auth.dart';",
-      "import 'package:flutter_riverpod/flutter_riverpod.dart';",
-    ].join('\n');
-
-    final providers = [
-      if (hasAuth)
-        'final firebaseAuthProvider = Provider((ref) => FirebaseAuth.instance);',
-      if (hasDb)
-        'final firebaseDbProvider = Provider((ref) => FirebaseFirestore.instance);',
-    ].join('\n\n');
-
-    return '''
-$imports
-
-$providers
-''';
-  }
-
-  /// Returns the generated dioClient template.
-  ///
-  /// The client is a `Provider<Dio>` reading `tokenStorageProvider`; the bloc
-  /// flavor builds the same client from a `TokenStorage` argument instead.
-  static String dioClient() => r'''
-import 'dart:io';
-
-import 'package:dio/dio.dart';
-import 'package:dio/io.dart';
-import 'package:dio_smart_retry/dio_smart_retry.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-
-import '../../config/env/app_env.dart';
-import '../constants/api_constants.dart';
-import '../security/secure_storage.dart';
-import '../utils/app_logger.dart';
-
-final _log = appLogger.scoped('Dio');
-
-const _kPublicEndpoints = <String>[
-  // Routes that never receive the Authorization header (and are never
-  // retried after a token refresh). Adjust to your API contract.
-  '/auth/login',
-  '/auth/register',
-  '/auth/refresh',
-];
-
-bool _isPublicPath(String path) {
-  final cleanPath = path.split('?').first;
-  return _kPublicEndpoints.any(
-    (endpoint) => cleanPath == endpoint || cleanPath.startsWith('$endpoint/'),
-  );
-}
-
-final dioClientProvider = Provider<Dio>((ref) => _buildDioClient(ref));
-
-Dio _buildDioClient(Ref ref) {
-  final storage = ref.watch(tokenStorageProvider);
-
-  final dio = Dio(
-    BaseOptions(
-      baseUrl: AppEnv.baseUrl,
-      connectTimeout: ApiConstants.connectTimeout,
-      receiveTimeout: ApiConstants.receiveTimeout,
-      headers: const {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-    ),
-  );
-
-  _configureHttpClient(dio);
-
-  dio
-    ..interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) async {
-          final isPublicEndpoint = _isPublicPath(options.path);
-          if (!isPublicEndpoint) {
-            final token = await storage.accessToken;
-            if (token != null) {
-              options.headers['Authorization'] = 'Bearer $token';
-            }
-          }
-          handler.next(options);
-        },
-        onError: (error, handler) async {
-          final status = error.response?.statusCode;
-          final alreadyRetried =
-              error.requestOptions.extra[_kRetriedAfterRefresh] == true;
-          if (status != 401 ||
-              alreadyRetried ||
-              _isPublicPath(error.requestOptions.path)) {
-            return handler.next(error);
-          }
-
-          // Session expired — refresh the access token, then retry once.
-          final refreshed = await _refreshSession(storage);
-          if (!refreshed) {
-            // Refresh token missing/expired: clear the session so the auth
-            // notifier / router redirect can send the user back to login.
-            await storage.clearSession();
-            return handler.next(error);
-          }
-
-          try {
-            final options = error.requestOptions
-              ..extra[_kRetriedAfterRefresh] = true;
-            // Re-entering the chain lets onRequest attach the new token.
-            final response = await dio.fetch<dynamic>(options);
-            return handler.resolve(response);
-          } on DioException catch (retryError) {
-            return handler.next(retryError);
-          }
-        },
-      ),
-    )
-    ..interceptors.add(
-      RetryInterceptor(dio: dio, logPrint: (msg) => _log.d(msg.toString())),
-    )
-    // Bodies and headers are safe to hand over whole: app_logger.dart redacts
-    // credentials at the sink, so nothing here has to remember to.
-    ..interceptors.add(
-      LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-        logPrint: (msg) => _log.d(msg.toString()),
-      ),
-    );
-
-  return dio;
-}
-
-const _kRetriedAfterRefresh = '__retried_after_refresh__';
-
-/// Single-flight guard: concurrent 401s share one refresh call instead of
-/// racing each other with the same refresh token.
-Future<bool>? _ongoingRefresh;
-
-Future<bool> _refreshSession(TokenStorage storage) {
-  return _ongoingRefresh ??= _doRefresh(storage).whenComplete(() {
-    _ongoingRefresh = null;
-  });
-}
-
-Future<bool> _doRefresh(TokenStorage storage) async {
-  final refreshToken = await storage.refreshToken;
-  if (refreshToken == null) return false;
-  try {
-    // Bare client (no interceptors), so a failing refresh can't loop back
-    // into the 401 handler above.
-    final refreshDio = Dio(
-      BaseOptions(
-        baseUrl: AppEnv.baseUrl,
-        connectTimeout: ApiConstants.connectTimeout,
-        receiveTimeout: ApiConstants.receiveTimeout,
-        headers: const {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      ),
-    );
-    _configureHttpClient(refreshDio);
-    final response = await refreshDio.post<dynamic>(
-      '/auth/refresh',
-      data: {'refreshToken': refreshToken},
-    );
-    final data = response.data as Map<String, dynamic>;
-    // Adjust the keys to your API contract. Backends that don't rotate the
-    // refresh token only return a new access token.
-    final newAccessToken = data['accessToken'] as String?;
-    final newRefreshToken = data['refreshToken'] as String? ?? refreshToken;
-    if (newAccessToken == null) return false;
-    await storage.saveSession(
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
-    );
-    return true;
-  } catch (error) {
-    _log.w('Session refresh failed', error: error);
-    return false;
-  }
-}
-
-void _configureHttpClient(Dio dio) {
-  dio.httpClientAdapter = IOHttpClientAdapter(
-    createHttpClient: () {
-      final client = HttpClient();
-      if (kDebugMode) {
-        client.badCertificateCallback = (cert, host, port) {
-          _log.w(
-            'Certificate verification skipped for $host (debug mode)',
-          );
-          return true;
-        };
-      }
-      return client;
-    },
-  );
-}
-
-''';
 
   /// Returns a language service scaffold.
   static String languageService() => '''

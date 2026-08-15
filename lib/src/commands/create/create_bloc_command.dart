@@ -132,7 +132,8 @@ class CreateBlocCommand extends Command<int> {
       '${featureName}_entity.dart',
     ));
     final entityIdIsString = entityFile.existsSync() &&
-        RegExp(r'final\s+String\s+id\s*;').hasMatch(entityFile.readAsStringSync());
+        RegExp(r'final\s+String\s+id\s*;')
+            .hasMatch(entityFile.readAsStringSync());
 
     _logger.info('');
     _logger.info('🧱 Creating bloc: ${className}Bloc in $featureName');
@@ -145,7 +146,8 @@ class CreateBlocCommand extends Command<int> {
 
     try {
       await FileUtils.writeFile(
-        p.join(featurePath, 'presentation', 'states', '${blocName}_state.dart'),
+        p.join(featurePath, 'presentation', templates.stateDir,
+            '${blocName}_state.dart'),
         templates.featureState(
           blocName,
           className,
@@ -181,18 +183,12 @@ class CreateBlocCommand extends Command<int> {
           repositoryClass: featureClass,
         ),
       );
-      // The bloc mixes in ActionBlocMixin — write it if this project predates
-      // it (writeFile never overwrites).
-      await FileUtils.writeFile(
-        p.join(libPath, 'core', 'utils', templates.actionBaseFile),
-        templates.actionBase(),
-      );
-
       if (hasRepository) {
         registered = await InjectorUtils.register(
           libPath,
           className: className,
-          registrations: '''  // ── $className ${'─' * (56 - className.length).clamp(3, 56)}
+          registrations:
+              '''  // ── $className ${'─' * (56 - className.length).clamp(3, 56)}
   // A factory, not a singleton: the screen's BlocProvider creates it and
   // closing the route closes it, subscriptions and all.
   getIt.registerFactory<${className}Bloc>(
@@ -215,7 +211,7 @@ class CreateBlocCommand extends Command<int> {
 
     _logger.success('');
     _logger.info('  features/$featureName/presentation/');
-    _logger.info('  ├── states/${blocName}_state.dart');
+    _logger.info('  ├── blocs/${blocName}_state.dart');
     _logger.info('  ├── blocs/${blocName}_event.dart');
     _logger.info('  └── blocs/${blocName}_bloc.dart');
     _logger.info('');
@@ -231,8 +227,8 @@ class CreateBlocCommand extends Command<int> {
           'then register');
       _logger.info('  it in ${InjectorUtils.path}.');
     } else {
-      _logger.warn(
-          '  Nothing was registered in ${InjectorUtils.path} — register');
+      _logger
+          .warn('  Nothing was registered in ${InjectorUtils.path} — register');
       _logger.info('  ${className}Bloc there yourself, or put back the '
           '`${InjectorUtils.anchor}`');
       _logger.info('  comment.');

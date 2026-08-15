@@ -57,16 +57,12 @@ ${useFirestore ? '''
   // ── Domain — Use case ───────────────────────────────────────────────────────
 
   /// Returns the generated usecase template.
+  ///
+  /// It takes its repository rather than reaching for one: `injector.dart`
+  /// resolves that from the locator, and a test constructs it with a fake.
   static String usecase(String name, String cls, String varName) => '''
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../data/repositories/${name}_repository_impl.dart';
 import '../entities/${name}_entity.dart';
 import '../repositories/${name}_repository.dart';
-
-final get${cls}Provider = Provider<Get$cls>(
-  (ref) => Get$cls(ref.watch(${varName}RepositoryProvider)),
-);
 
 class Get$cls {
   const Get$cls(this._repository);
@@ -171,16 +167,9 @@ class ${cls}Model extends ${cls}Entity{
 
     return '''
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/network/dio_client.dart';
 import '../../../../core/network/safe_api_call.dart';
 import '../models/${name}_model.dart';
-
-final ${varName}RemoteDataSourceProvider = Provider<${cls}RemoteDataSource>(
-  (ref) => ${cls}RemoteDataSource(ref.watch(dioClientProvider)),
-);
-
 
 class ${cls}RemoteDataSource {
   const ${cls}RemoteDataSource(this._dio);
@@ -204,16 +193,9 @@ class ${cls}RemoteDataSource {
   static String _firestoreDatasource(String name, String cls, String varName) =>
       '''
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../config/firebase/firebase_providers.dart';
 import '../../../../core/network/safe_firebase_call.dart';
 import '../models/${name}_model.dart';
-
-final ${varName}RemoteDataSourceProvider = Provider<${cls}RemoteDataSource>(
-  (ref) => ${cls}RemoteDataSource(ref.watch(firebaseDbProvider)),
-);
-
 
 class ${cls}RemoteDataSource {
   const ${cls}RemoteDataSource(this._firestore);
@@ -287,18 +269,9 @@ class ${cls}RemoteDataSource {
 
   /// Returns the generated localDatasource template.
   static String localDatasource(String name, String cls, String varName) => '''
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../models/${name}_model.dart';
-
-final ${varName}LocalDataSourceProvider = Provider<${cls}LocalDataSource>(
-  (ref) => ${cls}LocalDataSource(),
-);
-
-
-
 class ${cls}LocalDataSource {
-  // TODO: inject SharedPreferences / Hive / Isar / etc.
+  // TODO: inject SharedPreferences / Hive / Isar / etc. and register the
+  // dependency in config/di/injector.dart.
   // TODO: implement methods
 }
 ''';
@@ -318,11 +291,6 @@ class ${cls}LocalDataSource {
     required bool hasLocal,
     bool useFirestore = false,
   }) {
-    final providerArgs = [
-      if (hasRemote) '      ref.watch(${varName}RemoteDataSourceProvider),',
-      if (hasLocal) '      ref.watch(${varName}LocalDataSourceProvider),',
-    ].join('\n');
-
     final ctorParams = [
       if (hasRemote) 'this._remote',
       if (hasLocal) 'this._local',
@@ -364,19 +332,8 @@ class ${cls}LocalDataSource {
   }''' : ''}''';
 
     return '''
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../../../core/errors/app_exception.dart';
-${hasRemote ? "import '../datasources/${name}_remote_datasource.dart';" : ''}
-${hasLocal ? "import '../datasources/${name}_local_datasource.dart';" : ''}
-import '../../domain/entities/${name}_entity.dart';
+${hasRemote ? "import '../datasources/${name}_remote_datasource.dart';\n" : ''}${hasLocal ? "import '../datasources/${name}_local_datasource.dart';\n" : ''}import '../../domain/entities/${name}_entity.dart';
 import '../../domain/repositories/${name}_repository.dart';
-
-final ${varName}RepositoryProvider = Provider<${cls}Repository>(
-  (ref) => ${cls}RepositoryImpl(
-$providerArgs
-  ),
-);
 
 class ${cls}RepositoryImpl implements ${cls}Repository {
   const ${cls}RepositoryImpl($ctorParams);
@@ -467,16 +424,36 @@ ${useFirestore ? '''
   /// empty one, so the screen tracks the collection for as long as it is
   /// mounted. The subscription is the notifier's: Riverpod disposes it with
   /// the provider.
+  ///
+  /// The dependency comes out of the locator rather than off another provider:
+  /// `injector.dart` is where the data layer is wired, and the notifier is the
+  /// seam between it and Riverpod. With a use case that is the one thing it
+  /// reads — except on Firestore, where the live query is the repository's and
+  /// no use case wraps it.
   static String notifier(String name, String cls, String varName,
-          {required bool hasUseCase, bool useFirestore = false}) =>
-      '''
-import 'dart:async';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/utils/action_notifier.dart';
+      {required bool hasUseCase, bool useFirestore = false}) {
+    // The live variant depends on the repository whether or not a use case was
+    // generated: a use case wraps the one-off fetch, not the subscription.
+    final viaUseCase = hasUseCase && !useFirestore;
 
-import '../../data/repositories/${name}_repository_impl.dart';
-${hasUseCase ? "import '../../domain/usecases/get_$name.dart';" : ''}
-import '../../domain/repositories/${name}_repository.dart';
+    final dependency = viaUseCase
+        ? '  Get$cls get _get$cls => getIt<Get$cls>();'
+        : '  ${cls}Repository get _repo => getIt<${cls}Repository>();';
+
+    final imports = <String>[
+      if (viaUseCase) "import '../../domain/usecases/get_$name.dart';",
+      if (!viaUseCase)
+        "import '../../domain/repositories/${name}_repository.dart';",
+    ].join('\n');
+
+    return '''
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../config/di/injector.dart';
+import '../../../../core/utils/action_notifier.dart';
+$imports
 import '../states/${name}_state.dart';
 
 final ${varName}NotifierProvider =
@@ -485,7 +462,7 @@ final ${varName}NotifierProvider =
 class ${cls}Notifier extends AsyncNotifier<${cls}State>
     with ActionNotifierMixin<${cls}State> {
 
-  ${cls}Repository get _repo => ref.watch(${varName}RepositoryProvider);
+$dependency
 
 ${useFirestore ? '''  @override
   FutureOr<${cls}State> build() {
@@ -535,6 +512,11 @@ ${useFirestore ? '''  @override
   //   });
   // }''' : '''  @override
   FutureOr<${cls}State> build() async {
+    // The repository's fetchAll is a TODO until you implement it, which is
+    // why this fails on the first run rather than showing an empty screen.
+    // TODO: put what it returns into ${cls}State — add a field for it, give
+    // that field a fake value in `placeholder`, and draw it in the view.
+    await ${viaUseCase ? '_get$cls()' : '_repo.fetchAll()'};
     return const ${cls}State();
   }
 
@@ -544,7 +526,7 @@ ${useFirestore ? '''  @override
   // Example:
   // Future<void> doSomething() {
   //   return runAction((current) async {
-  //     await _repo.doSomething();
+  //     await ${viaUseCase ? '_get$cls()' : '_repo.doSomething()'};
   //     return current.copyWith(success: 'Done!');
   //   });
   // }'''}
@@ -552,6 +534,7 @@ ${useFirestore ? '''  @override
 
 }
 ''';
+  }
 
   // ── Presentation — View ─────────────────────────────────────────────────────
 

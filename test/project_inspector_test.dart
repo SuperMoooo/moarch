@@ -29,11 +29,23 @@ void main() {
     // without needing the privileges a Windows symlink would.
     await Directory(p.join(root, '.fvm', 'flutter_sdk'))
         .create(recursive: true);
+    // The locator is part of a healthy project in both stacks now: it is
+    // where the data layer is wired, whichever one holds the state.
+    await File(p.join(libPath, 'config', 'di', 'injector.dart'))
+        .create(recursive: true)
+        .then((file) => file.writeAsString('''
+final getIt = GetIt.instance;
+
+Future<void> setupInjector() async {
+  // moarch:registrations
+}
+'''));
     await File(p.join(root, 'pubspec.yaml')).writeAsString('''
 name: demo
 
 dependencies:
   flutter_riverpod: ^2.0.0
+  get_it: ^8.0.0
   envied: ^0.5.0
 ''');
   }

@@ -344,35 +344,35 @@ class CreateFeatureCommand extends Command<int> {
         }
       }
 
-      // Riverpod declares a provider beside each class, so a feature's wiring
-      // is already written by this point. A bloc project keeps it in one
-      // file, which has to be patched — the same way `init` patches gradle
-      // and the manifest.
-      if (templates.isBloc) {
-        registeredInInjector = await InjectorUtils.register(
-          libPath,
+      // The feature's dependencies go in the one file that holds them, the
+      // same way `init` patches gradle and the manifest. The bloc is part of
+      // that on bloc; the Riverpod notifier is not — it stays behind its
+      // provider and reads the locator from there, so there is nothing to
+      // register for it.
+      final hasBloc = templates.isBloc && selected.contains(holderItem);
+      registeredInInjector = await InjectorUtils.register(
+        libPath,
+        className: className,
+        registrations: InjectorUtils.registrationsFor(
+          featureName: featureName,
           className: className,
-          registrations: InjectorUtils.registrationsFor(
-            featureName: featureName,
-            className: className,
-            hasRemote: selected.contains(_kRemoteDatasource),
-            hasLocal: selected.contains(_kLocalDatasource),
-            hasRepository: selected.contains(_kRepository),
-            hasUseCase: selected.contains(_kUseCases),
-            hasBloc: selected.contains(holderItem),
-            useFirestore: useFirestore,
-          ),
-          imports: InjectorUtils.importsFor(
-            featureName: featureName,
-            hasRemote: selected.contains(_kRemoteDatasource),
-            hasLocal: selected.contains(_kLocalDatasource),
-            hasRepository: selected.contains(_kRepository),
-            hasUseCase: selected.contains(_kUseCases),
-            hasBloc: selected.contains(holderItem),
-            useFirestore: useFirestore,
-          ),
-        );
-      }
+          hasRemote: selected.contains(_kRemoteDatasource),
+          hasLocal: selected.contains(_kLocalDatasource),
+          hasRepository: selected.contains(_kRepository),
+          hasUseCase: selected.contains(_kUseCases),
+          hasBloc: hasBloc,
+          useFirestore: useFirestore,
+        ),
+        imports: InjectorUtils.importsFor(
+          featureName: featureName,
+          hasRemote: selected.contains(_kRemoteDatasource),
+          hasLocal: selected.contains(_kLocalDatasource),
+          hasRepository: selected.contains(_kRepository),
+          hasUseCase: selected.contains(_kUseCases),
+          hasBloc: hasBloc,
+          useFirestore: useFirestore,
+        ),
+      );
 
       progress.complete('Feature scaffolded');
     } catch (e) {
@@ -397,7 +397,13 @@ class CreateFeatureCommand extends Command<int> {
       _logger.info('  at your collection, and check your security rules.');
       _logger.info('');
     }
-    if (templates.isBloc) {
+    // Nothing was asked for that the locator holds, so nothing was expected
+    // of it either.
+    final needsInjector = selected.contains(_kRemoteDatasource) ||
+        selected.contains(_kLocalDatasource) ||
+        selected.contains(_kRepository) ||
+        selected.contains(_kUseCases);
+    if (needsInjector) {
       if (registeredInInjector) {
         _logger.info('  Registered in ${InjectorUtils.path}.');
       } else {
@@ -406,8 +412,8 @@ class CreateFeatureCommand extends Command<int> {
         // error the app throws at runtime.
         _logger.warn(
             '  Nothing was registered in ${InjectorUtils.path} — add the');
-        _logger
-            .info('  datasource, repository and bloc there yourself, or put');
+        _logger.info('  datasource, repository and '
+            '${templates.isBloc ? 'bloc' : 'use case'} there yourself, or put');
         _logger.info('  back the `${InjectorUtils.anchor}` comment.');
       }
       _logger.info('');
@@ -499,22 +505,6 @@ class CreateFeatureCommand extends Command<int> {
     }
 
     if (wroteAny) await manifest.save(projectRoot);
-
-    // On bloc the instances live in the locator, and the registration patch
-    // is what adds a missing one — nothing to check here.
-    if (templates.isBloc) return;
-
-    // A project scaffolded with Firebase Auth but no Firestore has a providers
-    // file with no firebaseDbProvider in it, and the file above was left alone
-    // because it already existed — so the new datasource would not compile.
-    final providersFile =
-        File(p.join(libPath, 'config', 'firebase', 'firebase_providers.dart'));
-    if (providersFile.existsSync() &&
-        !providersFile.readAsStringSync().contains('firebaseDbProvider')) {
-      _logger.warn(
-          '  config/firebase/firebase_providers.dart has no firebaseDbProvider.');
-      _logger.info('    Add it, or run: moarch update firebase-providers');
-    }
   }
 
   Future<void> _writeRemoteDatasource(
@@ -623,7 +613,7 @@ class CreateFeatureCommand extends Command<int> {
     bool useFirestore = false,
   }) async {
     await FileUtils.writeFile(
-      p.join(fp, 'presentation', 'states', '${name}_state.dart'),
+      p.join(fp, 'presentation', templates.stateDir, '${name}_state.dart'),
       templates.featureState(name, cls, useFirestore: useFirestore),
     );
   }
@@ -719,7 +709,7 @@ class CreateFeatureCommand extends Command<int> {
 
       line('presentation/');
       if (selected.contains(holderItem)) {
-        line('├── states/${name}_state.dart');
+        line('├── ${templates.stateDir}/${name}_state.dart');
         final eventFile = templates.eventFile(name);
         if (eventFile != null) {
           line('├── ${templates.holderDir}/$eventFile');
