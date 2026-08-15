@@ -2,6 +2,21 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 5.0.1
+
+### A bloc's page is a file of its own
+
+`moarch create feature` on the bloc stack writes
+`presentation/pages/<x>_page.dart` beside `presentation/views/<x>_view.dart`.
+The page is the `BlocProvider` — it builds the bloc out of the locator, opens
+it with its first event, and is what a `GoRoute` points at. The view is left a
+plain widget that reads the bloc off the context, so a widget test can pump it
+with a bloc of its own without the locator being set up.
+
+Riverpod generates no page: a notifier is read through a provider wherever it
+is needed, so there would be nothing to wrap the screen in. The auth screens
+are unchanged in both stacks — their holder is provided once, above the router.
+
 ## 5.0.0
 
 **Breaking for both stacks.** A project generated with 5.0.0 does not look like
@@ -82,6 +97,9 @@ or a `context.push` belongs — while `builder` runs on every rebuild.
   case wraps).
 - The Riverpod repository implementation imported `app_exception.dart` without
   using it, and the local datasource imported its model without using it.
+- The bloc feature state's `--firestore` variant declared its constructor as
+  `const OrdersSuccess{...}` — no parentheses around the parameter list, so
+  the generated file did not parse. It is `const OrdersSuccess({...})` now.
 
 ## 4.0.0
 
@@ -277,8 +295,8 @@ look at in the diff it offers:
       `doctor --fix` points it back at `.fvm/flutter_sdk`.
     - `settings.json` missing, or carrying no `dart.flutterSdkPath` — **warning**.
 
-                                                An absolute path is left alone as a deliberate override, and a project with no
-                                                `.fvmrc` gets none of these findings.
+                                                            An absolute path is left alone as a deliberate override, and a project with no
+                                                            `.fvmrc` gets none of these findings.
 
 - The README documents that the generated `.fvmrc` pins the `stable` _alias_
   rather than a version, so `fvm install` on CI or a teammate's machine can

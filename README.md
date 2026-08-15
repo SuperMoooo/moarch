@@ -106,6 +106,7 @@ layers, the same file names, the same `AppException` reaching the same
 | lives in | `presentation/notifiers/orders_notifier.dart` | `presentation/blocs/orders_bloc.dart` (+ `orders_event.dart`) |
 | the state | one class inside `AsyncValue`, in `presentation/states/` | a sealed family: `Initial` / `Loading` / `Success` / `Failure`, in `presentation/blocs/` beside the bloc |
 | you call | `ref.read(p.notifier).refresh()` | `context.read<OrdersBloc>().add(const OrdersRefreshed())` |
+| the screen | `presentation/views/orders_view.dart` | `presentation/pages/orders_page.dart` provides the bloc, `presentation/views/orders_view.dart` draws it |
 | the view uses | `AppAsyncView` + `ref.listenAction` | `BlocConsumer` + a `switch` |
 | dependencies | `get_it`, in `config/di/injector.dart` | `get_it`, in `config/di/injector.dart` |
 | extra packages | `get_it` | `flutter_bloc`, `bloc`, `equatable`, `get_it`, `bloc_lint` |
@@ -181,11 +182,14 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
 
 No mixin and no base class of moarch's own — that is the whole handler.
 
-The view is plain `flutter_bloc`. `Page` owns the bloc so leaving the route
-closes it, and with it any Firestore subscription; `View` draws it with one
-`switch` and reacts to it with one `listener`:
+The screen is plain `flutter_bloc`, split across two files. `pages/orders_page.dart`
+owns the bloc so leaving the route closes it, and with it any Firestore
+subscription — it is what a `GoRoute` points at. `views/orders_view.dart` draws
+the state with one `switch` and reacts to it with one `listener`, and never
+touches the locator, so a widget test can pump it with a bloc of its own:
 
 ```dart
+// presentation/pages/orders_page.dart
 class OrdersPage extends StatelessWidget {
   Widget build(context) => BlocProvider(
     create: (_) => getIt<OrdersBloc>()..add(const OrdersStarted()),
@@ -193,7 +197,7 @@ class OrdersPage extends StatelessWidget {
   );
 }
 
-// inside OrdersView
+// presentation/views/orders_view.dart — inside OrdersView
 BlocConsumer<OrdersBloc, OrdersState>(
   // Only on an actual change — the states are Equatable.
   listenWhen: (previous, current) => previous != current,

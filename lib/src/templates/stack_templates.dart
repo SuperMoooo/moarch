@@ -67,6 +67,17 @@ class StackTemplates {
   /// The event file's name, or null on Riverpod — there are no events there.
   String? eventFile(String name) => isBloc ? '${name}_event.dart' : null;
 
+  /// Whether the stack generates a page beside the view.
+  ///
+  /// Bloc does: something has to build the bloc and provide it above the
+  /// screen, and keeping that out of the view leaves the view a plain widget.
+  /// Riverpod does not — a notifier is read through a provider wherever it is
+  /// needed, so there is nothing to wrap the screen in.
+  bool get hasPage => isBloc;
+
+  /// The page's file name, e.g. `orders_page.dart`. Bloc only — see [hasPage].
+  String pageFile(String name) => '${name}_page.dart';
+
   /// What the state holder is called in CLI output: "bloc" or "notifier".
   String get holderLabel => isBloc ? 'bloc' : 'notifier';
 
@@ -352,6 +363,11 @@ class StackTemplates {
               hasUseCase: hasUseCase,
               useFirestore: useFirestore,
             );
+
+  /// The page that creates the bloc and provides it above the view. Bloc
+  /// only — see [hasPage].
+  String featurePage(String name, String cls) =>
+      bloc.FeatureTemplates.page(name, cls);
 
   /// The screen.
   String featureView(

@@ -244,7 +244,7 @@ abstract final class ProjectInspector {
           Diagnostic.error(
             'lib/config/di/injector.dart is missing',
             hint: 'The generated '
-                '${stateManagement.isBloc ? 'views resolve their blocs' : 'notifiers resolve their repositories'} '
+                '${stateManagement.isBloc ? 'pages resolve their blocs' : 'notifiers resolve their repositories'} '
                 'with `getIt<...>()`. Run `moarch update injector`, or write '
                 'it by hand.',
           ),

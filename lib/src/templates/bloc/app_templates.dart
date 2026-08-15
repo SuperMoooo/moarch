@@ -460,21 +460,18 @@ $authRoutes    GoRoute(
       ),
     ),
 
-    // A screen with its own bloc creates it here, so closing the route closes
-    // the bloc. The locator hands out a new one per call (registerFactory).
+    // A screen with its own bloc points at its page, which creates the bloc —
+    // so closing the route closes it.
     // GoRoute(
     //   path: AppRoutes.orders,
-    //   builder: (context, state) => BlocProvider(
-    //     create: (_) => getIt<OrdersBloc>()..add(const OrdersStarted()),
-    //     child: const OrdersView(),
-    //   ),
+    //   builder: (context, state) => const OrdersPage(),
     // ),
 
     // Path parameter — build the location with AppRoutes.featureDetailOf(id).
     // GoRoute(
     //   path: AppRoutes.featureDetail,
     //   builder: (context, state) =>
-    //       FeatureDetailView(id: state.pathParameters['id']!),
+    //       FeatureDetailPage(id: state.pathParameters['id']!),
     // ),
   ],
 );$authGuard

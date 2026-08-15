@@ -113,6 +113,18 @@ void main() {
       expect(output, contains('final List<OrdersEntity> items;'));
     });
 
+    test('the live state takes its items through a named parameter list', () {
+      final output = bloc.FeatureTemplates.state(
+        'orders',
+        'Orders',
+        useFirestore: true,
+      );
+
+      expect(output, contains('const OrdersSuccess({'));
+      expect(output, contains('this.items = const [],'));
+      expect(output, contains('  });'));
+    });
+
     test('a second bloc in a feature names that feature\'s entity', () {
       // `moarch create bloc orders order_feed` — the state lists Orders, not
       // an OrderFeedEntity that was never generated.
@@ -218,7 +230,21 @@ void main() {
       );
     });
 
-    test('the view owns the bloc so the route closes it', () {
+    test('the page owns the bloc so the route closes it', () {
+      final output = bloc.FeatureTemplates.page('orders', 'Orders');
+
+      expect(output, contains('class OrdersPage extends StatelessWidget'));
+      expect(
+          output,
+          contains(
+              'create: (_) => getIt<OrdersBloc>()..add(const OrdersStarted())'));
+      expect(output, contains('child: const OrdersView(),'));
+      // It is a file of its own, so it imports the view it wraps.
+      expect(output, contains("import '../views/orders_view.dart';"));
+      expect(output, contains("import '../../../../config/di/injector.dart';"));
+    });
+
+    test('the view only reads the bloc the page provides', () {
       final output = bloc.FeatureTemplates.view(
         'orders',
         'Orders',
@@ -226,11 +252,11 @@ void main() {
         hasBloc: true,
       );
 
-      expect(output, contains('class OrdersPage extends StatelessWidget'));
-      expect(
-          output,
-          contains(
-              'create: (_) => getIt<OrdersBloc>()..add(const OrdersStarted())'));
+      // The provider and the locator belong to the page now.
+      expect(output, isNot(contains('class OrdersPage')));
+      expect(output, isNot(contains('BlocProvider(')));
+      expect(output,
+          isNot(contains("import '../../../../config/di/injector.dart';")));
       // Plain flutter_bloc widgets and a switch — no wrapper of moarch's own.
       expect(output, contains('BlocConsumer<OrdersBloc, OrdersState>'));
       expect(output, contains('builder: (context, state) => switch (state) {'));
@@ -508,6 +534,21 @@ Future<void> setupInjector() async {
   });
 
   group('the kit follows the stack', () {
+    test('the page beside the view is bloc-only', () {
+      // Riverpod reads a notifier through a provider wherever it is needed,
+      // so there is nothing to wrap the screen in.
+      const riverpod = StackTemplates(StateManagement.riverpod);
+      const blocStack = StackTemplates(StateManagement.bloc);
+
+      expect(blocStack.hasPage, isTrue);
+      expect(riverpod.hasPage, isFalse);
+      expect(blocStack.pageFile('orders'), 'orders_page.dart');
+      expect(
+        blocStack.featurePage('orders', 'Orders'),
+        contains('class OrdersPage extends StatelessWidget'),
+      );
+    });
+
     test('the async-view pair is Riverpod-only', () {
       // A bloc screen draws its sealed state with a switch inside a plain
       // BlocBuilder, so these two would be wrappers over nothing.

@@ -643,6 +643,8 @@ class CreateFeatureCommand extends Command<int> {
     );
   }
 
+  /// The screen, plus the page that provides its state holder where the stack
+  /// has one — without a holder there is nothing to provide.
   Future<void> _writeView(
     String fp,
     String name,
@@ -657,6 +659,12 @@ class CreateFeatureCommand extends Command<int> {
       templates.featureView(name, cls, varName,
           hasHolder: hasHolder, useFirestore: useFirestore),
     );
+    if (hasHolder && templates.hasPage) {
+      await FileUtils.writeFile(
+        p.join(fp, 'presentation', 'pages', templates.pageFile(name)),
+        templates.featurePage(name, cls),
+      );
+    }
   }
 
   // ── Tree summary ─────────────────────────────────────────────────────────────
@@ -707,17 +715,26 @@ class CreateFeatureCommand extends Command<int> {
         }
       }
 
+      final hasHolder = selected.contains(holderItem);
+      final eventFile = templates.eventFile(name);
+      final presentation = <String>[
+        if (hasHolder) ...[
+          '${templates.stateDir}/${name}_state.dart',
+          if (eventFile != null) '${templates.holderDir}/$eventFile',
+          '${templates.holderDir}/${templates.holderFile(name)}',
+        ],
+        if (selected.contains(_kView)) ...[
+          // The page only exists where there is a holder for it to provide.
+          if (hasHolder && templates.hasPage)
+            'pages/${templates.pageFile(name)}',
+          'views/${name}_view.dart',
+        ],
+      ];
+
       line('presentation/');
-      if (selected.contains(holderItem)) {
-        line('├── ${templates.stateDir}/${name}_state.dart');
-        final eventFile = templates.eventFile(name);
-        if (eventFile != null) {
-          line('├── ${templates.holderDir}/$eventFile');
-        }
-        line('├── ${templates.holderDir}/${templates.holderFile(name)}');
-      }
-      if (selected.contains(_kView)) {
-        line('└── views/${name}_view.dart');
+      for (var i = 0; i < presentation.length; i++) {
+        final connector = i == presentation.length - 1 ? '└──' : '├──';
+        line('$connector ${presentation[i]}');
       }
       line('');
     }
