@@ -1,5 +1,6 @@
 import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/core/error_templates.dart';
+import 'package:moarch/src/templates/core/services_templates.dart';
 import 'package:moarch/src/templates/riverpod/feature_templates.dart';
 import 'package:moarch/src/templates/ui/modals_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
@@ -21,6 +22,19 @@ void main() {
     expect(output, contains('await setupInjector();'));
     expect(output, isNot(contains('ProviderContainer')));
     expect(output, contains('const ProviderScope(child: App())'));
+    // Guarded: a plugin that throws must not strand the app on the splash.
+    expect(output, contains('await _initNotifications();'));
+    expect(output, contains('} catch (error, stackTrace) {'));
+  });
+
+  test('the notification permission is left for the app to ask', () {
+    final output = ServicesTemplates.notificationsService();
+
+    // On iOS a first-launch denial can only be undone in Settings, so init()
+    // sets the plugin up and nothing more.
+    expect(output, contains('Future<void> init() async {'));
+    expect(output, isNot(contains('await requestPermissions();')));
+    expect(output, contains('Future<bool> requestPermissions() async {'));
   });
 
   test('mainDart omits notification initialization by default', () {

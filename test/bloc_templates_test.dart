@@ -622,6 +622,50 @@ Future<void> setupInjector() async {
       expect(output, contains('class App extends StatelessWidget'));
       expect(output, isNot(contains('MultiBlocProvider')));
     });
+
+    test('the error handlers are up before anything that can throw', () {
+      final output = bloc.AppTemplates.mainDart(
+        withRouter: false,
+        withNotificationsService: true,
+      );
+
+      // A locator or a plugin that throws is reported rather than lost.
+      expect(
+        output.indexOf('PlatformDispatcher.instance.onError'),
+        lessThan(output.indexOf('await setupInjector();')),
+      );
+      expect(
+        output.indexOf('ErrorWidget.builder'),
+        lessThan(output.indexOf('await _initNotifications();')),
+      );
+    });
+
+    test('a notification plugin that throws still reaches runApp', () {
+      final output = bloc.AppTemplates.mainDart(
+        withRouter: false,
+        withNotificationsService: true,
+        withFirebaseNotifications: true,
+      );
+
+      // One guard each, so a failing local plugin does not cost the FCM one.
+      expect(
+        '} catch (error, stackTrace) {'.allMatches(output).length,
+        equals(2),
+      );
+      expect(output, contains("appLogger.e(\n      '[Notifications] init"));
+      expect(output, contains("appLogger.e(\n      '[FCM] init failed'"));
+      expect(
+        output.indexOf('await _initNotifications();'),
+        lessThan(output.indexOf('FlutterNativeSplash.remove();')),
+      );
+    });
+
+    test('no notification bootstrap without a notification service', () {
+      final output = bloc.AppTemplates.mainDart(withRouter: false);
+
+      expect(output, isNot(contains('_initNotifications')));
+      expect(output, isNot(contains('} catch (error, stackTrace) {')));
+    });
   });
 
   group('the kit follows the stack', () {

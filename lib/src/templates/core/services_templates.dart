@@ -135,8 +135,6 @@ $_notificationsMethods
 
     _initialized = true;
     _log.i('Initialized');
-
-    await requestPermissions();
   }
 
   Future<void> _createNotificationChannels() async {
@@ -482,7 +480,8 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   /// The FCM registration token for this device — send it to your backend.
   ///
   /// On Apple platforms FCM cannot mint a token until APNs has handed the app
-  /// its own, so that one is awaited first. Returns null after [retries].
+  /// its own — which only happens once [requestPermissions] has been accepted
+  /// — so that one is awaited first. Returns null after [retries].
   Future<String?> getDeviceToken({
     int retries = _tokenRetries,
     Duration retryDelay = _tokenRetryDelay,
@@ -554,8 +553,9 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
     }
 
     _log.w(
-      'No APNs token after $retries attempts. Check the Push Notifications '
-      'capability in Xcode and the APNs key in the Firebase console.',
+      'No APNs token after $retries attempts. Has requestPermissions() been '
+      'called and accepted? If it has, check the Push Notifications capability '
+      'in Xcode and the APNs key in the Firebase console.',
     );
     return null;
   }
@@ -592,11 +592,13 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
 
     _initialized = true;
     _log.i('Initialized');
-
-    await requestPermissions();
   }
 
-  /// True when granted, or provisionally granted on iOS.
+  /// Ask for push permission — call it after onboarding, not on boot.
+  ///
+  /// True when granted, or provisionally granted on iOS. On Apple platforms
+  /// APNs hands out no token until this has been accepted, so ask before
+  /// reading [getDeviceToken].
   Future<bool> requestPermissions() async {
     final settings = await _messaging.requestPermission(
       alert: true,

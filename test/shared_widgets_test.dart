@@ -394,4 +394,166 @@ void main() {
       expect(spec.packages, isEmpty);
     });
   });
+
+  /// A control that draws its name is not the same as one that says it. These
+  /// cover the widgets whose spoken name would otherwise go missing — a
+  /// spinner replacing a label, an icon standing alone, a picture with no
+  /// description.
+  group('a control keeps its name', () {
+    test('a loading button is still called by its label', () {
+      final output = SharedTemplates.appButton();
+
+      // The spinner takes the label's place on screen only.
+      expect(output, contains('semanticsLabel: label,'));
+    });
+
+    test('a button reads its hint as part of itself', () {
+      expect(SharedTemplates.appButton(), contains('return MergeSemantics('));
+    });
+
+    test('an icon button falls back to its tooltip for a name', () {
+      final output = SharedTemplates.appIconButton();
+
+      expect(output, contains('final String? semanticLabel;'));
+      expect(output, contains('final label = semanticLabel ?? tooltip;'));
+      expect(output, contains('button: true,'));
+      // Tooltip would otherwise announce the same string a second time.
+      expect(output, contains('excludeFromSemantics: true,'));
+    });
+
+    test('a slider says what the value is of', () {
+      final output = SharedTemplates.appSlider();
+
+      expect(output, contains('return Semantics(\n      label: label,'));
+    });
+
+    test('a progress bar speaks its caption instead of drawing it twice', () {
+      final output = SharedTemplates.appProgressBar();
+
+      expect(output, contains('semanticsLabel: label,'));
+      expect(
+        output,
+        contains("semanticsValue: percent == null ? null : '\$percent%',"),
+      );
+      expect(output, contains('ExcludeSemantics('));
+    });
+
+    test('an avatar is the person, not the initial standing in for them', () {
+      final output = SharedTemplates.appAvatar();
+
+      expect(output, contains('image: true,'));
+      // Without this a screen reader reads the fallback letter on its own.
+      expect(output, contains('ExcludeSemantics(child: clipped)'));
+    });
+
+    test('an image is either described or skipped, never unnamed', () {
+      final output = SharedTemplates.appImage();
+
+      expect(output, contains('final String? semanticLabel;'));
+      expect(
+        output,
+        contains(
+          'if (semanticLabel == null) return ExcludeSemantics(child: clipped);',
+        ),
+      );
+    });
+
+    test('the play button names the action its glyph is showing', () {
+      final output = AudioTemplates.appAudioPlayer();
+
+      expect(
+        output,
+        contains("label: state.playing ? 'Pause' : 'Play',"),
+      );
+    });
+  });
+
+  /// An InkWell ripples but announces nothing, so every tappable container
+  /// has to say it is one.
+  group('a tappable container announces the tap', () {
+    test('a list tile is a button when it has somewhere to go', () {
+      final output = SharedTemplates.appListTile();
+
+      expect(
+        output,
+        contains(
+          'child: onTap == null ? row : Semantics(button: true, child: row),',
+        ),
+      );
+      // Claiming the role unconditionally would plant a contrary node inside
+      // the AppCardTile card that is the one actually taking the tap.
+      expect(output, isNot(contains('button: onTap != null,')));
+    });
+
+    test('a card is a button only when it takes a tap', () {
+      final output = SharedTemplates.appCard();
+
+      expect(output, contains('final card = onTap == null\n        ? content'));
+      expect(output, contains('button: true,'));
+    });
+
+    test('a timeline entry that opens something says so', () {
+      expect(ContentTemplates.appTimeline(), contains('button: true,'));
+    });
+  });
+
+  /// Material's minimum touch target. What the eye sees is allowed to be
+  /// smaller than what a finger has to hit; what it cannot be is the target
+  /// itself.
+  group('a small icon button is still 48dp to a finger', () {
+    final output = SharedTemplates.appIconButton();
+
+    test('the painted shape and the target are measured apart', () {
+      expect(output, contains('static double dimensionOf('));
+      expect(output, contains('static double tapTargetOf('));
+      expect(output, contains('painted < AppConstants.touchTarget'));
+    });
+
+    test('the slop appears only when the shape is under the minimum', () {
+      expect(
+        output,
+        contains('final sized = target == sizeConfig.container'),
+      );
+      expect(output, contains('behavior: HitTestBehavior.opaque,'));
+      // The slop is a hit area, not a second thing to announce.
+      expect(output, contains('excludeFromSemantics: true,'));
+    });
+
+    test('one tap fires one callback, wherever it lands', () {
+      // Both recognizers share the handler rather than each closing over a
+      // call to onPressed of its own.
+      expect(output, contains('final VoidCallback? handleTap = enabled'));
+      expect('onTap: handleTap,'.allMatches(output).length, 2);
+      expect('onPressed!();'.allMatches(output).length, 1);
+    });
+
+    test('the semantics node covers the target, not just the paint', () {
+      expect(
+        output.indexOf('return Semantics('),
+        greaterThan(output.indexOf('final sized =')),
+      );
+    });
+
+    test('the app bar reserves what the button occupies', () {
+      expect(
+        SharedTemplates.appAppBar(),
+        contains('AppIconButton.tapTargetOf(backSize)'),
+      );
+    });
+  });
+
+  /// A control and the text naming it are one thing to a screen reader, not
+  /// two stops that have to be pieced together.
+  group('a label and its control are read as one', () {
+    test('the checkbox row merges', () {
+      expect(
+        SharedTemplates.appCheckboxLabel(),
+        contains('return MergeSemantics('),
+      );
+    });
+
+    test('each radio row merges', () {
+      expect(SharedTemplates.appRadioGroup(), contains('MergeSemantics('));
+    });
+  });
 }

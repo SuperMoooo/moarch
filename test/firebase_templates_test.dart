@@ -499,13 +499,15 @@ void main() {
       expect(output, contains('return null;'));
     });
 
-    test('leaves the moment to fetch the token to the caller', () {
+    test('leaves both the permission ask and the token to the caller', () {
       final output = ServicesTemplates.firebaseNotificationsService();
 
-      // init() only asks for permission — on iOS there is no token before the
-      // user accepts, and the auth feature is what registers it afterwards.
-      expect(output, contains('await requestPermissions();'));
+      // init() asks for nothing on its own: on iOS a first-launch denial can
+      // only be undone in Settings, so the app picks the moment — and there is
+      // no token to register before the user has accepted.
+      expect(output, isNot(contains('await requestPermissions();')));
       expect(output, isNot(contains('getDeviceToken()\n')));
+      expect(output, contains('Future<bool> requestPermissions() async {'));
     });
 
     test('the auth feature registers the device on sign-in and on restore', () {

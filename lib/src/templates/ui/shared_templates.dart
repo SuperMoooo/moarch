@@ -69,10 +69,18 @@ class AppAvatar extends StatelessWidget {
           : _fallback(),
     );
 
-    if (roundedSquare) {
-      return ClipRRect(borderRadius: AppConstants.borderRadius12, child: image);
-    }
-    return ClipOval(child: image);
+    final Widget clipped = roundedSquare
+        ? ClipRRect(borderRadius: AppConstants.borderRadius12, child: image)
+        : ClipOval(child: image);
+
+    // The person is the name; the picture and the initial that stands in for
+    // it are two ways of drawing it. Without this a screen reader announces a
+    // lone "M" — the fallback letter — and nothing else.
+    return Semantics(
+      image: true,
+      label: name?.trim().isNotEmpty ?? false ? name!.trim() : null,
+      child: ExcludeSemantics(child: clipped),
+    );
   }
 
   Widget _placeholder(BuildContext context) => Container(
@@ -130,6 +138,7 @@ class AppImage extends StatelessWidget {
     this.shape = AppImageShape.roundedRectangle,
     this.fit = BoxFit.cover,
     this.placeholderAsset = 'assets/images/placeholder_image.jpg',
+    this.semanticLabel,
   });
 
   final String? imageUrl;
@@ -140,6 +149,11 @@ class AppImage extends StatelessWidget {
   final AppImageShape shape;
   final BoxFit fit;
   final String placeholderAsset;
+
+  /// What a screen reader announces in place of the picture. Leave it null
+  /// for a decorative image — one whose meaning is already in the text beside
+  /// it — and it is skipped rather than described as an unnamed graphic.
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -159,7 +173,7 @@ class AppImage extends StatelessWidget {
           : _localOrFallback(),
     );
 
-    return switch (shape) {
+    final Widget clipped = switch (shape) {
       AppImageShape.circle => ClipOval(child: image),
       AppImageShape.roundedRectangle => ClipRRect(
           borderRadius: AppConstants.borderRadius12,
@@ -167,6 +181,16 @@ class AppImage extends StatelessWidget {
         ),
       AppImageShape.rectangle => image,
     };
+
+    // Either the image is worth a description or it is decoration. Both beat
+    // the middle ground, where a screen reader stops on an unnamed graphic.
+    if (semanticLabel == null) return ExcludeSemantics(child: clipped);
+
+    return Semantics(
+      image: true,
+      label: semanticLabel,
+      child: ExcludeSemantics(child: clipped),
+    );
   }
 
   Widget _placeholder(BuildContext context) => Container(
@@ -433,6 +457,10 @@ $classDeclaration
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
                   color: foregroundColor,
+                  // The spinner replaces the label on screen, not in the
+                  // semantics tree: a loading button still names itself
+                  // instead of announcing a bare "button".
+                  semanticsLabel: label,
                 ),
               )
             : Row(
@@ -469,25 +497,29 @@ $classDeclaration
 
     if (hint == null) return button;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      // Centered rather than stretched: stretch would hand the button a tight
-      // width and override an explicit [width], so a 220px button would come
-      // out full-bleed the moment it was given a hint.
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: AppConstants.space4),
-          child: Text(
-            hint!,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+    // Merged so the hint is read as part of the button, not as a stray
+    // paragraph that happens to sit above one.
+    return MergeSemantics(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        // Centered rather than stretched: stretch would hand the button a
+        // tight width and override an explicit [width], so a 220px button
+        // would come out full-bleed the moment it was given a hint.
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppConstants.space4),
+            child: Text(
+              hint!,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
-        ),
-        button,
-      ],
+          button,
+        ],
+      ),
     );
   }
 }
@@ -3726,51 +3758,57 @@ class AppCheckboxLabel extends StatelessWidget {
           onChanged!(next);
         }
 
-        return InkWell(
-          borderRadius: AppConstants.borderRadius8,
-          // The square has its own haptic in AppCheckbox, so this one only
-          // covers the rest of the row — one buzz either way.
-          onTap: enabled ? () => toggle(!value) : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppConstants.space4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                AppCheckbox(
-                  value: value,
-                  onChanged: enabled ? (v) => toggle(v ?? false) : null,
-                  variant: variant,
-                  size: size,
-                  shape: shape,
-                ),
-                const SizedBox(width: AppConstants.space8),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label,
-                        style: textTheme.bodyLarge?.copyWith(
-                          fontSize: fontSize,
-                          color: enabled
-                              ? null
-                              : context.colorScheme.onSurface.withValues(
-                                  alpha: AppInputStyle.config.disabledOpacity,
-                                ),
-                        ),
-                      ),
-                      if (subtitle != null)
+        // The whole row toggles the value, so it should be read as one
+        // checkbox with a name — not a checkbox, then some text beside it.
+        return MergeSemantics(
+          child: InkWell(
+            borderRadius: AppConstants.borderRadius8,
+            // The square has its own haptic in AppCheckbox, so this one only
+            // covers the rest of the row — one buzz either way.
+            onTap: enabled ? () => toggle(!value) : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: AppConstants.space4,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  AppCheckbox(
+                    value: value,
+                    onChanged: enabled ? (v) => toggle(v ?? false) : null,
+                    variant: variant,
+                    size: size,
+                    shape: shape,
+                  ),
+                  const SizedBox(width: AppConstants.space8),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          subtitle!,
-                          style: textTheme.bodySmall?.copyWith(
-                            color: context.colorScheme.onSurfaceVariant,
+                          label,
+                          style: textTheme.bodyLarge?.copyWith(
+                            fontSize: fontSize,
+                            color: enabled
+                                ? null
+                                : context.colorScheme.onSurface.withValues(
+                                    alpha: AppInputStyle.config.disabledOpacity,
+                                  ),
                           ),
                         ),
-                    ],
+                        if (subtitle != null)
+                          Text(
+                            subtitle!,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: context.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -4082,35 +4120,39 @@ class AppRadioGroup<T> extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               for (final value in values)
-                InkWell(
-                  borderRadius: AppConstants.borderRadius8,
-                  onTap: enabled ? () => select(value) : null,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppConstants.space4,
-                    ),
-                    child: Row(
-                      children: [
-                        // The row's InkWell drives selection, so the Radio is
-                        // display-only; the RadioGroup above supplies its
-                        // state.
-                        IgnorePointer(
-                          child: Radio<T>(
-                            value: value,
-                            activeColor: accent,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
+                // The whole row selects, so it should be read as one option
+                // with a name — not a radio, then some text beside it.
+                MergeSemantics(
+                  child: InkWell(
+                    borderRadius: AppConstants.borderRadius8,
+                    onTap: enabled ? () => select(value) : null,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppConstants.space4,
+                      ),
+                      child: Row(
+                        children: [
+                          // The row's InkWell drives selection, so the Radio
+                          // is display-only; the RadioGroup above supplies
+                          // its state.
+                          IgnorePointer(
+                            child: Radio<T>(
+                              value: value,
+                              activeColor: accent,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: AppConstants.space8),
-                        Expanded(
-                          child: _RadioLabel(
-                            label: labelOf(value),
-                            subtitle: subtitleOf?.call(value),
-                            enabled: enabled,
+                          const SizedBox(width: AppConstants.space8),
+                          Expanded(
+                            child: _RadioLabel(
+                              label: labelOf(value),
+                              subtitle: subtitleOf?.call(value),
+                              enabled: enabled,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -4197,34 +4239,39 @@ class AppSlider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = AppInputStyle.accentOf(context, variant);
-    return SliderTheme(
-      data: SliderTheme.of(context).copyWith(
-        activeTrackColor: accent,
-        inactiveTrackColor: accent.withValues(alpha: 0.15),
-        thumbColor: accent,
-        overlayColor: accent.withValues(alpha: 0.12),
-        valueIndicatorColor: accent,
-      ),
-      child: Slider(
-        value: value,
-        min: min,
-        max: max,
-        divisions: divisions,
-        label: label,
-        onChangeStart: onChanged == null
-            ? null
-            : (_) => HapticFeedback.selectionClick(),
-        onChanged: onChanged == null
-            ? null
-            : (v) {
-                // A stepped slider ticks as it snaps. A continuous one would
-                // buzz on every pixel, so for that one the grab is the only
-                // feedback.
-                if (divisions != null && v != value) {
-                  HapticFeedback.selectionClick();
-                }
-                onChanged!(v);
-              },
+    // Slider announces its value but never what the value is *of*, so the
+    // label that draws the bubble names the control too.
+    return Semantics(
+      label: label,
+      child: SliderTheme(
+        data: SliderTheme.of(context).copyWith(
+          activeTrackColor: accent,
+          inactiveTrackColor: accent.withValues(alpha: 0.15),
+          thumbColor: accent,
+          overlayColor: accent.withValues(alpha: 0.12),
+          valueIndicatorColor: accent,
+        ),
+        child: Slider(
+          value: value,
+          min: min,
+          max: max,
+          divisions: divisions,
+          label: label,
+          onChangeStart: onChanged == null
+              ? null
+              : (_) => HapticFeedback.selectionClick(),
+          onChanged: onChanged == null
+              ? null
+              : (v) {
+                  // A stepped slider ticks as it snaps. A continuous one would
+                  // buzz on every pixel, so for that one the grab is the only
+                  // feedback.
+                  if (divisions != null && v != value) {
+                    HapticFeedback.selectionClick();
+                  }
+                  onChanged!(v);
+                },
+        ),
       ),
     );
   }
@@ -4282,7 +4329,7 @@ class AppListTile extends StatelessWidget {
       );
     }
 
-    return InkWell(
+    final row = InkWell(
       borderRadius: AppConstants.borderRadius12,
       onTap: onTap == null
           ? null
@@ -4334,6 +4381,14 @@ class AppListTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+
+    // Merged so the title and its subtitle are one stop rather than two. The
+    // button role is only claimed when there is a tap to offer: an untapped
+    // row nested in an AppCardTile would otherwise plant a second, contrary
+    // node inside the card that actually takes the tap.
+    return MergeSemantics(
+      child: onTap == null ? row : Semantics(button: true, child: row),
     );
   }
 }
@@ -4430,15 +4485,20 @@ class AppCard extends StatelessWidget {
       child: Padding(padding: padding, child: child),
     );
 
+    // A tappable card is a button wearing a container; without the role a
+    // screen reader reads its contents and never offers the tap.
     final card = onTap == null
         ? content
-        : InkWell(
-            borderRadius: radius,
-            onTap: () {
-              HapticFeedback.selectionClick();
-              onTap!();
-            },
-            child: content,
+        : Semantics(
+            button: true,
+            child: InkWell(
+              borderRadius: radius,
+              onTap: () {
+                HapticFeedback.selectionClick();
+                onTap!();
+              },
+              child: content,
+            ),
           );
 
     if (margin == null) return card;
@@ -6492,6 +6552,7 @@ class AppIconButton extends StatelessWidget {
     this.shape = AppIconButtonShape.circle,
     this.size = AppIconButtonSize.medium,
     this.tooltip,
+    this.semanticLabel,
     this.isLoading = false,
     this.color,
   });
@@ -6506,8 +6567,14 @@ class AppIconButton extends StatelessWidget {
   final AppIconButtonSize size;
 
   /// Long-press label. Worth setting on every icon button — an icon on its own
-  /// rarely names itself, and screen readers have nothing else to read.
+  /// rarely names itself, and it is what a screen reader reads when
+  /// [semanticLabel] is not given.
   final String? tooltip;
+
+  /// What a screen reader announces. Defaults to [tooltip], so setting that
+  /// alone is enough; give this one only when the spoken name should differ
+  /// from the one on screen.
+  final String? semanticLabel;
 
   /// Replaces the icon with a spinner and ignores taps, keeping the same size
   /// so the surrounding layout doesn't jump.
@@ -6522,14 +6589,25 @@ class AppIconButton extends StatelessWidget {
   static const double _outlinedBorderWidth = 1.5;
   static const double _disabledOpacity = 0.38;
 
-  /// The tap target's outer dimension for [size]. Public so a layout that has
-  /// to reserve room for the button — an AppBar's leading slot, say — can size
-  /// that slot instead of guessing at it.
+  /// The painted dimension for [size] — the colored circle or rounded square
+  /// the eye sees, which at [AppIconButtonSize.small] is deliberately smaller
+  /// than what a finger can hit. See [tapTargetOf].
   static double dimensionOf(AppIconButtonSize size) => switch (size) {
         AppIconButtonSize.small => 32.0,
         AppIconButtonSize.medium => AppConstants.touchTarget,
         AppIconButtonSize.large => AppConstants.touchTarget + 16,
       };
+
+  /// The space the button actually occupies: [dimensionOf], or Material's
+  /// minimum touch target when the painted shape is smaller than that. Public
+  /// so a layout reserving room for the button — an AppBar's leading slot,
+  /// say — measures it rather than guessing at it.
+  static double tapTargetOf(AppIconButtonSize size) {
+    final painted = dimensionOf(size);
+    return painted < AppConstants.touchTarget
+        ? AppConstants.touchTarget
+        : painted;
+  }
 
   _IconButtonSizeConfig _sizeConfig() => (
         container: dimensionOf(size),
@@ -6608,7 +6686,19 @@ class AppIconButton extends StatelessWidget {
         ? BorderSide(color: resolvedForeground, width: _outlinedBorderWidth)
         : BorderSide.none;
 
-    final button = Material(
+    // An icon names nothing on its own, so whatever the caller gave becomes
+    // the spoken name. With neither, the button is still marked as one — that
+    // at least announces it is pressable rather than reading as decoration.
+    final label = semanticLabel ?? tooltip;
+
+    final VoidCallback? handleTap = enabled
+        ? () {
+            HapticFeedback.selectionClick();
+            onPressed!();
+          }
+        : null;
+
+    final painted = Material(
       color: resolvedBackground,
       clipBehavior: Clip.antiAlias,
       shape: shape == AppIconButtonShape.circle
@@ -6618,12 +6708,7 @@ class AppIconButton extends StatelessWidget {
               side: border,
             ),
       child: InkWell(
-        onTap: enabled
-            ? () {
-                HapticFeedback.selectionClick();
-                onPressed!();
-              }
-            : null,
+        onTap: handleTap,
         child: SizedBox.square(
           dimension: sizeConfig.container,
           child: isLoading
@@ -6641,8 +6726,43 @@ class AppIconButton extends StatelessWidget {
       ),
     );
 
-    if (tooltip == null) return button;
-    return Tooltip(message: tooltip!, child: button);
+    // Tooltip carries semantics of its own; the Semantics below already says
+    // the name, so excluding it here keeps it from being read twice.
+    final tooltipped = tooltip == null
+        ? painted
+        : Tooltip(
+            message: tooltip!,
+            excludeFromSemantics: true,
+            child: painted,
+          );
+
+    final target = tapTargetOf(size);
+
+    // Below Material's minimum, the shape stays the size it is drawn and only
+    // the area a finger can hit grows — transparent slop around the paint,
+    // the same trick MaterialTapTargetSize.padded plays. A tap landing on the
+    // shape is taken by the InkWell (the innermost tap recognizer wins the
+    // arena), one further out by this; either way the callback fires once.
+    final sized = target == sizeConfig.container
+        ? tooltipped
+        : SizedBox.square(
+            dimension: target,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              excludeFromSemantics: true,
+              onTap: handleTap,
+              child: Center(child: tooltipped),
+            ),
+          );
+
+    // Outermost, so the node a screen reader finds covers the whole target
+    // rather than only the part of it that is painted.
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: label,
+      child: sized,
+    );
   }
 }
 ''';
@@ -6906,9 +7026,11 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
       // would only ever fight it.
       automaticallyImplyLeading: false,
       // The default 56pt slot clips a container-bearing button at the larger
-      // sizes, so the slot is measured from the button rather than assumed.
+      // sizes, so the slot is measured from the button rather than assumed —
+      // from what it occupies, which at the small size is the touch target
+      // rather than the smaller shape drawn inside it.
       leadingWidth: showsOwnBack
-          ? AppIconButton.dimensionOf(backSize) + AppConstants.space16
+          ? AppIconButton.tapTargetOf(backSize) + AppConstants.space16
           : null,
       leading: leading ??
           (showsOwnBack
@@ -7175,6 +7297,10 @@ class AppProgressBar extends StatelessWidget {
         minHeight: _thickness,
         color: accent,
         backgroundColor: accent.withValues(alpha: _trackOpacity),
+        // The caption is a drawing; these two are what is actually spoken, so
+        // the bar names itself whether or not a caption is on screen.
+        semanticsLabel: label,
+        semanticsValue: percent == null ? null : '$percent%',
       ),
     );
 
@@ -7185,23 +7311,27 @@ class AppProgressBar extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            if (label != null)
-              Expanded(
-                child: Text(
-                  label!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+        // Excluded because the bar above already says both halves; left in,
+        // a screen reader would read the label and the percentage twice.
+        ExcludeSemantics(
+          child: Row(
+            children: [
+              if (label != null)
+                Expanded(
+                  child: Text(
+                    label!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
-              ),
-            if (showPercent && percent != null)
-              Text(
-                '$percent%',
-                style: theme.textTheme.labelMedium?.copyWith(color: accent),
-              ),
-          ],
+              if (showPercent && percent != null)
+                Text(
+                  '$percent%',
+                  style: theme.textTheme.labelMedium?.copyWith(color: accent),
+                ),
+            ],
+          ),
         ),
         const SizedBox(height: AppConstants.space4),
         bar,

@@ -580,28 +580,36 @@ class _AppAudioPlayerState extends State<AppAudioPlayer> {
           color: accent,
           shape: const CircleBorder(),
           clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            // Waiting is not disabled: a buffering clip is still pausable,
-            // and greying the only control out mid-stall reads as broken.
-            onTap: () => _togglePlay(state),
-            child: SizedBox.square(
-              dimension: dimension,
-              child: waiting
-                  ? Padding(
-                      padding: const EdgeInsets.all(AppConstants.space16),
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppInputStyle.onAccentOf(
-                          context,
-                          widget.variant,
+          // The glyph flips between two actions, so the name has to flip with
+          // it — the skip and speed buttons beside this one name themselves
+          // the same way.
+          child: Semantics(
+            button: true,
+            label: state.playing ? 'Pause' : 'Play',
+            child: InkWell(
+              // Waiting is not disabled: a buffering clip is still pausable,
+              // and greying the only control out mid-stall reads as broken.
+              onTap: () => _togglePlay(state),
+              child: SizedBox.square(
+                dimension: dimension,
+                child: waiting
+                    ? Padding(
+                        padding: const EdgeInsets.all(AppConstants.space16),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppInputStyle.onAccentOf(
+                            context,
+                            widget.variant,
+                          ),
                         ),
+                      )
+                    : Icon(
+                        state.playing ? Icons.pause : Icons.play_arrow,
+                        color:
+                            AppInputStyle.onAccentOf(context, widget.variant),
+                        size: AppConstants.iconMedium,
                       ),
-                    )
-                  : Icon(
-                      state.playing ? Icons.pause : Icons.play_arrow,
-                      color: AppInputStyle.onAccentOf(context, widget.variant),
-                      size: AppConstants.iconMedium,
-                    ),
+              ),
             ),
           ),
         );

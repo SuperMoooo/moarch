@@ -195,13 +195,18 @@ class _TimelineRow extends StatelessWidget {
               ),
               child: entry.onTap == null
                   ? content
-                  : InkWell(
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        entry.onTap!();
-                      },
-                      borderRadius: AppConstants.borderRadius8,
-                      child: content,
+                  // The role has to be said out loud: an InkWell ripples but
+                  // announces nothing, so the entry would read as plain text.
+                  : Semantics(
+                      button: true,
+                      child: InkWell(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          entry.onTap!();
+                        },
+                        borderRadius: AppConstants.borderRadius8,
+                        child: content,
+                      ),
                     ),
             ),
           ),

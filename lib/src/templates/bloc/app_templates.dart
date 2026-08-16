@@ -43,15 +43,33 @@ class AppTemplates {
         ? '\n  await EasyLocalization.ensureInitialized();\n'
         : '';
 
-    final notificationInit = withNotificationsService
-        ? '\n  await getIt<NotificationService>().init();'
-        : '';
+    final withAnyNotifications =
+        withNotificationsService || withFirebaseNotifications;
 
-    // Placed after the Crashlytics block so its unguarded
-    // Firebase.initializeApp() runs first; the FCM service only initializes
-    // Firebase itself when no one else has.
-    final firebaseNotificationInit = withFirebaseNotifications
-        ? '\n  await getIt<FirebaseNotificationsService>().init();'
+    // Called after the Firebase block so the FCM service finds an app already
+    // there; it only initializes Firebase itself when no one else has.
+    final notificationInit =
+        withAnyNotifications ? '\n  await _initNotifications();\n' : '';
+
+    final notificationsBootstrap = withAnyNotifications
+        ? '''
+/// Notifications are not worth blocking the boot on, so a failure is logged
+/// and the app carries on without them — better than a throw past runApp()
+/// stranding it on the preserved splash.
+///
+/// Permission is deliberately not asked here: on iOS a first-launch denial can
+/// only be undone in Settings, so call `requestPermissions()` once onboarding
+/// has explained what the notifications are for.${withFirebaseNotifications ? '\n/// On iOS FCM has no device token to hand out until that ask is accepted.' : ''}
+Future<void> _initNotifications() async {
+${[
+            if (withNotificationsService)
+              _guardedInit('NotificationService', 'Notifications'),
+            if (withFirebaseNotifications)
+              _guardedInit('FirebaseNotificationsService', 'FCM'),
+          ].join('\n\n')}
+}
+
+'''
         : '';
 
     final notificationImport = withNotificationsService
@@ -281,11 +299,8 @@ Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 $easyLocalizationInit$firebaseInit
-  // Registers every repository, datasource, service and bloc. Firebase is up
-  // by this point, so the locator can hand out its instances.
-  await setupInjector();
-$notificationInit$firebaseNotificationInit
-
+  // Installed before the first await that can fail, so nothing on the way to
+  // runApp() dies unreported.
   PlatformDispatcher.instance.onError = (error, st) {
     appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught
     if (kDebugMode) return false; // false = let Flutter crash normally in dev
@@ -304,14 +319,30 @@ $notificationInit$firebaseNotificationInit
     return const Scaffold(body: ErrorView());
   };
 
+  // Registers every repository, datasource, service and bloc. Firebase is up
+  // by this point, so the locator can hand out its instances.
+  await setupInjector();
+$notificationInit
   // Move this after your own async init if you have any.
   FlutterNativeSplash.remove();
 
   $runAppCall
 }
 
-$appBody''';
+$notificationsBootstrap$appBody''';
   }
+
+  /// One `init()` call wrapped in its own guard, so a plugin that throws only
+  /// costs its own service rather than every one after it.
+  static String _guardedInit(String type, String scope) => '''  try {
+    await getIt<$type>().init();
+  } catch (error, stackTrace) {
+    appLogger.e(
+      '[$scope] init failed',
+      error: error,
+      stackTrace: stackTrace,
+    );
+  }''';
 
   /// The `MaterialApp` both shapes of `App` return — identical either way, so
   /// it is written once rather than kept in step by hand.
@@ -336,11 +367,13 @@ $localizationConfig$routerConfig      debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            // Follow the system font size, capped so it can't break fixed
-            // layouts.
+            // Follow the system font size. The cap keeps fixed-height rows
+            // and buttons from breaking; it also overrides an accessibility
+            // setting, so raise it as far as your layouts survive rather
+            // than lowering it.
             textScaler: MediaQuery.textScalerOf(
               context,
-            ).clamp(maxScaleFactor: 1.1),
+            ).clamp(maxScaleFactor: 1.3),
             alwaysUse24HourFormat: true,
           ),
           child: ${maintenanceOpen}child!$maintenanceClose,
