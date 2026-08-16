@@ -2,6 +2,10 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 5.0.3
+
+- Adjustments
+
 ## 5.0.2
 
 - Transformers on bloc
@@ -299,8 +303,8 @@ look at in the diff it offers:
       `doctor --fix` points it back at `.fvm/flutter_sdk`.
     - `settings.json` missing, or carrying no `dart.flutterSdkPath` — **warning**.
 
-                                                                        An absolute path is left alone as a deliberate override, and a project with no
-                                                                        `.fvmrc` gets none of these findings.
+                                                                                    An absolute path is left alone as a deliberate override, and a project with no
+                                                                                    `.fvmrc` gets none of these findings.
 
 - The README documents that the generated `.fvmrc` pins the `stable` _alias_
   rather than a version, so `fvm install` on CI or a teammate's machine can

@@ -125,6 +125,81 @@ void main() {
       expect(output, contains('  });'));
     });
 
+    test('both backends hold the list `fetchAll` returns', () {
+      // The repository signature is the same either way, so the state that
+      // holds the result is too — only how it is filled differs.
+      final rest = bloc.FeatureTemplates.state('orders', 'Orders');
+
+      expect(rest, contains('final List<OrdersEntity> items;'));
+      expect(
+          rest, contains("import '../../domain/entities/orders_entity.dart';"));
+      expect(rest,
+          contains('OrdersSuccess copyWith({List<OrdersEntity>? items})'));
+      // An empty `const OrdersSuccess()` is Equatable-equal to every other,
+      // so a Success → Success emit would be dropped.
+      expect(rest, contains('List<Object?> get props => [items];'));
+    });
+
+    test('the skeleton is traced from generated rows on both backends', () {
+      final rest = bloc.FeatureTemplates.state('orders', 'Orders');
+
+      // An int id has no width to fake, so the row index stands in for it.
+      expect(rest,
+          contains('List.generate(3, (index) => OrdersEntity(id: index))'));
+      expect(rest, isNot(contains('static const placeholder')));
+      // BoneMock is skeletonizer's and an int id never reaches for it.
+      expect(rest, isNot(contains('skeletonizer')));
+    });
+
+    test('the one-off load puts what it fetched into the state', () {
+      final output = bloc.FeatureTemplates.bloc(
+        'orders',
+        'Orders',
+        'orders',
+        hasUseCase: false,
+      );
+
+      expect(output, contains('final items = await _repo.fetchAll();'));
+      expect(output, contains('emit(OrdersSuccess(items: items));'));
+      // The result used to be awaited and dropped on the floor.
+      expect(output, isNot(contains('emit(const OrdersSuccess());')));
+    });
+
+    test('only the live view draws the list it was generated against', () {
+      // The state holds `items` either way, but what a REST screen does with
+      // them is not the template's guess to make — `_body` stays a TODO.
+      final rest = bloc.FeatureTemplates.view(
+        'orders',
+        'Orders',
+        'orders',
+        hasBloc: true,
+      );
+      final live = bloc.FeatureTemplates.view(
+        'orders',
+        'Orders',
+        'orders',
+        hasBloc: true,
+        useFirestore: true,
+      );
+
+      expect(rest, contains('return const SizedBox.shrink();'));
+      expect(rest, isNot(contains('ListView.builder(')));
+      expect(rest, isNot(contains('EmptyView')));
+
+      expect(live, contains('ListView.builder('));
+      expect(live, contains('itemCount: state.items.length'));
+      // The guarded arm has to sit above the unguarded one to be reachable.
+      expect(
+        live.indexOf('OrdersSuccess(:final items) when items.isEmpty'),
+        lessThan(live.indexOf('OrdersSuccess() => _body(context, state)')),
+      );
+
+      // Both are handed the placeholder to trace the skeleton from.
+      for (final output in [rest, live]) {
+        expect(output, contains('_body(context, OrdersSuccess.placeholder)'));
+      }
+    });
+
     test('a second bloc in a feature names that feature\'s entity', () {
       // `moarch create bloc orders order_feed` — the state lists Orders, not
       // an OrderFeedEntity that was never generated.
@@ -200,9 +275,8 @@ void main() {
       );
 
       expect(output, contains('transformer:'));
-      expect(output, contains('EventTransformer<E> debounce<E>(Duration d)'));
       expect(output, contains('bloc_concurrency'));
-      expect(output, contains('restartable()'));
+      expect(output, contains('droppable'));
       expect(output, isNot(contains('DebouncerService(')));
     });
 

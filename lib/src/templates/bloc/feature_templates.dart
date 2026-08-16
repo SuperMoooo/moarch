@@ -349,8 +349,12 @@ $methods
 
   /// Returns the generated state template.
   ///
-  /// [useFirestore] adds the `items` the live query fills in. Both variants
-  /// carry the `placeholder` the loading skeleton is traced from.
+  /// Both variants carry `items` and the `placeholder` the loading skeleton is
+  /// traced from: the repository's `fetchAll()` returns a list of the entity
+  /// whichever backend the feature was generated against, so the state that
+  /// holds the result has the same shape either way. Only how it gets filled
+  /// differs — a subscription under [useFirestore], a one-off fetch otherwise,
+  /// and that is the datasource's business rather than the state's.
   ///
   /// [entityName] / [entityClass] name the entity the items are, when that is
   /// not the one named after [name] — a second bloc in a feature lists the
@@ -376,67 +380,24 @@ $methods
     // Raw: this is interpolated into the template, so it has to already read
     // as the Dart the generated file should contain.
     final fakeId = idIsString ? r"'${BoneMock.name}$index'" : 'index';
-    // BoneMock is skeletonizer's, so the import goes with the id that uses it.
-    final skeletonizerImport = useFirestore && idIsString
-        ? "import 'package:skeletonizer/skeletonizer.dart';\n"
-        : '';
+    // BoneMock is skeletonizer's, so the import follows the id that uses it —
+    // the entity's key type, not the backend sitting behind it.
+    final skeletonizerImport =
+        idIsString ? "import 'package:skeletonizer/skeletonizer.dart';\n" : '';
 
-    // Only the loaded state has fields, so only it needs a placeholder and
-    // only it takes the items list.
-    final itemsField = useFirestore
-        ? '''
-
-  /// The collection as Firestore last reported it.
-  final List<${itemCls}Entity> items;
-'''
-        : '';
-
-    final itemsParam =
-        useFirestore ? '({\n    this.items = const [],\n  })' : '()';
-
-    // `copyWith` only earns its place where there is a field to copy.
-    final copyWith = useFirestore
-        ? '''
-
-  ${cls}Success copyWith({List<${itemCls}Entity>? items}) =>
-      ${cls}Success(items: items ?? this.items);
-'''
-        : '';
-
-    final props = useFirestore ? '[items]' : 'const []';
-
-    final placeholder = useFirestore
-        ? '''
-
-  /// The state the loading skeleton is traced from — rows that exist only to
-  /// be the right size. The length of the fake text sets the bone's width.
-  static final placeholder = ${cls}Success(
-    items: List.generate(
-      3,
-      (index) => ${itemCls}Entity(id: $fakeId),
-    ),
-  );
-'''
-        : '''
-
-  /// The state the loading skeleton is traced from.
-  ///
-  /// TODO: as you add fields, give them fake values here — Skeletonizer
-  /// shimmers the tree it is handed, and an empty state traces to a blank
-  /// screen. `BoneMock.name` / `BoneMock.words(3)` hand out fake strings.
-  static const placeholder = ${cls}Success();
-''';
+    // Where the items come from is the only thing the two variants disagree
+    // on; that they are there is not.
+    final itemsDoc = useFirestore
+        ? 'The collection as Firestore last reported it.'
+        : 'The collection as the last load returned it.';
 
     return '''
 import 'package:equatable/equatable.dart';
-$skeletonizerImport${useFirestore ? "\nimport '../../domain/entities/${itemName}_entity.dart';\n" : ''}
-/// Every state the $cls screen can be in.
-///
-/// Sealed, so a `switch` in the view has to handle all of them: adding one is
-/// a compile error rather than a branch someone forgets.
-///
-/// [Equatable], because bloc compares: it drops an emit whose state equals
-/// the current one, and rebuilds on the same test.
+$skeletonizerImport
+import '../../domain/entities/${itemName}_entity.dart';
+
+/// Every state the $cls screen can be in. Sealed, so the view's `switch` has
+/// to handle all of them.
 sealed class ${cls}State extends Equatable {
   const ${cls}State();
 
@@ -444,29 +405,40 @@ sealed class ${cls}State extends Equatable {
   List<Object?> get props => const [];
 }
 
-/// Before anything has been asked for.
 final class ${cls}Initial extends ${cls}State {
   const ${cls}Initial();
 }
 
-/// Something is in flight: the first load, a reload, or a write.
 final class ${cls}Loading extends ${cls}State {
   const ${cls}Loading();
 }
 
-/// Loaded.
 final class ${cls}Success extends ${cls}State {
-  const ${cls}Success$itemsParam;
-$placeholder$itemsField$copyWith
+  const ${cls}Success({
+    this.items = const [],
+  });
+
+  /// Fake rows the loading skeleton is traced from.
+  ///
+  /// TODO: give new entity fields fake values here too — an empty row
+  /// shimmers as a blank line. `BoneMock.name` hands out fake strings.
+  static final placeholder = ${cls}Success(
+    items: List.generate(3, (index) => ${itemCls}Entity(id: $fakeId)),
+  );
+
+  /// $itemsDoc
+  final List<${itemCls}Entity> items;
+
+  ${cls}Success copyWith({List<${itemCls}Entity>? items}) =>
+      ${cls}Success(items: items ?? this.items);
+
   @override
-  List<Object?> get props => $props;
+  List<Object?> get props => [items];
 }
 
-/// It failed, so there is nothing to draw.
 final class ${cls}Failure extends ${cls}State {
   const ${cls}Failure(this.message);
 
-  /// Why, in words the user can read.
   final String message;
 
   @override
@@ -621,7 +593,8 @@ class ${cls}Bloc extends Bloc<${cls}Event, ${cls}State> {
     on<${cls}ItemsUpdated>(_onItemsUpdated);
     on<${cls}Failed>(_onFailed);
 
-    // TODO: register a handler per action, e.g.
+    // TODO: one handler per action. A write does not emit on success and does
+    // not touch `items` — the subscription below re-emits with the change.
     //
     // on<${cls}Deleted>((event, emit) async {
     //   try {
@@ -629,10 +602,7 @@ class ${cls}Bloc extends Bloc<${cls}Event, ${cls}State> {
     //   } on AppException catch (e) {
     //     emit(${cls}Failure(e.message));
     //   }
-    // });
-    //
-    // A write does not emit on success and does not touch `items` — the
-    // subscription below re-emits with the change.
+    // }, transformer: droppable());
   }
 
   final ${repoCls}Repository _repo;
@@ -695,60 +665,21 @@ $repoDependency
     on<${cls}Started>(_onStarted);
     on<${cls}Refreshed>(_onStarted);
 
-    // TODO: register a handler per action, e.g.
+    // TODO: one handler per action, e.g.
+    // on<${cls}Deleted>(_onDeleted, transformer: droppable());
     //
-    // on<${cls}Deleted>((event, emit) async {
-    //   final current = state;
-    //   if (current is! ${cls}Success) return;
-    //   emit(current.copyWith(action: ActionStatus.loading));
-    //   try {
-    //     await _repo.delete(event.id);
-    //     emit(current.succeeded('Deleted'));
-    //   } on AppException catch (e) {
-    //     emit(current.failed(e.message));
-    //   }
-    // });
-
-    // Every `on<...>` also takes a `transformer:` — an EventTransformer that
-    // decides how events queue before the handler sees them. That is where a
-    // bloc debounces, drops or restarts work; a DebouncerService is for
-    // callbacks that never become events. `flutter pub add bloc_concurrency`
-    // brings four:
-    //
-    //   droppable()   ignore new events while one runs (double-tapped submit)
-    //   restartable() cancel the running handler, start over (live search)
-    //   sequential()  queue them, one at a time (writes that must stay ordered)
-    //   concurrent()  the default — all at once
-    //
-    // Debounce is restartable() with the wait in front of the handler:
-    //
-    //   EventTransformer<E> debounce<E>(Duration d) =>
-    //       (events, mapper) => restartable<E>()(
-    //             events,
-    //             (event) async* {
-    //               await Future<void>.delayed(d);
-    //               yield* mapper(event);
-    //             },
-    //           );
-    //
-    //   on<${cls}Searched>(
-    //     _onSearch,
-    //     transformer: debounce(const Duration(milliseconds: 300)),
-    //   );
+    // `transformer:` is how events queue before the handler sees them —
+    // droppable, restartable, sequential, concurrent, from bloc_concurrency.
   }
 
 $fields
 
   Future<void> _onStarted(${cls}Event event, Emitter<${cls}State> emit) async {
-    // Only blank the screen when there is nothing on it: a refresh over
-    // loaded data keeps the data.
+    // A refresh over loaded data keeps the data on screen.
     if (state is! ${cls}Success) emit(const ${cls}Loading());
     try {
-      // TODO: put what this returns into ${cls}Success — add a field for it,
-      // give that field a fake value in `placeholder`, and draw it in the
-      // view.
-      ${hasUseCase ? 'await _get$cls();' : 'await _repo.fetchAll();'}
-      emit(const ${cls}Success());
+      final items = ${hasUseCase ? 'await _get$cls();' : 'await _repo.fetchAll();'}
+      emit(${cls}Success(items: items));
     } on AppException catch (e) {
       emit(${cls}Failure(e.message));
     }
@@ -826,7 +757,9 @@ class ${cls}View extends StatelessWidget {
 ''';
     }
 
-    // The empty case only exists where there is a collection to be empty.
+    // Only the live variant draws the list, so only it has an empty case. The
+    // guard goes above the unguarded `${cls}Success()` arm, which would
+    // otherwise swallow it.
     final emptyCase = useFirestore
         ? '          ${cls}Success(:final items) when items.isEmpty =>\n'
             '            const EmptyView(),\n'
@@ -840,9 +773,8 @@ class ${cls}View extends StatelessWidget {
         ? '''
 
 
-  // TODO: build the row. It is also what the skeleton above is traced from, so
-  // every field you draw here needs a fake value in
-  // `${cls}Success.placeholder`.
+  // TODO: build the row. Every field drawn here needs a fake value in
+  // `${cls}Success.placeholder`, or the skeleton traces a blank line.
   Widget _body(BuildContext context, ${cls}Success state) {
     return ListView.builder(
       itemCount: state.items.length,
@@ -857,9 +789,9 @@ class ${cls}View extends StatelessWidget {
         : '''
 
 
-  // TODO: build the screen. It is handed the loaded state, and it is also what
-  // the skeleton above is traced from — so every field you draw here needs a
-  // fake value in `${cls}Success.placeholder`.
+  // TODO: build the screen from `state.items`. Every field drawn here needs a
+  // fake value in `${cls}Success.placeholder`, or the skeleton traces a blank
+  // line.
   Widget _body(BuildContext context, ${cls}Success state) {
     return const SizedBox.shrink();
   }''';
@@ -875,8 +807,8 @@ import '../blocs/${name}_bloc.dart';
 import '../blocs/${name}_event.dart';
 import '../blocs/${name}_state.dart';
 
-/// The screen itself. The bloc is provided by `${cls}Page`, so this only
-/// reads it — which is what lets a widget test pump it with a bloc of its own.
+/// The bloc is provided by `${cls}Page`, so this only reads it — which is what
+/// lets a widget test pump it with a bloc of its own.
 class ${cls}View extends StatelessWidget {
   const ${cls}View({super.key});
 
@@ -884,19 +816,16 @@ class ${cls}View extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('$cls')),
-      // Consumer, not Builder: `listener` is for what happens *once* on a new
-      // state — a toast, a dialog, a push — and `builder` for what is drawn.
+      // `listener` is for what happens *once* on a new state — a toast, a
+      // dialog, a push — and `builder` for what is drawn.
       body: BlocConsumer<${cls}Bloc, ${cls}State>(
-        // The states are Equatable, so an emit equal to the current state
-        // does not reach the listener.
         listenWhen: (previous, current) => previous != current,
         listener: (context, state) {
           switch (state) {
             case ${cls}Failure(:final message):
               AppToast.error(context, message);
             case ${cls}Success():
-              // TODO: what should happen once, on a load that finished —
-              // AppToast.success(context, '...'), a pop, a redirect.
+              // TODO: what should happen once — a toast, a pop, a redirect.
               break;
             case ${cls}Initial():
             case ${cls}Loading():
@@ -904,9 +833,8 @@ class ${cls}View extends StatelessWidget {
           }
         },
         builder: (context, state) => switch (state) {
-          // Traced from `${cls}Success.placeholder`, which has to be *fake
-          // data* — Skeletonizer shimmers the tree it is handed, and a body
-          // drawn from an empty state has nothing in it to shimmer.
+          // Traced from `${cls}Success.placeholder` — Skeletonizer shimmers
+          // the tree it is handed, so that has to hold fake data.
           ${cls}Initial() || ${cls}Loading() => Skeletonizer(
               child: _body(context, ${cls}Success.placeholder),
             ),
