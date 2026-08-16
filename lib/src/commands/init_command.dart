@@ -230,10 +230,17 @@ class InitCommand extends Command<int> {
               defaultOn: false,
               description: 'Open external links/URLs.',
             ),
-            const ChecklistItem(
+            ChecklistItem(
               _kDebouncerService,
               defaultOn: false,
-              description: 'Debounce rapid user actions (e.g. search input).',
+              // A bloc debounces what reaches it with an EventTransformer, so
+              // this service is only the widget-level timer there — worth
+              // saying, or it reads as the way to debounce a search.
+              description: stateManagement.isBloc
+                  ? 'Debounce rapid callbacks in widgets (e.g. filtering a '
+                      'local list). Events reaching a bloc debounce in an '
+                      'EventTransformer instead.'
+                  : 'Debounce rapid user actions (e.g. search input).',
             ),
             const ChecklistItem(
               _kNotificationsService,

@@ -189,6 +189,23 @@ void main() {
       expect(output, contains('await _getOrders();'));
     });
 
+    test('the bloc points at a transformer rather than a debouncer', () {
+      // The one place a bloc throttles events. A DebouncerService in front of
+      // add() would debounce without cancelling what is already in flight.
+      final output = bloc.FeatureTemplates.bloc(
+        'orders',
+        'Orders',
+        'orders',
+        hasUseCase: true,
+      );
+
+      expect(output, contains('transformer:'));
+      expect(output, contains('EventTransformer<E> debounce<E>(Duration d)'));
+      expect(output, contains('bloc_concurrency'));
+      expect(output, contains('restartable()'));
+      expect(output, isNot(contains('DebouncerService(')));
+    });
+
     test('the live bloc keeps the repository even with a use case', () {
       // watchAll is the repository's; a use case wraps the one-off fetch.
       final output = bloc.FeatureTemplates.bloc(
@@ -578,6 +595,29 @@ Future<void> setupInjector() async {
       expect(forBloc, contains('error-view'));
       expect(forBloc, contains('empty-view'));
       expect(forBloc, contains('toast'));
+    });
+
+    test('the search field sends each stack to its own debounce', () {
+      final spec = WidgetCatalog.byName('search-field')!;
+
+      final forBloc = WidgetCatalog.sourceFor(
+        spec,
+        const WidgetVariants(stateManagement: StateManagement.bloc),
+      );
+      final forRiverpod = WidgetCatalog.sourceFor(
+        spec,
+        const WidgetVariants(),
+      );
+
+      expect(forBloc, contains('`EventTransformer`'));
+      // The service stays available for widget-level timers, but it is off by
+      // default and it is not where a bloc search belongs — so the bloc doc
+      // does not send anyone to it.
+      expect(forBloc, isNot(contains('debouncer_service.dart')));
+      expect(forRiverpod, contains('debouncer_service.dart'));
+      expect(forRiverpod, isNot(contains('EventTransformer')));
+      // Only the doc differs — the widget itself is one implementation.
+      expect(forBloc, contains('class AppSearchField extends StatefulWidget'));
     });
 
     test('init generates the common set minus what the stack lacks', () {

@@ -490,6 +490,11 @@ abstract final class WidgetCatalog {
       title: 'AppSearchField',
       file: 'inputs/app_search_field.dart',
       template: SharedTemplates.appSearchField,
+      // Only the doc varies: a bloc project debounces a remote search in an
+      // EventTransformer, so sending it through DebouncerService as well
+      // would debounce it twice.
+      variantTemplate: (v) =>
+          SharedTemplates.appSearchField(stateManagement: v.stateManagement),
       category: 'Inputs',
       deps: ['input-style', 'icon-button'],
       description:

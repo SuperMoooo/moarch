@@ -7212,7 +7212,22 @@ class AppProgressBar extends StatelessWidget {
 ''';
 
   /// Returns the generated appSearchField template.
-  static String appSearchField() => r'''
+  ///
+  /// [stateManagement] only decides where the class doc sends a remote search
+  /// to throttle keystrokes: a bloc does it in an `EventTransformer` on the
+  /// event, so pointing it at `DebouncerService` too would debounce twice.
+  static String appSearchField({
+    StateManagement stateManagement = StateManagement.riverpod,
+  }) {
+    final debounceDoc = stateManagement.isBloc
+        ? '''/// search, debounce the event rather than the callback: pass an
+/// `EventTransformer` to the `on<...>` that runs the query — the bloc your
+/// feature was generated with carries the sketch.'''
+        : '''/// search, put a debouncer between them (see
+/// core/services/debouncer_service.dart) so you aren't firing a request per
+/// keystroke.''';
+
+    return '''
 import 'package:flutter/material.dart';
 
 import '../buttons/app_icon_button.dart';
@@ -7222,10 +7237,12 @@ import './app_input_style.dart';
 /// once there is something to clear.
 ///
 /// Wire [onChanged] straight to your filter for a local list. For a remote
-/// search, put a debouncer between them (see
-/// core/services/debouncer_service.dart) so you aren't firing a request per
-/// keystroke.
-class AppSearchField extends StatefulWidget {
+$debounceDoc
+$_appSearchFieldBody''';
+  }
+
+  static const String _appSearchFieldBody =
+      r'''class AppSearchField extends StatefulWidget {
   const AppSearchField({
     super.key,
     this.controller,

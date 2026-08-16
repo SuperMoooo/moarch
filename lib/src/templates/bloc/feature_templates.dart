@@ -708,6 +708,33 @@ $repoDependency
     //     emit(current.failed(e.message));
     //   }
     // });
+
+    // Every `on<...>` also takes a `transformer:` — an EventTransformer that
+    // decides how events queue before the handler sees them. That is where a
+    // bloc debounces, drops or restarts work; a DebouncerService is for
+    // callbacks that never become events. `flutter pub add bloc_concurrency`
+    // brings four:
+    //
+    //   droppable()   ignore new events while one runs (double-tapped submit)
+    //   restartable() cancel the running handler, start over (live search)
+    //   sequential()  queue them, one at a time (writes that must stay ordered)
+    //   concurrent()  the default — all at once
+    //
+    // Debounce is restartable() with the wait in front of the handler:
+    //
+    //   EventTransformer<E> debounce<E>(Duration d) =>
+    //       (events, mapper) => restartable<E>()(
+    //             events,
+    //             (event) async* {
+    //               await Future<void>.delayed(d);
+    //               yield* mapper(event);
+    //             },
+    //           );
+    //
+    //   on<${cls}Searched>(
+    //     _onSearch,
+    //     transformer: debounce(const Duration(milliseconds: 300)),
+    //   );
   }
 
 $fields
