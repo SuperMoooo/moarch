@@ -54,25 +54,6 @@ ${useFirestore ? '''
 }
 ''';
 
-  // ── Domain — Use case ───────────────────────────────────────────────────────
-
-  /// Returns the generated usecase template.
-  ///
-  /// It takes its repository rather than reaching for one: `injector.dart`
-  /// resolves that from the locator, and a test constructs it with a fake.
-  static String usecase(String name, String cls, String varName) => '''
-import '../entities/${name}_entity.dart';
-import '../repositories/${name}_repository.dart';
-
-class Get$cls {
-  const Get$cls(this._repository);
-
-  final ${cls}Repository _repository;
-
-  Future<List<${cls}Entity>> call() => _repository.fetchAll();
-}
-''';
-
   // ── Data — Model ────────────────────────────────────────────────────────────
 
   /// Returns the generated model template.
@@ -425,26 +406,16 @@ ${useFirestore ? '''
   /// mounted. The subscription is the notifier's: Riverpod disposes it with
   /// the provider.
   ///
-  /// The dependency comes out of the locator rather than off another provider:
+  /// The repository comes out of the locator rather than off another provider:
   /// `injector.dart` is where the data layer is wired, and the notifier is the
-  /// seam between it and Riverpod. With a use case that is the one thing it
-  /// reads — except on Firestore, where the live query is the repository's and
-  /// no use case wraps it.
+  /// seam between it and Riverpod.
   static String notifier(String name, String cls, String varName,
-      {required bool hasUseCase, bool useFirestore = false}) {
-    // The live variant depends on the repository whether or not a use case was
-    // generated: a use case wraps the one-off fetch, not the subscription.
-    final viaUseCase = hasUseCase && !useFirestore;
+      {bool useFirestore = false}) {
+    final dependency =
+        '  ${cls}Repository get _repo => getIt<${cls}Repository>();';
 
-    final dependency = viaUseCase
-        ? '  Get$cls get _get$cls => getIt<Get$cls>();'
-        : '  ${cls}Repository get _repo => getIt<${cls}Repository>();';
-
-    final imports = <String>[
-      if (viaUseCase) "import '../../domain/usecases/get_$name.dart';",
-      if (!viaUseCase)
-        "import '../../domain/repositories/${name}_repository.dart';",
-    ].join('\n');
+    final imports =
+        "import '../../domain/repositories/${name}_repository.dart';";
 
     return '''
 import 'dart:async';
@@ -516,7 +487,7 @@ ${useFirestore ? '''  @override
     // why this fails on the first run rather than showing an empty screen.
     // TODO: put what it returns into ${cls}State — add a field for it, give
     // that field a fake value in `placeholder`, and draw it in the view.
-    await ${viaUseCase ? '_get$cls()' : '_repo.fetchAll()'};
+    await _repo.fetchAll();
     return const ${cls}State();
   }
 
@@ -526,7 +497,7 @@ ${useFirestore ? '''  @override
   // Example:
   // Future<void> doSomething() {
   //   return runAction((current) async {
-  //     await ${viaUseCase ? '_get$cls()' : '_repo.doSomething()'};
+  //     await _repo.doSomething();
   //     return current.copyWith(success: 'Done!');
   //   });
   // }'''}

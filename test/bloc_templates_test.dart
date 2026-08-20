@@ -5,6 +5,7 @@ import 'package:moarch/src/templates/bloc/maintenance_templates.dart' as bloc;
 import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/templates/stack_templates.dart';
 import 'package:moarch/src/utils/injector_utils.dart';
+import 'package:moarch/src/utils/scaffold_catalog.dart';
 import 'package:moarch/src/utils/state_management.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
 import 'package:test/test.dart';
@@ -156,7 +157,6 @@ void main() {
         'orders',
         'Orders',
         'orders',
-        hasUseCase: false,
       );
 
       expect(output, contains('final items = await _repo.fetchAll();'));
@@ -246,22 +246,13 @@ void main() {
           contains("import 'package:skeletonizer/skeletonizer.dart';"));
     });
 
-    test('the bloc takes the use case when there is one, and nothing else', () {
-      final output = bloc.FeatureTemplates.bloc(
-        'orders',
-        'Orders',
-        'orders',
-        hasUseCase: true,
-      );
+    test('the bloc takes the repository', () {
+      final output = bloc.FeatureTemplates.bloc('orders', 'Orders', 'orders');
 
-      expect(
-          output,
-          contains(
-              'OrdersBloc(this._getOrders) : super(const OrdersInitial())'));
-      expect(output, contains('final GetOrders _getOrders;'));
-      // Two ways into the same data is one too many.
-      expect(output, isNot(contains('final OrdersRepository _repo;')));
-      expect(output, contains('await _getOrders();'));
+      expect(output,
+          contains('OrdersBloc(this._repo) : super(const OrdersInitial())'));
+      expect(output, contains('final OrdersRepository _repo;'));
+      expect(output, contains('await _repo.fetchAll();'));
     });
 
     test('the bloc points at a transformer rather than a debouncer', () {
@@ -271,7 +262,6 @@ void main() {
         'orders',
         'Orders',
         'orders',
-        hasUseCase: true,
       );
 
       expect(output, contains('transformer:'));
@@ -280,13 +270,11 @@ void main() {
       expect(output, isNot(contains('DebouncerService(')));
     });
 
-    test('the live bloc keeps the repository even with a use case', () {
-      // watchAll is the repository's; a use case wraps the one-off fetch.
+    test('the live bloc subscribes to the repository', () {
       final output = bloc.FeatureTemplates.bloc(
         'orders',
         'Orders',
         'orders',
-        hasUseCase: true,
         useFirestore: true,
       );
 
@@ -304,7 +292,6 @@ void main() {
         'order_feed',
         'OrderFeed',
         'orderFeed',
-        hasUseCase: false,
         repositoryName: 'orders',
         repositoryClass: 'Orders',
       );
@@ -390,7 +377,6 @@ void main() {
         'orders',
         'Orders',
         'orders',
-        hasUseCase: false,
       );
       final viewOutput = bloc.FeatureTemplates.view(
         'orders',
@@ -450,7 +436,6 @@ void main() {
         hasRemote: true,
         hasLocal: false,
         hasRepository: true,
-        hasUseCase: false,
         hasBloc: true,
         useFirestore: false,
       );
@@ -459,21 +444,6 @@ void main() {
           output, contains('getIt.registerLazySingleton<OrdersRepository>('));
       expect(output, contains('getIt.registerFactory<OrdersBloc>('));
       expect(output, contains('OrdersBloc(getIt<OrdersRepository>())'));
-    });
-
-    test('the bloc resolves the use case when the feature has one', () {
-      final output = InjectorUtils.registrationsFor(
-        featureName: 'orders',
-        className: 'Orders',
-        hasRemote: true,
-        hasLocal: false,
-        hasRepository: true,
-        hasUseCase: true,
-        hasBloc: true,
-        useFirestore: false,
-      );
-
-      expect(output, contains('OrdersBloc(getIt<GetOrders>())'));
     });
 
     test('inserts above the anchor and adds only the missing imports', () {
@@ -598,6 +568,21 @@ Future<void> setupInjector() async {
 
     test('a riverpod project gets no bloc section', () {
       expect(DevTemplates.analysisOptions(), isNot(contains('bloc:')));
+    });
+
+    test('a refresh keeps the ruleset a bloc project already has', () {
+      // The catalog spec used to call analysisOptions() with no arguments, so
+      // it defaulted to Riverpod: `moarch update` rewrote a bloc project's
+      // analysis_options.yaml without the `bloc:` block it came with.
+      final spec = ScaffoldCatalog.all
+          .firstWhere((spec) => spec.name == 'analysis-options');
+      const context = ScaffoldContext(
+        projectRoot: 'unused',
+        pubspec: 'dependencies:\n  flutter_bloc: ^9.1.1\n',
+      );
+
+      expect(spec.template(context), contains('bloc:'));
+      expect(spec.template(context), contains('- avoid_flutter_imports'));
     });
   });
 
@@ -748,5 +733,48 @@ Future<void> setupInjector() async {
       expect(blocCommon, isNot(contains('async-view')));
       expect(blocCommon, contains('error-view'));
     });
+  });
+
+  group('AuthFailure carries the session', () {
+    test('the state records the user it failed for', () {
+      final output = bloc.AuthTemplates.state();
+
+      expect(
+          output, contains('const AuthFailure(this.message, {this.userId})'));
+      expect(output, contains('bool get authenticated => userId != null;'));
+      expect(output, contains('List<Object?> get props => [message, userId];'));
+    });
+
+    test('a failed delete is reported instead of swallowed', () {
+      final output = bloc.AuthTemplates.bloc();
+
+      // The screen showing the confirm dialog had no way to know the delete
+      // failed: the handler caught the exception and emitted nothing.
+      expect(
+        output,
+        contains('emit(AuthFailure(e.message, userId: current.userId));'),
+      );
+      expect(
+        output,
+        isNot(contains('// The account is still there, so the session is.')),
+      );
+    });
+
+    test('the redirect keeps a still-signed-in user where they are', () {
+      final output = bloc.AppTemplates.appRouter(withAuth: true);
+
+      expect(
+        output,
+        contains('auth is AuthAuthenticated || '
+            '(auth is AuthFailure && auth.authenticated)'),
+      );
+    });
+  });
+
+  test('the router logs its diagnostics in debug builds only', () {
+    final output = bloc.AppTemplates.appRouter(withAuth: true);
+
+    expect(output, contains('debugLogDiagnostics: kDebugMode'));
+    expect(output, contains("import 'package:flutter/foundation.dart';"));
   });
 }

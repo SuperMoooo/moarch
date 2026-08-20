@@ -2,6 +2,104 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 6.0.0
+
+**Breaking on update, not on init.** A project scaffolded with 6.0.0 is fine.
+An existing 5.x project is only affected if you run `moarch update` — and then
+in one specific way: `buildDioClient` takes a new required `refreshSession:`
+argument, and `injector.dart` is the file that passes it. `update` refreshes
+`dio_client.dart` silently (you almost certainly never edited it) but leaves
+`injector.dart` alone, because `moarch create feature` writes into it and that
+counts as edited. The two then disagree and the project stops compiling.
+
+Refreshing both together is the fix:
+
+```bash
+moarch update dio-client
+moarch update injector --force   # only if you have no hand-edits to keep
+```
+
+Or add the argument by hand:
+
+```dart
+..registerLazySingleton<Dio>(
+  () => buildDioClient(
+    getIt<TokenStorage>(),
+    refreshSession: () => getIt<AuthRepository>().refresh(),
+  ),
+)
+```
+
+Two smaller ones in the same shape:
+
+- `auth_remote_datasource.dart` now calls `ApiConstants.authLogin` and friends,
+  so refresh `api-constants` alongside it or the datasource will not resolve
+  them.
+- Refreshing a state holder switches it from `GetX` to `XRepository`. That
+  compiles as-is — the repository was always registered too — but leaves
+  `domain/usecases/get_x.dart` and its `registerLazySingleton<GetX>` orphaned.
+  Both can be deleted.
+
+### Changed
+
+- Generated `pubspec.yaml` now carries a caret constraint on every dependency
+  instead of `any`, from one table in `lib/src/utils/package_versions.dart`
+  that is bumped per release. `intl` stays unconstrained on purpose:
+  `flutter_localizations` pins it exactly from the SDK.
+- **Use cases are no longer generated.** A `GetX` that only forwarded
+  `_repository.fetchAll()` added a name and no behaviour, and the auth feature
+  `init` scaffolds never had one — so the two halves of the generator
+  disagreed about whether the layer existed. State holders take the
+  repository in both stacks.
+- The refresh-token protocol is written once. `dio_client.dart` no longer
+  carries its own bare Dio, endpoint and JSON keys beside the datasource's:
+  the 401 interceptor takes a `refreshSession` callback, `injector.dart`
+  passes the auth repository's `refresh` (as a callback, since the repository
+  is built on that same client), and the repository — a lazy singleton —
+  owns the single-flight guard that used to be a top-level mutable global.
+- `/auth/*` paths moved into `ApiConstants`, so the datasource and the Dio
+  client's public-route list read the same strings.
+- `safeApiCall` recognises offline from what Dio throws rather than asking
+  `connectivity_plus` before every request — that cost a platform round-trip
+  per call and reported a captive portal as online. `safeFirebaseCall` keeps
+  its pre-flight; its doc comment now says so.
+- Every `moarch create` subcommand accepts either a `lib/` or the project
+  root for `--path`.
+
+### Fixed
+
+- `moarch create feature` in a bloc project scaffolded Riverpod when `--path`
+  pointed at the project root: `StateManagement.detect` only looked one
+  directory up for `pubspec.yaml`, and falls back to Riverpod when it finds
+  none. It now walks up until it finds one.
+- `moarch update` rewrote a bloc project's `analysis_options.yaml` as the
+  Riverpod one, dropping the `bloc:` ruleset — the catalog spec called
+  `analysisOptions()` without the stack.
+- A failed account deletion is reported instead of swallowed. `AuthFailure`
+  now carries the session it failed from (`userId`), so the router redirect
+  can tell "signed out, with a reason" from "still signed in, and something
+  went wrong" — which is what made the failure unemittable before. The same
+  change gives the Firebase password-reset handler distinct states for two
+  identical failures in a row, where Equatable had deduped the second emit
+  and shown nothing.
+- `debugLogDiagnostics` and Dio's `LogInterceptor` are debug-only. `appLogger`
+  already dropped the log records in release, but `msg.toString()` runs at the
+  call site, so every response body in the app was still serialised in full
+  first.
+
+### Removed
+
+- `AppRoutes.designView` (pointed at a screen `init` does not generate) and
+  `AppRoutes.forgotPassword` (unrouted, and silently in `publicRoutes`).
+- `AppExceptionType.cache` and `.parsing`, which nothing ever constructed,
+  and the `AppException.test()` factory — a test helper shipped in `lib/`.
+
+### Added
+
+- `.env.example`, committed beside the gitignored `.env`. Without it a fresh
+  clone had no `.env` at all and `build_runner` failed on `app_env.dart`
+  before a new developer could run anything.
+
 ## 5.0.4
 
 - Adjustments

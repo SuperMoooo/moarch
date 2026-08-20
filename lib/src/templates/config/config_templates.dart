@@ -9,11 +9,9 @@ abstract final class AppRoutes {
   static const splash = '/splash';
   static const login = '/login';
   static const register = '/register';
-  static const forgotPassword = '/forgot-password';
-  static const designView = '/design-system';
 
   /// Routes reachable without a session. Everything else redirects to [login].
-  static const publicRoutes = {login, register, forgotPassword};
+  static const publicRoutes = {login, register};
 
   // Dynamic routes: the constant holds the pattern GoRouter matches on, the
   // `Of` helper builds the location you navigate to. Rename these to your own.

@@ -124,6 +124,7 @@ class AuthTokensModel extends AuthTokensEntity {
     return '''
 import 'package:dio/dio.dart';
 
+import '../../../../core/constants/api_constants.dart';
 import '../../../../core/network/safe_api_call.dart';
 import '../models/auth_tokens_model.dart';
 
@@ -132,9 +133,9 @@ class AuthRemoteDataSource {
 
   final Dio _dio;
 
-  // Adjust endpoints and payload keys to your API contract. The auth routes
-  // are listed as public endpoints in dio_client.dart, so they are sent
-  // without an Authorization header.
+  // The paths live in ApiConstants, which is also where dio_client.dart reads
+  // the three that go out without an Authorization header. Adjust the payload
+  // keys below to your API contract.
 
   Future<AuthTokensModel> login({
     required String email,
@@ -142,7 +143,7 @@ class AuthRemoteDataSource {
   }) {
     return safeApiCall<AuthTokensModel>(
       apiCall: () async {
-        final response = await _dio.post<dynamic>('/auth/login', data: {
+        final response = await _dio.post<dynamic>(ApiConstants.authLogin, data: {
           'email': email,
           'password': password,
         });
@@ -157,7 +158,7 @@ class AuthRemoteDataSource {
   }) {
     return safeApiCall<AuthTokensModel>(
       apiCall: () async {
-        final response = await _dio.post<dynamic>('/auth/register', data: {
+        final response = await _dio.post<dynamic>(ApiConstants.authRegister, data: {
           'email': email,
           'password': password,
         });
@@ -169,7 +170,7 @@ class AuthRemoteDataSource {
   Future<AuthTokensModel> refresh({required String refreshToken}) {
     return safeApiCall<AuthTokensModel>(
       apiCall: () async {
-        final response = await _dio.post<dynamic>('/auth/refresh', data: {
+        final response = await _dio.post<dynamic>(ApiConstants.authRefresh, data: {
           'refreshToken': refreshToken,
         });
         final data = response.data as Map<String, dynamic>;
@@ -188,7 +189,7 @@ class AuthRemoteDataSource {
       apiCall: () async {
         // Lets the backend revoke the refresh token; local cleanup happens
         // in the repository even when this call fails.
-        await _dio.post<dynamic>('/auth/logout', data: {
+        await _dio.post<dynamic>(ApiConstants.authLogout, data: {
           'refreshToken': refreshToken,
         });
       },
@@ -198,7 +199,7 @@ class AuthRemoteDataSource {
   Future<void> delete() {
     return safeApiCall<void>(
       apiCall: () async {
-        await _dio.delete<dynamic>('/auth/me');
+        await _dio.delete<dynamic>(ApiConstants.authAccount);
       },
     );
   }
@@ -249,7 +250,7 @@ import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_datasource.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
-  const AuthRepositoryImpl(this._remote, this._tokens$pushCtorParam);
+  AuthRepositoryImpl(this._remote, this._tokens$pushCtorParam);
 
   final AuthRemoteDataSource _remote;
   final TokenStorage _tokens;$pushField
@@ -292,8 +293,19 @@ class AuthRepositoryImpl implements AuthRepository {
     );
   }
 
+  /// The refresh currently in flight, if any.
+  ///
+  /// Single-flight guard: the Dio interceptor calls this on every 401, so a
+  /// screen that fires three requests at once would otherwise burn the
+  /// refresh token three times over. They share this one call instead.
+  Future<void>? _refreshing;
+
   @override
-  Future<void> refresh() async {
+  Future<void> refresh() {
+    return _refreshing ??= _refresh().whenComplete(() => _refreshing = null);
+  }
+
+  Future<void> _refresh() async {
     final refreshToken = await _tokens.refreshToken;
     if (refreshToken == null) throw AppException.sessionExpired();
     final tokens = await _remote.refresh(refreshToken: refreshToken);
@@ -372,14 +384,28 @@ final class AuthUnauthenticated extends AuthState {
   const AuthUnauthenticated();
 }
 
-/// An attempt failed. Still signed out — the login screen shows [message].
+/// An attempt failed.
+///
+/// [userId] is what the failure did *not* change: null means the app is
+/// signed out and the login screen shows [message]; non-null means the
+/// session survived — a delete or a password reset the backend refused — and
+/// the screen that asked for it shows [message] without the user being
+/// bounced to login.
 final class AuthFailure extends AuthState {
-  const AuthFailure(this.message);
+  const AuthFailure(this.message, {this.userId});
 
   final String message;
 
+  /// The still-signed-in user, or null when this failure left the app
+  /// signed out.
+  final String? userId;
+
+  /// Whether the session outlived the failure. The router redirect reads
+  /// this — see `config/router/app_router.dart`.
+  bool get authenticated => userId != null;
+
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message, userId];
 }
 ''';
 
@@ -580,18 +606,19 @@ $syncOnRestore
     AuthAccountDeleted event,
     Emitter<AuthState> emit,
   ) async {
-    if (state is! AuthAuthenticated) return;
+    final current = state;
+    if (current is! AuthAuthenticated) return;
 
-    // No AuthLoading and no AuthFailure around this one, deliberately: the
-    // router keys on this state, so either would read as "not signed in" and
-    // bounce a user who still is. The screen showing the confirm dialog owns
-    // the spinner and the error message; the bloc only reports the one
-    // outcome that changes the session.
+    // No AuthLoading around this one, deliberately: the router keys on this
+    // state and would read a loading state as "not signed in", bouncing a
+    // user who still is. The screen showing the confirm dialog owns the
+    // spinner. A failure does get reported — carrying the userId, which is
+    // what tells the redirect the session is still good.
     try {
       await _repo.deleteAccount();
       emit(const AuthUnauthenticated());
-    } on AppException catch (_) {
-      // The account is still there, so the session is. Nothing to change.
+    } on AppException catch (e) {
+      emit(AuthFailure(e.message, userId: current.userId));
     }
   }
 }

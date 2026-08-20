@@ -22,24 +22,68 @@ void main() {
   });
 
   test('dioClient refreshes the session on 401 and retries once', () {
-    final output = CoreTemplates.dioClient();
+    final output = CoreTemplates.dioClient(withAuthFeature: true);
 
     // The client takes its storage rather than reading a provider — the
     // locator holds both, in either stack.
-    expect(output, contains('Dio buildDioClient(TokenStorage storage) {'));
     expect(output, contains('await storage.accessToken'));
     expect(output, contains('onError: (error, handler) async'));
     expect(output, contains('status != 401'));
-    expect(output, contains('_refreshSession(storage)'));
     expect(output, contains('handler.resolve(response)'));
-    // Failed refresh clears the session so the app can redirect to login.
-    expect(output, contains('await storage.clearSession();'));
     // A retried request is never retried again.
     expect(output, contains('_kRetriedAfterRefresh'));
-    // Auth routes are public: no Authorization header, no refresh loop.
-    expect(output, contains("'/auth/login'"));
-    expect(output, contains("'/auth/register'"));
-    expect(output, contains("'/auth/refresh'"));
+    // Auth routes are public: no Authorization header, no refresh loop. The
+    // paths come from ApiConstants so the datasource cannot drift from them.
+    expect(output, contains('ApiConstants.authLogin'));
+    expect(output, contains('ApiConstants.authRegister'));
+    expect(output, contains('ApiConstants.authRefresh'));
+    expect(output, isNot(contains("'/auth/login'")));
+  });
+
+  test('dioClient calls back for the refresh rather than doing it itself', () {
+    final output = CoreTemplates.dioClient(withAuthFeature: true);
+
+    // One implementation of the refresh protocol, in the auth repository.
+    // This client only asks for it — a callback, because the repository is
+    // built on this client and resolving it eagerly would be a cycle.
+    expect(output, contains('required Future<void> Function() refreshSession'));
+    expect(output, contains('await refreshSession();'));
+    // The endpoint, the JSON keys and the bare retry client used to live here
+    // as a second copy of what the datasource already does.
+    expect(output, isNot(contains('_doRefresh')));
+    expect(output, isNot(contains('refreshDio')));
+    expect(output, isNot(contains("data['accessToken']")));
+  });
+
+  test('dioClient clears the session only when the refresh really failed', () {
+    final output = CoreTemplates.dioClient(withAuthFeature: true);
+
+    // A refresh that failed offline says nothing about the session, so the
+    // tokens survive it and the next attempt can use them.
+    expect(output, contains('refreshError.type != AppExceptionType.network'));
+    expect(output, contains('await storage.clearSession();'));
+  });
+
+  test('dioClient without the auth feature has nothing to refresh', () {
+    final output = CoreTemplates.dioClient();
+
+    expect(output, contains('Dio buildDioClient(TokenStorage storage) {'));
+    expect(output, isNot(contains('refreshSession')));
+    expect(output, isNot(contains('_kRetriedAfterRefresh')));
+    // No session to expire means no reason to import the exception type.
+    expect(output, isNot(contains("import '../errors/app_exception.dart';")));
+  });
+
+  test('dioClient logs bodies in debug builds only', () {
+    final output = CoreTemplates.dioClient(withAuthFeature: true);
+
+    // `msg.toString()` runs at the call site, so an unguarded LogInterceptor
+    // serialises every response body in release before appLogger drops it.
+    expect(output, contains('if (kDebugMode) {'));
+    expect(
+      output.indexOf('LogInterceptor('),
+      greaterThan(output.indexOf('if (kDebugMode) {')),
+    );
   });
 
   test('appException exposes a sessionExpired factory', () {
@@ -65,8 +109,7 @@ void main() {
 
     expect(interface, contains('Future<bool> isLoggedIn()'));
     // Constructor injection, resolved in injector.dart.
-    expect(
-        impl, contains('const AuthRepositoryImpl(this._remote, this._tokens)'));
+    expect(impl, contains('AuthRepositoryImpl(this._remote, this._tokens)'));
     expect(impl, isNot(contains('Provider')));
     expect(impl, contains('await _tokens.saveSession'));
     // isLoggedIn: refresh token present → refresh() → logged in.
@@ -117,7 +160,7 @@ void main() {
       expect(
           impl,
           contains(
-              'const AuthRepositoryImpl(this._remote, this._tokens, this._push)'));
+              'AuthRepositoryImpl(this._remote, this._tokens, this._push)'));
       expect(impl, contains('await _push.getDeviceToken();'));
       expect(
           impl, contains('await _remote.saveDeviceToken(token: deviceToken)'));
@@ -159,11 +202,87 @@ void main() {
         AuthTemplates.state(), contains('implements ActionState<AuthState>'));
 
     // Generic feature templates use it too.
-    expect(
-        FeatureTemplates.notifier('sample', 'Sample', 'sample',
-            hasUseCase: false),
+    expect(FeatureTemplates.notifier('sample', 'Sample', 'sample'),
         contains('with ActionNotifierMixin<SampleState>'));
     expect(FeatureTemplates.state('sample', 'Sample'),
         contains('implements ActionState<SampleState>'));
+  });
+
+  test('the repository owns the single-flight refresh guard', () {
+    final impl = AuthTemplates.repositoryImpl();
+
+    // It moved here from dio_client.dart, where it was a top-level mutable
+    // global beside a second copy of the refresh call. The repository is a
+    // lazySingleton, so there is still exactly one refresh in flight.
+    expect(impl, contains('Future<void>? _refreshing;'));
+    expect(
+      impl,
+      contains(
+          '_refreshing ??= _refresh().whenComplete(() => _refreshing = null)'),
+    );
+    // A guard needs a field, so the constructor cannot be const any more.
+    expect(impl, isNot(contains('const AuthRepositoryImpl')));
+  });
+
+  test('the auth datasource reads its paths from ApiConstants', () {
+    final output = AuthTemplates.remoteDatasource();
+
+    // The same constants dio_client.dart builds its public-route list from,
+    // so the two cannot disagree about what /auth/refresh is called.
+    expect(output, contains('ApiConstants.authLogin'));
+    expect(output, contains('ApiConstants.authRefresh'));
+    expect(output, contains('ApiConstants.authAccount'));
+    expect(output, isNot(contains("'/auth/login'")));
+    expect(output, isNot(contains("'/auth/refresh'")));
+    expect(
+      output,
+      contains("import '../../../../core/constants/api_constants.dart';"),
+    );
+  });
+
+  test('apiConstants declares the auth paths only with the auth feature', () {
+    final withAuth = CoreTemplates.apiConstants(withAuthFeature: true);
+    final without = CoreTemplates.apiConstants();
+
+    expect(withAuth, contains("static const authRefresh = '/auth/refresh';"));
+    expect(without, isNot(contains('authRefresh')));
+    // The timeouts are there either way.
+    expect(without, contains('connectTimeout'));
+  });
+
+  group('safeApiCall', () {
+    test('recognises offline from the failure rather than a pre-flight', () {
+      final output = CoreTemplates.safeApiCall();
+
+      // connectivity_plus reports which interface is up, not whether the
+      // request can reach anything — and asking cost a platform round-trip
+      // per call.
+      expect(output, isNot(contains('connectivity_plus')));
+      expect(output, isNot(contains('checkConnectivity')));
+
+      expect(output, contains('DioExceptionType.connectionError'));
+      expect(output, contains('DioExceptionType.connectionTimeout'));
+      expect(output, contains('error.error is SocketException'));
+      expect(output, contains('throw AppException.noInternet();'));
+    });
+
+    test('the cache fallback still runs when the call fails offline', () {
+      final output = CoreTemplates.safeApiCall();
+
+      expect(output, contains('if (onNoInternet != null) {'));
+      expect(output, contains('if (fallback != null) return fallback;'));
+    });
+  });
+
+  test('appException drops the types nothing ever produced', () {
+    final output = ErrorTemplates.appException(hasDio: true);
+
+    expect(output, contains('network'));
+    expect(output, contains('notFound'));
+    // `cache` and `parsing` were never constructed anywhere, and `test()` was
+    // a test helper shipped in lib/.
+    expect(output, isNot(contains('cache')));
+    expect(output, isNot(contains('parsing')));
+    expect(output, isNot(contains('factory AppException.test()')));
   });
 }

@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 
 import '../../utils/file_utils.dart';
 import '../../utils/project_manifest.dart';
+import '../../utils/project_paths.dart';
 import '../../utils/pubspec_utils.dart';
 import '../../utils/widget_catalog.dart';
 
@@ -19,7 +20,7 @@ class CreateWidgetCommand extends Command<int> {
         'path',
         abbr: 'p',
         defaultsTo: 'lib',
-        help: 'Path to lib/ directory.',
+        help: 'Path to the lib/ directory, or the project root holding it.',
       )
       ..addFlag(
         'list',
@@ -57,7 +58,7 @@ class CreateWidgetCommand extends Command<int> {
       return 1;
     }
 
-    final libPath = argResults?['path'] as String? ?? 'lib';
+    final libPath = resolveLibPath(argResults?['path'] as String? ?? 'lib');
     final projectRoot = p.dirname(p.absolute(libPath));
 
     // "all" expands to the whole catalog.

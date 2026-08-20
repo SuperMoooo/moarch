@@ -58,22 +58,6 @@ ${useFirestore ? '''
 }
 ''';
 
-  // ── Domain — Use case ───────────────────────────────────────────────────────
-
-  /// Returns the generated usecase template.
-  static String usecase(String name, String cls, String varName) => '''
-import '../entities/${name}_entity.dart';
-import '../repositories/${name}_repository.dart';
-
-class Get$cls {
-  const Get$cls(this._repository);
-
-  final ${cls}Repository _repository;
-
-  Future<List<${cls}Entity>> call() => _repository.fetchAll();
-}
-''';
-
   // ── Data — Model ────────────────────────────────────────────────────────────
 
   /// Returns the generated model template.
@@ -544,7 +528,6 @@ final class ${cls}Refreshed extends ${cls}Event {
     String name,
     String cls,
     String varName, {
-    required bool hasUseCase,
     bool useFirestore = false,
     String? repositoryName,
     String? repositoryClass,
@@ -552,29 +535,15 @@ final class ${cls}Refreshed extends ${cls}Event {
     final repoName = repositoryName ?? name;
     final repoCls = repositoryClass ?? cls;
 
-    // With a use case the bloc depends on that and nothing else: wrapping the
-    // repository call is the whole point of the layer, so taking both would
-    // leave the presentation side two ways to reach the same data.
-    final repoDependency = hasUseCase
-        ? '  ${cls}Bloc(this._get$cls) : super(const ${cls}Initial()) {'
-        : '  ${cls}Bloc(this._repo) : super(const ${cls}Initial()) {';
+    final repoDependency =
+        '  ${cls}Bloc(this._repo) : super(const ${cls}Initial()) {';
 
-    final fields = hasUseCase
-        ? '  final Get$cls _get$cls;'
-        : '  final ${repoCls}Repository _repo;';
+    final fields = '  final ${repoCls}Repository _repo;';
 
-    final usecaseImport =
-        hasUseCase ? "import '../../domain/usecases/get_$name.dart';\n" : '';
-
-    // The repository import goes with the field that names it.
-    final repoImport = hasUseCase
-        ? ''
-        : "import '../../domain/repositories/${repoName}_repository.dart';\n";
+    final repoImport =
+        "import '../../domain/repositories/${repoName}_repository.dart';\n";
 
     if (useFirestore) {
-      // The live query is the repository's, so this variant depends on the
-      // repository whether or not a use case was generated — a use case wraps
-      // the one-off fetch, not the subscription.
       return '''
 import 'dart:async';
 
@@ -657,7 +626,7 @@ class ${cls}Bloc extends Bloc<${cls}Event, ${cls}State> {
 import 'package:bloc/bloc.dart';
 
 import '../../../../core/errors/app_exception.dart';
-$usecaseImport${repoImport}import '${name}_event.dart';
+${repoImport}import '${name}_event.dart';
 import '${name}_state.dart';
 
 class ${cls}Bloc extends Bloc<${cls}Event, ${cls}State> {
@@ -678,7 +647,7 @@ $fields
     // A refresh over loaded data keeps the data on screen.
     if (state is! ${cls}Success) emit(const ${cls}Loading());
     try {
-      final items = ${hasUseCase ? 'await _get$cls();' : 'await _repo.fetchAll();'}
+      final items = await _repo.fetchAll();
       emit(${cls}Success(items: items));
     } on AppException catch (e) {
       emit(${cls}Failure(e.message));

@@ -390,7 +390,8 @@ $localizationConfig$routerConfig      debugShowCheckedModeBanner: false,
   /// nor home flashes on startup.
   static String appRouter({bool withAuth = false}) {
     final imports = withAuth
-        ? "import 'package:flutter/material.dart';\n"
+        ? "import 'package:flutter/foundation.dart';\n"
+            "import 'package:flutter/material.dart';\n"
             "import 'package:go_router/go_router.dart';\n"
             '\n'
             "import '../../features/auth/presentation/blocs/auth_bloc.dart';\n"
@@ -400,7 +401,8 @@ $localizationConfig$routerConfig      debugShowCheckedModeBanner: false,
             "import '../../shared/widgets/loadings/app_loading_data.dart';\n"
             "import '../di/injector.dart';\n"
             "import './app_routes.dart';"
-        : "import 'package:flutter/material.dart';\n"
+        : "import 'package:flutter/foundation.dart';\n"
+            "import 'package:flutter/material.dart';\n"
             "import 'package:go_router/go_router.dart';\n"
             '\n'
             "import './app_routes.dart';";
@@ -441,7 +443,11 @@ String? _redirect(BuildContext context, GoRouterState state) {
   // The refreshListenable re-runs this once it completes.
   if (auth is AuthInitial) return onSplash ? null : AppRoutes.splash;
 
-  final isAuthenticated = auth is AuthAuthenticated;
+  // AuthFailure carries the session it failed from: a delete or a password
+  // reset the backend refused leaves the user signed in, and bouncing them to
+  // login over it would be a worse lie than the error itself.
+  final isAuthenticated =
+      auth is AuthAuthenticated || (auth is AuthFailure && auth.authenticated);
   if (onSplash) return isAuthenticated ? AppRoutes.home : AppRoutes.login;
 
   final onPublicRoute = AppRoutes.publicRoutes.contains(state.matchedLocation);
@@ -484,7 +490,9 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 final GoRouter appRouter = GoRouter(
   navigatorKey: rootNavigatorKey,
 $options
-  debugLogDiagnostics: true,
+  // Debug builds only: the route log is noise in release, and the locations
+  // it prints can carry path parameters worth not logging.
+  debugLogDiagnostics: kDebugMode,
   routes: [
 $authRoutes    GoRoute(
       path: AppRoutes.home,

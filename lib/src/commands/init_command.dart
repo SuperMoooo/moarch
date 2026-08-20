@@ -20,6 +20,7 @@ import '../utils/file_utils.dart';
 import '../utils/gradle_utils.dart';
 import '../utils/kotlin_utils.dart';
 import '../utils/manifest_utils.dart';
+import '../utils/package_versions.dart';
 import '../utils/plist_utils.dart';
 import '../utils/project_manifest.dart';
 import '../utils/podfile_utils.dart';
@@ -412,81 +413,82 @@ class InitCommand extends Command<int> {
     // Unversioned, so pub fetches the newest release each package allows. Pub
     // is free to resolve *backwards* to settle a conflict, so the packages
     // that break when it does carry a constraint of their own below.
+    // Every constraint comes from `PackageVersions`, one table bumped per
+    // moarch release. Not `any`: the templates are written against a specific
+    // API, and an unconstrained entry lets the next `pub get` walk a project
+    // onto a major release nobody asked for.
     final defaultDependencies = <String>[
       'flutter:\n    sdk: flutter',
       if (stateManagement.isBloc) ...[
-        'flutter_bloc: ',
+        PackageVersions.entry('flutter_bloc'),
         // Declared as well as flutter_bloc, which re-exports it: the blocs
         // import `package:bloc/bloc.dart` so they stay pure Dart — which is
         // what the avoid_flutter_imports lint rule is there to keep true.
-        'bloc: ',
+        PackageVersions.entry('bloc'),
         // Value equality on states and events. Bloc drops an emit whose state
         // equals the current one and BlocConsumer rebuilds on the same test,
         // so without it every emit repaints.
-        'equatable: ',
+        PackageVersions.entry('equatable'),
       ] else
-        'flutter_riverpod: ',
+        PackageVersions.entry('flutter_riverpod'),
       // The service locator, in both stacks: dependency injection is get_it's
       // job either way. What Riverpod keeps is state — the notifiers, which
       // read what they depend on out of here.
-      'get_it: ',
-      'flutter_native_splash: ',
-      'envied: ',
-      'skeletonizer: ',
-      'intl:',
-      // Floored because app_logger.dart uses PrettyPrinter's `dateTimeFormat`,
-      // which replaced the older `printTime` flag partway through logger 2.x.
-      'logger: ^2.4.0',
-      'connectivity_plus: ',
-      if (stack.contains(_kRouter)) 'go_router: ',
-      if (stack.contains(_kDio)) 'dio: ',
-      if (stack.contains(_kDio)) 'dio_smart_retry: ',
-      'flutter_secure_storage: ',
+      PackageVersions.entry('get_it'),
+      PackageVersions.entry('flutter_native_splash'),
+      PackageVersions.entry('envied'),
+      PackageVersions.entry('skeletonizer'),
+      PackageVersions.entry('intl'),
+      PackageVersions.entry('logger'),
+      PackageVersions.entry('connectivity_plus'),
+      if (stack.contains(_kRouter)) PackageVersions.entry('go_router'),
+      if (stack.contains(_kDio)) PackageVersions.entry('dio'),
+      if (stack.contains(_kDio)) PackageVersions.entry('dio_smart_retry'),
+      PackageVersions.entry('flutter_secure_storage'),
       if (stack.contains(_kFirebaseAuth) ||
           stack.contains(_kFirestore) ||
           stack.contains(_kCrashlytics) ||
           stack.contains(_kFirebaseNotifications))
-        'firebase_core: ',
-      if (stack.contains(_kFirebaseNotifications)) 'firebase_messaging: ',
-      if (stack.contains(_kCrashlytics)) 'firebase_crashlytics: ',
-      if (stack.contains(_kFirebaseAuth)) 'firebase_auth: ',
-      if (stack.contains(_kFirestore)) 'cloud_firestore: ',
-      // Floored because the generated Google flow is written against the 7.x
-      // API — `GoogleSignIn.instance`, `initialize()` and `authenticate()`
-      // replaced the constructor and `signIn()` of 6.x.
-      if (firebaseAuthFeature) 'google_sign_in: ^7.0.0',
-      // Floored: unversioned, pub settles a win32 conflict with
-      // flutter_secure_storage_windows by walking file_picker back to 3.0.4,
-      // which predates AGP's `namespace` and fails the Android build.
-      if (stack.contains(_kMediaService)) 'file_picker: ^11.0.0',
-      if (stack.contains(_kMediaService)) 'image_picker: ',
-      // Capped: permission_handler 13 pulls an android impl written against
-      // AGP 9 / Gradle 9, which fails to compile on the AGP 8 toolchain
-      // `flutter create` still scaffolds. The API is unchanged across the two.
-      'permission_handler: ^12.0.3',
-      if (stack.contains(_kLaunchUrlService)) 'url_launcher: ',
+        PackageVersions.entry('firebase_core'),
+      if (stack.contains(_kFirebaseNotifications))
+        PackageVersions.entry('firebase_messaging'),
+      if (stack.contains(_kCrashlytics))
+        PackageVersions.entry('firebase_crashlytics'),
+      if (stack.contains(_kFirebaseAuth))
+        PackageVersions.entry('firebase_auth'),
+      if (stack.contains(_kFirestore)) PackageVersions.entry('cloud_firestore'),
+      if (firebaseAuthFeature) PackageVersions.entry('google_sign_in'),
+      if (stack.contains(_kMediaService)) PackageVersions.entry('file_picker'),
+      if (stack.contains(_kMediaService)) PackageVersions.entry('image_picker'),
+      PackageVersions.entry('permission_handler'),
+      if (stack.contains(_kLaunchUrlService))
+        PackageVersions.entry('url_launcher'),
       if (stack.contains(_kNotificationsService))
-        'flutter_local_notifications: ',
-      if (stack.contains(_kNotificationsService)) 'timezone: ',
-      if (stack.contains(_kBiometricAuth)) 'local_auth: ',
-      if (stack.contains(_kBiometricAuth)) 'local_auth_android: ',
-      if (stack.contains(_kBiometricAuth)) 'local_auth_darwin: ',
+        PackageVersions.entry('flutter_local_notifications'),
+      if (stack.contains(_kNotificationsService))
+        PackageVersions.entry('timezone'),
+      if (stack.contains(_kBiometricAuth)) PackageVersions.entry('local_auth'),
+      if (stack.contains(_kBiometricAuth))
+        PackageVersions.entry('local_auth_android'),
+      if (stack.contains(_kBiometricAuth))
+        PackageVersions.entry('local_auth_darwin'),
       if (stack.contains(_kLocalizations))
         'flutter_localizations:\n    sdk: flutter',
-      if (stack.contains(_kEasyLocalization)) 'easy_localization: ',
+      if (stack.contains(_kEasyLocalization))
+        PackageVersions.entry('easy_localization'),
     ];
 
     final devDependencies = <String>[
-      'build_runner: ',
-      'envied_generator: ',
-      'mogen_unit_tests: ',
-      'mogen_integration_tests: ',
-      'flutter_lints: ',
+      PackageVersions.entry('build_runner'),
+      PackageVersions.entry('envied_generator'),
+      PackageVersions.entry('mogen_unit_tests'),
+      PackageVersions.entry('mogen_integration_tests'),
+      PackageVersions.entry('flutter_lints'),
       // The bloc team's own rules — file naming, no Flutter imports in a
       // bloc, no public fields on a state. Run with `bloc lint .` (see
       // `dart pub global activate bloc_tools`); analysis_options.yaml
       // carries the ruleset.
-      if (stateManagement.isBloc) 'bloc_lint: ',
+      if (stateManagement.isBloc) PackageVersions.entry('bloc_lint'),
       // No bloc_test: moarch scaffolds no tests, and mogen_unit_tests above
       // is the testing story for both stacks. Add it the day you write a
       // bloc test by hand — `flutter pub add --dev bloc_test`.
@@ -562,7 +564,19 @@ class InitCommand extends Command<int> {
       );
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), '.env'),
-        'BASE_URL=',
+        'BASE_URL=\n',
+      );
+
+      // The committed half of the pair. `.env` itself is gitignored, so
+      // without this a fresh clone has no `.env` at all and `build_runner`
+      // fails on `app_env.dart` before the new developer can run anything.
+      // This one is tracked, holds no values, and says what to fill in.
+      await FileUtils.writeFile(
+        p.join(p.absolute(targetPath), '.env.example'),
+        '# Copy to `.env` and fill in. `.env` is gitignored; this file is not,\n'
+        '# so keep it free of real values and add a line here whenever you add\n'
+        '# an @EnviedField to lib/config/env/app_env.dart.\n'
+        'BASE_URL=\n',
       );
 
       // The editor side of the .fvmrc above: without dart.flutterSdkPath the
@@ -670,6 +684,9 @@ class InitCommand extends Command<int> {
         '*.jks.old',
         '*.keystore',
         '.env',
+        // The template is meant to be committed; the negation keeps it that
+        // way under a broader `.env*` rule further up someone's file.
+        '!.env.example',
         'lib/config/env/app_env.g.dart',
       ];
 
@@ -1348,6 +1365,13 @@ class InitCommand extends Command<int> {
   ) async {
     final c = p.join(libPath, 'core');
 
+    // The auth feature against the REST client — the variant that owns a
+    // refresh token, and so the only one whose `/auth/*` paths ApiConstants
+    // declares and whose refresh the Dio interceptor calls back into.
+    // Firebase Auth wins when both are selected, matching `run()`.
+    final restAuthFeature =
+        stack.contains(_kAuthFeature) && !stack.contains(_kFirebaseAuth);
+
     await FileUtils.writeFile(
       p.join(c, 'errors', 'app_exception.dart'),
       ErrorTemplates.appException(
@@ -1381,12 +1405,12 @@ class InitCommand extends Command<int> {
     );
     await FileUtils.writeFile(
       p.join(c, 'constants', 'api_constants.dart'),
-      CoreTemplates.apiConstants(),
+      CoreTemplates.apiConstants(withAuthFeature: restAuthFeature),
     );
     if (stack.contains(_kDio)) {
       await FileUtils.writeFile(
         p.join(c, 'network', 'dio_client.dart'),
-        templates.dioClient(),
+        templates.dioClient(withAuthFeature: restAuthFeature),
       );
       await FileUtils.writeFile(
         p.join(c, 'network', 'safe_api_call.dart'),

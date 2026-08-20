@@ -577,46 +577,78 @@ $darkPalette
   }
 
   /// Returns the generated apiConstants template.
-  static String apiConstants() => r'''
+  ///
+  /// [withAuthFeature] adds the `/auth/*` paths. They live here rather than at
+  /// their call sites because two files need the same strings: the datasource
+  /// calls them, and `dio_client.dart` lists the public ones as the routes
+  /// that go out without an `Authorization` header.
+  static String apiConstants({bool withAuthFeature = false}) {
+    final authEndpoints = withAuthFeature
+        ? r'''
+
+
+  // ── Auth endpoints ────────────────────────────────────────────────────────
+  // Adjust these to your API contract. Changing one here changes it
+  // everywhere: `auth_remote_datasource.dart` calls them, and
+  // `dio_client.dart` builds its list of routes that never carry an
+  // Authorization header from the three public ones.
+  static const authLogin = '/auth/login';
+  static const authRegister = '/auth/register';
+  static const authRefresh = '/auth/refresh';
+  static const authLogout = '/auth/logout';
+  static const authAccount = '/auth/me';'''
+        : '';
+
+    return '''
 abstract final class ApiConstants {
   // BASE_URL comes from envied
   static const Duration connectTimeout = Duration(seconds: 30);
-  static const Duration receiveTimeout = Duration(seconds: 30);
+  static const Duration receiveTimeout = Duration(seconds: 30);$authEndpoints
 }
 ''';
+  }
 
   /// Returns the generated safeApiCall template.
+  ///
+  /// There is no connectivity pre-flight: `connectivity_plus` reports which
+  /// interface is up, not whether the request can reach anything, so a
+  /// captive portal or a VPN reads as online while the call still fails — and
+  /// asking cost a platform round-trip on every request. The failure itself
+  /// says it better, so an offline call is recognised from what Dio throws.
   static String safeApiCall() => '''
 import 'dart:async';
-import '../../core/errors/app_exception.dart';
-import 'package:dio/dio.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:io';
 
+import 'package:dio/dio.dart';
+
+import '../../core/errors/app_exception.dart';
+
+/// Whether [error] means the request never reached the server.
+bool _isOffline(DioException error) =>
+    error.type == DioExceptionType.connectionError ||
+    error.type == DioExceptionType.connectionTimeout ||
+    // Dio leaves a bare socket failure unclassified.
+    (error.type == DioExceptionType.unknown && error.error is SocketException);
 
 Future<T> safeApiCall<T>({
   required Future<T> Function() apiCall,
   FutureOr<T>? Function()? onNoInternet, // optional cache fallback
 }) async {
-  final connectivityResult = await Connectivity().checkConnectivity();
-
-  if (connectivityResult.contains(ConnectivityResult.none)) {
-    if (onNoInternet != null) {
-      final fallback = await onNoInternet();
-      if (fallback != null) return fallback;
-    }
-    throw AppException.noInternet();
-  }
-
   try {
     return await apiCall();
   } on DioException catch (e) {
+    if (_isOffline(e)) {
+      if (onNoInternet != null) {
+        final fallback = await onNoInternet();
+        if (fallback != null) return fallback;
+      }
+      throw AppException.noInternet();
+    }
     throw AppException.fromDioError(e);
   } catch (e, s) {
     throw AppException.fromError(e, s);
   }
 }
-
-
 ''';
 
   /// Returns the generated safeFirebaseCall template.
@@ -649,8 +681,13 @@ import 'package:firebase_core/firebase_core.dart';
 $authImport
 import '../errors/app_exception.dart';
 
-/// Same contract as `safeApiCall`: offline is caught before the request
-/// leaves, and anything that comes back wrong arrives as an [AppException].
+/// Anything that comes back wrong arrives as an [AppException], the same as
+/// `safeApiCall`.
+///
+/// Unlike it, this one still asks about connectivity before the call. Keep
+/// that in mind if you turn on Firestore's offline persistence: the cache can
+/// answer a read with no network at all, and the check below would refuse it
+/// first. Drop the check for those calls, or pass `onNoInternet`.
 Future<T> safeFirebaseCall<T>({
   required Future<T> Function() call,
   FutureOr<T>? Function()? onNoInternet, // optional cache fallback
@@ -699,7 +736,87 @@ $authStreamCatch    if (error is FirebaseException) {
   /// `TokenStorage` the locator holds, and `injector.dart` registers the
   /// result as a lazy singleton. Nothing about a REST client depends on how
   /// state is held, so there is one of these rather than two.
-  static String dioClient() => r'''
+  static String dioClient({bool withAuthFeature = false}) {
+    final publicEndpoints = withAuthFeature
+        ? r'''
+  // Routes that never receive the Authorization header (and are never
+  // retried after a token refresh). The paths live in ApiConstants, which is
+  // also what the auth datasource calls — one contract, one place.
+  ApiConstants.authLogin,
+  ApiConstants.authRegister,
+  ApiConstants.authRefresh,'''
+        : r'''
+  // Routes that never receive the Authorization header (and are never
+  // retried after a token refresh). Add your API's sign-in routes here.''';
+
+    // Only the auth feature has a session to refresh; without it a 401 is
+    // just a 401.
+    final refreshParam = withAuthFeature
+        ? r'''
+Dio buildDioClient(
+  TokenStorage storage, {
+  // Trades the stored refresh token for a new session, throwing an
+  // AppException when it cannot. injector.dart passes the auth repository's
+  // `refresh` — as a callback rather than the repository itself, because that
+  // repository is built on this very client, and resolving it eagerly here
+  // would be a cycle.
+  required Future<void> Function() refreshSession,
+}) {'''
+        : 'Dio buildDioClient(TokenStorage storage) {';
+
+    final exceptionImport =
+        withAuthFeature ? "import '../errors/app_exception.dart';\n" : '';
+
+    final refreshOnError = withAuthFeature
+        ? r'''
+        onError: (error, handler) async {
+          final status = error.response?.statusCode;
+          final alreadyRetried =
+              error.requestOptions.extra[_kRetriedAfterRefresh] == true;
+          if (status != 401 ||
+              alreadyRetried ||
+              _isPublicPath(error.requestOptions.path)) {
+            return handler.next(error);
+          }
+
+          // Session expired — refresh the access token, then retry once. The
+          // refresh goes to a public path, so a 401 on the refresh itself
+          // lands in the branch above instead of looping back into here.
+          try {
+            await refreshSession();
+          } on AppException catch (refreshError) {
+            // A refresh that failed because the network dropped says nothing
+            // about the session, so the tokens stay: the next attempt can
+            // still use them. Anything else means the refresh token is gone
+            // or rejected — clear the session so the auth state holder and
+            // the router redirect send the user back to login.
+            if (refreshError.type != AppExceptionType.network) {
+              await storage.clearSession();
+            }
+            return handler.next(error);
+          } catch (_) {
+            await storage.clearSession();
+            return handler.next(error);
+          }
+
+          try {
+            final options = error.requestOptions
+              ..extra[_kRetriedAfterRefresh] = true;
+            // Re-entering the chain lets onRequest attach the new token.
+            final response = await dio.fetch<dynamic>(options);
+            return handler.resolve(response);
+          } on DioException catch (retryError) {
+            return handler.next(retryError);
+          }
+        },'''
+        : r'''
+        onError: (error, handler) => handler.next(error),''';
+
+    final retryConst = withAuthFeature
+        ? "\n\nconst _kRetriedAfterRefresh = '__retried_after_refresh__';"
+        : '';
+
+    return '''
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -709,30 +826,26 @@ import 'package:flutter/foundation.dart';
 
 import '../../config/env/app_env.dart';
 import '../constants/api_constants.dart';
-import '../security/secure_storage.dart';
+${exceptionImport}import '../security/secure_storage.dart';
 import '../utils/app_logger.dart';
 
 final _log = appLogger.scoped('Dio');
 
 const _kPublicEndpoints = <String>[
-  // Routes that never receive the Authorization header (and are never
-  // retried after a token refresh). Adjust to your API contract.
-  '/auth/login',
-  '/auth/register',
-  '/auth/refresh',
+$publicEndpoints
 ];
 
 bool _isPublicPath(String path) {
   final cleanPath = path.split('?').first;
   return _kPublicEndpoints.any(
-    (endpoint) => cleanPath == endpoint || cleanPath.startsWith('$endpoint/'),
+    (endpoint) => cleanPath == endpoint || cleanPath.startsWith('\$endpoint/'),
   );
 }
 
 /// Builds the app's one Dio client. Registered as a lazy singleton in
-/// `config/di/injector.dart` — the auth interceptor and the single-flight
-/// refresh guard below only work if every call shares the same instance.
-Dio buildDioClient(TokenStorage storage) {
+/// `config/di/injector.dart` — the auth interceptor only works if every call
+/// shares the same instance.
+$refreshParam
   final dio = Dio(
     BaseOptions(
       baseUrl: AppEnv.baseUrl,
@@ -755,108 +868,35 @@ Dio buildDioClient(TokenStorage storage) {
           if (!isPublicEndpoint) {
             final token = await storage.accessToken;
             if (token != null) {
-              options.headers['Authorization'] = 'Bearer $token';
+              options.headers['Authorization'] = 'Bearer \$token';
             }
           }
           handler.next(options);
         },
-        onError: (error, handler) async {
-          final status = error.response?.statusCode;
-          final alreadyRetried =
-              error.requestOptions.extra[_kRetriedAfterRefresh] == true;
-          if (status != 401 ||
-              alreadyRetried ||
-              _isPublicPath(error.requestOptions.path)) {
-            return handler.next(error);
-          }
-
-          // Session expired — refresh the access token, then retry once.
-          final refreshed = await _refreshSession(storage);
-          if (!refreshed) {
-            // Refresh token missing/expired: clear the session so the auth
-            // state holder / router redirect can send the user back to login.
-            await storage.clearSession();
-            return handler.next(error);
-          }
-
-          try {
-            final options = error.requestOptions
-              ..extra[_kRetriedAfterRefresh] = true;
-            // Re-entering the chain lets onRequest attach the new token.
-            final response = await dio.fetch<dynamic>(options);
-            return handler.resolve(response);
-          } on DioException catch (retryError) {
-            return handler.next(retryError);
-          }
-        },
+$refreshOnError
       ),
     )
     ..interceptors.add(
       RetryInterceptor(dio: dio, logPrint: (msg) => _log.d(msg.toString())),
-    )
-    // Bodies and headers are safe to hand over whole: app_logger.dart redacts
-    // credentials at the sink, so nothing here has to remember to.
-    ..interceptors.add(
+    );
+
+  // Debug builds only. `appLogger` drops anything below a warning in release,
+  // so these records would be thrown away anyway — but `msg.toString()` runs
+  // at the call site, which means every response body in the app would still
+  // be serialised in full first. Bodies and headers are safe to hand over
+  // whole: app_logger.dart redacts credentials at the sink.
+  if (kDebugMode) {
+    dio.interceptors.add(
       LogInterceptor(
         requestBody: true,
         responseBody: true,
         logPrint: (msg) => _log.d(msg.toString()),
       ),
     );
+  }
 
   return dio;
-}
-
-const _kRetriedAfterRefresh = '__retried_after_refresh__';
-
-/// Single-flight guard: concurrent 401s share one refresh call instead of
-/// racing each other with the same refresh token.
-Future<bool>? _ongoingRefresh;
-
-Future<bool> _refreshSession(TokenStorage storage) {
-  return _ongoingRefresh ??= _doRefresh(storage).whenComplete(() {
-    _ongoingRefresh = null;
-  });
-}
-
-Future<bool> _doRefresh(TokenStorage storage) async {
-  final refreshToken = await storage.refreshToken;
-  if (refreshToken == null) return false;
-  try {
-    // Bare client (no interceptors), so a failing refresh can't loop back
-    // into the 401 handler above.
-    final refreshDio = Dio(
-      BaseOptions(
-        baseUrl: AppEnv.baseUrl,
-        connectTimeout: ApiConstants.connectTimeout,
-        receiveTimeout: ApiConstants.receiveTimeout,
-        headers: const {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      ),
-    );
-    _configureHttpClient(refreshDio);
-    final response = await refreshDio.post<dynamic>(
-      '/auth/refresh',
-      data: {'refreshToken': refreshToken},
-    );
-    final data = response.data as Map<String, dynamic>;
-    // Adjust the keys to your API contract. Backends that don't rotate the
-    // refresh token only return a new access token.
-    final newAccessToken = data['accessToken'] as String?;
-    final newRefreshToken = data['refreshToken'] as String? ?? refreshToken;
-    if (newAccessToken == null) return false;
-    await storage.saveSession(
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
-    );
-    return true;
-  } catch (error) {
-    _log.w('Session refresh failed', error: error);
-    return false;
-  }
-}
+}$retryConst
 
 void _configureHttpClient(Dio dio) {
   dio.httpClientAdapter = IOHttpClientAdapter(
@@ -865,7 +905,7 @@ void _configureHttpClient(Dio dio) {
       if (kDebugMode) {
         client.badCertificateCallback = (cert, host, port) {
           _log.w(
-            'Certificate verification skipped for $host (debug mode)',
+            'Certificate verification skipped for \$host (debug mode)',
           );
           return true;
         };
@@ -875,4 +915,5 @@ void _configureHttpClient(Dio dio) {
   );
 }
 ''';
+  }
 }

@@ -35,7 +35,6 @@ abstract final class InjectorUtils {
     required bool hasRemote,
     required bool hasLocal,
     required bool hasRepository,
-    required bool hasUseCase,
     required bool hasBloc,
     required bool useFirestore,
   }) {
@@ -58,37 +57,16 @@ ${[
         ].join('\n')}
     ),
   );''',
-      if (hasUseCase)
-        '''  getIt.registerLazySingleton<Get$className>(
-    () => Get$className(getIt<${className}Repository>()),
-  );''',
       if (hasBloc)
         '''  // A factory, not a singleton: the screen's BlocProvider creates it and
   // closing the route closes it, subscriptions and all.
   getIt.registerFactory<${className}Bloc>(
-    () => ${className}Bloc(getIt<${_blocDependency(
-          className: className,
-          hasUseCase: hasUseCase,
-          useFirestore: useFirestore,
-        )}>()),
+    () => ${className}Bloc(getIt<${className}Repository>()),
   );''',
     ];
 
     return lines.join('\n');
   }
-
-  /// What a feature's bloc takes in its constructor.
-  ///
-  /// A use case is the presentation layer's one way in when there is one — so
-  /// the bloc takes that rather than the repository as well. The Firestore
-  /// variant is the exception: its live query is on the repository, which a
-  /// use case does not wrap.
-  static String _blocDependency({
-    required String className,
-    required bool hasUseCase,
-    required bool useFirestore,
-  }) =>
-      hasUseCase && !useFirestore ? 'Get$className' : '${className}Repository';
 
   /// The import lines a feature's registrations need.
   static List<String> importsFor({
@@ -96,7 +74,6 @@ ${[
     required bool hasRemote,
     required bool hasLocal,
     required bool hasRepository,
-    required bool hasUseCase,
     required bool hasBloc,
     required bool useFirestore,
   }) {
@@ -112,8 +89,6 @@ ${[
         "import '../../features/$featureName/data/repositories/${featureName}_repository_impl.dart';",
       if (hasRepository)
         "import '../../features/$featureName/domain/repositories/${featureName}_repository.dart';",
-      if (hasUseCase)
-        "import '../../features/$featureName/domain/usecases/get_$featureName.dart';",
       if (hasBloc)
         "import '../../features/$featureName/presentation/blocs/${featureName}_bloc.dart';",
     ];

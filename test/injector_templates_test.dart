@@ -79,7 +79,6 @@ void main() {
         riverpod.FeatureTemplates.localDatasource('orders', 'Orders', 'orders'),
         riverpod.FeatureTemplates.repositoryImpl('orders', 'Orders', 'orders',
             hasRemote: true, hasLocal: false),
-        riverpod.FeatureTemplates.usecase('orders', 'Orders', 'orders'),
       ];
 
       for (final output in outputs) {
@@ -91,13 +90,13 @@ void main() {
       // Constructor injection all the way down — injector.dart resolves it.
       expect(
           outputs.first, contains('const OrdersRemoteDataSource(this._dio);'));
-      expect(outputs.last, contains('const GetOrders(this._repository);'));
+      expect(
+          outputs.last, contains('const OrdersRepositoryImpl(this._remote);'));
     });
 
     test('the notifier is the seam: a provider that reads getIt', () {
-      final output = riverpod.FeatureTemplates.notifier(
-          'orders', 'Orders', 'orders',
-          hasUseCase: false);
+      final output =
+          riverpod.FeatureTemplates.notifier('orders', 'Orders', 'orders');
 
       expect(
         output,
@@ -112,26 +111,11 @@ void main() {
       expect(output, isNot(contains('package:get_it/get_it.dart')));
     });
 
-    test('a use case is what the notifier takes when there is one', () {
-      final withUseCase = riverpod.FeatureTemplates.notifier(
-          'orders', 'Orders', 'orders',
-          hasUseCase: true);
-
-      expect(withUseCase,
-          contains('GetOrders get _getOrders => getIt<GetOrders>();'));
-      expect(withUseCase,
-          contains("import '../../domain/usecases/get_orders.dart';"));
-      // Two ways into the same data is one too many.
-      expect(withUseCase, isNot(contains('OrdersRepository')));
-    });
-
-    test('the live variant takes the repository, use case or not', () {
-      // watchAll() is the repository's; a use case wraps the one-off fetch.
+    test('the live variant subscribes to the repository', () {
       final output = riverpod.FeatureTemplates.notifier(
         'orders',
         'Orders',
         'orders',
-        hasUseCase: true,
         useFirestore: true,
       );
 

@@ -3,7 +3,7 @@ import '../../utils/state_management.dart';
 /// The `lib/config/di/injector.dart` service locator, for both stacks.
 ///
 /// Dependency injection is get_it's job whichever stack the project took:
-/// clients, services, datasources, repositories and use cases are all
+/// clients, services, datasources and repositories are all
 /// constructed once and handed out by type, and none of that has anything to
 /// do with how state is held.
 ///
@@ -91,10 +91,25 @@ abstract final class InjectorTemplates {
         '    ..registerLazySingleton<GoogleSignIn>(() => GoogleSignIn.instance)',
       '    ..registerLazySingleton<FlutterSecureStorage>(\n        () => const FlutterSecureStorage())',
       '    ..registerLazySingleton<TokenStorage>(\n        () => TokenStorage(getIt<FlutterSecureStorage>()))',
-      if (withDio)
+      if (withDio && withAuthFeature && !withFirebaseAuthFeature)
         '''
-    // One client for the whole app: the auth interceptor and the
-    // single-flight refresh guard only work if everyone shares it.
+    // One client for the whole app: the auth interceptor only works if
+    // everyone shares it.
+    ..registerLazySingleton<Dio>(
+      () => buildDioClient(
+        getIt<TokenStorage>(),
+        // Looked up when a 401 actually happens, not now — the repository is
+        // built on this very client, so resolving it here would be a cycle.
+        // One repository singleton is also what makes the refresh
+        // single-flight: concurrent 401s wait on the same call instead of
+        // racing each other with the same refresh token.
+        refreshSession: () => getIt<AuthRepository>().refresh(),
+      ),
+    )'''
+      else if (withDio)
+        '''
+    // One client for the whole app: the auth interceptor only works if
+    // everyone shares it.
     ..registerLazySingleton<Dio>(() => buildDioClient(getIt<TokenStorage>()))''',
     ];
 

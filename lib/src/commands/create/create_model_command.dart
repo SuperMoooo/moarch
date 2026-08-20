@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import '../../templates/riverpod/feature_templates.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/json_model_builder.dart';
+import '../../utils/project_paths.dart';
 import '../../utils/string_utils.dart';
 
 /// COMMAND FOR MODEL CREATION
@@ -19,7 +20,7 @@ class CreateModelCommand extends Command<int> {
       'path',
       abbr: 'p',
       defaultsTo: 'lib',
-      help: 'Path to lib/ directory.',
+      help: 'Path to the lib/ directory, or the project root holding it.',
     );
     argParser.addFlag(
       'empty',
@@ -62,7 +63,7 @@ class CreateModelCommand extends Command<int> {
     final modelName = StringUtils.toSnakeCase(rest[1]);
     final modelClass = StringUtils.toPascalCase(rest[1]);
 
-    final libPath = argResults?['path'] as String? ?? 'lib';
+    final libPath = resolveLibPath(argResults?['path'] as String? ?? 'lib');
     final featurePath = p.join(libPath, 'features', featureName);
 
     // Guard — feature must exist

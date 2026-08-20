@@ -206,7 +206,7 @@ class ErrorTemplates {
 $imports
 import '../../core/utils/app_logger.dart';
 
-enum AppExceptionType { network, server, notFound, cache, parsing, auth, cancelled, unknown }
+enum AppExceptionType { network, server, notFound, auth, cancelled, unknown }
 
 class AppException implements Exception {
   const AppException._({
@@ -221,10 +221,6 @@ class AppException implements Exception {
 
   @override
   String toString() => 'AppException(message: \$message, statusCode: \$statusCode, type: \$type)';
-
-  factory AppException.test() {
-    return const AppException._(message: "Test exception", statusCode: 400, type: AppExceptionType.unknown);
-  }
 
   factory AppException.noInternet() => const AppException._(
         message: 'No internet connection',

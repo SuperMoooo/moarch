@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import '../../templates/stack_templates.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/injector_utils.dart';
+import '../../utils/project_paths.dart';
 import '../../utils/state_management.dart';
 import '../../utils/string_utils.dart';
 
@@ -23,7 +24,7 @@ class CreateBlocCommand extends Command<int> {
         'path',
         abbr: 'p',
         defaultsTo: 'lib',
-        help: 'Path to lib/ directory.',
+        help: 'Path to the lib/ directory, or the project root holding it.',
       )
       ..addFlag(
         'firestore',
@@ -53,7 +54,7 @@ class CreateBlocCommand extends Command<int> {
       return 1;
     }
 
-    final libPath = argResults?['path'] as String? ?? 'lib';
+    final libPath = resolveLibPath(argResults?['path'] as String? ?? 'lib');
     final stateManagement = StateManagement.detect(libPath);
 
     // A Riverpod project has no bloc to add. Say what it does have rather
@@ -175,7 +176,6 @@ class CreateBlocCommand extends Command<int> {
           blocName,
           className,
           varName,
-          hasUseCase: false,
           useFirestore: useFirestore,
           // The feature's repository, not one named after this bloc: a
           // second screen in a feature reads the same data layer.

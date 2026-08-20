@@ -621,14 +621,28 @@ final class AuthUnauthenticated extends AuthState {
   const AuthUnauthenticated();
 }
 
-/// An attempt failed. Still signed out — the login screen shows [message].
+/// An attempt failed.
+///
+/// [userId] is what the failure did *not* change: null means the app is
+/// signed out and the login screen shows [message]; non-null means the
+/// session survived — a delete Firebase refused, a password reset that
+/// bounced — and the screen that asked for it shows [message] without the
+/// user being bounced to login.
 final class AuthFailure extends AuthState {
-  const AuthFailure(this.message);
+  const AuthFailure(this.message, {this.userId});
 
   final String message;
 
+  /// The still-signed-in user, or null when this failure left the app
+  /// signed out.
+  final String? userId;
+
+  /// Whether the session outlived the failure. The router redirect reads
+  /// this — see `config/router/app_router.dart`.
+  bool get authenticated => userId != null;
+
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message, userId];
 }
 ''';
 
@@ -851,10 +865,18 @@ $syncOnRestore
   ) async {
     // Sent from the login screen, so the session does not change either way.
     // Only the failure is worth a state; the screen confirms the send itself.
+    final current = state;
     try {
       await _repo.sendPasswordResetEmail(email: event.email);
     } on AppException catch (e) {
-      emit(AuthFailure(e.message));
+      // Carrying the session through keeps a signed-in user signed in, and
+      // gives two identical failures in a row two distinct states — without
+      // it the second `emit` equals the first and bloc drops it, so a
+      // repeated typo in the email address would report nothing.
+      emit(AuthFailure(
+        e.message,
+        userId: current is AuthAuthenticated ? current.userId : null,
+      ));
     }
   }
 
@@ -871,21 +893,23 @@ $syncOnRestore
     AuthAccountDeleted event,
     Emitter<AuthState> emit,
   ) async {
-    if (state is! AuthAuthenticated) return;
+    final current = state;
+    if (current is! AuthAuthenticated) return;
 
-    // No AuthLoading and no AuthFailure around this one, deliberately: the
-    // router keys on this state, so either would read as "not signed in" and
-    // bounce a user who still is. The screen showing the confirm dialog owns
-    // the spinner and the error message; the bloc only reports the one
-    // outcome that changes the session.
+    // No AuthLoading around this one, deliberately: the router keys on this
+    // state and would read a loading state as "not signed in", bouncing a
+    // user who still is. The screen showing the confirm dialog owns the
+    // spinner. A failure does get reported — carrying the userId, which is
+    // what tells the redirect the session is still good.
     //
     // Firebase refuses a delete on an old session with
-    // `requires-recent-login`, which is the common failure here.
+    // `requires-recent-login`, which is the common failure here, so this
+    // branch is worth drawing: it is how the screen knows to re-authenticate.
     try {
       await _repo.deleteAccount();
       emit(const AuthUnauthenticated());
-    } on AppException catch (_) {
-      // The account is still there, so the session is. Nothing to change.
+    } on AppException catch (e) {
+      emit(AuthFailure(e.message, userId: current.userId));
     }
   }
 

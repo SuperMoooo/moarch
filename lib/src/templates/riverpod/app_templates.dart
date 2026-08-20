@@ -498,6 +498,7 @@ String? _redirect(Ref ref, GoRouterState state) {
         : '';
 
     return '''
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -511,7 +512,9 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
 $options
-    debugLogDiagnostics: true,
+    // Debug builds only: the route log is noise in release, and the
+    // locations it prints can carry path parameters worth not logging.
+    debugLogDiagnostics: kDebugMode,
     routes: [
 $authRoutes      GoRoute(
         path: AppRoutes.home,

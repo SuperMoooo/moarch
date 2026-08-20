@@ -145,6 +145,11 @@ class ScaffoldContext {
   /// have taken the REST auth feature.
   bool get hasFirebaseAuthFeature =>
       hasFile('lib/features/auth/domain/entities/auth_user_entity.dart');
+
+  /// The auth feature was generated against the REST client — the variant
+  /// that owns a refresh token, and so the only one whose `/auth/*` paths and
+  /// refresh callback the Dio client has anything to do with.
+  bool get hasRestAuthFeature => hasAuthFeature && !hasFirebaseAuthFeature;
 }
 
 /// One generated file outside the widget kit that `moarch update` can refresh.
@@ -297,7 +302,8 @@ abstract final class ScaffoldCatalog {
       title: 'ApiConstants',
       path: 'lib/core/constants/api_constants.dart',
       category: 'Core',
-      template: (_) => CoreTemplates.apiConstants(),
+      template: (c) =>
+          CoreTemplates.apiConstants(withAuthFeature: c.hasRestAuthFeature),
       description: 'Endpoint paths and API timeouts.',
     ),
     ScaffoldSpec(
@@ -328,7 +334,7 @@ abstract final class ScaffoldCatalog {
       title: 'DioClient',
       path: 'lib/core/network/dio_client.dart',
       category: 'Network',
-      template: (c) => c.stack.dioClient(),
+      template: (c) => c.stack.dioClient(withAuthFeature: c.hasRestAuthFeature),
       description:
           'REST client with retry and the secure-storage auth/refresh interceptor.',
     ),
@@ -784,7 +790,10 @@ abstract final class ScaffoldCatalog {
       title: 'analysis_options.yaml',
       path: 'analysis_options.yaml',
       category: 'Project',
-      template: (_) => DevTemplates.analysisOptions(),
+      // The stack matters here: without it a refresh rewrites a bloc
+      // project's file as the Riverpod one and drops the `bloc:` ruleset.
+      template: (c) =>
+          DevTemplates.analysisOptions(stateManagement: c.stateManagement),
       description: "The scaffold's lint contract.",
     ),
     ScaffoldSpec(

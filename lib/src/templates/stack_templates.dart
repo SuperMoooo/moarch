@@ -151,7 +151,8 @@ class StackTemplates {
       : riverpod.AppTemplates.languageService();
 
   /// The REST client. One body for both stacks — see [CoreTemplates.dioClient].
-  String dioClient() => CoreTemplates.dioClient();
+  String dioClient({bool withAuthFeature = false}) =>
+      CoreTemplates.dioClient(withAuthFeature: withAuthFeature);
 
   /// The get_it service locator.
   ///
@@ -235,11 +236,6 @@ class StackTemplates {
               useFirestore: useFirestore)
           : riverpod.FeatureTemplates.repositoryInterface(name, cls,
               useFirestore: useFirestore);
-
-  /// The use case wrapping one repository call.
-  String featureUsecase(String name, String cls, String varName) => isBloc
-      ? bloc.FeatureTemplates.usecase(name, cls, varName)
-      : riverpod.FeatureTemplates.usecase(name, cls, varName);
 
   /// The data model.
   String featureModel(String name, String cls, {bool useFirestore = false}) =>
@@ -341,7 +337,6 @@ class StackTemplates {
     String name,
     String cls,
     String varName, {
-    required bool hasUseCase,
     bool useFirestore = false,
     String? repositoryName,
     String? repositoryClass,
@@ -351,7 +346,6 @@ class StackTemplates {
               name,
               cls,
               varName,
-              hasUseCase: hasUseCase,
               useFirestore: useFirestore,
               repositoryName: repositoryName,
               repositoryClass: repositoryClass,
@@ -360,7 +354,6 @@ class StackTemplates {
               name,
               cls,
               varName,
-              hasUseCase: hasUseCase,
               useFirestore: useFirestore,
             );
 

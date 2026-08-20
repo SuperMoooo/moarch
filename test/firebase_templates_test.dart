@@ -288,7 +288,6 @@ void main() {
         'order',
         'Order',
         'order',
-        hasUseCase: false,
         useFirestore: true,
       );
 
@@ -304,7 +303,7 @@ void main() {
 
       // The REST notifier still starts from nothing.
       expect(
-        FeatureTemplates.notifier('order', 'Order', 'order', hasUseCase: false),
+        FeatureTemplates.notifier('order', 'Order', 'order'),
         contains('return const OrderState();'),
       );
     });

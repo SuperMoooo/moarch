@@ -34,13 +34,36 @@ enum StateManagement {
           ? StateManagement.bloc
           : StateManagement.riverpod;
 
-  /// Reads the stack off the project owning [libPath] (its parent's
-  /// `pubspec.yaml`).
+  /// Reads the stack off the project owning [libPath], by walking up from it
+  /// until a `pubspec.yaml` turns up.
+  ///
+  /// Walking rather than looking only at the parent, because `--path` does
+  /// not mean the same thing everywhere: `init` takes a project root and the
+  /// `create` commands take a `lib/`. Checking one level up found nothing for
+  /// `create feature -p .` in a bloc project and quietly generated Riverpod
+  /// into it — the wrong answer, from a lookup that should simply have
+  /// searched a little further.
+  ///
+  /// Only a project with no `pubspec.yaml` anywhere above it still falls back
+  /// to Riverpod, which is what projects scaffolded before this option
+  /// existed use.
   static StateManagement detect(String libPath) {
-    final pubspecFile =
-        File(p.join(p.dirname(p.absolute(libPath)), 'pubspec.yaml'));
-    if (!pubspecFile.existsSync()) return StateManagement.riverpod;
-    return fromPubspec(pubspecFile.readAsStringSync());
+    final pubspec = findPubspec(libPath);
+    if (pubspec == null) return StateManagement.riverpod;
+    return fromPubspec(pubspec.readAsStringSync());
+  }
+
+  /// The nearest `pubspec.yaml` at or above [path], or null if there is none.
+  static File? findPubspec(String path) {
+    var dir = Directory(p.absolute(path));
+    while (true) {
+      final pubspec = File(p.join(dir.path, 'pubspec.yaml'));
+      if (pubspec.existsSync()) return pubspec;
+      final parent = dir.parent;
+      // `parent` of a root is the root itself, which is where this stops.
+      if (p.equals(parent.path, dir.path)) return null;
+      dir = parent;
+    }
   }
 
   /// Whether this is the bloc stack — the flag templates branch on.

@@ -11,6 +11,7 @@ import '../../utils/checklist.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/injector_utils.dart';
 import '../../utils/project_manifest.dart';
+import '../../utils/project_paths.dart';
 import '../../utils/pubspec_utils.dart';
 import '../../utils/scaffold_catalog.dart';
 import '../../utils/state_management.dart';
@@ -25,7 +26,6 @@ const _kDioDatasource = 'Remote Datasource (Dio)';
 const _kFirestoreDatasource = 'Remote Datasource (Firestore)';
 const _kLocalDatasource = 'Local/Cache Datasource';
 const _kRepository = 'Repository (interface + impl)';
-const _kUseCases = 'Use Cases';
 const _kView = 'View';
 
 /// Creates the feature subcommand for scaffolding.
@@ -37,7 +37,7 @@ class CreateFeatureCommand extends Command<int> {
         'path',
         abbr: 'p',
         defaultsTo: 'lib',
-        help: 'Path to lib/ directory.',
+        help: 'Path to the lib/ directory, or the project root holding it.',
       )
       ..addFlag(
         'all',
@@ -71,7 +71,7 @@ class CreateFeatureCommand extends Command<int> {
     final featureName = StringUtils.toSnakeCase(rest.first);
     final className = StringUtils.toPascalCase(rest.first);
     final varName = StringUtils.toCamelCase(rest.first);
-    final libPath = argResults?['path'] as String? ?? 'lib';
+    final libPath = resolveLibPath(argResults?['path'] as String? ?? 'lib');
     final featurePath = p.join(libPath, 'features', featureName);
     final featureExists = Directory(featurePath).existsSync();
 
@@ -108,18 +108,11 @@ class CreateFeatureCommand extends Command<int> {
         templates.holderDir,
         templates.holderFile(featureName),
       )).existsSync();
-      final hasUseCase = File(p.join(
-        featurePath,
-        'domain',
-        'usecases',
-        'get_$featureName.dart',
-      )).existsSync();
 
       final selected = <String>{
         if (hasRemote) _kRemoteDatasource,
         if (hasRepo) _kRepository,
         if (hasHolder) holderItem,
-        if (hasUseCase) _kUseCases,
       };
 
       _printTree(
@@ -159,7 +152,6 @@ class CreateFeatureCommand extends Command<int> {
         _kRemoteDatasource,
         _kLocalDatasource,
         _kRepository,
-        _kUseCases,
         holderItem,
         _kView,
       };
@@ -201,12 +193,6 @@ class CreateFeatureCommand extends Command<int> {
               description:
                   'Interface + implementation combining the datasources.',
             ),
-            const ChecklistItem(
-              _kUseCases,
-              defaultOn: false,
-              description:
-                  'Domain-layer use case wrapping the repository call.',
-            ),
             ChecklistItem(
               holderItem,
               defaultOn: true,
@@ -239,13 +225,12 @@ class CreateFeatureCommand extends Command<int> {
       useFirestore = false;
     }
 
-    // The use case and state holder depend on the repository, so generating
-    // them without it would produce broken imports.
-    if ((selected.contains(_kUseCases) || selected.contains(holderItem)) &&
-        !selected.contains(_kRepository)) {
+    // The state holder depends on the repository, so generating it without
+    // one would produce broken imports.
+    if (selected.contains(holderItem) && !selected.contains(_kRepository)) {
       selected.add(_kRepository);
-      _logger.info('  Note: Repository layer added — Use Cases / '
-          '${templates.holderLabel} depend on it.');
+      _logger.info('  Note: Repository layer added — '
+          '${templates.holderLabel} depends on it.');
     }
 
     _logger.info('');
@@ -253,8 +238,8 @@ class CreateFeatureCommand extends Command<int> {
     _logger.info('');
 
     // The model is only used by the datasources, and the entity only by the
-    // repository/use case layers (and the model) — skip both when no data
-    // layer was selected.
+    // repository layer (and the model) — skip both when no data layer was
+    // selected.
     final needsDataLayer = selected.contains(_kRemoteDatasource) ||
         selected.contains(_kLocalDatasource) ||
         selected.contains(_kRepository);
@@ -303,10 +288,6 @@ class CreateFeatureCommand extends Command<int> {
         await _writeEntity(featurePath, featureName, className, templates,
             useFirestore: useFirestore);
       }
-      if (selected.contains(_kUseCases)) {
-        await _writeUsecase(
-            featurePath, featureName, className, varName, templates);
-      }
       if (selected.contains(holderItem)) {
         await _writeState(featurePath, featureName, className, templates,
             useFirestore: useFirestore);
@@ -316,7 +297,6 @@ class CreateFeatureCommand extends Command<int> {
           className,
           varName,
           templates,
-          hasUseCase: selected.contains(_kUseCases),
           useFirestore: useFirestore,
         );
         // The Riverpod state/notifier depend on the shared runAction helper —
@@ -359,7 +339,6 @@ class CreateFeatureCommand extends Command<int> {
           hasRemote: selected.contains(_kRemoteDatasource),
           hasLocal: selected.contains(_kLocalDatasource),
           hasRepository: selected.contains(_kRepository),
-          hasUseCase: selected.contains(_kUseCases),
           hasBloc: hasBloc,
           useFirestore: useFirestore,
         ),
@@ -368,7 +347,6 @@ class CreateFeatureCommand extends Command<int> {
           hasRemote: selected.contains(_kRemoteDatasource),
           hasLocal: selected.contains(_kLocalDatasource),
           hasRepository: selected.contains(_kRepository),
-          hasUseCase: selected.contains(_kUseCases),
           hasBloc: hasBloc,
           useFirestore: useFirestore,
         ),
@@ -401,8 +379,7 @@ class CreateFeatureCommand extends Command<int> {
     // of it either.
     final needsInjector = selected.contains(_kRemoteDatasource) ||
         selected.contains(_kLocalDatasource) ||
-        selected.contains(_kRepository) ||
-        selected.contains(_kUseCases);
+        selected.contains(_kRepository);
     if (needsInjector) {
       if (registeredInInjector) {
         _logger.info('  Registered in ${InjectorUtils.path}.');
@@ -413,7 +390,7 @@ class CreateFeatureCommand extends Command<int> {
         _logger.warn(
             '  Nothing was registered in ${InjectorUtils.path} — add the');
         _logger.info('  datasource, repository and '
-            '${templates.isBloc ? 'bloc' : 'use case'} there yourself, or put');
+            '${templates.holderLabel} there yourself, or put');
         _logger.info('  back the `${InjectorUtils.anchor}` comment.');
       }
       _logger.info('');
@@ -592,19 +569,6 @@ class CreateFeatureCommand extends Command<int> {
     );
   }
 
-  Future<void> _writeUsecase(
-    String fp,
-    String name,
-    String cls,
-    String varName,
-    StackTemplates templates,
-  ) async {
-    await FileUtils.writeFile(
-      p.join(fp, 'domain', 'usecases', 'get_$name.dart'),
-      templates.featureUsecase(name, cls, varName),
-    );
-  }
-
   Future<void> _writeState(
     String fp,
     String name,
@@ -625,7 +589,6 @@ class CreateFeatureCommand extends Command<int> {
     String cls,
     String varName,
     StackTemplates templates, {
-    required bool hasUseCase,
     bool useFirestore = false,
   }) async {
     final eventFile = templates.eventFile(name);
@@ -638,8 +601,7 @@ class CreateFeatureCommand extends Command<int> {
     await FileUtils.writeFile(
       p.join(
           fp, 'presentation', templates.holderDir, templates.holderFile(name)),
-      templates.featureHolder(name, cls, varName,
-          hasUseCase: hasUseCase, useFirestore: useFirestore),
+      templates.featureHolder(name, cls, varName, useFirestore: useFirestore),
     );
   }
 
@@ -688,16 +650,11 @@ class CreateFeatureCommand extends Command<int> {
         selected.contains(_kRepository);
 
     if (!testsOnly) {
-      if (hasDataLayer || selected.contains(_kUseCases)) {
+      if (hasDataLayer) {
         line('domain/');
-        if (hasDataLayer) {
-          line('├── entities/${name}_entity.dart');
-        }
+        line('├── entities/${name}_entity.dart');
         if (selected.contains(_kRepository)) {
-          line('├── repositories/${name}_repository.dart');
-        }
-        if (selected.contains(_kUseCases)) {
-          line('└── usecases/get_$name.dart');
+          line('└── repositories/${name}_repository.dart');
         }
       }
 

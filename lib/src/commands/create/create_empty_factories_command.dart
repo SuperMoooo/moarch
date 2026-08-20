@@ -5,6 +5,7 @@ import 'package:mason_logger/mason_logger.dart';
 import 'package:path/path.dart' as p;
 
 import '../../utils/model_field_parser.dart';
+import '../../utils/project_paths.dart';
 import '../../utils/string_utils.dart';
 
 /// Injects `.empty()` factories into every entity file in a feature (or all features).
@@ -15,7 +16,7 @@ class CreateEmptyFactoriesCommand extends Command<int> {
       'path',
       abbr: 'p',
       defaultsTo: 'lib',
-      help: 'Path to lib/ directory.',
+      help: 'Path to the lib/ directory, or the project root holding it.',
     );
     argParser.addFlag(
       'dry-run',
@@ -40,7 +41,7 @@ class CreateEmptyFactoriesCommand extends Command<int> {
   @override
   Future<int> run() async {
     final rest = argResults?.rest ?? [];
-    final libPath = argResults?['path'] as String? ?? 'lib';
+    final libPath = resolveLibPath(argResults?['path'] as String? ?? 'lib');
     final dryRun = argResults?['dry-run'] as bool? ?? false;
     final featuresDir = Directory(p.join(libPath, 'features'));
 

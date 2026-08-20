@@ -131,7 +131,7 @@ What the templates produce, since most changes here are about it:
 lib/config/{di,env,theme,router,firebase}
 lib/core/{constants,errors,network,security,services,utils}
 lib/features/<feature>/{data/{datasources,models,repositories},
-                        domain/{entities,repositories,usecases},
+                        domain/{entities,repositories},
                         presentation/{notifiers|blocs,states,views,pages}}
 lib/shared/widgets/                          docs/*.md   .moarch.yaml   .fvmrc
 ```

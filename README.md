@@ -242,8 +242,8 @@ and `AuthFailure`.
 ### Dependencies live in one file
 
 `lib/config/di/injector.dart` holds every dependency, **in both stacks**:
-clients, services, datasources, repositories and use cases are constructed
-once and handed out by type. `moarch create feature` **writes into it** at the
+clients, services, datasources and repositories are constructed once and
+handed out by type. `moarch create feature` **writes into it** at the
 `// moarch:registrations` anchor:
 
 ```dart
