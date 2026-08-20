@@ -10,6 +10,7 @@ topics:
     - scaffolding
     - clean-architecture
     - riverpod
+    - flutter_bloc
     - codegen
 
 environment:
