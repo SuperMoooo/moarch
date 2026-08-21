@@ -133,7 +133,7 @@ lib/core/{constants,errors,network,security,services,utils}
 lib/features/<feature>/{data/{datasources,models,repositories},
                         domain/{entities,repositories},
                         presentation/{notifiers|blocs,states,views,pages}}
-lib/shared/widgets/                          docs/*.md   .moarch.yaml   .fvmrc
+lib/shared/widgets/              README.md   docs/*.md   .moarch.yaml   .fvmrc
 ```
 
 Generated projects are FVM-pinned, so their commands run as `fvm flutter …` /

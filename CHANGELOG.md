@@ -2,6 +2,44 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 6.1.0
+
+### Features
+
+- `init` now writes the project's own `README.md` — the one generated document
+  aimed at a person rather than a task, written for someone who has never
+  worked on a Clean Architecture Flutter app. Thirteen sections: what the
+  project is and why the dependency rule shapes the folders; a first-run
+  walkthrough from installing FVM through `.env` and `build_runner` to
+  `fvm flutter run`, with a table of what to do when each step fails; the
+  tooling and the packages that shape how the code is written; an annotated
+  tree; one piece of data traced entity → model → repository → get_it →
+  `AppException`; the state stack the project actually took; `moarch create
+  feature` and the five steps that are still yours; flavors; the build
+  commands and where the artefacts land; the workflows and every secret they
+  read; the conventions the analyzer cannot check; contacts and access; and
+  where the rest of `docs/` picks up.
+
+  It replaces the README `flutter create` leaves behind and only that one —
+  matched on two of its own sentences, the same way `main.dart` and
+  `widget_test.dart` already are, so a README you wrote is never touched.
+
+- The README is a catalog entry, so `moarch update readme` refreshes it and
+  `--diff` shows what a refresh would change. Like every other template it
+  reads its options back off the project rather than remembering them: the
+  state stack, the packages, the workflows, and now the flavors — `init` runs
+  before `moarch create flavors` exists, so a fresh project gets the flavor
+  setup walkthrough, and the same file rewrites itself with the real flavor
+  names, run commands and artefact paths once `flavorizr.yaml` is on disk.
+
+  Two sections are `[bracketed]` placeholders instead: the owner line and
+  **Contacts & access**, which no detection can fill in.
+
+- `ScaffoldContext` gained `projectName`, `flavorNames` and `hasWorkflows`.
+  `flavorNames` scans `flavorizr.yaml` rather than parsing it as YAML: that
+  file is edited by hand, and a malformed one should cost the README its
+  flavor list, not make every template in the catalog throw.
+
 ## 6.0.0
 
 **Breaking on update, not on init.** A project scaffolded with 6.0.0 is fine.

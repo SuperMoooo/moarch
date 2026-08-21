@@ -83,6 +83,7 @@ moarch doctor --fix  # ...and apply the ones that don't need a decision
 ## What it generates
 
 - `lib/main.dart`, `core/`, `config/`, `shared/`, and `features/`
+- `README.md` — the project's own guide, written for someone who has never worked on a Clean Architecture Flutter app: the first run through FVM, a layer-by-layer walkthrough of the generated code, a state-management section for whichever stack you picked, flavors, the build commands, and the CI secrets (pointing at `docs/` for the step-by-step). It replaces the stock `flutter create` README and only that one — a README you wrote is left alone, and `moarch update readme --diff` shows what a refresh would change
 - Riverpod **or** flutter_bloc (see below) + optional GoRouter setup
 - Envied-based `.env` support
 - secure storage, logger, helpers, and a full shared UI kit / design system (see below)

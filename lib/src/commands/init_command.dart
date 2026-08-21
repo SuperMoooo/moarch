@@ -9,6 +9,7 @@ import 'package:moarch/src/templates/misc/android_templates.dart';
 import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/templates/misc/docs_templates.dart';
 import 'package:moarch/src/templates/misc/ios_templates.dart';
+import 'package:moarch/src/templates/misc/readme_templates.dart';
 import 'package:moarch/src/templates/misc/workflow_templates.dart';
 import 'package:moarch/src/utils/checklist.dart';
 import 'package:path/path.dart' as p;
@@ -25,6 +26,7 @@ import '../utils/plist_utils.dart';
 import '../utils/project_manifest.dart';
 import '../utils/podfile_utils.dart';
 import '../utils/pubspec_utils.dart';
+import '../utils/scaffold_catalog.dart';
 import '../utils/state_management.dart';
 import '../utils/swift_utils.dart';
 import '../utils/widget_catalog.dart';
@@ -600,6 +602,44 @@ class InitCommand extends Command<int> {
           p.join(p.absolute(targetPath), 'analysis_options.yaml'),
           DevTemplates.analysisOptions(stateManagement: stateManagement));
 
+      // The one generated document aimed at a person rather than a task: what
+      // the project is, how to run it, how the layers fit together, where the
+      // rest of docs/ picks up. `flutter create` always leaves its own README
+      // behind and existing files are never clobbered, so — as with main.dart
+      // above — the stock one is replaced explicitly and anything the team
+      // wrote is left alone.
+      //
+      // Flavors are set up later, by `moarch create flavors`, so the flavor
+      // list is empty here and the section generates as the setup walkthrough.
+      // `moarch update readme` re-reads flavorizr.yaml and rewrites it with
+      // the real flavors once they exist.
+      await FileUtils.writeFile(
+        p.join(p.absolute(targetPath), 'README.md'),
+        ReadmeTemplates.projectReadme(
+          projectName:
+              ScaffoldContext.detect(p.absolute(targetPath)).projectName,
+          stateManagement: stateManagement,
+          withDio: stack.contains(_kDio),
+          withRouter: stack.contains(_kRouter),
+          withAuthFeature: stack.contains(_kAuthFeature),
+          withFirebaseAuthFeature: firebaseAuthFeature,
+          withFirebase: stack.contains(_kFirestore) ||
+              stack.contains(_kFirebaseAuth) ||
+              stack.contains(_kCrashlytics) ||
+              stack.contains(_kFirebaseNotifications),
+          withFirestore: stack.contains(_kFirestore),
+          withCrashlytics: stack.contains(_kCrashlytics),
+          withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
+          withNotifications: stack.contains(_kNotificationsService),
+          withLocalization: stack.contains(_kLocalizations),
+          withEasyLocalization: stack.contains(_kEasyLocalization),
+          withBiometric: stack.contains(_kBiometricAuth),
+          withDarkTheme: stack.contains(_kDarkTheme),
+          withWorkflows: stack.contains(_kWorkflows),
+        ),
+        overwriteWhen: _isFlutterStockReadme,
+      );
+
       await FileUtils.writeFile(
         p.join(
             p.absolute(targetPath), 'docs', 'CHECKLIST_BEFORE_DEPLOYMENT.md'),
@@ -1003,6 +1043,15 @@ class InitCommand extends Command<int> {
   static bool _isFlutterCounterDemo(String source) =>
       source.contains('_MyHomePageState') &&
       source.contains('_incrementCounter');
+
+  /// Whether [source] is still the README `flutter create` writes.
+  ///
+  /// Matched on two of its own sentences, so a README the team wrote — even a
+  /// short one that happens to mention Flutter — is never mistaken for it.
+  static bool _isFlutterStockReadme(String source) =>
+      source.contains('A new Flutter project.') &&
+      source.contains(
+          'This project is a starting point for a Flutter application.');
 
   /// Whether [source] is still the counter test `flutter create` writes — the
   /// one that pumps the demo app [_isFlutterCounterDemo] matches.

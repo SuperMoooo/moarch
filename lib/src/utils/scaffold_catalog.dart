@@ -11,6 +11,7 @@ import '../templates/misc/android_templates.dart';
 import '../templates/misc/dev_templates.dart';
 import '../templates/misc/docs_templates.dart';
 import '../templates/misc/ios_templates.dart';
+import '../templates/misc/readme_templates.dart';
 import '../templates/misc/workflow_templates.dart';
 import '../templates/stack_templates.dart';
 import 'state_management.dart';
@@ -150,6 +151,45 @@ class ScaffoldContext {
   /// that owns a refresh token, and so the only one whose `/auth/*` paths and
   /// refresh callback the Dio client has anything to do with.
   bool get hasRestAuthFeature => hasAuthFeature && !hasFirebaseAuthFeature;
+
+  /// The package name from `pubspec.yaml` — what the README calls the project.
+  ///
+  /// Falls back to `app` for a project with no pubspec, which is the same
+  /// case every `hasPackage` above answers false for.
+  String get projectName =>
+      RegExp(r'^name:\s*(\S+)', multiLine: true)
+          .firstMatch(pubspec)
+          ?.group(1) ??
+      'app';
+
+  /// The flavors declared in `flavorizr.yaml`, or empty when the project has
+  /// not run `moarch create flavors`.
+  ///
+  /// Scanned rather than parsed as YAML on purpose: `flavorizr.yaml` is a file
+  /// the developer edits, and a malformed one should leave the README without
+  /// a flavor list, not make every template in the catalog throw.
+  List<String> get flavorNames {
+    final file = File(resolve('flavorizr.yaml'));
+    if (!file.existsSync()) return const [];
+    final names = <String>[];
+    var inFlavors = false;
+    for (final line in file.readAsStringSync().split('\n')) {
+      if (RegExp(r'^flavors:\s*$').hasMatch(line)) {
+        inFlavors = true;
+        continue;
+      }
+      if (!inFlavors) continue;
+      // Any other top-level key ends the block — `instructions:` follows it.
+      if (RegExp(r'^\S').hasMatch(line)) break;
+      final match = RegExp(r'^  ([a-z][a-z0-9]*):\s*$').firstMatch(line);
+      if (match != null) names.add(match.group(1)!);
+    }
+    return names;
+  }
+
+  /// The GitHub Actions workflows were generated — what the README's CI/CD
+  /// section describes, and skips when they are absent.
+  bool get hasWorkflows => hasFile('.github/workflows/build_ipa.yml');
 }
 
 /// One generated file outside the widget kit that `moarch update` can refresh.
@@ -680,6 +720,34 @@ abstract final class ScaffoldCatalog {
     ),
 
     // ── Docs ────────────────────────────────────────────────────────────────
+    ScaffoldSpec(
+      name: 'readme',
+      title: 'Project README',
+      path: 'README.md',
+      category: 'Docs',
+      template: (c) => ReadmeTemplates.projectReadme(
+        projectName: c.projectName,
+        stateManagement: c.stateManagement,
+        flavors: c.flavorNames,
+        withDio: c.hasDio,
+        withRouter: c.hasRouter,
+        withAuthFeature: c.hasAuthFeature,
+        withFirebaseAuthFeature: c.hasFirebaseAuthFeature,
+        withFirebase: c.hasAnyFirebase,
+        withFirestore: c.hasFirestore,
+        withCrashlytics: c.hasCrashlytics,
+        withFirebaseNotifications: c.hasFirebaseNotifications,
+        withNotifications: c.hasNotifications,
+        withLocalization: c.hasLocalization,
+        withEasyLocalization: c.hasEasyLocalization,
+        withBiometric: c.hasBiometric,
+        withDarkTheme: c.hasDarkTheme,
+        withWorkflows: c.hasWorkflows,
+      ),
+      description:
+          'The onboarding guide: how to run the project, how it is laid out, '
+          'how it ships.',
+    ),
     ScaffoldSpec(
       name: 'ui-kit',
       title: 'UI kit catalog',
