@@ -261,4 +261,42 @@ void main() {
   test('shared templates expose empty and success states', () {
     expect(SharedTemplates.emptyView(), contains('class EmptyView'));
   });
+
+  test('the paginated envelope parses leniently and keeps the item key open',
+      () {
+    final output = CoreTemplates.paginated();
+
+    // The item key is the field most likely to be wrong for any given
+    // backend — `results`, `items`, `records` — so it is an argument rather
+    // than a literal in the body.
+    expect(output, contains("String dataKey = 'data',"));
+    expect(output, contains('final raw = json[dataKey];'));
+
+    // An unguarded `json['page'] as int` turns a stringified count into a
+    // TypeError that safeApiCall reports as an unknown failure. Counts are
+    // read through _asInt and fall back rather than throw.
+    expect(output, isNot(contains("as int")));
+    expect(output, contains("page: _asInt(json['page']) ?? 1,"));
+    expect(output, contains('final String v => int.tryParse(v),'));
+    // A null or absent list is an empty page, not a cast failure.
+    expect(
+        output, contains('raw is List ? raw.map(fromJsonT).toList() : <T>[]'));
+  });
+
+  test('the paginated envelope carries the members its callers need', () {
+    final output = CoreTemplates.paginated();
+
+    // `Object?` rather than Map, so a page of scalars uses the same factory.
+    expect(output, contains('T Function(Object? json) fromJsonT,'));
+    // Dividing by a missing page size must not loop a load-more forever.
+    expect(
+        output,
+        contains(
+            'int get pageCount => limit <= 0 ? 1 : (total / limit).ceil();'));
+    expect(output, contains('bool get hasMore => page < pageCount;'));
+    // The two members the Clean Architecture boundary is here for.
+    expect(output, contains('Paginated<R> map<R>(R Function(T item) toItem)'));
+    expect(output, contains('Paginated<T> append(Paginated<T> next)'));
+    expect(output, contains('items: [...items, ...next.items],'));
+  });
 }

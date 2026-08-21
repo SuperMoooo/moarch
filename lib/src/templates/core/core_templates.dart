@@ -651,6 +651,135 @@ Future<T> safeApiCall<T>({
 }
 ''';
 
+  /// Returns the generated Paginated template.
+  ///
+  /// A starting point, not a contract: `{page, limit, total, data}` is the
+  /// most common REST envelope, but its shape is the backend's choice rather
+  /// than the app's, so the generated file is written to be renamed and says
+  /// so. What survives that edit is the arithmetic — `pageCount`, `hasMore` —
+  /// and the two members a Clean Architecture boundary needs: `map`, to hand
+  /// the domain a page of entities instead of a page of models, and `append`,
+  /// which is the whole of "load more".
+  ///
+  /// Written whenever Dio is, alongside `safeApiCall`. Nothing generated
+  /// consumes it yet; a project that does not paginate can delete it.
+  static String paginated() => r'''
+/// A page of [T] as the API returned it.
+///
+/// Shaped for the common `{page, limit, total, data}` envelope. If yours names
+/// things differently, [Paginated.fromJson] takes the item key as an argument
+/// and the rest is three field renames — this file is meant to be edited.
+///
+/// Cursor APIs (`next_cursor` / `has_more`) do not fit here: page arithmetic
+/// means nothing without an offset. Give those a type of their own.
+class Paginated<T> {
+  const Paginated({
+    required this.page,
+    required this.limit,
+    required this.total,
+    required this.items,
+  });
+
+  /// A response that was never paginated server-side, read as one full page.
+  factory Paginated.single(List<T> items) => Paginated(
+    page: 1,
+    limit: items.length,
+    total: items.length,
+    items: items,
+  );
+
+  /// The empty first page — what a notifier holds before its first load.
+  const Paginated.empty() : page = 1, limit = 0, total = 0, items = const [];
+
+  /// Parses the envelope, reading the item list from [dataKey].
+  ///
+  /// [fromJsonT] takes an `Object?` rather than a map so that a page of
+  /// scalars parses through the same factory as a page of models:
+  ///
+  /// ```dart
+  /// Paginated.fromJson(
+  ///   json,
+  ///   (e) => UserModel.fromJson(e! as Map<String, dynamic>),
+  /// );
+  /// ```
+  ///
+  /// The counts are read leniently. A missing or stringified `total` is common
+  /// enough — on a last page, from a PHP backend — that it should not cost the
+  /// caller the data that did arrive.
+  factory Paginated.fromJson(
+    Map<String, dynamic> json,
+    T Function(Object? json) fromJsonT, {
+    String dataKey = 'data',
+  }) {
+    final raw = json[dataKey];
+    final items = raw is List ? raw.map(fromJsonT).toList() : <T>[];
+    return Paginated(
+      page: _asInt(json['page']) ?? 1,
+      limit: _asInt(json['limit']) ?? items.length,
+      total: _asInt(json['total']) ?? items.length,
+      items: items,
+    );
+  }
+
+  /// 1-based index of this page.
+  final int page;
+
+  /// How many items a full page holds.
+  final int limit;
+
+  /// How many items exist across every page.
+  final int total;
+
+  /// The items on this page.
+  final List<T> items;
+
+  /// How many pages the server needs to return everything, at [limit] each.
+  ///
+  /// A [limit] of zero means the envelope carried no page size, so there is
+  /// nothing to divide by and what arrived is all there is.
+  int get pageCount => limit <= 0 ? 1 : (total / limit).ceil();
+
+  /// Whether a page exists after this one.
+  bool get hasMore => page < pageCount;
+
+  /// The page to ask for next. Only meaningful while [hasMore].
+  int get nextPage => page + 1;
+
+  bool get isEmpty => items.isEmpty;
+
+  bool get isNotEmpty => items.isNotEmpty;
+
+  /// The same page with every item mapped — how a repository turns a page of
+  /// models into a page of entities without unpacking the envelope.
+  Paginated<R> map<R>(R Function(T item) toItem) => Paginated<R>(
+    page: page,
+    limit: limit,
+    total: total,
+    items: items.map(toItem).toList(),
+  );
+
+  /// [next] appended to this page, carrying [next]'s position forward.
+  ///
+  /// This is the whole of "load more": the state holds one [Paginated], and
+  /// every page that arrives replaces it with `state.append(page)`.
+  Paginated<T> append(Paginated<T> next) => Paginated<T>(
+    page: next.page,
+    limit: next.limit,
+    total: next.total,
+    items: [...items, ...next.items],
+  );
+}
+
+/// Reads a count that may arrive as a number, as a numeric string, or not at
+/// all.
+int? _asInt(Object? value) => switch (value) {
+  final int v => v,
+  final num v => v.toInt(),
+  final String v => int.tryParse(v),
+  _ => null,
+};
+''';
+
   /// Returns the generated safeFirebaseCall template.
   ///
   /// [withAuth] adds the `FirebaseAuthException` arm, which must come first —

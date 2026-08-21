@@ -1465,6 +1465,14 @@ class InitCommand extends Command<int> {
         p.join(c, 'network', 'safe_api_call.dart'),
         CoreTemplates.safeApiCall(),
       );
+      // The envelope a paginated endpoint answers with. Nothing generated
+      // reads it yet — it is here so the first feature that paginates has one
+      // shape to share instead of one per repository, and it is safe to
+      // delete in a project whose API never pages.
+      await FileUtils.writeFile(
+        p.join(c, 'network', 'paginated.dart'),
+        CoreTemplates.paginated(),
+      );
     }
     // The Firebase counterpart of safeApiCall — every generated Firestore and
     // Firebase Auth call goes through it, so the failures reach the UI as the

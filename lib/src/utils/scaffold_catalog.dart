@@ -388,6 +388,15 @@ abstract final class ScaffoldCatalog {
           'The wrapper that turns a request into a typed AppException.',
     ),
     ScaffoldSpec(
+      name: 'paginated',
+      title: 'Paginated',
+      path: 'lib/core/network/paginated.dart',
+      category: 'Network',
+      template: (_) => CoreTemplates.paginated(),
+      description:
+          'The page envelope a REST list endpoint answers with, plus its arithmetic.',
+    ),
+    ScaffoldSpec(
       name: 'safe-firebase-call',
       title: 'safeFirebaseCall',
       path: 'lib/core/network/safe_firebase_call.dart',

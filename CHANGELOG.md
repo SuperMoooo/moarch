@@ -2,6 +2,42 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 6.2.0
+
+### Features
+
+- `init` now writes `lib/core/network/paginated.dart` alongside
+  `safe_api_call.dart` whenever Dio is part of the stack — `Paginated<T>`, the
+  envelope a REST list endpoint answers with. It exists so the first feature
+  to paginate has one shape to share rather than one per repository.
+
+  Shaped for the common `{page, limit, total, data}` response, but written to
+  be edited: the envelope is the backend's choice, not the app's. The item key
+  is a `dataKey` argument rather than a literal, and the counts are read
+  leniently — a missing or stringified `total`, which a last page or a PHP
+  backend will hand you, costs a fallback instead of a `TypeError` that
+  `safeApiCall` can only report as an unknown failure. A null item list reads
+  as an empty page for the same reason. `fromJsonT` takes an `Object?` rather
+  than a `Map`, so a page of scalars parses through the same factory as a page
+  of models.
+
+  What survives renaming the fields is the arithmetic and the two members the
+  Clean Architecture boundary is there for: `map`, so a repository hands the
+  domain a page of entities instead of a page of models, and `append`, which
+  is the whole of "load more" — the state holds one `Paginated` and replaces
+  it with `state.append(page)`. `pageCount` treats a zero `limit` as a single
+  page, so an envelope that carried no page size cannot loop a load-more
+  forever.
+
+  Nothing generated consumes it yet: `fetchAll()` still returns a whole list
+  and the feature states still hold a plain `List`. Wiring a `loadMore` path
+  through the notifier and bloc templates is a separate change; a project
+  whose API never pages can delete the file.
+
+- `paginated` is a catalog entry, so `moarch update paginated` refreshes it,
+  `moarch update network` includes it, and `--diff` shows what a refresh would
+  change.
+
 ## 6.1.0
 
 ### Features
