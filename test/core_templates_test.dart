@@ -27,6 +27,21 @@ void main() {
     expect(output, contains('} catch (error, stackTrace) {'));
   });
 
+  test('mainDart removes the native splash after runApp', () {
+    // Removing it before the first frame is painted shows a blank window for
+    // as long as the first build takes — visible on a cold start, where the
+    // router parks on a loading route while the session is restored.
+    for (final output in [
+      riverpod.AppTemplates.mainDart(),
+      riverpod.AppTemplates.mainDart(withRouter: false),
+    ]) {
+      expect(
+        output.indexOf('runApp('),
+        lessThan(output.indexOf('FlutterNativeSplash.remove();')),
+      );
+    }
+  });
+
   test('the notification permission is left for the app to ask', () {
     final output = ServicesTemplates.notificationsService();
 

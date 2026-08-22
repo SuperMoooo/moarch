@@ -2,6 +2,26 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 6.3.0
+
+### Fixed
+
+- The generated `main.dart` now removes the native splash *after* `runApp()`
+  rather than before it. Removing it first hands the screen back to the
+  framework before a single frame has been painted, which is a blank window
+  for as long as the first build takes — on a cold start with a router that
+  parks on a loading route, that flash is visible. The comment above the call
+  says how to push it later still (your own async init, or a post-frame
+  callback) if something has to land before the app is on screen.
+
+- flutter_bloc: the app-wide `BlocProvider<AuthBloc>` is now `lazy: false`.
+  A lazy provider builds its bloc on the first read *from the widget tree*,
+  and nothing reads this one that way — the router's redirect and its
+  `refreshListenable` both take the bloc out of the locator. So the
+  `..add(const AuthStarted())` in `create` never ran, session restore never
+  started, and the router sat on the splash route waiting for a state change
+  that could not arrive.
+
 ## 6.2.0
 
 ### Features

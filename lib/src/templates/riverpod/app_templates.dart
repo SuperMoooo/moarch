@@ -245,10 +245,13 @@ $easyLocalizationInit$firebaseInit
   // this point, so the locator can hand out its instances.
   await setupInjector();
 $notificationInit
-  // Move this after your own async init if you have any.
-  FlutterNativeSplash.remove();
-
   $runAppCall
+
+  // After runApp, so the native splash gives way to a painted first frame
+  // rather than a blank window. Push it later still — into your own async
+  // init, or a post-frame callback — if something has to land before the app
+  // is on screen.
+  FlutterNativeSplash.remove();
 }
 
 ${notificationsBootstrap}class App extends ConsumerWidget {
@@ -330,10 +333,13 @@ $easyLocalizationInit$firebaseInit
   // this point, so the locator can hand out its instances.
   await setupInjector();
 $notificationInit
-  // Move this after your own async init if you have any.
-  FlutterNativeSplash.remove();
-
   $runAppCall
+
+  // After runApp, so the native splash gives way to a painted first frame
+  // rather than a blank window. Push it later still — into your own async
+  // init, or a post-frame callback — if something has to land before the app
+  // is on screen.
+  FlutterNativeSplash.remove();
 }
 
 ${notificationsBootstrap}class App extends ConsumerWidget {

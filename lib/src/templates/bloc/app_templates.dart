@@ -167,6 +167,10 @@ ${[
           // ..add(AuthStarted()) here, not in the constructor: a bloc that
           // emits during its own construction has no listener yet.
           create: (_) => getIt<AuthBloc>()..add(const AuthStarted()),
+          // Built with the tree rather than on first read: the router's
+          // redirect reads the bloc out of the locator, so nothing would ever
+          // touch this provider and session restore would never start.
+          lazy: false,
         ),''',
       if (withLocalization)
         '        BlocProvider<LanguageCubit>(create: (_) => getIt<LanguageCubit>()),',
@@ -323,10 +327,13 @@ $easyLocalizationInit$firebaseInit
   // by this point, so the locator can hand out its instances.
   await setupInjector();
 $notificationInit
-  // Move this after your own async init if you have any.
-  FlutterNativeSplash.remove();
-
   $runAppCall
+
+  // After runApp, so the native splash gives way to a painted first frame
+  // rather than a blank window. Push it later still — into your own async
+  // init, or a post-frame callback — if something has to land before the app
+  // is on screen.
+  FlutterNativeSplash.remove();
 }
 
 $notificationsBootstrap$appBody''';

@@ -601,6 +601,27 @@ Future<void> setupInjector() async {
       expect(output, isNot(contains('ProviderScope')));
     });
 
+    test('the auth bloc is built with the tree, not on first read', () {
+      final output = bloc.AppTemplates.mainDart(withAuthFeature: true);
+
+      // Nothing reads this provider through the widget tree — the router's
+      // redirect and its refreshListenable both take the bloc out of the
+      // locator — so a lazy provider would never run its create, and the
+      // AuthStarted that begins session restore would never be added.
+      expect(output, contains('lazy: false,'));
+    });
+
+    test('the native splash is removed after runApp', () {
+      final output = bloc.AppTemplates.mainDart(withAuthFeature: true);
+
+      // Removing it before the first frame is painted shows a blank window
+      // for as long as the first build takes.
+      expect(
+        output.indexOf('runApp('),
+        lessThan(output.indexOf('FlutterNativeSplash.remove();')),
+      );
+    });
+
     test('with nothing app-wide to provide there is no MultiBlocProvider', () {
       final output = bloc.AppTemplates.mainDart(withRouter: false);
 
