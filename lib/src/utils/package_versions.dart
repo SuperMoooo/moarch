@@ -85,7 +85,11 @@ abstract final class PackageVersions {
     'easy_localization': '^3.0.8',
 
     // ── Dev ─────────────────────────────────────────────────────────────────
-    'build_runner': '^2.16.0',
+    // Floored low on purpose: build_runner >=2.15.2 needs analyzer 13.3+,
+    // which wants meta ^1.18.3, while flutter_test on older Flutter SDKs
+    // pins meta 1.18.0 — a caret at 2.16 simply fails to resolve there.
+    // This range still picks the newest build_runner an SDK allows.
+    'build_runner': '^2.15.1',
     'envied_generator': '^1.3.8',
     'flutter_lints': '^6.0.0',
     'bloc_lint': '^0.4.2',
