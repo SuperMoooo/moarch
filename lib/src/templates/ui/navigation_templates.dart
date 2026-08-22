@@ -531,8 +531,8 @@ class AppNavRail extends StatelessWidget {
 /// ```
 ///
 /// The phone half of it is an [AppBottomNav], so [bottomNavStyle],
-/// [bottomNavLabels], [floatingBottomNav] and [bottomNavShape] pick which of
-/// its looks that half wears.
+/// [bottomNavLabels], [floatingBottomNav], [bottomNavShape], [bottomNavWidth]
+/// and [bottomNavBorderColor] pick which of its looks that half wears.
 class AppAdaptiveNav extends StatelessWidget {
   const AppAdaptiveNav({
     super.key,
@@ -549,6 +549,9 @@ class AppAdaptiveNav extends StatelessWidget {
     this.floatingBottomNav = false,
     this.bottomNavShape = AppBottomNavShape.full,
     this.bottomNavBorderRadius,
+    this.bottomNavWidth = AppBottomNavWidth.fill,
+    this.bottomNavMaxWidth,
+    this.bottomNavBorderColor,
     this.bottomNavPillShape,
     this.bottomNavPillBorderRadius,
     this.variant,
@@ -589,6 +592,20 @@ class AppAdaptiveNav extends StatelessWidget {
 
   /// A corner of the project's own, overriding [bottomNavShape].
   final BorderRadius? bottomNavBorderRadius;
+
+  /// Whether that floating card spans the width or shrinks to its
+  /// destinations — [AppBottomNavWidth.hug] is what keeps a two-tab bar from
+  /// being mostly empty card. Only read on the phone layout, and only when
+  /// [floatingBottomNav].
+  final AppBottomNavWidth bottomNavWidth;
+
+  /// A ceiling on that card's width. A capped card is centered. Only read on
+  /// the phone layout, and only when [floatingBottomNav].
+  final double? bottomNavMaxWidth;
+
+  /// The bar's hairline border: around the card when [floatingBottomNav],
+  /// along its top edge when docked. Null leaves each layout as it is.
+  final Color? bottomNavBorderColor;
 
   /// The corner of the fill behind the bar's selected destination. Null leaves
   /// each style the one it draws by itself.
@@ -639,6 +656,9 @@ class AppAdaptiveNav extends StatelessWidget {
               floating: floatingBottomNav,
               floatingShape: bottomNavShape,
               floatingBorderRadius: bottomNavBorderRadius,
+              floatingWidth: bottomNavWidth,
+              floatingMaxWidth: bottomNavMaxWidth,
+              borderColor: bottomNavBorderColor,
               pillShape: bottomNavPillShape,
               pillBorderRadius: bottomNavPillBorderRadius,
               variant: variant,

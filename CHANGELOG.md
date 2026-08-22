@@ -2,6 +2,31 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 6.4.0
+
+### Features
+
+- `AppBottomNav` takes a `borderColor`. Floating, it is a hairline around the
+  card, drawn as part of the shape Material already cuts the corner with;
+  docked, it replaces the `outlineVariant` line between the bar and the
+  content, and gives Material's own bar a top edge it never drew. Null is the
+  bar every project had before this — a flat dark theme is where it earns its
+  place, since the shadow holding a floating card up is invisible there.
+- `AppBottomNav` takes a `floatingWidth`. `AppBottomNavWidth.hug` sizes the
+  floating card to its destinations and centers it, instead of spanning the
+  screen — two or three tabs stretched across a phone is mostly empty card.
+  `floatingMaxWidth` caps the width of either, which is how a `fill` bar stops
+  short of the edges on a tablet. Both are only read when `floating`: a docked
+  bar is the bottom edge.
+  - The styles the widget draws itself hug by way of a min-size row; Material's
+    own `NavigationBar` divides whatever width it is handed, so hugging
+    measures it with an `IntrinsicWidth` instead.
+- `AppAdaptiveNav` hands the phone layout the three new knobs as
+  `bottomNavBorderColor`, `bottomNavWidth` and `bottomNavMaxWidth`.
+- The generated design-system screen previews the new looks: a hugging
+  bordered pill bar, a capped Material one, and a docked bar with a colored
+  top edge.
+
 ## 6.3.1
 
 ### Features

@@ -4790,6 +4790,20 @@ enum AppBottomNavLabels { auto, below, none }
 /// override the three where a project wants a number of its own.
 enum AppBottomNavShape { full, rounded, square }
 
+/// How wide the card a floating [AppBottomNav] rides in is. A docked bar spans
+/// the bottom edge by definition, so this is only read when
+/// [AppBottomNav.floating].
+///
+/// - [fill]: the width of the screen less the margin around it — the band a
+///   bottom bar has always been.
+/// - [hug]: only as wide as its destinations need, centered. Two or three
+///   destinations spread across a whole phone is mostly empty card; this is the
+///   answer to that.
+///
+/// [AppBottomNav.floatingMaxWidth] caps either of them, which is how a [fill]
+/// bar stops short of the edges on a tablet.
+enum AppBottomNavWidth { fill, hug }
+
 /// The app's bottom navigation. Feed it the current [index], the
 /// [destinations], and an [onDestinationSelected] callback. For go_router,
 /// drive [index] from a `StatefulShellRoute` and switch branch in the callback:
@@ -4803,6 +4817,7 @@ enum AppBottomNavShape { full, rounded, square }
 ///   labels: AppBottomNavLabels.below,
 ///   floating: true,
 ///   floatingShape: AppBottomNavShape.rounded,
+///   floatingWidth: AppBottomNavWidth.hug,
 /// )
 /// ```
 ///
@@ -4810,7 +4825,8 @@ enum AppBottomNavShape { full, rounded, square }
 /// how the selected destination is marked, [labels] is where the names are
 /// written, [floating] is whether the bar is a band across the bottom edge or a
 /// card riding above it, [floatingShape] is the corner that card is cut with,
-/// and [pillShape] the corner of the fill behind the selection. A floating
+/// [floatingWidth] is how wide it is, [borderColor] is the line drawn around
+/// it, and [pillShape] the corner of the fill behind the selection. A floating
 /// [pill] is the look most modern apps wear, but every style floats and every
 /// style can carry labels.
 ///
@@ -4828,6 +4844,9 @@ class AppBottomNav extends StatelessWidget {
     this.floating = false,
     this.floatingShape = AppBottomNavShape.full,
     this.floatingBorderRadius,
+    this.floatingWidth = AppBottomNavWidth.fill,
+    this.floatingMaxWidth,
+    this.borderColor,
     this.pillShape,
     this.pillBorderRadius,
     this.variant,
@@ -4853,6 +4872,26 @@ class AppBottomNav extends StatelessWidget {
   /// A corner of the project's own, overriding [floatingShape]. Only read when
   /// [floating].
   final BorderRadius? floatingBorderRadius;
+
+  /// Whether that card spans the width or shrinks to its destinations. Only
+  /// read when [floating] — a docked bar is the width of the screen.
+  final AppBottomNavWidth floatingWidth;
+
+  /// A ceiling on that card's width, in logical pixels, whichever
+  /// [floatingWidth] it wears. A capped card is centered. Null is uncapped —
+  /// which for [AppBottomNavWidth.fill] means the screen less its margin. Only
+  /// read when [floating].
+  final double? floatingMaxWidth;
+
+  /// The bar's hairline border: around the whole card when [floating], along
+  /// the top edge when docked.
+  ///
+  /// Null leaves each layout as it was — a docked bar keeps the
+  /// [ColorScheme.outlineVariant] line it draws between itself and the content,
+  /// Material's own bar keeps the none it draws, and a floating card is held up
+  /// by its shadow alone. Naming a color is how a flat theme gets an edge in a
+  /// dark scheme, where that shadow is invisible.
+  final Color? borderColor;
 
   /// The corner of the fill behind the selected destination: the pill an
   /// [AppBottomNavStyle.pill] draws, and the indicator Material's own bar
@@ -4897,6 +4936,10 @@ class AppBottomNav extends StatelessWidget {
   bool get _opens =>
       style == AppBottomNavStyle.pill && labels == AppBottomNavLabels.auto;
 
+  /// Whether the bar is sized by its destinations rather than by the screen.
+  /// Only a floating bar can be: a docked one is the bottom edge.
+  bool get _hug => floating && floatingWidth == AppBottomNavWidth.hug;
+
   void _select(int i) {
     HapticFeedback.selectionClick();
     onDestinationSelected(i);
@@ -4929,7 +4972,7 @@ class AppBottomNav extends StatelessWidget {
     final accent = AppInputStyle.accentOf(context, variant);
     final pillRadius = _pillRadius;
 
-    return NavigationBar(
+    final bar = NavigationBar(
       selectedIndex: index,
       // Floating, the card behind it owns the surface and the shadow — a bar
       // painting its own would draw a second edge inside the rounded one.
@@ -4965,6 +5008,25 @@ class AppBottomNav extends StatelessWidget {
           ),
       ],
     );
+
+    // NavigationBar divides whatever width it is handed between its
+    // destinations, so it is the one style that cannot shrink to them by
+    // itself. IntrinsicWidth measures what they would take and hands that back
+    // as the width — one extra layout pass over a handful of icons.
+    final sized = _hug ? IntrinsicWidth(child: bar) : bar;
+
+    final border = borderColor;
+    if (floating || border == null) return sized;
+
+    // The bar paints its own surface, so the line has to land on top of it —
+    // a decoration behind it would be covered by the color it draws.
+    return DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: border)),
+      ),
+      child: sized,
+    );
   }
 
   /// The three styles Material does not ship: one row of items over the bar's
@@ -4973,19 +5035,26 @@ class AppBottomNav extends StatelessWidget {
     final row = SizedBox(
       height: _height,
       child: Row(
+        // Hugging, the row is as wide as its items and the card around it
+        // shrinks to match; filling, it takes the width and spreads them.
+        mainAxisSize: _hug ? MainAxisSize.min : MainAxisSize.max,
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        // Nothing separates the items once the row stops spreading them, so a
+        // hugging bar spaces them by hand.
+        spacing: _hug ? AppConstants.space4 : 0.0,
         children: [
           for (var i = 0; i < destinations.length; i++)
             // Only a pill that opens sideways grows with its label, so only
             // that one is sized by its content — every other layout divides the
             // width evenly. A stacked pill still hugs its own content inside
-            // its even share, which is what keeps it a pill.
-            if (!_opens)
+            // its even share, which is what keeps it a pill. Hugging, there is
+            // no width to divide: every item is its own size.
+            if (!_hug && !_opens)
               Expanded(child: _item(i))
             // The open pill is the one item that can want more room than it is
             // given: Flexible lets its label ellipsize on a narrow screen
             // instead of overflowing the row.
-            else if (i == index)
+            else if (_opens && i == index)
               Flexible(child: _item(i))
             else
               _item(i),
@@ -5005,7 +5074,9 @@ class AppBottomNav extends StatelessWidget {
         // full width on a notched phone held sideways.
         decoration: BoxDecoration(
           border: Border(
-            top: BorderSide(color: context.colorScheme.outlineVariant),
+            top: BorderSide(
+              color: borderColor ?? context.colorScheme.outlineVariant,
+            ),
           ),
         ),
         child: SafeArea(top: false, child: row),
@@ -5031,11 +5102,12 @@ class AppBottomNav extends StatelessWidget {
       );
 
   /// The card a floating bar rides in: the margin off the edges, the corner it
-  /// is cut with, and the shadow that lifts it off the content passing
-  /// underneath.
+  /// is cut with, the width it takes of what is left, and the shadow that lifts
+  /// it off the content passing underneath.
   Widget _floated(BuildContext context, Widget bar) {
     final inset = MediaQuery.paddingOf(context).bottom;
     final radius = _radius;
+    final border = borderColor;
 
     // A rounded end curves in over the outermost destination, and this is the
     // room that keeps it clear of the curve — so it tracks the corner rather
@@ -5046,6 +5118,63 @@ class AppBottomNav extends StatelessWidget {
       _ => 0.0,
     };
 
+    Widget card = DecoratedBox(
+      // The same shadow an elevated AppCard casts, so the two read as
+      // siblings rather than as two ideas of what "raised" looks like.
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        // A step off `surface`, which is what keeps the card visible in a
+        // dark theme, where the shadow under it is not.
+        color: context.colorScheme.surfaceContainer,
+        clipBehavior: Clip.antiAlias,
+        // The corner and the line around it are one shape to Material, and
+        // asking it for both a borderRadius and a shape is what it asserts
+        // against. `BorderSide.none` is the card that was never given a color.
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: border == null ? BorderSide.none : BorderSide(color: border),
+        ),
+        // The bar inside must not inset itself as well — NavigationBar wraps
+        // itself in a SafeArea, which here would pad the inside of the card.
+        child: MediaQuery.removePadding(
+          context: context,
+          removeBottom: true,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: clearance),
+            child: bar,
+          ),
+        ),
+      ),
+    );
+
+    final maxWidth = floatingMaxWidth;
+    if (maxWidth != null) {
+      card = ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: card,
+      );
+    }
+
+    // A card narrower than the room it was given would otherwise sit against
+    // the left margin. Filling and uncapped there is nothing to center — the
+    // card is already the width of the row.
+    //
+    // `heightFactor` is what keeps this to the bar's own height: the slot a
+    // bottom bar is laid out in is loose, and an Align without it would answer
+    // with the whole screen.
+    final placed = _hug || maxWidth != null
+        ? Align(heightFactor: 1, child: card)
+        : card;
+
     return Padding(
       padding: EdgeInsets.only(
         left: AppConstants.space16,
@@ -5055,37 +5184,7 @@ class AppBottomNav extends StatelessWidget {
         // worth off the edge where there is not.
         bottom: inset > 0 ? inset : AppConstants.space16,
       ),
-      child: DecoratedBox(
-        // The same shadow an elevated AppCard casts, so the two read as
-        // siblings rather than as two ideas of what "raised" looks like.
-        decoration: BoxDecoration(
-          borderRadius: radius,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Material(
-          // A step off `surface`, which is what keeps the card visible in a
-          // dark theme, where the shadow under it is not.
-          color: context.colorScheme.surfaceContainer,
-          clipBehavior: Clip.antiAlias,
-          borderRadius: radius,
-          // The bar inside must not inset itself as well — NavigationBar wraps
-          // itself in a SafeArea, which here would pad the inside of the card.
-          child: MediaQuery.removePadding(
-            context: context,
-            removeBottom: true,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: clearance),
-              child: bar,
-            ),
-          ),
-        ),
-      ),
+      child: placed,
     );
   }
 }
@@ -9460,6 +9559,62 @@ $toggleAction              const SizedBox(width: AppConstants.space8),
                       ),
                       const SizedBox(height: AppConstants.space16),
                     ],
+                    // How wide that card is, is its own question: hug sizes it
+                    // to the destinations instead of the screen, which is the
+                    // answer to a two-tab bar spread across a phone. The border
+                    // is what gives a flat theme an edge where the shadow
+                    // under the card cannot be seen.
+                    const Text('pill / floating / hug + border:'),
+                    const SizedBox(height: AppConstants.space8),
+                    ColoredBox(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerLowest,
+                      child: AppBottomNav(
+                        index: _navIndex,
+                        style: AppBottomNavStyle.pill,
+                        floating: true,
+                        floatingWidth: AppBottomNavWidth.hug,
+                        borderColor:
+                            Theme.of(context).colorScheme.outlineVariant,
+                        onDestinationSelected: (i) =>
+                            setState(() => _navIndex = i),
+                        destinations: _navDestinations,
+                      ),
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    // A capped bar is centered in what it was given — the width
+                    // a fill bar takes on a tablet, where the whole window is
+                    // too far for a thumb to travel.
+                    const Text('material / floating / max width 320:'),
+                    const SizedBox(height: AppConstants.space8),
+                    ColoredBox(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerLowest,
+                      child: AppBottomNav(
+                        index: _navIndex,
+                        floating: true,
+                        floatingShape: AppBottomNavShape.rounded,
+                        floatingMaxWidth: 320,
+                        onDestinationSelected: (i) =>
+                            setState(() => _navIndex = i),
+                        destinations: _navDestinations,
+                      ),
+                    ),
+                    const SizedBox(height: AppConstants.space16),
+                    // Docked, the same color moves to the line between the bar
+                    // and the content above it.
+                    const Text('classic / docked / border:'),
+                    const SizedBox(height: AppConstants.space8),
+                    AppBottomNav(
+                      index: _navIndex,
+                      style: AppBottomNavStyle.classic,
+                      borderColor: Theme.of(context).colorScheme.primary,
+                      onDestinationSelected: (i) =>
+                          setState(() => _navIndex = i),
+                      destinations: _navDestinations,
+                    ),
                   ],
                 ),
               ),

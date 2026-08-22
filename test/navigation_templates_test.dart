@@ -106,7 +106,7 @@ void main() {
             '        ? _material(context)\n'
             '        : _drawn(context);'),
       );
-      expect(output, contains('return NavigationBar('));
+      expect(output, contains('final bar = NavigationBar('));
     });
 
     test('a floating bar leaves the surface and the shadow to its card', () {
@@ -136,7 +136,7 @@ void main() {
       // that share, so it is only the opening pill the row has to size.
       expect(
           output,
-          contains('if (!_opens)\n'
+          contains('if (!_hug && !_opens)\n'
               '              Expanded(child: _item(i))'));
       expect(
         output,
@@ -146,7 +146,7 @@ void main() {
       );
       expect(
           output,
-          contains('else if (i == index)\n'
+          contains('else if (_opens && i == index)\n'
               '              Flexible(child: _item(i))'));
       expect(output, contains('widthFactor: 1,'));
     });
@@ -273,6 +273,100 @@ void main() {
       );
     });
 
+    test('a floating bar can be sized by its destinations, not the screen', () {
+      // A separate question from every other one: each style hugs, floating or
+      // not is what decides whether it may.
+      expect(output, contains('enum AppBottomNavWidth { fill, hug }'));
+      expect(output, contains('this.floatingWidth = AppBottomNavWidth.fill,'));
+      expect(output, contains('final AppBottomNavWidth floatingWidth;'));
+      expect(
+        output,
+        contains('  bool get _hug => '
+            'floating && floatingWidth == AppBottomNavWidth.hug;'),
+      );
+      // Dividing the width is exactly what a bar sized by its content must not
+      // do — Expanded there asks a row with no width to spare for a share of it.
+      expect(
+        output,
+        contains(
+            '        mainAxisSize: _hug ? MainAxisSize.min : MainAxisSize.max,'),
+      );
+      expect(
+          output,
+          contains('            if (!_hug && !_opens)\n'
+              '              Expanded(child: _item(i))'));
+      // spaceEvenly is what separated the items, and a min-size row has no
+      // space to spread.
+      expect(output, contains('spacing: _hug ? AppConstants.space4 : 0.0,'));
+      // The open pill stays flexible either way, so a long label ellipsizes
+      // instead of pushing the card past the screen.
+      expect(
+          output,
+          contains('            else if (_opens && i == index)\n'
+              '              Flexible(child: _item(i))'));
+    });
+
+    test('Material\'s own bar is measured, since it cannot shrink itself', () {
+      // NavigationBar divides whatever width it is handed, so the only way to
+      // ask it for its content's width is to measure it.
+      expect(output,
+          contains('final sized = _hug ? IntrinsicWidth(child: bar) : bar;'));
+    });
+
+    test('a narrower card is centered in the room it was given', () {
+      expect(output, contains('final double? floatingMaxWidth;'));
+      expect(
+        output,
+        contains('      card = ConstrainedBox(\n'
+            '        constraints: BoxConstraints(maxWidth: maxWidth),\n'
+            '        child: card,\n'
+            '      );'),
+      );
+      // A full-width card has nothing to center, and wrapping it anyway would
+      // be a widget in the tree doing nothing. heightFactor is load-bearing:
+      // the bottom bar slot is laid out loose, so an Align without one answers
+      // with the height of the whole scaffold.
+      expect(
+        output,
+        contains('    final placed = _hug || maxWidth != null\n'
+            '        ? Align(heightFactor: 1, child: card)\n'
+            '        : card;'),
+      );
+    });
+
+    test('the border is a color the project names, or the line it always had',
+        () {
+      expect(output, contains('final Color? borderColor;'));
+      // Docked, it replaces the divider rather than adding a second line.
+      expect(
+        output,
+        contains('            top: BorderSide(\n'
+            '              color: borderColor ?? context.colorScheme.outlineVariant,\n'
+            '            ),'),
+      );
+      // Floating, Material takes the corner and the line as one shape — asking
+      // it for a borderRadius as well is what it asserts against.
+      expect(
+        output,
+        contains('        shape: RoundedRectangleBorder(\n'
+            '          borderRadius: radius,\n'
+            '          side: border == null ? BorderSide.none : BorderSide(color: border),\n'
+            '        ),'),
+      );
+      // NavigationBar paints its own surface, so a line behind it is a line
+      // nobody sees.
+      expect(
+        output,
+        contains('    return DecoratedBox(\n'
+            '      position: DecorationPosition.foreground,\n'
+            '      decoration: BoxDecoration(\n'
+            '        border: Border(top: BorderSide(color: border)),\n'
+            '      ),'),
+      );
+      // Null is the bar every project generated before this had.
+      expect(output,
+          contains('    if (floating || border == null) return sized;'));
+    });
     test('the room inside the card tracks the corner it has to clear', () {
       // A square card has no curve for a label to be clipped by, so it spends
       // the room on the items instead.
@@ -401,6 +495,12 @@ void main() {
       expect(output, contains('floatingBorderRadius: bottomNavBorderRadius,'));
       expect(output, contains('pillShape: bottomNavPillShape,'));
       expect(output, contains('pillBorderRadius: bottomNavPillBorderRadius,'));
+      expect(output, contains('this.bottomNavWidth = AppBottomNavWidth.fill,'));
+      expect(output, contains('final double? bottomNavMaxWidth;'));
+      expect(output, contains('final Color? bottomNavBorderColor;'));
+      expect(output, contains('floatingWidth: bottomNavWidth,'));
+      expect(output, contains('floatingMaxWidth: bottomNavMaxWidth,'));
+      expect(output, contains('borderColor: bottomNavBorderColor,'));
     });
 
     test('a floating bar gets a body that runs under it', () {
