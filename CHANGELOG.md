@@ -2,11 +2,27 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 6.3.1
+
+### Features
+
+- `core/utils/extensions.dart` gains `FormX.isValid` on
+  `GlobalKey<FormState>`, so a submit reads `if (_formKey.isValid)` instead of
+  `_formKey.currentState?.validate() ?? false`. An unmounted form reports
+  invalid, which is the safe half of that `??`.
+
 ## 6.3.0
+
+### Features
+
+- `core/utils/extensions.dart` gains `FormX.isValid` on
+  `GlobalKey<FormState>`, so a submit reads `if (_formKey.isValid)` instead of
+  `_formKey.currentState?.validate() ?? false`. An unmounted form reports
+  invalid, which is the safe half of that `??`.
 
 ### Fixed
 
-- The generated `main.dart` now removes the native splash *after* `runApp()`
+- The generated `main.dart` now removes the native splash _after_ `runApp()`
   rather than before it. Removing it first hands the screen back to the
   framework before a single frame has been painted, which is a blank window
   for as long as the first build takes — on a cold start with a router that
@@ -14,8 +30,8 @@ All notable changes to this package are documented in this file, newest first.
   says how to push it later still (your own async init, or a post-frame
   callback) if something has to land before the app is on screen.
 
-- flutter_bloc: the app-wide `BlocProvider<AuthBloc>` is now `lazy: false`.
-  A lazy provider builds its bloc on the first read *from the widget tree*,
+- flutter*bloc: the app-wide `BlocProvider<AuthBloc>` is now `lazy: false`.
+  A lazy provider builds its bloc on the first read \_from the widget tree*,
   and nothing reads this one that way — the router's redirect and its
   `refreshListenable` both take the bloc out of the locator. So the
   `..add(const AuthStarted())` in `create` never ran, session restore never
@@ -31,28 +47,28 @@ All notable changes to this package are documented in this file, newest first.
   envelope a REST list endpoint answers with. It exists so the first feature
   to paginate has one shape to share rather than one per repository.
 
-  Shaped for the common `{page, limit, total, data}` response, but written to
-  be edited: the envelope is the backend's choice, not the app's. The item key
-  is a `dataKey` argument rather than a literal, and the counts are read
-  leniently — a missing or stringified `total`, which a last page or a PHP
-  backend will hand you, costs a fallback instead of a `TypeError` that
-  `safeApiCall` can only report as an unknown failure. A null item list reads
-  as an empty page for the same reason. `fromJsonT` takes an `Object?` rather
-  than a `Map`, so a page of scalars parses through the same factory as a page
-  of models.
+    Shaped for the common `{page, limit, total, data}` response, but written to
+    be edited: the envelope is the backend's choice, not the app's. The item key
+    is a `dataKey` argument rather than a literal, and the counts are read
+    leniently — a missing or stringified `total`, which a last page or a PHP
+    backend will hand you, costs a fallback instead of a `TypeError` that
+    `safeApiCall` can only report as an unknown failure. A null item list reads
+    as an empty page for the same reason. `fromJsonT` takes an `Object?` rather
+    than a `Map`, so a page of scalars parses through the same factory as a page
+    of models.
 
-  What survives renaming the fields is the arithmetic and the two members the
-  Clean Architecture boundary is there for: `map`, so a repository hands the
-  domain a page of entities instead of a page of models, and `append`, which
-  is the whole of "load more" — the state holds one `Paginated` and replaces
-  it with `state.append(page)`. `pageCount` treats a zero `limit` as a single
-  page, so an envelope that carried no page size cannot loop a load-more
-  forever.
+    What survives renaming the fields is the arithmetic and the two members the
+    Clean Architecture boundary is there for: `map`, so a repository hands the
+    domain a page of entities instead of a page of models, and `append`, which
+    is the whole of "load more" — the state holds one `Paginated` and replaces
+    it with `state.append(page)`. `pageCount` treats a zero `limit` as a single
+    page, so an envelope that carried no page size cannot loop a load-more
+    forever.
 
-  Nothing generated consumes it yet: `fetchAll()` still returns a whole list
-  and the feature states still hold a plain `List`. Wiring a `loadMore` path
-  through the notifier and bloc templates is a separate change; a project
-  whose API never pages can delete the file.
+    Nothing generated consumes it yet: `fetchAll()` still returns a whole list
+    and the feature states still hold a plain `List`. Wiring a `loadMore` path
+    through the notifier and bloc templates is a separate change; a project
+    whose API never pages can delete the file.
 
 - `paginated` is a catalog entry, so `moarch update paginated` refreshes it,
   `moarch update network` includes it, and `--diff` shows what a refresh would
@@ -71,14 +87,14 @@ All notable changes to this package are documented in this file, newest first.
   tooling and the packages that shape how the code is written; an annotated
   tree; one piece of data traced entity → model → repository → get_it →
   `AppException`; the state stack the project actually took; `moarch create
-  feature` and the five steps that are still yours; flavors; the build
+feature` and the five steps that are still yours; flavors; the build
   commands and where the artefacts land; the workflows and every secret they
   read; the conventions the analyzer cannot check; contacts and access; and
   where the rest of `docs/` picks up.
 
-  It replaces the README `flutter create` leaves behind and only that one —
-  matched on two of its own sentences, the same way `main.dart` and
-  `widget_test.dart` already are, so a README you wrote is never touched.
+        It replaces the README `flutter create` leaves behind and only that one —
+        matched on two of its own sentences, the same way `main.dart` and
+        `widget_test.dart` already are, so a README you wrote is never touched.
 
 - The README is a catalog entry, so `moarch update readme` refreshes it and
   `--diff` shows what a refresh would change. Like every other template it
@@ -88,8 +104,8 @@ All notable changes to this package are documented in this file, newest first.
   setup walkthrough, and the same file rewrites itself with the real flavor
   names, run commands and artefact paths once `flavorizr.yaml` is on disk.
 
-  Two sections are `[bracketed]` placeholders instead: the owner line and
-  **Contacts & access**, which no detection can fill in.
+    Two sections are `[bracketed]` placeholders instead: the owner line and
+    **Contacts & access**, which no detection can fill in.
 
 - `ScaffoldContext` gained `projectName`, `flavorNames` and `hasWorkflows`.
   `flavorNames` scans `flavorizr.yaml` rather than parsing it as YAML: that
@@ -490,17 +506,17 @@ look at in the diff it offers:
   avoid. The only symptom is analyzer output that disagrees with
   `fvm flutter analyze`. `init` now prints `fvm use` as the first step, ahead of
   `pub get`, and `moarch doctor` grew a check for it:
-  - `dart.flutterSdkPath` pointing at a path that does not exist — **error**,
+    - `dart.flutterSdkPath` pointing at a path that does not exist — **error**,
       with the `fvm use` fix.
-  - the symlink present but dangling, the pinned SDK not installed — **error**,
+    - the symlink present but dangling, the pinned SDK not installed — **error**,
       pointing at `fvm install`.
-  - a versioned `.fvm/versions/<version>` path, which is what `fvm use` rewrites
+    - a versioned `.fvm/versions/<version>` path, which is what `fvm use` rewrites
       the setting to and which stops following `.fvmrc` — **warning**, and
       `doctor --fix` points it back at `.fvm/flutter_sdk`.
-  - `settings.json` missing, or carrying no `dart.flutterSdkPath` — **warning**.
+    - `settings.json` missing, or carrying no `dart.flutterSdkPath` — **warning**.
 
-                                                                                      An absolute path is left alone as a deliberate override, and a project with no
-                                                                                      `.fvmrc` gets none of these findings.
+                                                                                            An absolute path is left alone as a deliberate override, and a project with no
+                                                                                            `.fvmrc` gets none of these findings.
 
 - The README documents that the generated `.fvmrc` pins the `stable` _alias_
   rather than a version, so `fvm install` on CI or a teammate's machine can
@@ -712,26 +728,26 @@ look at in the diff it offers:
   project scaffolded two versions ago still carries the old
   `validation_service.dart`, and nothing told you which improvements you were
   missing or which changes were your own.
-  - **Every file is addressable on its own** — `moarch update validation`,
+    - **Every file is addressable on its own** — `moarch update validation`,
       `moarch update extensions`, `moarch update theme`, `moarch update logger`.
       With no arguments the whole project is considered, exactly as before.
-  - **Or by group**, when a whole area has drifted: `widgets`, `core`,
+    - **Or by group**, when a whole area has drifted: `widgets`, `core`,
       `network`, `security`, `services`, `config`, `auth`, `docs`, `workflows`,
       `project`, `ios`. They combine freely —
       `moarch update security docs extensions`.
-  - `moarch update --list` prints every name and group with the file it maps
+    - `moarch update --list` prints every name and group with the file it maps
       to, so the slugs don't have to be guessed.
-  - **Templates that vary are rebuilt against the project they land in**, not
+    - **Templates that vary are rebuilt against the project they land in**, not
       against a default: `app_logger.dart` keeps its Crashlytics branch,
       `main.dart` keeps the router, localization and notification services the
       project actually has, `app_exception.dart` keeps its Dio and Firebase
       mappings, and `build_ipa.yml` keeps its Firebase steps. The options are
       read back off the generated files and `pubspec.yaml` — the record that
       stays true as the project is edited.
-  - **It refreshes, it never scaffolds.** A file the project declined at
+    - **It refreshes, it never scaffolds.** A file the project declined at
       `init` is not missing, so naming it does nothing rather than generating
       it. `moarch update biometric` in a project without biometrics is a no-op.
-  - The three buckets are unchanged, and now apply to all of it: untouched
+    - The three buckets are unchanged, and now apply to all of it: untouched
       files refresh silently, edited ones are listed and diffed and never
       written without `--force`.
 
@@ -741,7 +757,7 @@ look at in the diff it offers:
   previously recorded only the widgets. That record is the whole basis for
   telling an untouched generated file from one you edited — without it the rest
   of the scaffold could only ever be reported as _needs review_.
-  - A project scaffolded before 2.8.0 has no record of its non-widget files,
+    - A project scaffolded before 2.8.0 has no record of its non-widget files,
       so the first `moarch update` lists them as needing review even where they
       are untouched. Refreshing or confirming them re-records them, and
       subsequent runs are exact. That is the safe direction: nothing is
@@ -758,48 +774,48 @@ look at in the diff it offers:
   [just_audio](https://pub.dev/packages/just_audio) that a screen configures
   rather than wires. It owns the `AudioPlayer`, loads the source and disposes
   both. One `AppAudioSource` covers url, asset and file.
-  - **Every part is a switch**, so the same widget is a podcast screen and a
+    - **Every part is a switch**, so the same widget is a podcast screen and a
       voice-note bubble: `showControls`, `showSkip`, `showProgress`, `allowScrub`,
       `showTimes`, `showRemaining` and `showSpeed` are independent, and
       `AppAudioPlayerStyle.compact` is the one-row arrangement.
-  - The skip buttons take **durations, not a fixed 15/30** — the number is drawn
+    - The skip buttons take **durations, not a fixed 15/30** — the number is drawn
       inside the arrow, so any interval works without an icon per value.
-  - Buffered progress rides in the bar's secondary track; a scrub is not dragged
+    - Buffered progress rides in the bar's secondary track; a scrub is not dragged
       back by the position stream mid-drag; a finished clip restarts on the next
       tap rather than sitting at the end; and `onCompleted` fires once per
       play-through rather than on every frame the player sits in `completed`.
 - `AppDragSection` (`moarch create widget drag-section`) — a section whose
   children drag into a new order, vertical or horizontal, with no dependency.
-  - It **reports the move rather than owning the list**, so the order can live
+    - It **reports the move rather than owning the list**, so the order can live
       in a notifier, in storage or on a server without the widget holding a
       second copy of it. `AppDragSection.reorder` does the remove-and-insert.
-  - Each item declares its own size — `AppDragSize.small/medium/large` off a
+    - Each item declares its own size — `AppDragSize.small/medium/large` off a
       shared `AppDragSizes`, or an exact `extent` — and whether it can be moved.
-  - **A pinned item is a wall**, not merely un-draggable: it carries no drag
+    - **A pinned item is a wall**, not merely un-draggable: it carries no drag
       listener at all, and nothing can be dropped past it, so an "add" tile keeps
       the last slot however the rest are shuffled.
-  - `onReorder` arrives already corrected for the `ReorderableListView`
+    - `onReorder` arrives already corrected for the `ReorderableListView`
       off-by-one and for any pinned item in the way.
-  - A long press starts the drag, because an immediate listener over the whole
+    - A long press starts the drag, because an immediate listener over the whole
       item fights the scroll; `AppDragTrigger.handle` puts a grip on the trailing
       edge instead.
 - `AppTable` (`moarch create widget table`) — rows and columns sized for a
   phone, with no dependency.
-  - Columns are fixed (`width`) or flexible (`flex`), and a flexible one never
+    - Columns are fixed (`width`) or flexible (`flex`), and a flexible one never
       squeezes below its `minWidth`. Past the point where the minimums no longer
       fit, the table **pans sideways** rather than crushing the columns.
-  - `AppTableColumn.numeric` right-aligns and switches on tabular figures.
-  - Rows take `onTap`, `selected` and a colour of their own; `striped`,
+    - `AppTableColumn.numeric` right-aligns and switches on tabular figures.
+    - Rows take `onTap`, `selected` and a colour of their own; `striped`,
       `showRowDividers`, `showColumnDividers`, `showBorder` and `density` decide
       the rest. Cells are strings, or `widgets` for a chip or an avatar.
-  - It deliberately **owns no vertical scroll** — a table that scrolls
+    - It deliberately **owns no vertical scroll** — a table that scrolls
       vertically cannot sit in a page that also does. Put it in
       `AppSingleScrollView` or a `ListView`.
 - `AppCountryPicker` (`moarch create widget country-picker`) — the 238-country
   `AppCountry` table as a field of its own, validating like the rest of the
   family, or as `AppCountryPicker.show(context)` from anywhere that is not a
   form.
-  - It hands back the whole `AppCountry` rather than a code, since the caller
+    - It hands back the whole `AppCountry` rather than a code, since the caller
       usually wants the dial code or the flag too. `display` picks what the closed
       field reads as, and `countries` narrows the list.
 
@@ -821,48 +837,48 @@ look at in the diff it offers:
   [just_audio](https://pub.dev/packages/just_audio) that a screen configures
   rather than wires. It owns the `AudioPlayer`, loads the source and disposes
   both. One `AppAudioSource` covers url, asset and file.
-  - **Every part is a switch**, so the same widget is a podcast screen and a
+    - **Every part is a switch**, so the same widget is a podcast screen and a
       voice-note bubble: `showControls`, `showSkip`, `showProgress`, `allowScrub`,
       `showTimes`, `showRemaining` and `showSpeed` are independent, and
       `AppAudioPlayerStyle.compact` is the one-row arrangement.
-  - The skip buttons take **durations, not a fixed 15/30** — the number is drawn
+    - The skip buttons take **durations, not a fixed 15/30** — the number is drawn
       inside the arrow, so any interval works without an icon per value.
-  - Buffered progress rides in the bar's secondary track; a scrub is not dragged
+    - Buffered progress rides in the bar's secondary track; a scrub is not dragged
       back by the position stream mid-drag; a finished clip restarts on the next
       tap rather than sitting at the end; and `onCompleted` fires once per
       play-through rather than on every frame the player sits in `completed`.
 - `AppDragSection` (`moarch create widget drag-section`) — a section whose
   children drag into a new order, vertical or horizontal, with no dependency.
-  - It **reports the move rather than owning the list**, so the order can live
+    - It **reports the move rather than owning the list**, so the order can live
       in a notifier, in storage or on a server without the widget holding a
       second copy of it. `AppDragSection.reorder` does the remove-and-insert.
-  - Each item declares its own size — `AppDragSize.small/medium/large` off a
+    - Each item declares its own size — `AppDragSize.small/medium/large` off a
       shared `AppDragSizes`, or an exact `extent` — and whether it can be moved.
-  - **A pinned item is a wall**, not merely un-draggable: it carries no drag
+    - **A pinned item is a wall**, not merely un-draggable: it carries no drag
       listener at all, and nothing can be dropped past it, so an "add" tile keeps
       the last slot however the rest are shuffled.
-  - `onReorder` arrives already corrected for the `ReorderableListView`
+    - `onReorder` arrives already corrected for the `ReorderableListView`
       off-by-one and for any pinned item in the way.
-  - A long press starts the drag, because an immediate listener over the whole
+    - A long press starts the drag, because an immediate listener over the whole
       item fights the scroll; `AppDragTrigger.handle` puts a grip on the trailing
       edge instead.
 - `AppTable` (`moarch create widget table`) — rows and columns sized for a
   phone, with no dependency.
-  - Columns are fixed (`width`) or flexible (`flex`), and a flexible one never
+    - Columns are fixed (`width`) or flexible (`flex`), and a flexible one never
       squeezes below its `minWidth`. Past the point where the minimums no longer
       fit, the table **pans sideways** rather than crushing the columns.
-  - `AppTableColumn.numeric` right-aligns and switches on tabular figures.
-  - Rows take `onTap`, `selected` and a colour of their own; `striped`,
+    - `AppTableColumn.numeric` right-aligns and switches on tabular figures.
+    - Rows take `onTap`, `selected` and a colour of their own; `striped`,
       `showRowDividers`, `showColumnDividers`, `showBorder` and `density` decide
       the rest. Cells are strings, or `widgets` for a chip or an avatar.
-  - It deliberately **owns no vertical scroll** — a table that scrolls
+    - It deliberately **owns no vertical scroll** — a table that scrolls
       vertically cannot sit in a page that also does. Put it in
       `AppSingleScrollView` or a `ListView`.
 - `AppCountryPicker` (`moarch create widget country-picker`) — the 238-country
   `AppCountry` table as a field of its own, validating like the rest of the
   family, or as `AppCountryPicker.show(context)` from anywhere that is not a
   form.
-  - It hands back the whole `AppCountry` rather than a code, since the caller
+    - It hands back the whole `AppCountry` rather than a code, since the caller
       usually wants the dial code or the flag too. `display` picks what the closed
       field reads as, and `countries` narrows the list.
 
@@ -887,33 +903,32 @@ look at in the diff it offers:
   [table_calendar](https://pub.dev/packages/table_calendar) that keeps its
   parameters out of your screens: colors come from `AppInputVariant` like the
   rest of the family, and the package is added to `pubspec.yaml` for you.
-  - `events` is **re-keyed to the day** each entry falls on. Two `DateTime`s in
+    - `events` is **re-keyed to the day** each entry falls on. Two `DateTime`s in
       one day are not equal, which is the usual reason a marker never appears —
       so you can pass the instants your data already carries, and two
       appointments at 09:00 and 14:00 count as two dots on one day rather than
       missing the grid.
-  - `onMonthChanged` reports the month's own bounds, not the six weeks drawn
+    - `onMonthChanged` reports the month's own bounds, not the six weeks drawn
       around it — the range to fetch events for. For the two-week and week
       formats it reports their own span.
-  - `canChangeFormat` offers the month/2-week/week toggle, and only then is a
+    - `canChangeFormat` offers the month/2-week/week toggle, and only then is a
       vertical swipe live; without it a swipe means one thing.
-  - No `onSelected` makes it a read-only display, and `selectableDay` greys out
+    - No `onSelected` makes it a read-only display, and `selectableDay` greys out
       the days that refuse a tap.
-  - It lives in its own `lib/shared/widgets/calendar/` folder rather than
+    - It lives in its own `lib/shared/widgets/calendar/` folder rather than
       alongside the fields.
 - `AppActionSheet` (`moarch create widget action-sheet`) — the sheet behind a
   three-dot button or a long press. Material rows on Android and the iOS
   grouped cards elsewhere, off the same platform split `AppDateInput` uses for
   its pickers; either shape can be forced.
-  - Rows resolve to a value, so `show<T>` hands back what was picked and `null`
+    - Rows resolve to a value, so `show<T>` hands back what was picked and `null`
       when it was dismissed — one honest "the user backed out" branch.
-  - A row's `onTap` runs **after** the sheet has closed, rather than while it
+    - A row's `onTap` runs **after** the sheet has closed, rather than while it
       is closing, where a handler that pushes a route fights the navigator for
       it.
-  - `AppSheetAction.destructive` draws in the theme's error color. It confirms
+    - `AppSheetAction.destructive` draws in the theme's error color. It confirms
       nothing on its own — pair it with `AppConfirmDialog` when the answer should
       be deliberate.
-  - It takes a `BuildContext` rather than the router's navigator key, unlike
       `AppDialogs` and `AppBottomModals`, so it costs the project no GoRouter.
 
 ### Fixes

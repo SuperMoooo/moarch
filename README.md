@@ -418,7 +418,7 @@ moarch create widget maintenance-gate   # or take it in the init checklist
 
 `core/utils/extensions.dart` carries the small helpers every screen reaches for:
 `context.theme` / `colorScheme` / `isDarkMode` / `isTablet` / `isKeyboardOpen` /
-`unfocus()`, string helpers (`initials`, `capitalizeWords`, `truncate`,
+`unfocus()`, `formKey.isValid` for a whole form's validators, string helpers (`initials`, `capitalizeWords`, `truncate`,
 `withoutDiacritics`, `searchKey`, `matchesSearch`, `isBlank`, `digitsOnly`),
 date and time helpers (`startOfDay`, `endOfMonth`, `isTomorrow`, `yearsSince`,
 `format(pattern)`, `timeAgo()`, `TimeOfDay.onDate`), `Duration.formatted`, and

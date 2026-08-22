@@ -188,6 +188,15 @@ extension ContextX on BuildContext {
   void unfocus() => FocusScope.of(this).unfocus();
 }
 
+extension FormX on GlobalKey<FormState> {
+  /// Runs every validator under the form and reports whether they all passed:
+  /// `if (_formKey.isValid) submit();`.
+  ///
+  /// False when the form is not mounted, so a submit can never read a
+  /// validation that did not run as a pass.
+  bool get isValid => currentState?.validate() ?? false;
+}
+
 extension StringX on String {
   bool get isValidEmail =>
       RegExp(r'^[\w\-.]+@([\w\-]+\.)+[\w\-]{2,}$').hasMatch(this);

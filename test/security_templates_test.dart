@@ -88,6 +88,16 @@ void main() {
   group('extensions', () {
     final output = CoreTemplates.extensions();
 
+    test('a form key can validate itself', () {
+      expect(output, contains('extension FormX on GlobalKey<FormState>'));
+      // An unmounted form reads as invalid: a submit must never take a
+      // validation that did not run for a pass.
+      expect(
+        output,
+        contains('bool get isValid => currentState?.validate() ?? false;'),
+      );
+    });
+
     test('keeps the database formatters', () {
       expect(output, contains('String get formatedDateTimeToDatabase'));
       expect(output, contains('String get formattedDateToDatabase'));
