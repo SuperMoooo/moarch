@@ -777,13 +777,16 @@ sealed class ProfileEvent extends Equatable {
 final class ProfileStarted extends ProfileEvent {
   const ProfileStarted();
 }
-
-final class ProfileRefreshed extends ProfileEvent {
-  const ProfileRefreshed();
-}
 ```
 
+One event is what `moarch create feature` generates. A refresh and a retry are
+the same load, so they dispatch `ProfileStarted` again rather than each getting
+an event of their own. Add one per *action* the screen takes — a delete, a
+submit — not one per way of asking for the same thing.
+
 ### The states
+
+Four, and `Success` starts empty — what it carries is your screen's business:
 
 ```dart
 sealed class ProfileState extends Equatable { ... }
@@ -791,8 +794,8 @@ sealed class ProfileState extends Equatable { ... }
 final class ProfileInitial extends ProfileState { ... }
 final class ProfileLoading extends ProfileState { ... }
 final class ProfileSuccess extends ProfileState {
-  const ProfileSuccess({required this.items});
-  final List<ProfileEntity> items;
+  const ProfileSuccess({this.items = const []});
+  final List<ProfileEntity> items;   // ← you add this
 
   @override
   List<Object?> get props => [items];
@@ -801,25 +804,25 @@ final class ProfileFailure extends ProfileState { ... }
 ```
 
 **Equatable is not decoration here.** Bloc drops an `emit` whose state equals
-the current one, and `BlocBuilder` rebuilds on the same test. A state that
-forgets its `props` repaints the screen on every emit.
+the current one, and `BlocBuilder` rebuilds on the same test. A field left out
+of `props` makes two different states compare equal, and the second emit is
+dropped.
 
 ### The bloc
 
 ```dart
 class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
-  ProfileBloc() : super(const ProfileInitial()) {
+  ProfileBloc(this._repo) : super(const ProfileInitial()) {
     on<ProfileStarted>(_onStarted);
-    on<ProfileRefreshed>(_onStarted);
   }
 
-  ProfileRepository get _repo => getIt<ProfileRepository>();
+  final ProfileRepository _repo;
 
   Future<void> _onStarted(
-    ProfileEvent event,
+    ProfileStarted event,
     Emitter<ProfileState> emit,
   ) async {
-    if (state is! ProfileSuccess) emit(const ProfileLoading());
+    emit(const ProfileLoading());
     try {
       emit(ProfileSuccess(items: await _repo.fetchAll()));
     } on AppException catch (e) {
@@ -829,8 +832,9 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
 }
 ```
 
-- The repository comes out of `getIt` — `injector.dart` owns the data layer and
-  the bloc is the seam between it and the UI.
+- The repository is a constructor parameter, so a test hands it a fake. The
+  locator is what fills it in, in `injector.dart`:
+  `getIt.registerFactory<ProfileBloc>(() => ProfileBloc(getIt<ProfileRepository>()))`.
 - `emit` is only valid inside a handler, and only while it is still running.
   Emitting after an `await` that outlived the handler throws.
 - Blocs import `package:bloc/bloc.dart`, not `flutter_bloc` — they stay pure
@@ -846,7 +850,7 @@ class ProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => BlocProvider(
-        create: (_) => ProfileBloc()..add(const ProfileStarted()),
+        create: (_) => getIt<ProfileBloc>()..add(const ProfileStarted()),
         child: const ProfileView(),
       );
 }
@@ -874,7 +878,7 @@ sealed hierarchy: an unhandled case is a compile error, not a blank screen.
 | rebuild on new state | `BlocBuilder` |
 | side effect only (snackbar, navigation) | `BlocListener` |
 | both at once | `BlocConsumer` |
-| send an event | `context.read<ProfileBloc>().add(const ProfileRefreshed())` |
+| send an event | `context.read<ProfileBloc>().add(const ProfileStarted())` |
 | read the current state without rebuilding | `context.read<ProfileBloc>().state` |
 
 > ⚠️ `context.watch` belongs in `build`, `context.read` in callbacks — never

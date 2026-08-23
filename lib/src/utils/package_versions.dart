@@ -68,9 +68,13 @@ abstract final class PackageVersions {
     'google_sign_in': '^7.0.0',
 
     // ── Device ──────────────────────────────────────────────────────────────
-    // Held at 11: 12 pulls a win32 chain that conflicts with
-    // flutter_secure_storage_windows.
-    'file_picker': '^11.0.0',
+    // Floored at 12, which is where file_picker stopped depending on win32
+    // directly. Up to 11 it pinned `win32 ^5.9.0`, and flutter_secure_storage
+    // 11 reaches `win32 ^6.0.1` through flutter_secure_storage_windows — the
+    // two simply do not resolve together. 12 also drops `FilePickerResult`:
+    // `pickFiles` returns the `List<PlatformFile>` directly, which is what
+    // `media_service.dart` is written against.
+    'file_picker': '^12.0.0',
     'image_picker': '^1.2.3',
     // Capped: permission_handler 13 pulls an android impl written against
     // AGP 9 / Gradle 9, which fails to compile on the AGP 8 toolchain
@@ -94,6 +98,12 @@ abstract final class PackageVersions {
     'flutter_lints': '^6.0.0',
     'bloc_lint': '^0.4.2',
     'mogen_unit_tests': '^1.4.2',
-    'mogen_integration_tests': '^1.1.2',
+    // Floored at 1.1.1 rather than 1.1.2 so pub has somewhere to back off to.
+    // 1.1.2 needs `analyzer >=13`, and a Riverpod project cannot reach it:
+    // riverpod 3.4.2 declares `test` as a *regular* dependency, and `test`
+    // resolved against flutter_test's pinned matcher/test_api caps analyzer
+    // below 13. A bloc project has no such chain and still takes 1.1.2 — this
+    // range only gives the Riverpod side 1.1.1 to fall back on.
+    'mogen_integration_tests': '^1.1.1',
   };
 }

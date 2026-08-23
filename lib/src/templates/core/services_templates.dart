@@ -751,18 +751,31 @@ $_mediaServiceBody''';
     }
 
     // Static since file_picker 11 — `FilePicker.platform` was the entry point
-    // up to 10.x.
-    final FilePickerResult? result = await FilePicker.pickFiles(
-      type: type,
-      allowedExtensions: allowedExtensions,
-      allowMultiple: allowMultiple,
-    );
+    // up to 10.x — and returning the files directly since 12, which dropped
+    // the `FilePickerResult` wrapper. A cancelled dialog is an empty list.
+    //
+    // Two entry points rather than `pickFiles(allowMultiple: false)`: that
+    // flag is deprecated and goes away in a later file_picker.
+    final List<PlatformFile> files;
+    if (allowMultiple) {
+      files = await FilePicker.pickFiles(
+        type: type,
+        allowedExtensions: allowedExtensions,
+      );
+    } else {
+      final PlatformFile? file = await FilePicker.pickFile(
+        type: type,
+        allowedExtensions: allowedExtensions,
+      );
+      files = file == null ? const [] : [file];
+    }
 
-    if (result == null || result.files.isEmpty) return [];
-
-    return result.paths
-        .where((path) => path != null)
-        .map((path) => File(path!))
+    // `path` is null for a file that is not on local disk — a web pick, or a
+    // cloud provider's document on Android. Read those through `readAsBytes`
+    // or `xFile` instead; there is no `File` to hand back.
+    return files
+        .where((file) => file.path != null)
+        .map((file) => File(file.path!))
         .toList();
   }
 }

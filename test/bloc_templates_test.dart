@@ -3,6 +3,8 @@ import 'package:moarch/src/templates/bloc/auth_templates.dart' as bloc;
 import 'package:moarch/src/templates/bloc/feature_templates.dart' as bloc;
 import 'package:moarch/src/templates/bloc/maintenance_templates.dart' as bloc;
 import 'package:moarch/src/templates/misc/dev_templates.dart';
+import 'package:moarch/src/templates/riverpod/feature_templates.dart'
+    as riverpod;
 import 'package:moarch/src/templates/stack_templates.dart';
 import 'package:moarch/src/utils/injector_utils.dart';
 import 'package:moarch/src/utils/scaffold_catalog.dart';
@@ -85,165 +87,106 @@ void main() {
   });
 
   group('feature', () {
-    test('the event family is sealed and covers start and retry', () {
+    test('the event family is sealed and carries one event', () {
       final output = bloc.FeatureTemplates.event('orders', 'Orders');
 
       expect(output, contains('sealed class OrdersEvent extends Equatable {'));
       expect(
           output, contains('final class OrdersStarted extends OrdersEvent {'));
-      expect(output,
-          contains('final class OrdersRefreshed extends OrdersEvent {'));
-      // No snapshot event without a live query to produce one.
+      // A refresh and a retry are the same load, so they re-dispatch Started
+      // rather than each getting an event of their own.
+      expect(output, isNot(contains('OrdersRefreshed')));
       expect(output, isNot(contains('OrdersItemsUpdated')));
+      expect(output, isNot(contains('OrdersFailed')));
+      // No entity is named, so nothing has to exist for this to compile.
+      expect(output, isNot(contains('OrdersEntity')));
     });
 
-    test('the live variant adds the snapshot events and imports the entity',
-        () {
-      final output = bloc.FeatureTemplates.event(
-        'orders',
-        'Orders',
-        useFirestore: true,
-      );
+    test('Success starts empty and says where its fields go', () {
+      // What the screen shows is the screen's business — a scaffolded list of
+      // entities would be a guess, and one the user then has to delete.
+      final output = bloc.FeatureTemplates.state('orders', 'Orders');
 
-      expect(output,
-          contains("import '../../domain/entities/orders_entity.dart';"));
-      expect(output,
-          contains('final class OrdersItemsUpdated extends OrdersEvent {'));
       expect(
-          output, contains('final class OrdersFailed extends OrdersEvent {'));
-      expect(output, contains('final List<OrdersEntity> items;'));
+          output, contains('final class OrdersSuccess extends OrdersState {'));
+      expect(output, contains('const OrdersSuccess();'));
+      // The list only appears as the TODO's example, never as a declaration.
+      expect(output, isNot(contains('\n  final List<')));
+      expect(output, isNot(contains('copyWith')));
+      expect(output, isNot(contains('placeholder')));
+      // Nothing is imported for a field that is not there, so a feature
+      // scaffolded without a data layer still compiles.
+      expect(output, isNot(contains("import '../../domain/entities/")));
+      // Only Failure carries anything, so only it overrides props — and the
+      // TODO says to do the same for whatever is added.
+      expect(output, contains('List<Object?> get props => [message];'));
+      expect(output, contains('list it in `props`'));
     });
 
-    test('the live state takes its items through a named parameter list', () {
-      final output = bloc.FeatureTemplates.state(
-        'orders',
-        'Orders',
-        useFirestore: true,
-      );
+    test('the state is the same four whatever the backend is', () {
+      // `useFirestore` reaches the data layer, not this: a bloc's four states
+      // carry nothing the backend decides.
+      const blocStack = StackTemplates(StateManagement.bloc);
 
-      expect(output, contains('const OrdersSuccess({'));
-      expect(output, contains('this.items = const [],'));
-      expect(output, contains('  });'));
-    });
-
-    test('both backends hold the list `fetchAll` returns', () {
-      // The repository signature is the same either way, so the state that
-      // holds the result is too — only how it is filled differs.
-      final rest = bloc.FeatureTemplates.state('orders', 'Orders');
-
-      expect(rest, contains('final List<OrdersEntity> items;'));
       expect(
-          rest, contains("import '../../domain/entities/orders_entity.dart';"));
-      expect(rest,
-          contains('OrdersSuccess copyWith({List<OrdersEntity>? items})'));
-      // An empty `const OrdersSuccess()` is Equatable-equal to every other,
-      // so a Success → Success emit would be dropped.
-      expect(rest, contains('List<Object?> get props => [items];'));
-    });
-
-    test('the skeleton is traced from generated rows on both backends', () {
-      final rest = bloc.FeatureTemplates.state('orders', 'Orders');
-
-      // An int id has no width to fake, so the row index stands in for it.
-      expect(rest,
-          contains('List.generate(3, (index) => OrdersEntity(id: index))'));
-      expect(rest, isNot(contains('static const placeholder')));
-      // BoneMock is skeletonizer's and an int id never reaches for it.
-      expect(rest, isNot(contains('skeletonizer')));
-    });
-
-    test('the one-off load puts what it fetched into the state', () {
-      final output = bloc.FeatureTemplates.bloc(
-        'orders',
-        'Orders',
-        'orders',
+        blocStack.featureState('orders', 'Orders', useFirestore: true),
+        blocStack.featureState('orders', 'Orders'),
       );
-
-      expect(output, contains('final items = await _repo.fetchAll();'));
-      expect(output, contains('emit(OrdersSuccess(items: items));'));
-      // The result used to be awaited and dropped on the floor.
-      expect(output, isNot(contains('emit(const OrdersSuccess());')));
     });
 
-    test('only the live view draws the list it was generated against', () {
-      // The state holds `items` either way, but what a REST screen does with
-      // them is not the template's guess to make — `_body` stays a TODO.
-      final rest = bloc.FeatureTemplates.view(
+    test('the one-off load is the only shape there is', () {
+      final output = bloc.FeatureTemplates.bloc('orders', 'Orders', 'orders');
+
+      expect(output, contains('await _repo.fetchAll();'));
+      expect(output, contains('emit(const OrdersSuccess());'));
+      expect(output, contains('emit(OrdersFailure(e.message));'));
+      // The subscription variant is gone — a live query is the project's to
+      // wire, not the scaffold's to assume.
+      expect(output, isNot(contains('watchAll()')));
+      expect(output, isNot(contains('StreamSubscription')));
+      expect(output, isNot(contains('Future<void> close()')));
+    });
+
+    test('the handler is registered for Started alone', () {
+      final output = bloc.FeatureTemplates.bloc('orders', 'Orders', 'orders');
+
+      expect(output, contains('on<OrdersStarted>(_onStarted);'));
+      expect(output, isNot(contains('on<OrdersRefreshed>')));
+      expect(output, isNot(contains('on<OrdersItemsUpdated>')));
+    });
+
+    test('the view draws from the state it is handed, not a guessed list', () {
+      final output = bloc.FeatureTemplates.view(
         'orders',
         'Orders',
         'orders',
         hasBloc: true,
       );
-      final live = bloc.FeatureTemplates.view(
+
+      expect(output, contains('return const SizedBox.shrink();'));
+      expect(output, isNot(contains('ListView.builder(')));
+      expect(output, isNot(contains('EmptyView')));
+      expect(output, isNot(contains('state.items')));
+    });
+
+    test('the skeleton is traced from a stand-in Success', () {
+      // Skeletonizer shimmers the tree it is handed, so loading has to render
+      // the same body over *something*. With Success empty that is a const
+      // instance, and the comment says to give its fields fake values.
+      final output = bloc.FeatureTemplates.view(
         'orders',
         'Orders',
         'orders',
         hasBloc: true,
-        useFirestore: true,
       );
 
-      expect(rest, contains('return const SizedBox.shrink();'));
-      expect(rest, isNot(contains('ListView.builder(')));
-      expect(rest, isNot(contains('EmptyView')));
-
-      expect(live, contains('ListView.builder('));
-      expect(live, contains('itemCount: state.items.length'));
-      // The guarded arm has to sit above the unguarded one to be reachable.
+      expect(output, contains('_body(context, const OrdersSuccess())'));
       expect(
-        live.indexOf('OrdersSuccess(:final items) when items.isEmpty'),
-        lessThan(live.indexOf('OrdersSuccess() => _body(context, state)')),
-      );
-
-      // Both are handed the placeholder to trace the skeleton from.
-      for (final output in [rest, live]) {
-        expect(output, contains('_body(context, OrdersSuccess.placeholder)'));
-      }
-    });
-
-    test('a second bloc in a feature names that feature\'s entity', () {
-      // `moarch create bloc orders order_feed` — the state lists Orders, not
-      // an OrderFeedEntity that was never generated.
-      final output = bloc.FeatureTemplates.state(
-        'order_feed',
-        'OrderFeed',
-        useFirestore: true,
-        entityName: 'orders',
-        entityClass: 'Orders',
-      );
-
+          output, contains("import 'package:skeletonizer/skeletonizer.dart';"));
       expect(output,
-          contains("import '../../domain/entities/orders_entity.dart';"));
-      expect(output, contains('final List<OrdersEntity> items;'));
-      // The family is named for the bloc, the items for the feature.
-      expect(
-          output, contains('sealed class OrderFeedState extends Equatable {'));
-      expect(output,
-          contains('final class OrderFeedSuccess extends OrderFeedState {'));
-      expect(output, isNot(contains('OrderFeedEntity')));
-    });
-
-    test('the placeholder id follows the entity, not the backend', () {
-      // A live query added to a REST-shaped feature still keys on an int, and
-      // a fake String id would not compile against it.
-      final intId = bloc.FeatureTemplates.state(
-        'orders',
-        'Orders',
-        useFirestore: true,
-        entityIdIsString: false,
-      );
-      expect(intId, contains('OrdersEntity(id: index)'));
-      // BoneMock is skeletonizer's, and nothing here uses it.
-      expect(intId, isNot(contains('skeletonizer')));
-
-      final stringId = bloc.FeatureTemplates.state(
-        'orders',
-        'Orders',
-        useFirestore: true,
-        entityIdIsString: true,
-      );
-      expect(stringId, contains(r"OrdersEntity(id: '${BoneMock.name}$index')"));
-      expect(stringId,
-          contains("import 'package:skeletonizer/skeletonizer.dart';"));
+          contains('OrdersInitial() || OrdersLoading() => Skeletonizer('));
+      expect(output, contains('give them fake values'));
+      expect(output, contains('BoneMock'));
     });
 
     test('the bloc takes the repository', () {
@@ -255,36 +198,38 @@ void main() {
       expect(output, contains('await _repo.fetchAll();'));
     });
 
-    test('the bloc points at a transformer rather than a debouncer', () {
-      // The one place a bloc throttles events. A DebouncerService in front of
-      // add() would debounce without cancelling what is already in flight.
+    test('a bloc scaffolded without a data layer takes nothing', () {
+      // `moarch create feature` with the Repository row unticked: the bloc is
+      // generated, but nothing it would import was.
       final output = bloc.FeatureTemplates.bloc(
         'orders',
         'Orders',
         'orders',
+        hasRepository: false,
       );
+
+      expect(output, contains('OrdersBloc() : super(const OrdersInitial())'));
+      expect(output, isNot(contains('_repo')));
+      expect(output, isNot(contains('OrdersRepository')));
+      expect(
+          output,
+          isNot(contains(
+              "import '../../domain/repositories/orders_repository.dart';")));
+      // Still a working bloc: it just has nothing to load yet.
+      expect(output, contains('on<OrdersStarted>(_onStarted);'));
+      expect(output, contains('emit(const OrdersLoading());'));
+      expect(output, contains('emit(const OrdersSuccess());'));
+    });
+
+    test('the bloc points at a transformer rather than a debouncer', () {
+      // The one place a bloc throttles events. A DebouncerService in front of
+      // add() would debounce without cancelling what is already in flight.
+      final output = bloc.FeatureTemplates.bloc('orders', 'Orders', 'orders');
 
       expect(output, contains('transformer:'));
       expect(output, contains('bloc_concurrency'));
       expect(output, contains('droppable'));
       expect(output, isNot(contains('DebouncerService(')));
-    });
-
-    test('the live bloc subscribes to the repository', () {
-      final output = bloc.FeatureTemplates.bloc(
-        'orders',
-        'Orders',
-        'orders',
-        useFirestore: true,
-      );
-
-      expect(output,
-          contains('OrdersBloc(this._repo) : super(const OrdersInitial())'));
-      expect(output, contains('_repo.watchAll().listen('));
-      expect(output, contains('add(OrdersItemsUpdated(items))'));
-      // Cancelled with the bloc, or the query outlives the screen and bills.
-      expect(output, contains('_subscription?.cancel();'));
-      expect(output, contains('Future<void> close() {'));
     });
 
     test('a second bloc depends on the feature\'s repository', () {
@@ -338,10 +283,10 @@ void main() {
       // Plain flutter_bloc widgets and a switch — no wrapper of moarch's own.
       expect(output, contains('BlocConsumer<OrdersBloc, OrdersState>'));
       expect(output, contains('builder: (context, state) => switch (state) {'));
-      expect(output,
-          contains('OrdersInitial() || OrdersLoading() => Skeletonizer('));
       expect(output, contains('OrdersFailure(:final message) => ErrorView('));
-      expect(output, contains('add(const OrdersRefreshed())'));
+      // Retry re-dispatches the one event there is.
+      expect(output, contains('add(const OrdersStarted())'));
+      expect(output, isNot(contains('OrdersRefreshed')));
       expect(output, isNot(contains('AppAsyncView')));
       expect(output, isNot(contains('ActionListener')));
     });
@@ -401,6 +346,59 @@ void main() {
       expect(output, contains('const OrdersRemoteDataSource(this._dio);'));
       expect(output, isNot(contains('riverpod')));
       expect(output, isNot(contains('Provider<')));
+    });
+  });
+
+  group('a holder without a repository', () {
+    test('the Riverpod notifier drops the locator with it', () {
+      final output = riverpod.FeatureTemplates.notifier(
+        'orders',
+        'Orders',
+        'orders',
+        hasRepository: false,
+      );
+
+      expect(output, isNot(contains('OrdersRepository')));
+      expect(output, isNot(contains('getIt')));
+      expect(output,
+          isNot(contains("import '../../../../config/di/injector.dart';")));
+      expect(output, contains('FutureOr<OrdersState> build() async {'));
+      expect(output, contains('return const OrdersState();'));
+    });
+
+    test('the bloc is still registered, taking nothing', () {
+      final output = InjectorUtils.registrationsFor(
+        featureName: 'orders',
+        className: 'Orders',
+        hasRemote: false,
+        hasLocal: false,
+        hasRepository: false,
+        hasBloc: true,
+        useFirestore: false,
+      );
+
+      expect(output,
+          contains('getIt.registerFactory<OrdersBloc>(OrdersBloc.new);'));
+      expect(output, isNot(contains('OrdersRepository')));
+    });
+
+    test('a second bloc is registered with the feature\'s repository', () {
+      // `moarch create bloc orders order_feed` — the feature has one, this
+      // bloc does not declare one of its own.
+      final output = InjectorUtils.registrationsFor(
+        featureName: 'orders',
+        className: 'OrderFeed',
+        hasRemote: false,
+        hasLocal: false,
+        hasRepository: false,
+        hasBloc: true,
+        useFirestore: false,
+        blocRepositoryClass: 'Orders',
+      );
+
+      expect(output, contains('getIt.registerFactory<OrderFeedBloc>('));
+      expect(
+          output, contains('() => OrderFeedBloc(getIt<OrdersRepository>()),'));
     });
   });
 

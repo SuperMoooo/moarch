@@ -138,7 +138,19 @@ class AppAsyncView<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final value = _value;
-    if (value != null) return _render(context, value);
+    if (value != null) {
+      // Read off the four public getters. `copyWithPrevious`, which used to
+      // do this merging, is `@internal` as of Riverpod 3.
+      return _render(
+        context,
+        _AsyncState<T>(
+          hasValue: value.hasValue,
+          value: value.hasValue ? value.value as T : null,
+          error: value.error,
+          isLoading: value.isLoading,
+        ),
+      );
+    }
 
     return _AsyncSource<T>(
       stream: _stream,
@@ -147,12 +159,12 @@ class AppAsyncView<T> extends StatelessWidget {
     );
   }
 
-  Widget _render(BuildContext context, AsyncValue<T> value) {
+  Widget _render(BuildContext context, _AsyncState<T> state) {
     // `hasValue` rather than `when`: it separates "still waiting for the first
     // result" from "already showing one and fetching again".
-    if (!value.hasValue) {
-      final error = value.error;
-      if (error != null && !value.isLoading) {
+    if (!state.hasValue) {
+      final error = state.error;
+      if (error != null && !state.isLoading) {
         return ErrorView(
           title: errorTitle ?? 'Something went wrong',
           message: _messageFor(error),
@@ -168,7 +180,7 @@ class AppAsyncView<T> extends StatelessWidget {
 
     // Non-null by `hasValue`, and the cast keeps a nullable T honest: a
     // provider of `String?` can hold null *as its value*, and that is data.
-    final data = value.value as T;
+    final data = state.value as T;
 
     if (isEmpty?.call(data) ?? false) {
       return EmptyView(
@@ -184,8 +196,28 @@ class AppAsyncView<T> extends StatelessWidget {
   }
 }
 
-/// Turns a [Stream] or a [Future] into the [AsyncValue] [AppAsyncView] draws,
-/// carrying the last data forward so an error never wipes the screen.
+/// What [AppAsyncView] draws, from either source: the [AsyncValue] a provider
+/// handed over, or the stream/future [_AsyncSource] follows.
+///
+/// [hasValue] is a field of its own rather than `value != null`, because for a
+/// `T?` null is a legitimate value — "loaded, and it is null" and "nothing
+/// loaded yet" are different screens.
+class _AsyncState<T> {
+  const _AsyncState({
+    required this.hasValue,
+    required this.isLoading,
+    this.value,
+    this.error,
+  });
+
+  final bool hasValue;
+  final bool isLoading;
+  final T? value;
+  final Object? error;
+}
+
+/// Follows a [Stream] or a [Future], carrying the last data forward so a
+/// reload or an error never wipes the screen.
 class _AsyncSource<T> extends StatefulWidget {
   const _AsyncSource({
     required this.builder,
@@ -195,15 +227,18 @@ class _AsyncSource<T> extends StatefulWidget {
 
   final Stream<T>? stream;
   final Future<T>? future;
-  final Widget Function(BuildContext context, AsyncValue<T> value) builder;
+  final Widget Function(BuildContext context, _AsyncState<T> state) builder;
 
   @override
   State<_AsyncSource<T>> createState() => _AsyncSourceState<T>();
 }
 
 class _AsyncSourceState<T> extends State<_AsyncSource<T>> {
-  // Not `const`: a constant cannot be built out of a type parameter.
-  AsyncValue<T> _value = AsyncValue<T>.loading();
+  bool _hasValue = false;
+  T? _value;
+  Object? _error;
+  bool _isLoading = true;
+
   StreamSubscription<T>? _subscription;
 
   /// The future currently being awaited — a superseded one still completes,
@@ -238,15 +273,17 @@ class _AsyncSourceState<T> extends State<_AsyncSource<T>> {
   }
 
   void _subscribe() {
-    // A new source is a load, not a blank screen.
-    _value = AsyncValue<T>.loading().copyWithPrevious(_value);
+    // A new source is a load, not a blank screen: `_hasValue` and `_value` are
+    // deliberately left alone, so whatever is on screen stays until the new
+    // source answers.
+    _isLoading = true;
+    _error = null;
 
     final stream = widget.stream;
     if (stream != null) {
       _subscription = stream.listen(
-        (data) => _emit(AsyncValue<T>.data(data)),
-        onError: (Object error, StackTrace stackTrace) =>
-            _emit(AsyncValue<T>.error(error, stackTrace)),
+        _emitData,
+        onError: (Object error, StackTrace stackTrace) => _emitError(error),
       );
       return;
     }
@@ -256,23 +293,47 @@ class _AsyncSourceState<T> extends State<_AsyncSource<T>> {
     _pending = future;
     unawaited(
       future.then(
-        (data) => _emit(AsyncValue<T>.data(data), from: future),
+        (data) => _emitData(data, from: future),
         onError: (Object error, StackTrace stackTrace) =>
-            _emit(AsyncValue<T>.error(error, stackTrace), from: future),
+            _emitError(error, from: future),
       ),
     );
   }
 
-  /// Records [next] over what came before. [from] is checked for futures,
-  /// whose results arrive whether or not anyone is still waiting for them.
-  void _emit(AsyncValue<T> next, {Future<T>? from}) {
+  /// [from] is checked for futures, whose results arrive whether or not
+  /// anyone is still waiting for them.
+  void _emitData(T data, {Future<T>? from}) {
     if (!mounted) return;
     if (from != null && !identical(from, _pending)) return;
-    setState(() => _value = next.copyWithPrevious(_value));
+    setState(() {
+      _hasValue = true;
+      _value = data;
+      _error = null;
+      _isLoading = false;
+    });
+  }
+
+  /// The last data is kept: a failed refresh shows the error over what is
+  /// already there rather than replacing it.
+  void _emitError(Object error, {Future<T>? from}) {
+    if (!mounted) return;
+    if (from != null && !identical(from, _pending)) return;
+    setState(() {
+      _error = error;
+      _isLoading = false;
+    });
   }
 
   @override
-  Widget build(BuildContext context) => widget.builder(context, _value);
+  Widget build(BuildContext context) => widget.builder(
+        context,
+        _AsyncState<T>(
+          hasValue: _hasValue,
+          value: _value,
+          error: _error,
+          isLoading: _isLoading,
+        ),
+      );
 }
 ''';
 
@@ -280,6 +341,9 @@ class _AsyncSourceState<T> extends State<_AsyncSource<T>> {
   static String actionListener() => r'''
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// `ProviderListenable` — the type every `ref.listen` takes — is no longer in
+// the main barrel as of Riverpod 3. It lives here now.
+import 'package:flutter_riverpod/misc.dart';
 
 import '../overlays/app_toast.dart';
 

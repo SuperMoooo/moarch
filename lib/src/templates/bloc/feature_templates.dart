@@ -333,55 +333,15 @@ $methods
 
   /// Returns the generated state template.
   ///
-  /// Both variants carry `items` and the `placeholder` the loading skeleton is
-  /// traced from: the repository's `fetchAll()` returns a list of the entity
-  /// whichever backend the feature was generated against, so the state that
-  /// holds the result has the same shape either way. Only how it gets filled
-  /// differs — a subscription under [useFirestore], a one-off fetch otherwise,
-  /// and that is the datasource's business rather than the state's.
-  ///
-  /// [entityName] / [entityClass] name the entity the items are, when that is
-  /// not the one named after [name] — a second bloc in a feature lists the
-  /// feature's entity, not one of its own.
-  ///
-  /// [entityIdIsString] is what the placeholder's fake ids are built from. It
-  /// tracks the entity, not the backend: a Firestore-shaped entity keys on a
-  /// document name, a REST one on a column. Defaults to [useFirestore], which
-  /// is right for a feature whose entity was generated alongside this state.
-  static String state(
-    String name,
-    String cls, {
-    bool useFirestore = false,
-    String? entityName,
-    String? entityClass,
-    bool? entityIdIsString,
-  }) {
-    final itemName = entityName ?? name;
-    final itemCls = entityClass ?? cls;
-    // A string id gets a fake name whose length sets the bone's width; an int
-    // id has no width to fake, so the row index does.
-    final idIsString = entityIdIsString ?? useFirestore;
-    // Raw: this is interpolated into the template, so it has to already read
-    // as the Dart the generated file should contain.
-    final fakeId = idIsString ? r"'${BoneMock.name}$index'" : 'index';
-    // BoneMock is skeletonizer's, so the import follows the id that uses it —
-    // the entity's key type, not the backend sitting behind it.
-    final skeletonizerImport =
-        idIsString ? "import 'package:skeletonizer/skeletonizer.dart';\n" : '';
-
-    // Where the items come from is the only thing the two variants disagree
-    // on; that they are there is not.
-    final itemsDoc = useFirestore
-        ? 'The collection as Firestore last reported it.'
-        : 'The collection as the last load returned it.';
-
-    return '''
+  /// Four states and nothing else: `Initial`, `Loading`, `Success`, `Failure`.
+  /// What `Success` carries is the screen's business — the scaffold does not
+  /// guess at a list of entities the feature may never show — so it starts
+  /// empty, with a TODO saying where the fields and their `props` go.
+  static String state(String name, String cls) => '''
 import 'package:equatable/equatable.dart';
-$skeletonizerImport
-import '../../domain/entities/${itemName}_entity.dart';
 
 /// Every state the $cls screen can be in. Sealed, so the view's `switch` has
-/// to handle all of them.
+/// to cover all of them.
 sealed class ${cls}State extends Equatable {
   const ${cls}State();
 
@@ -398,26 +358,11 @@ final class ${cls}Loading extends ${cls}State {
 }
 
 final class ${cls}Success extends ${cls}State {
-  const ${cls}Success({
-    this.items = const [],
-  });
+  const ${cls}Success();
 
-  /// Fake rows the loading skeleton is traced from.
-  ///
-  /// TODO: give new entity fields fake values here too — an empty row
-  /// shimmers as a blank line. `BoneMock.name` hands out fake strings.
-  static final placeholder = ${cls}Success(
-    items: List.generate(3, (index) => ${itemCls}Entity(id: $fakeId)),
-  );
-
-  /// $itemsDoc
-  final List<${itemCls}Entity> items;
-
-  ${cls}Success copyWith({List<${itemCls}Entity>? items}) =>
-      ${cls}Success(items: items ?? this.items);
-
-  @override
-  List<Object?> get props => [items];
+  // TODO: add what the screen shows, e.g.
+  // `final List<${cls}Entity> items;`, and list it in `props` — without
+  // that, two Success states compare equal and the second emit is dropped.
 }
 
 final class ${cls}Failure extends ${cls}State {
@@ -429,40 +374,18 @@ final class ${cls}Failure extends ${cls}State {
   List<Object?> get props => [message];
 }
 ''';
-  }
 
   // ── Presentation — Events ───────────────────────────────────────────────────
 
-  /// Returns the generated event template — one sealed family per feature.
+  /// Returns the generated event template — one sealed family per bloc.
   ///
-  /// Sealed, so `on<...>` registrations and any `switch` over an event are
-  /// checked for completeness when a new one is added.
-  ///
-  /// [entityClass] names the entity a snapshot carries, when that is not the
-  /// one named after [name].
-  static String event(
-    String name,
-    String cls, {
-    bool useFirestore = false,
-    String? entityName,
-    String? entityClass,
-  }) {
-    final itemName = entityName ?? name;
-    final itemCls = entityClass ?? cls;
-
-    // Only the live variant names an entity — the snapshot event carries one.
-    final entityImport = useFirestore
-        ? "import '../../domain/entities/${itemName}_entity.dart';\n\n"
-        : '';
-
-    return '''
+  /// Just `Started`. A refresh and a retry are the same load, so they dispatch
+  /// it again rather than each getting an event of their own.
+  static String event(String name, String cls) => '''
 import 'package:equatable/equatable.dart';
-$entityImport
-/// Everything that can happen to $cls, as values.
-///
-/// [Equatable] so two of the same event compare equal — what an
-/// `EventTransformer` like `distinct()` needs, and what a test asserts on.
-/// It does not dedupe on its own: every event added is still handled.
+
+/// Everything that can happen to $cls, as values. Sealed, so the `on<...>`
+/// registrations are checked for completeness when a new one is added.
 sealed class ${cls}Event extends Equatable {
   const ${cls}Event();
 
@@ -470,153 +393,65 @@ sealed class ${cls}Event extends Equatable {
   List<Object?> get props => const [];
 }
 
-/// Dispatched once when the screen opens${useFirestore ? ' — subscribes to the collection' : ''}.
+/// Loads the screen. Dispatched when it opens, and again to refresh or retry.
 final class ${cls}Started extends ${cls}Event {
   const ${cls}Started();
 }
-${useFirestore ? '''
-/// One snapshot from the collection. The bloc adds it to itself from its
-/// subscription, and nothing else should.
-final class ${cls}ItemsUpdated extends ${cls}Event {
-  const ${cls}ItemsUpdated(this.items);
 
-  final List<${itemCls}Entity> items;
-
-  @override
-  List<Object?> get props => [items];
-}
-
-/// The subscription failed — the collection could not be read.
-final class ${cls}Failed extends ${cls}Event {
-  const ${cls}Failed(this.error, this.stackTrace);
-
-  final Object error;
-  final StackTrace stackTrace;
-
-  @override
-  List<Object?> get props => [error, stackTrace];
-}
-''' : ''}
-/// Re-runs the load. What the error state's retry button dispatches.
-final class ${cls}Refreshed extends ${cls}Event {
-  const ${cls}Refreshed();
-}
-
-// TODO: add an event per action the screen can take, e.g.
-// final class ${cls}Deleted extends ${cls}Event {
-//   const ${cls}Deleted(this.id);
-//   final ${useFirestore ? 'String' : 'int'} id;
-//   @override
-//   List<Object?> get props => [id];
-// }
+// TODO: one event per action the screen can take.
 ''';
-  }
 
   // ── Presentation — Bloc ─────────────────────────────────────────────────────
 
   /// Returns the generated bloc template.
   ///
-  /// [useFirestore] subscribes to `watchAll()` and feeds every snapshot back
-  /// in as an event, so the screen tracks the collection for as long as the
-  /// bloc lives. The subscription is the bloc's: `close()` cancels it.
+  /// [hasRepository] is false when the feature was scaffolded without a data
+  /// layer. The bloc then takes nothing and its handler is a TODO, rather than
+  /// importing a repository that was never generated.
   ///
-  /// [repositoryName] names the repository this bloc depends on, when that is
-  /// not the one named after [name]: a second bloc added to an existing
-  /// feature (`moarch create bloc orders order_detail`) talks to the
-  /// *feature's* repository, not to one of its own.
+  /// [repositoryName] / [repositoryClass] point it at a repository other than
+  /// the one named after [name]: a second bloc added to an existing feature
+  /// (`moarch create bloc orders order_detail`) talks to the *feature's*
+  /// repository, not to one of its own.
   static String bloc(
     String name,
     String cls,
     String varName, {
-    bool useFirestore = false,
+    bool hasRepository = true,
     String? repositoryName,
     String? repositoryClass,
   }) {
     final repoName = repositoryName ?? name;
     final repoCls = repositoryClass ?? cls;
 
-    final repoDependency =
-        '  ${cls}Bloc(this._repo) : super(const ${cls}Initial()) {';
+    final handlerTodo = '''
+    // TODO: one handler per action, e.g.
+    // on<${cls}Deleted>(_onDeleted, transformer: droppable());
+    // `transformer:` is how events queue before the handler sees them —
+    // droppable, restartable, sequential, concurrent, from bloc_concurrency.''';
 
-    final fields = '  final ${repoCls}Repository _repo;';
-
-    final repoImport =
-        "import '../../domain/repositories/${repoName}_repository.dart';\n";
-
-    if (useFirestore) {
+    if (!hasRepository) {
       return '''
-import 'dart:async';
-
 import 'package:bloc/bloc.dart';
 
-import '../../../../core/errors/app_exception.dart';
-import '../../domain/entities/${repoName}_entity.dart';
-import '../../domain/repositories/${repoName}_repository.dart';
 import '${name}_event.dart';
 import '${name}_state.dart';
 
 class ${cls}Bloc extends Bloc<${cls}Event, ${cls}State> {
-  ${cls}Bloc(this._repo) : super(const ${cls}Initial()) {
+  ${cls}Bloc() : super(const ${cls}Initial()) {
     on<${cls}Started>(_onStarted);
-    on<${cls}Refreshed>(_onStarted);
-    on<${cls}ItemsUpdated>(_onItemsUpdated);
-    on<${cls}Failed>(_onFailed);
 
-    // TODO: one handler per action. A write does not emit on success and does
-    // not touch `items` — the subscription below re-emits with the change.
-    //
-    // on<${cls}Deleted>((event, emit) async {
-    //   try {
-    //     await _repo.delete(event.id);
-    //   } on AppException catch (e) {
-    //     emit(${cls}Failure(e.message));
-    //   }
-    // }, transformer: droppable());
+$handlerTodo
   }
 
-  final ${repoCls}Repository _repo;
-
-  StreamSubscription<List<${repoCls}Entity>>? _subscription;
-
-  void _onStarted(${cls}Event event, Emitter<${cls}State> emit) {
-    // Re-subscribing on a refresh would leave the old query open and billing.
-    _subscription?.cancel();
-    // Only blank the screen when there is nothing on it: a refresh over a
-    // loaded list keeps the list.
-    if (state is! ${cls}Success) emit(const ${cls}Loading());
-
-    // Events rather than `emit` directly: an emit from a callback outliving
-    // its handler throws.
-    _subscription = _repo.watchAll().listen(
-          (items) => add(${cls}ItemsUpdated(items)),
-          onError: (Object error, StackTrace stackTrace) =>
-              add(${cls}Failed(error, stackTrace)),
-        );
-  }
-
-  void _onItemsUpdated(${cls}ItemsUpdated event, Emitter<${cls}State> emit) {
-    final current = state;
-    emit(
-      current is ${cls}Success
-          ? current.copyWith(items: event.items)
-          : ${cls}Success(items: event.items),
-    );
-  }
-
-  void _onFailed(${cls}Failed event, Emitter<${cls}State> emit) {
-    final error = event.error;
-    emit(
-      ${cls}Failure(
-        error is AppException ? error.message : 'Could not read $cls',
-      ),
-    );
-  }
-
-  @override
-  Future<void> close() {
-    // Without this the query outlives the screen and goes on billing reads.
-    _subscription?.cancel();
-    return super.close();
+  Future<void> _onStarted(
+    ${cls}Started event,
+    Emitter<${cls}State> emit,
+  ) async {
+    emit(const ${cls}Loading());
+    // TODO: load what the screen needs, then emit
+    // ${cls}Success — or ${cls}Failure with a message.
+    emit(const ${cls}Success());
   }
 }
 ''';
@@ -626,29 +461,29 @@ class ${cls}Bloc extends Bloc<${cls}Event, ${cls}State> {
 import 'package:bloc/bloc.dart';
 
 import '../../../../core/errors/app_exception.dart';
-${repoImport}import '${name}_event.dart';
+import '../../domain/repositories/${repoName}_repository.dart';
+import '${name}_event.dart';
 import '${name}_state.dart';
 
 class ${cls}Bloc extends Bloc<${cls}Event, ${cls}State> {
-$repoDependency
+  ${cls}Bloc(this._repo) : super(const ${cls}Initial()) {
     on<${cls}Started>(_onStarted);
-    on<${cls}Refreshed>(_onStarted);
 
-    // TODO: one handler per action, e.g.
-    // on<${cls}Deleted>(_onDeleted, transformer: droppable());
-    //
-    // `transformer:` is how events queue before the handler sees them —
-    // droppable, restartable, sequential, concurrent, from bloc_concurrency.
+$handlerTodo
   }
 
-$fields
+  final ${repoCls}Repository _repo;
 
-  Future<void> _onStarted(${cls}Event event, Emitter<${cls}State> emit) async {
-    // A refresh over loaded data keeps the data on screen.
-    if (state is! ${cls}Success) emit(const ${cls}Loading());
+  Future<void> _onStarted(
+    ${cls}Started event,
+    Emitter<${cls}State> emit,
+  ) async {
+    emit(const ${cls}Loading());
     try {
-      final items = await _repo.fetchAll();
-      emit(${cls}Success(items: items));
+      // TODO: put what this returns into ${cls}Success —
+      // add a field for it there, and pass it here.
+      await _repo.fetchAll();
+      emit(const ${cls}Success());
     } on AppException catch (e) {
       emit(${cls}Failure(e.message));
     }
@@ -674,8 +509,7 @@ import '../blocs/${name}_bloc.dart';
 import '../blocs/${name}_event.dart';
 import '../views/${name}_view.dart';
 
-/// Creates the bloc and owns it: leaving the route closes it, and with it any
-/// subscription it holds.
+/// Creates the bloc and owns it: leaving the route closes it.
 ///
 /// Put this in your `GoRoute` builder. If the screen is pushed from another
 /// that already has the bloc, use `BlocProvider.value` instead — creating a
@@ -700,14 +534,10 @@ class ${cls}Page extends StatelessWidget {
   /// Returns the generated view template.
   ///
   /// Plain `flutter_bloc` widgets and a `switch` over the sealed state — no
-  /// wrapper of moarch's own. The bloc is provided above it by [page], so
-  /// this reads it off the context and never builds one.
-  ///
-  /// [useFirestore] renders the `items` the bloc's subscription keeps current,
-  /// so the screen redraws on every change to the collection without a refresh
-  /// gesture.
+  /// wrapper of moarch's own. The bloc is provided above it by [page], so this
+  /// reads it off the context and never builds one.
   static String view(String name, String cls, String varName,
-      {required bool hasBloc, bool useFirestore = false}) {
+      {required bool hasBloc}) {
     if (!hasBloc) {
       return '''
 import 'package:flutter/material.dart';
@@ -726,51 +556,12 @@ class ${cls}View extends StatelessWidget {
 ''';
     }
 
-    // Only the live variant draws the list, so only it has an empty case. The
-    // guard goes above the unguarded `${cls}Success()` arm, which would
-    // otherwise swallow it.
-    final emptyCase = useFirestore
-        ? '          ${cls}Success(:final items) when items.isEmpty =>\n'
-            '            const EmptyView(),\n'
-        : '';
-
-    final emptyImport = useFirestore
-        ? "import '../../../../shared/widgets/empty_view.dart';\n"
-        : '';
-
-    final body = useFirestore
-        ? '''
-
-
-  // TODO: build the row. Every field drawn here needs a fake value in
-  // `${cls}Success.placeholder`, or the skeleton traces a blank line.
-  Widget _body(BuildContext context, ${cls}Success state) {
-    return ListView.builder(
-      itemCount: state.items.length,
-      itemBuilder: (context, index) {
-        final $varName = state.items[index];
-        return ListTile(
-          title: Text($varName.id),
-        );
-      },
-    );
-  }'''
-        : '''
-
-
-  // TODO: build the screen from `state.items`. Every field drawn here needs a
-  // fake value in `${cls}Success.placeholder`, or the skeleton traces a blank
-  // line.
-  Widget _body(BuildContext context, ${cls}Success state) {
-    return const SizedBox.shrink();
-  }''';
-
     return '''
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
-${emptyImport}import '../../../../shared/widgets/error_view.dart';
+import '../../../../shared/widgets/error_view.dart';
 import '../../../../shared/widgets/overlays/app_toast.dart';
 import '../blocs/${name}_bloc.dart';
 import '../blocs/${name}_event.dart';
@@ -793,30 +584,38 @@ class ${cls}View extends StatelessWidget {
           switch (state) {
             case ${cls}Failure(:final message):
               AppToast.error(context, message);
+            // TODO: what should happen once on success — a toast, a pop.
             case ${cls}Success():
-              // TODO: what should happen once — a toast, a pop, a redirect.
-              break;
             case ${cls}Initial():
             case ${cls}Loading():
               break;
           }
         },
         builder: (context, state) => switch (state) {
-          // Traced from `${cls}Success.placeholder` — Skeletonizer shimmers
-          // the tree it is handed, so that has to hold fake data.
+          // Skeletonizer shimmers the tree it is handed, so loading traces
+          // `_body` over a stand-in ${cls}Success.
+          //
+          // TODO: as you add fields to ${cls}Success, give them fake values
+          // here — a field left empty shimmers as a blank line. `BoneMock`
+          // (skeletonizer) hands out fake strings, names and dates.
           ${cls}Initial() || ${cls}Loading() => Skeletonizer(
-              child: _body(context, ${cls}Success.placeholder),
+              child: _body(context, const ${cls}Success()),
             ),
           ${cls}Failure(:final message) => ErrorView(
               message: message,
               onRetry: () =>
-                  context.read<${cls}Bloc>().add(const ${cls}Refreshed()),
+                  context.read<${cls}Bloc>().add(const ${cls}Started()),
             ),
-$emptyCase          ${cls}Success() => _body(context, state),
+          ${cls}Success() => _body(context, state),
         },
       ),
     );
-  }$body
+  }
+
+  // TODO: build the screen from `state`.
+  Widget _body(BuildContext context, ${cls}Success state) {
+    return const SizedBox.shrink();
+  }
 }
 ''';
   }

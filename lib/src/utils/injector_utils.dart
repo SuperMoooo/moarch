@@ -29,6 +29,12 @@ abstract final class InjectorUtils {
   /// A bloc is a **factory**, not a singleton: each screen gets its own and
   /// closing the route closes it. The datasources and repository are lazy
   /// singletons — one connection's worth of state, shared.
+  ///
+  /// [blocRepositoryClass] names the repository the bloc is constructed with,
+  /// for the case where that is not the feature's own — `moarch create bloc`
+  /// adds a second bloc to an existing feature and hands it that feature's.
+  /// Left null it follows [hasRepository]: the feature's repository, or a
+  /// bloc that takes nothing because no data layer was generated.
   static String registrationsFor({
     required String featureName,
     required String className,
@@ -37,7 +43,10 @@ abstract final class InjectorUtils {
     required bool hasRepository,
     required bool hasBloc,
     required bool useFirestore,
+    String? blocRepositoryClass,
   }) {
+    final blocRepo = blocRepositoryClass ?? (hasRepository ? className : null);
+
     final lines = <String>[
       '  // ── $className ${'─' * (56 - className.length).clamp(3, 56)}',
       if (hasRemote)
@@ -59,10 +68,10 @@ ${[
   );''',
       if (hasBloc)
         '''  // A factory, not a singleton: the screen's BlocProvider creates it and
-  // closing the route closes it, subscriptions and all.
-  getIt.registerFactory<${className}Bloc>(
-    () => ${className}Bloc(getIt<${className}Repository>()),
-  );''',
+  // closing the route closes it.
+${blocRepo == null ? '  getIt.registerFactory<${className}Bloc>(${className}Bloc.new);' : '''  getIt.registerFactory<${className}Bloc>(
+    () => ${className}Bloc(getIt<${blocRepo}Repository>()),
+  );'''}''',
     ];
 
     return lines.join('\n');

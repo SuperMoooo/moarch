@@ -2,6 +2,72 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 6.5.0
+
+### Fixed
+
+- **`moarch init --all` did not resolve on either stack.** `file_picker: ^11`
+  pins `win32 ^5.9`, and `flutter_secure_storage: ^11` reaches `win32 ^6.0.1`
+  through `flutter_secure_storage_windows` — the two cannot both be installed.
+  file_picker is now `^12.0.0`, which is where it stopped depending on win32
+  directly. 12 also dropped the `FilePickerResult` wrapper (`pickFiles` returns
+  `List<PlatformFile>`) and deprecated `pickFiles(allowMultiple: false)`, so
+  `media_service.dart` now branches to `FilePicker.pickFile` for a single pick.
+- **A Riverpod project could not install `mogen_integration_tests`.** 1.1.2
+  needs `analyzer >=13`, which a Riverpod app cannot reach: riverpod 3.4.2
+  declares `test` as a regular dependency, and `test` resolved against
+  flutter_test's pinned `matcher`/`test_api` caps analyzer below 13. The
+  constraint is now `^1.1.1`, which gives pub somewhere to back off to — a bloc
+  project still installs 1.1.2, a Riverpod one takes 1.1.1. (The real fix is
+  upstream: `mogen_unit_tests` declares `analyzer >=10 <15` and never
+  conflicts; `mogen_integration_tests` narrowed its floor to 13.)
+- **The generated Riverpod project did not compile against flutter_riverpod 3.**
+  `ProviderListenable` — the type every `ref.listen` takes, and the one
+  `listenAction` is declared with — left the main barrel in Riverpod 3.
+  `action_listener.dart` now imports `package:flutter_riverpod/misc.dart`,
+  where it lives.
+- `AppAsyncView` built its stream/future states with `AsyncValue.copyWithPrevious`,
+  which went `@internal` in Riverpod 3 and warned in every generated project.
+  It now tracks `hasValue` / `value` / `error` / `isLoading` itself and adapts
+  the provider's `AsyncValue` through public getters only. Behaviour is
+  unchanged: a reload or a failed refresh still leaves loaded data on screen.
+- `moarch create feature` generated the repository, its implementation, the
+  entity and the model even when the Repository row was left unticked —
+  the state holder was assumed to need one, so the layer was silently added
+  back. The checklist is now taken literally: unticking Repository generates a
+  bloc that takes nothing and loads nothing until you point it somewhere, and
+  a Riverpod notifier whose `build()` is a TODO with no locator behind it.
+  Both are registered and both compile.
+
+### Changed
+
+- **The generated bloc is four states and one event.** `Initial`, `Loading`,
+  `Success`, `Failure`, and `Started` — dispatched when the screen opens and
+  again to refresh or retry. `Refreshed` is gone: a retry is the same load,
+  and two names for it is one too many.
+- **`Success` is generated empty.** It carried a `List<XEntity> items`, a
+  `copyWith` and a `placeholder` of fake rows. What a screen shows is the
+  screen's business, and a scaffolded list half the features do not want is a
+  line to delete rather than a head start — so it ships as `const XSuccess()`
+  with a TODO saying where the fields and their `props` go. The state no
+  longer names an entity at all, which is what lets a feature without a data
+  layer compile.
+- **The Firestore live variant of the bloc is gone**, and with it
+  `create bloc --firestore`. It brought two events of its own
+  (`ItemsUpdated`, `Failed`), a `StreamSubscription` and a `close()` override.
+  Every bloc is now the one-off `await _repo.fetchAll()` shape whatever the
+  backend is; a live query is the project's to wire. The *data* layer is
+  untouched — a Firestore datasource still has `watchAll()` and the repository
+  still declares it.
+- The view still shimmers while loading, traced over a stand-in
+  `const XSuccess()` instead of a `placeholder` static, with a comment saying
+  to give the fields fake values as they are added. It no longer imports
+  `EmptyView`, which only the live variant had a use for.
+- Comments across the generated bloc, event, state, page and view are cut back
+  to what is load-bearing.
+- `moarch create bloc` registers the bloc even when the feature has no
+  repository — it takes nothing, so there is nothing to wait for.
+
 ## 6.4.0
 
 ### Features

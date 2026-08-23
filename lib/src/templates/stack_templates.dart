@@ -288,46 +288,27 @@ class StackTemplates {
 
   /// The feature state.
   ///
-  /// [entityName] / [entityClass] name the entity `items` holds, when that is
-  /// not the one named after [name] — bloc only, and only for the live
-  /// variant, which is the one with an `items` list at all.
+  /// [useFirestore] is Riverpod's alone: its state is built from the live
+  /// query. A bloc's four states carry nothing the backend decides.
   String featureState(
     String name,
     String cls, {
     bool useFirestore = false,
-    String? entityName,
-    String? entityClass,
-    bool? entityIdIsString,
   }) =>
       isBloc
-          ? bloc.FeatureTemplates.state(
-              name,
-              cls,
-              useFirestore: useFirestore,
-              entityName: entityName,
-              entityClass: entityClass,
-              entityIdIsString: entityIdIsString,
-            )
+          ? bloc.FeatureTemplates.state(name, cls)
           : riverpod.FeatureTemplates.state(name, cls,
               useFirestore: useFirestore);
 
   /// The feature's sealed event family — bloc only.
-  String featureEvent(
-    String name,
-    String cls, {
-    bool useFirestore = false,
-    String? entityName,
-    String? entityClass,
-  }) =>
-      bloc.FeatureTemplates.event(
-        name,
-        cls,
-        useFirestore: useFirestore,
-        entityName: entityName,
-        entityClass: entityClass,
-      );
+  String featureEvent(String name, String cls) =>
+      bloc.FeatureTemplates.event(name, cls);
 
   /// The state holder: an `AsyncNotifier` or a `Bloc`.
+  ///
+  /// [hasRepository] is false when the feature was scaffolded without a data
+  /// layer: the holder then loads nothing and leaves a TODO, rather than
+  /// importing a repository that was never generated.
   ///
   /// [repositoryName] / [repositoryClass] point the holder at a repository
   /// other than the one named after it — what `moarch create bloc` needs when
@@ -338,6 +319,7 @@ class StackTemplates {
     String cls,
     String varName, {
     bool useFirestore = false,
+    bool hasRepository = true,
     String? repositoryName,
     String? repositoryClass,
   }) =>
@@ -346,7 +328,7 @@ class StackTemplates {
               name,
               cls,
               varName,
-              useFirestore: useFirestore,
+              hasRepository: hasRepository,
               repositoryName: repositoryName,
               repositoryClass: repositoryClass,
             )
@@ -355,6 +337,7 @@ class StackTemplates {
               cls,
               varName,
               useFirestore: useFirestore,
+              hasRepository: hasRepository,
             );
 
   /// The page that creates the bloc and provides it above the view. Bloc
@@ -376,7 +359,6 @@ class StackTemplates {
               cls,
               varName,
               hasBloc: hasHolder,
-              useFirestore: useFirestore,
             )
           : riverpod.FeatureTemplates.view(
               name,

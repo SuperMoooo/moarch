@@ -409,13 +409,51 @@ ${useFirestore ? '''
   /// The repository comes out of the locator rather than off another provider:
   /// `injector.dart` is where the data layer is wired, and the notifier is the
   /// seam between it and Riverpod.
+  ///
+  /// [hasRepository] is false when the feature was scaffolded without a data
+  /// layer: `build()` is then a TODO returning an empty state, rather than
+  /// resolving a repository that was never generated.
   static String notifier(String name, String cls, String varName,
-      {bool useFirestore = false}) {
+      {bool useFirestore = false, bool hasRepository = true}) {
     final dependency =
         '  ${cls}Repository get _repo => getIt<${cls}Repository>();';
 
     final imports =
         "import '../../domain/repositories/${name}_repository.dart';";
+
+    // No data layer to reach, so no locator and no repository to import.
+    if (!hasRepository) {
+      return '''
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/utils/action_notifier.dart';
+import '../states/${name}_state.dart';
+
+final ${varName}NotifierProvider =
+    AsyncNotifierProvider<${cls}Notifier, ${cls}State>(${cls}Notifier.new);
+
+class ${cls}Notifier extends AsyncNotifier<${cls}State>
+    with ActionNotifierMixin<${cls}State> {
+  @override
+  FutureOr<${cls}State> build() async {
+    // TODO: load what the screen needs and put it into ${cls}State.
+    return const ${cls}State();
+  }
+
+  // TODO: add your methods — runAction (from ActionNotifierMixin) handles
+  // loading, AppException and unknown errors for you. It passes you the
+  // pre-action state (loading off): build the next state from it.
+  // Example:
+  // Future<void> doSomething() {
+  //   return runAction((current) async {
+  //     return current.copyWith(success: 'Done!');
+  //   });
+  // }
+}
+''';
+    }
 
     return '''
 import 'dart:async';

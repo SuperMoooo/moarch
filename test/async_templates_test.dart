@@ -18,8 +18,8 @@ void main() {
     test('a refresh keeps the data that is already on screen', () {
       // `hasValue` is the whole mechanism: a reload over existing data must not
       // replace a list the user is reading with a spinner.
-      expect(output, contains('if (!value.hasValue) {'));
-      expect(output, contains('if (error != null && !value.isLoading) {'));
+      expect(output, contains('if (!state.hasValue) {'));
+      expect(output, contains('if (error != null && !state.isLoading) {'));
     });
 
     test('a spinner is the fallback, not the default', () {
@@ -59,7 +59,7 @@ void main() {
     });
 
     test('a nullable T can still hold null as its value', () {
-      expect(output, contains('final data = value.value as T;'));
+      expect(output, contains('final data = state.value as T;'));
     });
 
     test('takes a raw Stream or Future, not only a provider\'s AsyncValue', () {
@@ -71,29 +71,38 @@ void main() {
 
     test('all three sources land in the same four-state mapping', () {
       // The constructors differ in where the value comes from and in nothing
-      // else: the copy, the skeleton and the empty test are declared once.
+      // else: the skeleton and the empty test are declared once, against one
+      // shape both paths are adapted into.
       expect(
         output,
-        contains('Widget _render(BuildContext context, AsyncValue<T> value) {'),
+        contains(
+            'Widget _render(BuildContext context, _AsyncState<T> state) {'),
       );
-      expect(
-        output,
-        contains('if (value != null) return _render(context, value);'),
-      );
+      expect(output, contains('class _AsyncState<T> {'));
       expect(output, contains('builder: _render,'));
     });
 
+    test('the provider path is adapted with public API only', () {
+      // `copyWithPrevious` did this merging until Riverpod 3 made it
+      // `@internal`. Everything read here is a documented getter — the name
+      // survives only in the comment explaining why it is gone.
+      expect(output, isNot(contains('.copyWithPrevious(')));
+      expect(output, contains('hasValue: value.hasValue,'));
+      expect(
+          output, contains('value: value.hasValue ? value.value as T : null,'));
+      expect(output, contains('error: value.error,'));
+      expect(output, contains('isLoading: value.isLoading,'));
+    });
+
     test('a raw source keeps what it has already emitted', () {
-      // `copyWithPrevious` is what makes an error mid-stream, or a stream
-      // swapped for another, leave the loaded data on screen.
-      expect(
-        output,
-        contains('_value = AsyncValue<T>.loading().copyWithPrevious(_value);'),
-      );
-      expect(
-        output,
-        contains('setState(() => _value = next.copyWithPrevious(_value));'),
-      );
+      // A reload or a failure leaves the loaded data on screen: `_subscribe`
+      // and `_emitError` both leave `_hasValue`/`_value` where they are.
+      expect(output, contains('bool _hasValue = false;'));
+      expect(output, contains('_isLoading = true;'));
+      expect(output,
+          contains('void _emitError(Object error, {Future<T>? from}) {'));
+      // Only a successful emit replaces the data.
+      expect(output, contains('_hasValue = true;'));
     });
 
     test('the subscription lives and dies with the element', () {

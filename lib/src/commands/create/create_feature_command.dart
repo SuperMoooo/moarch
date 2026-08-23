@@ -225,13 +225,13 @@ class CreateFeatureCommand extends Command<int> {
       useFirestore = false;
     }
 
-    // The state holder depends on the repository, so generating it without
-    // one would produce broken imports.
-    if (selected.contains(holderItem) && !selected.contains(_kRepository)) {
-      selected.add(_kRepository);
-      _logger.info('  Note: Repository layer added — '
-          '${templates.holderLabel} depends on it.');
-    }
+    // The checklist is taken literally: a holder asked for without a
+    // repository is generated without one — it loads nothing and says so in a
+    // TODO — rather than pulling in a data layer that was declined.
+    final hasRepository = selected.contains(_kRepository);
+    // Riverpod's live variant is built on the repository's `watchAll()`, so a
+    // feature without one gets the plain state holder whatever the backend is.
+    final liveQuery = useFirestore && hasRepository;
 
     _logger.info('');
     _logger.info('🧱 Creating feature: $className');
@@ -290,14 +290,15 @@ class CreateFeatureCommand extends Command<int> {
       }
       if (selected.contains(holderItem)) {
         await _writeState(featurePath, featureName, className, templates,
-            useFirestore: useFirestore);
+            useFirestore: liveQuery);
         await _writeHolder(
           featurePath,
           featureName,
           className,
           varName,
           templates,
-          useFirestore: useFirestore,
+          useFirestore: liveQuery,
+          hasRepository: hasRepository,
         );
         // The Riverpod state/notifier depend on the shared runAction helper —
         // write it if the project doesn't have it yet (writeFile never
@@ -317,7 +318,7 @@ class CreateFeatureCommand extends Command<int> {
           varName,
           templates,
           hasHolder: selected.contains(holderItem),
-          useFirestore: useFirestore,
+          useFirestore: liveQuery,
         );
         if (selected.contains(holderItem)) {
           await _ensureViewWidgets(libPath);
@@ -376,10 +377,11 @@ class CreateFeatureCommand extends Command<int> {
       _logger.info('');
     }
     // Nothing was asked for that the locator holds, so nothing was expected
-    // of it either.
+    // of it either. A bloc counts: it is registered there too.
     final needsInjector = selected.contains(_kRemoteDatasource) ||
         selected.contains(_kLocalDatasource) ||
-        selected.contains(_kRepository);
+        selected.contains(_kRepository) ||
+        (templates.isBloc && selected.contains(holderItem));
     if (needsInjector) {
       if (registeredInInjector) {
         _logger.info('  Registered in ${InjectorUtils.path}.');
@@ -414,10 +416,10 @@ class CreateFeatureCommand extends Command<int> {
     // Read off the project, so these come out for the stack the view uses.
     final variants = WidgetVariants.detect(libPath);
     final specs = WidgetCatalog.resolve(
-      // A bloc view imports the kit's error and empty screens directly, and
+      // A bloc view imports the kit's error screen and the toast directly, and
       // draws the rest from its own sealed state.
       variants.hasBloc
-          ? ['error-view', 'empty-view', 'toast']
+          ? ['error-view', 'toast']
           : ['async-view', 'action-listener'],
       stateManagement: variants.stateManagement,
     );
@@ -590,18 +592,25 @@ class CreateFeatureCommand extends Command<int> {
     String varName,
     StackTemplates templates, {
     bool useFirestore = false,
+    bool hasRepository = true,
   }) async {
     final eventFile = templates.eventFile(name);
     if (eventFile != null) {
       await FileUtils.writeFile(
         p.join(fp, 'presentation', templates.holderDir, eventFile),
-        templates.featureEvent(name, cls, useFirestore: useFirestore),
+        templates.featureEvent(name, cls),
       );
     }
     await FileUtils.writeFile(
       p.join(
           fp, 'presentation', templates.holderDir, templates.holderFile(name)),
-      templates.featureHolder(name, cls, varName, useFirestore: useFirestore),
+      templates.featureHolder(
+        name,
+        cls,
+        varName,
+        useFirestore: useFirestore,
+        hasRepository: hasRepository,
+      ),
     );
   }
 

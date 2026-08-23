@@ -106,7 +106,7 @@ layers, the same file names, the same `AppException` reaching the same
 | state holder | `AsyncNotifier<OrdersState>` | `Bloc<OrdersEvent, OrdersState>` |
 | lives in | `presentation/notifiers/orders_notifier.dart` | `presentation/blocs/orders_bloc.dart` (+ `orders_event.dart`) |
 | the state | one class inside `AsyncValue`, in `presentation/states/` | a sealed family: `Initial` / `Loading` / `Success` / `Failure`, in `presentation/blocs/` beside the bloc |
-| you call | `ref.read(p.notifier).refresh()` | `context.read<OrdersBloc>().add(const OrdersRefreshed())` |
+| you call | `ref.read(p.notifier).refresh()` | `context.read<OrdersBloc>().add(const OrdersStarted())` |
 | the screen | `presentation/views/orders_view.dart` | `presentation/pages/orders_page.dart` provides the bloc, `presentation/views/orders_view.dart` draws it |
 | the view uses | `AppAsyncView` + `ref.listenAction` | `BlocConsumer` + a `switch` |
 | dependencies | `get_it`, in `config/di/injector.dart` | `get_it`, in `config/di/injector.dart` |
@@ -140,9 +140,13 @@ sealed class OrdersState extends Equatable { const OrdersState(); }
 
 final class OrdersInitial extends OrdersState {}
 final class OrdersLoading extends OrdersState {}
-final class OrdersSuccess extends OrdersState { final List<OrderEntity> items; }
+final class OrdersSuccess extends OrdersState {}          // ← you add its fields
 final class OrdersFailure extends OrdersState { final String message; }
 ```
+
+`Success` is generated empty, with a TODO. What a screen shows is the screen's
+business, and a scaffolded `List<OrderEntity> items` that half the features do
+not want is a line to delete rather than a head start.
 
 There is no status flag or enum on top of that. **The family is the status** —
 a second way to say what the screen is doing is one way too many, and the
@@ -159,14 +163,12 @@ including the Firestore snapshots that changed nothing.
 
 ```dart
 sealed class OrdersEvent extends Equatable {}
-final class OrdersStarted   extends OrdersEvent {}   // dispatched by the route
-final class OrdersRefreshed extends OrdersEvent {}   // the retry button
+final class OrdersStarted extends OrdersEvent {}   // the route, and the retry
 // TODO: one per action the screen can take
 
 class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
   OrdersBloc(this._repo) : super(const OrdersInitial()) {
     on<OrdersStarted>(_onStarted);
-    on<OrdersRefreshed>(_onStarted);
 
     on<OrdersDeleted>((event, emit) async {
       emit(const OrdersLoading());
@@ -184,8 +186,8 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
 No mixin and no base class of moarch's own — that is the whole handler.
 
 The screen is plain `flutter_bloc`, split across two files. `pages/orders_page.dart`
-owns the bloc so leaving the route closes it, and with it any Firestore
-subscription — it is what a `GoRoute` points at. `views/orders_view.dart` draws
+owns the bloc so leaving the route closes it, and with it anything it holds
+— it is what a `GoRoute` points at. `views/orders_view.dart` draws
 the state with one `switch` and reacts to it with one `listener`, and never
 touches the locator, so a widget test can pump it with a bloc of its own:
 
@@ -206,19 +208,19 @@ BlocConsumer<OrdersBloc, OrdersState>(
     switch (state) {
       case OrdersFailure(:final message):
         AppToast.error(context, message);
+      // TODO: what should happen once on success — a toast, a pop.
       case OrdersSuccess():
-        // TODO: what should happen once — a toast, a pop, a redirect.
-        break;
       case OrdersInitial():
       case OrdersLoading():
         break;
     }
   },
   builder: (context, state) => switch (state) {
+    // Skeletonizer shimmers the tree it is handed, so loading draws the same
+    // body over a stand-in Success — give its fields fake values as you add them.
     OrdersInitial() || OrdersLoading() =>
-        Skeletonizer(child: _body(context, OrdersSuccess.placeholder)),
+        Skeletonizer(child: _body(context, const OrdersSuccess())),
     OrdersFailure(:final message) => ErrorView(message: message, onRetry: ...),
-    OrdersSuccess(:final items) when items.isEmpty => const EmptyView(),
     OrdersSuccess() => _body(context, state),
   },
 )
@@ -487,7 +489,7 @@ user nothing and leaks how the app is put together.
 The skeleton is the screen's own body, shimmered — which means it has to be
 handed **fake data, not an empty state**. Skeletonizer traces the widget tree it
 is given, so `_body(context, const OrdersState())` is a `ListView.builder` over
-nothing and shimmers as a blank screen. Every generated state carries a
+nothing and shimmers as a blank screen. Every generated Riverpod state carries a
 `placeholder` for this, holding a few stand-in rows whose text length is the
 width of the bones drawn over them (that is what skeletonizer's `BoneMock` is
 for). Keep it in step with `_body` and the loading state stays the real layout

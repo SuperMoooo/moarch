@@ -19,18 +19,12 @@ import '../../utils/string_utils.dart';
 class CreateBlocCommand extends Command<int> {
   /// Creates the bloc generator command.
   CreateBlocCommand({required Logger logger}) : _logger = logger {
-    argParser
-      ..addOption(
-        'path',
-        abbr: 'p',
-        defaultsTo: 'lib',
-        help: 'Path to the lib/ directory, or the project root holding it.',
-      )
-      ..addFlag(
-        'firestore',
-        negatable: false,
-        help: 'Generate the live-collection variant (watchAll + snapshots).',
-      );
+    argParser.addOption(
+      'path',
+      abbr: 'p',
+      defaultsTo: 'lib',
+      help: 'Path to the lib/ directory, or the project root holding it.',
+    );
   }
 
   final Logger _logger;
@@ -103,39 +97,6 @@ class CreateBlocCommand extends Command<int> {
     ));
     final hasRepository = repositoryFile.existsSync();
 
-    // The live variant is built on the repository's `watchAll()`, so it is
-    // only available when the feature actually declares one — asked for or
-    // not. Generating it against a repository without it produces a bloc that
-    // does not compile, and the reason would not be obvious.
-    final repositoryWatches = hasRepository &&
-        repositoryFile.readAsStringSync().contains('watchAll(');
-    final wantsFirestore = argResults?['firestore'] as bool? ?? false;
-
-    if (wantsFirestore && !repositoryWatches) {
-      _logger.err('$featureName\'s repository has no watchAll(), so there is '
-          'no live query to build on.');
-      _logger.info('  Add `Stream<${featureClass}Entity> watchAll();` to it '
-          '(and implement it in the');
-      _logger.info('  repository and datasource), or drop --firestore for the '
-          'one-off variant.');
-      return 1;
-    }
-
-    final useFirestore = repositoryWatches && wantsFirestore;
-
-    // The placeholder's fake ids have to be the type the entity actually
-    // declares, which is not always what the backend suggests: a feature
-    // generated against REST keys on an int even once a live query is added.
-    final entityFile = File(p.join(
-      featurePath,
-      'domain',
-      'entities',
-      '${featureName}_entity.dart',
-    ));
-    final entityIdIsString = entityFile.existsSync() &&
-        RegExp(r'final\s+String\s+id\s*;')
-            .hasMatch(entityFile.readAsStringSync());
-
     _logger.info('');
     _logger.info('🧱 Creating bloc: ${className}Bloc in $featureName');
     _logger.info('');
@@ -149,26 +110,11 @@ class CreateBlocCommand extends Command<int> {
       await FileUtils.writeFile(
         p.join(featurePath, 'presentation', templates.stateDir,
             '${blocName}_state.dart'),
-        templates.featureState(
-          blocName,
-          className,
-          useFirestore: useFirestore,
-          // The feature's entity, for the same reason as the repository: a
-          // second screen lists what the feature is made of.
-          entityName: featureName,
-          entityClass: featureClass,
-          entityIdIsString: entityIdIsString,
-        ),
+        templates.featureState(blocName, className),
       );
       await FileUtils.writeFile(
         p.join(featurePath, 'presentation', 'blocs', '${blocName}_event.dart'),
-        templates.featureEvent(
-          blocName,
-          className,
-          useFirestore: useFirestore,
-          entityName: featureName,
-          entityClass: featureClass,
-        ),
+        templates.featureEvent(blocName, className),
       );
       await FileUtils.writeFile(
         blocFile,
@@ -176,30 +122,34 @@ class CreateBlocCommand extends Command<int> {
           blocName,
           className,
           varName,
-          useFirestore: useFirestore,
+          hasRepository: hasRepository,
           // The feature's repository, not one named after this bloc: a
           // second screen in a feature reads the same data layer.
           repositoryName: featureName,
           repositoryClass: featureClass,
         ),
       );
-      if (hasRepository) {
-        registered = await InjectorUtils.register(
-          libPath,
+      registered = await InjectorUtils.register(
+        libPath,
+        className: className,
+        registrations: InjectorUtils.registrationsFor(
+          featureName: featureName,
           className: className,
-          registrations:
-              '''  // ── $className ${'─' * (56 - className.length).clamp(3, 56)}
-  // A factory, not a singleton: the screen's BlocProvider creates it and
-  // closing the route closes it, subscriptions and all.
-  getIt.registerFactory<${className}Bloc>(
-    () => ${className}Bloc(getIt<${featureClass}Repository>()),
-  );''',
-          imports: [
+          hasRemote: false,
+          hasLocal: false,
+          hasRepository: false,
+          hasBloc: true,
+          useFirestore: false,
+          // The feature's repository, which this bloc shares rather than
+          // declaring a data layer of its own.
+          blocRepositoryClass: hasRepository ? featureClass : null,
+        ),
+        imports: [
+          if (hasRepository)
             "import '../../features/$featureName/domain/repositories/${featureName}_repository.dart';",
-            "import '../../features/$featureName/presentation/blocs/${blocName}_bloc.dart';",
-          ],
-        );
-      }
+          "import '../../features/$featureName/presentation/blocs/${blocName}_bloc.dart';",
+        ],
+      );
 
       progress.complete('Bloc scaffolded');
     } catch (e) {
@@ -218,14 +168,12 @@ class CreateBlocCommand extends Command<int> {
 
     if (registered) {
       _logger.info('  Registered in ${InjectorUtils.path}.');
-    } else if (!hasRepository) {
-      // The bloc's constructor names a repository the feature does not have,
-      // so it cannot be registered until that exists.
-      _logger.warn('  $featureName has no repository, so ${className}Bloc was '
-          'not registered.');
-      _logger.info('  Point its constructor at whatever it should depend on, '
-          'then register');
-      _logger.info('  it in ${InjectorUtils.path}.');
+      if (!hasRepository) {
+        // Nothing to take, so it was registered taking nothing. Say so — the
+        // alternative is finding out from a constructor that does not match.
+        _logger.info('  $featureName has no repository, so ${className}Bloc '
+            'takes nothing yet.');
+      }
     } else {
       _logger
           .warn('  Nothing was registered in ${InjectorUtils.path} — register');
