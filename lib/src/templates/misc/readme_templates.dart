@@ -873,7 +873,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     try {
       emit(ProfileSuccess(items: await _repo.fetchAll()));
     } on AppException catch (e) {
-      emit(ProfileFailure(e.message));
+      emit(ProfileFailure(message: e.message));
     }
   }
 }

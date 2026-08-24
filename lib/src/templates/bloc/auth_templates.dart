@@ -419,7 +419,15 @@ final class AuthUnauthenticated extends AuthState {
 /// the screen that asked for it shows [message] without the user being
 /// bounced to login.
 final class AuthFailure extends AuthState {
-  const AuthFailure(this.message, {this.userId});
+  /// Not const, and not value-equal: every failure gets its own [id] off
+  /// [_seq], so two failures with the same message are two different states.
+  /// Without that, a second wrong password equals the current state, the
+  /// emit is dropped, and the screen never shows the error again.
+  AuthFailure(this.message, {this.userId}) : id = ++_seq;
+
+  static int _seq = 0;
+
+  final int id;
 
   final String message;
 
@@ -432,7 +440,7 @@ final class AuthFailure extends AuthState {
   bool get authenticated => userId != null;
 
   @override
-  List<Object?> get props => [message, userId];
+  List<Object?> get props => [message, userId, id];
 }
 ''';
 

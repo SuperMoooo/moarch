@@ -119,7 +119,12 @@ void main() {
       expect(output, isNot(contains("import '../../domain/entities/")));
       // Only Failure carries anything, so only it overrides props — and the
       // TODO says to do the same for whatever is added.
-      expect(output, contains('List<Object?> get props => [message];'));
+      expect(output, contains('List<Object?> get props => [message, id];'));
+      // A failure is deliberately not a value: same message, new state, so a
+      // retry that fails the same way is not dropped as equal to the current.
+      expect(output,
+          contains('OrdersFailure({required this.message}) : id = ++_seq;'));
+      expect(output, isNot(contains('const OrdersFailure(')));
       expect(output, contains('list it in `props`'));
     });
 
@@ -139,7 +144,7 @@ void main() {
 
       expect(output, contains('await _repo.fetchAll();'));
       expect(output, contains('emit(const OrdersSuccess());'));
-      expect(output, contains('emit(OrdersFailure(e.message));'));
+      expect(output, contains('emit(OrdersFailure(message: e.message));'));
       // The subscription variant is gone — a live query is the project's to
       // wire, not the scaffold's to assume.
       expect(output, isNot(contains('watchAll()')));
@@ -758,10 +763,14 @@ Future<void> setupInjector() async {
     test('the state records the user it failed for', () {
       final output = bloc.AuthTemplates.state();
 
-      expect(
-          output, contains('const AuthFailure(this.message, {this.userId})'));
+      expect(output,
+          contains('AuthFailure(this.message, {this.userId}) : id = ++_seq;'));
       expect(output, contains('bool get authenticated => userId != null;'));
-      expect(output, contains('List<Object?> get props => [message, userId];'));
+      expect(output,
+          contains('List<Object?> get props => [message, userId, id];'));
+      // Same reason as a feature's Failure: a second wrong password must not
+      // compare equal to the first and be dropped.
+      expect(output, isNot(contains('const AuthFailure(')));
     });
 
     test('a failed delete is reported instead of swallowed', () {

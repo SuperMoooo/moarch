@@ -2,6 +2,10 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 7.0.1
+
+- For Failure bloc states, failure is unique
+
 ## 7.0.0
 
 ### Breaking
@@ -16,16 +20,17 @@ All notable changes to this package are documented in this file, newest first.
   there is no constructor left to inherit. The model declares its own fields
   and maps them explicitly.
 
-  This does **not** migrate a project that already exists: `moarch update`
-  compares hashes and refuses to overwrite an edited file, and it never touches
-  `pubspec.yaml`. In particular, refreshing the auth feature (`moarch update
-  auth`) on a project scaffolded before this release writes freezed sources
-  into a project that has no freezed. Add the four dependencies first.
+        This does **not** migrate a project that already exists: `moarch update`
+        compares hashes and refuses to overwrite an edited file, and it never touches
+        `pubspec.yaml`. In particular, refreshing the auth feature (`moarch update
+
+    auth`) on a project scaffolded before this release writes freezed sources
+    into a project that has no freezed. Add the four dependencies first.
 
 - `moarch create entity-copys` is removed. It injected `copyWith`, `==` and
   `hashCode` into an entity; freezed writes all three, and injecting them on
   top is a duplicate-member compile error. `moarch create model <feature>
-  <name> --from-entity` is what replaces it — see below.
+<name> --from-entity` is what replaces it — see below.
   `moarch create empty-factories` stays: `.empty()` is a hand-written
   convenience freezed does not produce.
 
@@ -69,7 +74,7 @@ All notable changes to this package are documented in this file, newest first.
   alike: the model gets `fromDoc` and keeps its id out of the body. Leave it off
   for a value object nested inside a document, which can carry an `id` of its
   own and still be a plain map. On `--from-json` it also supplies the `String
-  id` the sample could not — a document's id is its name, so an exported payload
+id` the sample could not — a document's id is its name, so an exported payload
   does not carry one — and retypes an `id` the sample inferred as something
   else, since `doc.id` is always a String.
 - `build.yaml` is now generated, carrying `explicit_to_json: true`. Without it
@@ -160,7 +165,7 @@ All notable changes to this package are documented in this file, newest first.
   `create bloc --firestore`. It brought two events of its own
   (`ItemsUpdated`, `Failed`), a `StreamSubscription` and a `close()` override.
   Every bloc is now the one-off `await _repo.fetchAll()` shape whatever the
-  backend is; a live query is the project's to wire. The *data* layer is
+  backend is; a live query is the project's to wire. The _data_ layer is
   untouched — a Firestore datasource still has `watchAll()` and the repository
   still declares it.
 - The view still shimmers while loading, traced over a stand-in
@@ -188,9 +193,9 @@ All notable changes to this package are documented in this file, newest first.
   `floatingMaxWidth` caps the width of either, which is how a `fill` bar stops
   short of the edges on a tablet. Both are only read when `floating`: a docked
   bar is the bottom edge.
-  - The styles the widget draws itself hug by way of a min-size row; Material's
-    own `NavigationBar` divides whatever width it is handed, so hugging
-    measures it with an `IntrinsicWidth` instead.
+    - The styles the widget draws itself hug by way of a min-size row; Material's
+      own `NavigationBar` divides whatever width it is handed, so hugging
+      measures it with an `IntrinsicWidth` instead.
 - `AppAdaptiveNav` hands the phone layout the three new knobs as
   `bottomNavBorderColor`, `bottomNavWidth` and `bottomNavMaxWidth`.
 - The generated design-system screen previews the new looks: a hugging
@@ -287,9 +292,9 @@ feature` and the five steps that are still yours; flavors; the build
   read; the conventions the analyzer cannot check; contacts and access; and
   where the rest of `docs/` picks up.
 
-        It replaces the README `flutter create` leaves behind and only that one —
-        matched on two of its own sentences, the same way `main.dart` and
-        `widget_test.dart` already are, so a README you wrote is never touched.
+                It replaces the README `flutter create` leaves behind and only that one —
+                matched on two of its own sentences, the same way `main.dart` and
+                `widget_test.dart` already are, so a README you wrote is never touched.
 
 - The README is a catalog entry, so `moarch update readme` refreshes it and
   `--diff` shows what a refresh would change. Like every other template it
@@ -710,8 +715,8 @@ look at in the diff it offers:
       `doctor --fix` points it back at `.fvm/flutter_sdk`.
     - `settings.json` missing, or carrying no `dart.flutterSdkPath` — **warning**.
 
-                                                                                            An absolute path is left alone as a deliberate override, and a project with no
-                                                                                            `.fvmrc` gets none of these findings.
+                                                                                                An absolute path is left alone as a deliberate override, and a project with no
+                                                                                                `.fvmrc` gets none of these findings.
 
 - The README documents that the generated `.fvmrc` pins the `stable` _alias_
   rather than a version, so `fvm install` on CI or a teammate's machine can

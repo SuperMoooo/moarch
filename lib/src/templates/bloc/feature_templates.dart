@@ -419,12 +419,20 @@ final class ${cls}Success extends ${cls}State {
 }
 
 final class ${cls}Failure extends ${cls}State {
-  const ${cls}Failure(this.message);
+  /// Not const, and not value-equal: every failure gets its own [id] off
+  /// [_seq], so two failures with the same message are two different states.
+  /// Without that, a retry that fails the same way equals the current state,
+  /// the emit is dropped, and the toast never fires a second time.
+  ${cls}Failure({required this.message}) : id = ++_seq;
+
+  static int _seq = 0;
+
+  final int id;
 
   final String message;
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message, id];
 }
 ''';
 
@@ -538,7 +546,7 @@ $handlerTodo
       await _repo.fetchAll();
       emit(const ${cls}Success());
     } on AppException catch (e) {
-      emit(${cls}Failure(e.message));
+      emit(${cls}Failure(message: e.message));
     }
   }
 }
