@@ -14,29 +14,27 @@ class FirebaseAuthTemplates {
 
   /// Returns the generated auth user entity template.
   static String entity() => r'''
-class AuthUserEntity {
-  const AuthUserEntity({
-    required this.id,
-    this.email,
-    this.displayName,
-    this.photoUrl,
-    this.emailVerified = false,
-  });
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-  /// The Firebase Auth uid. Also the document id of the user's profile when
-  /// the project stores one in Firestore.
-  final String id;
+part 'auth_user_entity.freezed.dart';
 
-  final String? email;
-  final String? displayName;
-  final String? photoUrl;
-  final bool emailVerified;
-
-  @override
-  bool operator ==(Object other) => other is AuthUserEntity && other.id == id;
-
-  @override
-  int get hashCode => id.hashCode;
+/// The signed-in user as the app sees them.
+///
+/// Equality comes from freezed and covers every field. It used to be keyed on
+/// `id` alone, which meant a session whose display name or photo had changed
+/// compared equal to the one before it — and a state holder that drops an
+/// equal state dropped the change with it.
+@freezed
+abstract class AuthUserEntity with _$AuthUserEntity {
+  const factory AuthUserEntity({
+    /// The Firebase Auth uid. Also the document id of the user's profile when
+    /// the project stores one in Firestore.
+    required String id,
+    String? email,
+    String? displayName,
+    String? photoUrl,
+    @Default(false) bool emailVerified,
+  }) = _AuthUserEntity;
 }
 ''';
 
@@ -117,19 +115,57 @@ $syncDeviceToken  /// The signed-in user's uid.
   /// document — Firebase Auth holds the credentials, everything else about a
   /// user belongs in Firestore.
   static String model({bool withFirestore = false}) {
-    const header = r'''
+    // json_serializable only enters the picture when there is a profile
+    // document to parse; without Firestore the model is freezed alone, and
+    // asking for a `.g.dart` part nothing generates would fail the build.
+    final jsonPart = withFirestore ? "part 'auth_user_model.g.dart';\n" : '';
+
+    // The id is the profile document's name rather than one of its fields, so
+    // it is kept out of the body — the datasource folds `doc.id` back in
+    // before parsing.
+    final idParam = withFirestore
+        ? '    @JsonKey(includeToJson: false) required String id,'
+        : '    required String id,';
+
+    final firestoreMapping = withFirestore
+        ? r'''
+
+  /// The profile document at `users/{uid}`.
+  ///
+  /// Add the rest of your profile fields to the constructor above — a key that
+  /// differs from the Dart name gets an `@JsonKey(name: 'created_at')`, and a
+  /// DateTime an `@TimestampConverter()`.
+  factory AuthUserModel.fromJson(Map<String, dynamic> json) =>
+      _$AuthUserModelFromJson(json);
+'''
+        : '';
+
+    return '''
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../domain/entities/auth_user_entity.dart';
 
-class AuthUserModel extends AuthUserEntity {
-  const AuthUserModel({
-    required super.id,
-    super.email,
-    super.displayName,
-    super.photoUrl,
-    super.emailVerified,
-  });
+part 'auth_user_model.freezed.dart';
+$jsonPart
+/// The wire shape of a signed-in user.
+///
+/// It does not extend the entity — freezed generates the concrete class, so
+/// there is no constructor to inherit. [toEntity] is what crosses the line
+/// instead, and the repository calls it on the way out of `data/`.
+@freezed
+abstract class AuthUserModel with _\$AuthUserModel {
+  /// Freezed needs a private constructor before a class may declare members
+  /// of its own — [toEntity] below is one.
+  const AuthUserModel._();
+
+  const factory AuthUserModel({
+$idParam
+    String? email,
+    String? displayName,
+    String? photoUrl,
+    @Default(false) bool emailVerified,
+  }) = _AuthUserModel;
 
   /// The FirebaseAuth user as the rest of the app sees it.
   factory AuthUserModel.fromFirebaseUser(User user) => AuthUserModel(
@@ -139,38 +175,24 @@ class AuthUserModel extends AuthUserEntity {
         photoUrl: user.photoURL,
         emailVerified: user.emailVerified,
       );
+
+  factory AuthUserModel.fromEntity(AuthUserEntity entity) => AuthUserModel(
+        id: entity.id,
+        email: entity.email,
+        displayName: entity.displayName,
+        photoUrl: entity.photoUrl,
+        emailVerified: entity.emailVerified,
+      );
+
+  AuthUserEntity toEntity() => AuthUserEntity(
+        id: id,
+        email: email,
+        displayName: displayName,
+        photoUrl: photoUrl,
+        emailVerified: emailVerified,
+      );
+$firestoreMapping}
 ''';
-
-    const firestoreMapping = r'''
-
-  /// The profile document at `users/{uid}` — the id is the document's name,
-  /// not one of its fields.
-  factory AuthUserModel.fromJson(
-    Map<String, dynamic> json, {
-    required String id,
-  }) {
-    return AuthUserModel(
-      id: id,
-      email: json['email'] as String?,
-      displayName: json['displayName'] as String?,
-      photoUrl: json['photoUrl'] as String?,
-      emailVerified: json['emailVerified'] as bool? ?? false,
-      // TODO: parse the rest of your profile fields
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'email': email,
-      'displayName': displayName,
-      'photoUrl': photoUrl,
-      'emailVerified': emailVerified,
-      // TODO: add the rest of your profile fields
-    };
-  }
-''';
-
-    return '$header${withFirestore ? firestoreMapping : ''}}\n';
   }
 
   // ── Data — Remote datasource ────────────────────────────────────────────────
@@ -226,7 +248,8 @@ class AuthUserModel extends AuthUserEntity {
         final doc = await _profileRef(id).get();
         final data = doc.data();
         if (data == null) return null;
-        return AuthUserModel.fromJson(data, id: doc.id);
+        // The id is the document's name, not a field of its data.
+        return AuthUserModel.fromJson({...data, 'id': doc.id});
       },
     );
   }
@@ -514,21 +537,27 @@ class AuthRepositoryImpl implements AuthRepository {
 
   final AuthRemoteDataSource _remote;$pushField
 
+  // Every method below crosses out of `data/`: the datasource answers with
+  // models, and a model is no longer an entity — freezed generates the
+  // concrete class, so the `extends` that used to make this implicit is gone.
   @override
-  Stream<AuthUserEntity?> authStateChanges() => _remote.authStateChanges();
+  Stream<AuthUserEntity?> authStateChanges() =>
+      _remote.authStateChanges().map((user) => user?.toEntity());
 
   @override
   Future<bool> isLoggedIn() async => _remote.currentUser != null;
 
   @override
-  Future<AuthUserEntity?> currentUser() async => _remote.currentUser;
+  Future<AuthUserEntity?> currentUser() async =>
+      _remote.currentUser?.toEntity();
 
   @override
   Future<AuthUserEntity> login({
     required String email,
     required String password,
-  }) {
-    return _remote.login(email: email, password: password);
+  }) async {
+    final user = await _remote.login(email: email, password: password);
+    return user.toEntity();
   }
 
   @override
@@ -542,13 +571,13 @@ class AuthRepositoryImpl implements AuthRepository {
       password: password,
       displayName: displayName,
     );$saveProfileOnRegister
-    return user;
+    return user.toEntity();
   }
 
   @override
   Future<AuthUserEntity> signInWithGoogle() async {
     final user = await _remote.signInWithGoogle();$saveProfileOnGoogle
-    return user;
+    return user.toEntity();
   }
 
   @override

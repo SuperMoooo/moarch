@@ -440,6 +440,12 @@ class InitCommand extends Command<int> {
       PackageVersions.entry('flutter_native_splash'),
       PackageVersions.entry('envied'),
       PackageVersions.entry('skeletonizer'),
+      // Every entity and model is a freezed class, so the annotations are a
+      // runtime dependency of the app itself — the generated `.freezed.dart`
+      // and `.g.dart` parts reference them. The generators are dev-only,
+      // below.
+      PackageVersions.entry('freezed_annotation'),
+      PackageVersions.entry('json_annotation'),
       PackageVersions.entry('intl'),
       PackageVersions.entry('logger'),
       PackageVersions.entry('connectivity_plus'),
@@ -483,6 +489,12 @@ class InitCommand extends Command<int> {
     final devDependencies = <String>[
       PackageVersions.entry('build_runner'),
       PackageVersions.entry('envied_generator'),
+      // What writes the entity and model classes' other half. Nothing in
+      // `lib/` analyzes until these have run once — see the README's
+      // getting-started steps and the CI workflow, which both run
+      // `build_runner build` before `analyze`.
+      PackageVersions.entry('freezed'),
+      PackageVersions.entry('json_serializable'),
       PackageVersions.entry('mogen_unit_tests'),
       PackageVersions.entry('mogen_integration_tests'),
       PackageVersions.entry('flutter_lints'),
@@ -596,6 +608,13 @@ class InitCommand extends Command<int> {
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), 'flutter_native_splash.yaml'),
         DevTemplates.nativeSplash(),
+      );
+
+      // How the entity/model generators are configured — see
+      // [DevTemplates.buildYaml] for why the one option in it is load-bearing.
+      await FileUtils.writeFile(
+        p.join(p.absolute(targetPath), 'build.yaml'),
+        DevTemplates.buildYaml(),
       );
 
       await FileUtils.writeFile(
@@ -728,6 +747,12 @@ class InitCommand extends Command<int> {
         // way under a broader `.env*` rule further up someone's file.
         '!.env.example',
         'lib/config/env/app_env.g.dart',
+        // build_runner's output. Committed nowhere: CI runs
+        // `build_runner build` before it analyzes or tests, so the files are
+        // always a command away, and keeping them out spares every branch the
+        // merge conflicts a regenerated file guarantees.
+        '*.freezed.dart',
+        '*.g.dart',
       ];
 
       // `flutter create` projects already have a .gitignore, and writeFile
@@ -1483,6 +1508,14 @@ class InitCommand extends Command<int> {
         CoreTemplates.safeFirebaseCall(
           withAuth: stack.contains(_kFirebaseAuth),
         ),
+      );
+    }
+    // Firestore only: the one translation a generated model cannot do for
+    // itself, since json_serializable has never heard of `Timestamp`.
+    if (stack.contains(_kFirestore)) {
+      await FileUtils.writeFile(
+        p.join(c, 'network', 'timestamp_converter.dart'),
+        CoreTemplates.timestampConverter(),
       );
     }
     await FileUtils.writeFile(

@@ -50,6 +50,18 @@ abstract final class PackageVersions {
     'logger': '^2.4.0',
     'connectivity_plus': '^7.3.1',
 
+    // ── Codegen (entities and models) ───────────────────────────────────────
+    // The annotations are runtime dependencies — the generated `.freezed.dart`
+    // and `.g.dart` parts reference them — while the generators below are
+    // dev-only.
+    //
+    // Capped below freezed 4 on purpose, and not because of the API: 4.0.0
+    // raised its floor to Dart 3.13, which no released Flutter stable ships
+    // yet. The class shape moarch writes (`abstract class X with _$X`) is the
+    // same in both, so this is a floor to raise, not a rewrite.
+    'freezed_annotation': '^3.1.0',
+    'json_annotation': '^4.12.0',
+
     // ── Network ─────────────────────────────────────────────────────────────
     'go_router': '^17.5.0',
     'dio': '^5.11.0',
@@ -95,8 +107,17 @@ abstract final class PackageVersions {
     // This range still picks the newest build_runner an SDK allows.
     'build_runner': '^2.15.1',
     'envied_generator': '^1.3.8',
+    // See the annotation packages above for why this stops below 4.
+    'freezed': '^3.2.5',
+    'json_serializable': '^6.14.1',
     'flutter_lints': '^6.0.0',
-    'bloc_lint': '^0.4.2',
+    // Floored at 0.4.1 rather than 0.4.2 so pub has somewhere to back off to.
+    // 0.4.2 needs `_fe_analyzer_shared >=100`, which only analyzer 13 brings,
+    // while freezed 3.x caps analyzer below 11 — the two do not resolve
+    // together. 0.4.1 accepts `_fe_analyzer_shared` down to 93, which is what
+    // analyzer 10 ships. A bloc project takes 0.4.1; raise this the release
+    // freezed's floor moves to analyzer 13.
+    'bloc_lint': '^0.4.1',
     'mogen_unit_tests': '^1.4.2',
     // Floored at 1.1.1 rather than 1.1.2 so pub has somewhere to back off to.
     // 1.1.2 needs `analyzer >=13`, and a Riverpod project cannot reach it:

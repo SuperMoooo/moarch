@@ -10,6 +10,7 @@ import '../../templates/riverpod/feature_templates.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/json_model_builder.dart';
 import '../../utils/project_paths.dart';
+import '../../utils/scaffold_catalog.dart';
 import '../../utils/string_utils.dart';
 
 /// COMMAND FOR MODEL CREATION
@@ -33,6 +34,22 @@ class CreateModelCommand extends Command<int> {
       help: 'Infer the fields from a sample JSON payload file — the entity '
           'and model come out with real fields instead of TODOs.',
       valueHelp: 'file',
+    );
+    argParser.addFlag(
+      'from-entity',
+      negatable: false,
+      help: 'Write the model from an entity that already exists, mapping its '
+          'fields — including nested entities and lists of them — in both '
+          'directions. The entity is left untouched.',
+    );
+    argParser.addFlag(
+      'doc',
+      negatable: false,
+      help: 'With --from-entity or --from-json on a Firestore project: this '
+          'type is a document root, so its model gets fromDoc and keeps its '
+          'String id out of the body. Leave it off for a value object nested '
+          'inside a document. The plain scaffold assumes it — an entity whose '
+          'only field is an id is a root by construction.',
     );
   }
 
@@ -83,12 +100,38 @@ class CreateModelCommand extends Command<int> {
 
     final addEmpty = argResults?['empty'] as bool? ?? false;
     final fromJsonPath = argResults?['from-json'] as String?;
+    final fromEntity = argResults?['from-entity'] as bool? ?? false;
 
-    if (addEmpty && fromJsonPath != null) {
-      _logger.err('--empty and --from-json are different jobs — '
+    final modes = [
+      if (addEmpty) '--empty',
+      if (fromJsonPath != null) '--from-json',
+      if (fromEntity) '--from-entity',
+    ];
+    if (modes.length > 1) {
+      _logger.err('${modes.join(' and ')} are different jobs — '
           '--empty patches an existing entity, --from-json generates a new '
-          'one. Pick one.');
+          'pair, --from-entity writes the model for an entity you already '
+          'have. Pick one.');
       return 1;
+    }
+
+    // Firestore is read off the project rather than asked for: a document has
+    // a different shape from a REST payload, and the project already says
+    // which one it is.
+    final useFirestore =
+        ScaffoldContext.detect(p.dirname(libPath)).hasFirestore;
+    final isDocumentRoot = argResults?['doc'] as bool? ?? false;
+
+    if (fromEntity) {
+      return _modelFromEntity(
+        modelName: modelName,
+        modelClass: modelClass,
+        featureName: featureName,
+        entityFile: entityFile,
+        modelFile: modelFile,
+        useFirestore: useFirestore,
+        isDocumentRoot: isDocumentRoot,
+      );
     }
 
     if (!addEmpty) {
@@ -111,9 +154,19 @@ class CreateModelCommand extends Command<int> {
 
     // With a JSON sample the fields are inferred instead of left as TODOs.
     List<JsonField>? fields;
+    var addedDocumentId = false;
     if (fromJsonPath != null) {
       fields = _parseJsonSample(fromJsonPath);
       if (fields == null) return 1;
+
+      // A document's id is its name, not one of its fields, so an exported
+      // payload usually does not carry it — and where it does, it cannot be
+      // trusted to be the String `doc.id` always is.
+      if (isDocumentRoot) {
+        final withId = JsonModelBuilder.withDocumentId(fields);
+        addedDocumentId = !identical(withId, fields);
+        fields = withId;
+      }
     }
 
     _logger.info('');
@@ -127,13 +180,27 @@ class CreateModelCommand extends Command<int> {
       await FileUtils.writeFile(
         modelFile,
         fields == null
-            ? FeatureTemplates.model(modelName, modelClass)
-            : JsonModelBuilder.modelSource(modelName, modelClass, fields),
+            ? FeatureTemplates.model(
+                modelName,
+                modelClass,
+                useFirestore: useFirestore,
+              )
+            : JsonModelBuilder.modelSource(
+                modelName,
+                modelClass,
+                fields,
+                useFirestore: useFirestore,
+                isDocumentRoot: isDocumentRoot,
+              ),
       );
       await FileUtils.writeFile(
         entityFile,
         fields == null
-            ? FeatureTemplates.entity(modelName, modelClass)
+            ? FeatureTemplates.entity(
+                modelName,
+                modelClass,
+                useFirestore: useFirestore,
+              )
             : JsonModelBuilder.entitySource(modelName, modelClass, fields),
       );
       progress.complete('Model scaffolded');
@@ -156,8 +223,141 @@ class CreateModelCommand extends Command<int> {
         _logger.warn('  Fields typed `dynamic` were null in the sample — '
             'tighten them by hand.');
       }
+      if (addedDocumentId) {
+        _logger.info('');
+        _logger.info('  `String id` is the document name rather than a field '
+            'of its data, so it is read back off the snapshot by fromDoc and '
+            'left out of toJson.');
+      }
+      _logger.info('');
+      // Said rather than guessed: only --doc makes a document root, so a
+      // sample from a Firestore collection would otherwise come out shaped
+      // like a REST payload.
+      if (useFirestore && !isDocumentRoot) {
+        _logger.info('  Written as a nested value. If this is a document of '
+            'its own, delete both files and rerun with --doc.');
+        _logger.info('');
+      }
+    }
+    return 0;
+  }
+
+  /// Writes the model for an entity that already exists, mapping its fields
+  /// in both directions.
+  ///
+  /// The entity is the source of truth and is never touched. A field holding
+  /// another entity is converted rather than assigned — that is the whole
+  /// reason this exists: a freezed model cannot extend its entity, so
+  /// `datas: entity.datas` no longer type-checks and has to become
+  /// `DatasModel.fromEntity(entity.datas)`.
+  Future<int> _modelFromEntity({
+    required String modelName,
+    required String modelClass,
+    required String featureName,
+    required String entityFile,
+    required String modelFile,
+    required bool useFirestore,
+    required bool isDocumentRoot,
+  }) async {
+    final entityClass = '${modelClass}Entity';
+
+    if (!File(entityFile).existsSync()) {
+      _logger.err(
+        'No entity at $entityFile.\n'
+        '  Scaffold the pair first with: '
+        'moarch create model $featureName $modelName',
+      );
+      return 1;
+    }
+    if (File(modelFile).existsSync()) {
+      _logger.err(
+        '$modelClass already has a model at $modelFile.\n'
+        '  Delete it first — this writes a whole file, so it will not merge '
+        'into hand-written mapping.',
+      );
+      return 1;
+    }
+
+    final source = await File(entityFile).readAsString();
+    final fields = ModelFieldParser.parse(source, entityClass);
+    if (fields.isEmpty) {
+      _logger.err(
+        'No fields found in $entityClass. A freezed entity declares them as '
+        'the parameters of its redirecting factory '
+        '(`const factory $entityClass({...}) = _$entityClass;`).',
+      );
+      return 1;
+    }
+
+    _logger.info('');
+    _logger.info('🧱 Writing model: ${modelClass}Model (from $entityClass)');
+    _logger.info('');
+
+    final progress = _logger.progress('Scaffolding');
+    FileUtils.beginSession();
+
+    try {
+      await FileUtils.writeFile(
+        modelFile,
+        JsonModelBuilder.modelSourceFor(
+          modelName,
+          modelClass,
+          fields,
+          useFirestore: useFirestore,
+          isDocumentRoot: isDocumentRoot,
+        ),
+      );
+      progress.complete('Model written');
+    } catch (e) {
+      progress.fail('Failed: $e');
+      FileUtils.rollback();
+      return 1;
+    }
+
+    _logger.success('');
+    _logger.info('  Mapped from $entityClass:');
+    for (final field in fields) {
+      final nested = ModelFieldParser.holdsEntity(field.type);
+      _logger.info('    ${(field.type ?? 'dynamic').padRight(28)} '
+          '${field.name}${nested ? '  → ${field.modelType}' : ''}');
+    }
+    _logger.info('');
+
+    // Said rather than guessed: a value object nested inside a document can
+    // carry an `id` of its own, and treating it as a document root writes a
+    // model whose `fromJson` demands a key its own `toJson` never wrote.
+    if (useFirestore && !isDocumentRoot && fields.any((f) => f.name == 'id')) {
+      _logger.info('  $modelClass has an id but was written as a nested '
+          'value. If it is a document of its own, delete the file and rerun '
+          'with --doc.');
       _logger.info('');
     }
+
+    // Every nested model has to exist too, and this command writes one at a
+    // time — saying so beats a build_runner failure naming a missing part.
+    final missing = fields
+        .where((f) => ModelFieldParser.holdsEntity(f.type))
+        .map((f) => f.modelType)
+        .expand((type) => RegExp(r'\b([A-Z][\w$]*)Model\b')
+            .allMatches(type)
+            .map((m) => StringUtils.toSnakeCase(m.group(1)!)))
+        .toSet()
+        .where((name) => !File(
+              p.join(p.dirname(modelFile), '${name}_model.dart'),
+            ).existsSync());
+
+    if (missing.isNotEmpty) {
+      _logger.warn('  Still missing the models it maps to:');
+      for (final name in missing) {
+        _logger.info('    moarch create model $featureName $name '
+            '--from-entity');
+      }
+      _logger.info('');
+    }
+
+    _logger.info('  Then: fvm dart run build_runner build '
+        '--delete-conflicting-outputs');
+    _logger.info('');
     return 0;
   }
 

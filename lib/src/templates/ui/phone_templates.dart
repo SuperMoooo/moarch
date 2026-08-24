@@ -655,7 +655,9 @@ class AppPhoneInput extends StatefulWidget {
     bool required = false,
   }) {
     final digits = _digitsOnly(value ?? '');
-    if (digits.isEmpty) return required ? 'This field is required' : null;
+    if (digits.isEmpty) {
+      return required ? AppInputStyle.config.requiredMessage : null;
+    }
 
     final result = ValidationService.validate(
       country.e164(digits),

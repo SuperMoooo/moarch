@@ -1,3 +1,6 @@
+import 'package:moarch/src/templates/ui/country_templates.dart';
+import 'package:moarch/src/templates/ui/inputs_templates.dart';
+import 'package:moarch/src/templates/ui/phone_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
 import 'package:test/test.dart';
@@ -139,6 +142,7 @@ void main() {
         'final AppInputLabelMode labelMode;',
         'final bool showRequiredMarker;',
         'final String requiredMarker;',
+        'final String requiredMessage;',
         'final double labelGap;',
         'final FloatingLabelBehavior floatingLabelBehavior;',
         'final bool showCounter;',
@@ -208,6 +212,81 @@ void main() {
         ]) {
           expect(output, isNot(contains(hardcoded)), reason: hardcoded);
         }
+      }
+    });
+  });
+
+  group('validation copy', () {
+    // Every field that can reject an empty value, wherever its template lives.
+    final validating = {
+      'appInput': SharedTemplates.appInput(),
+      'dateInput': SharedTemplates.dateInput(),
+      'timeInput': SharedTemplates.timeInput(),
+      'appDropdown': SharedTemplates.appDropdown(),
+      'appMultiSelect': InputsTemplates.appMultiSelect(),
+      'appDateRangeInput': InputsTemplates.appDateRangeInput(),
+      'appFilePickerField': InputsTemplates.appFilePickerField(),
+      'appCountryPicker': CountryTemplates.appCountryPicker(),
+      'appPhoneInput': PhoneTemplates.appPhoneInput(),
+    };
+
+    test('the required message is declared once, in the config', () {
+      expect(
+        SharedTemplates.appInputConfig(),
+        contains("this.requiredMessage = 'This field is required',"),
+      );
+    });
+
+    validating.forEach((name, output) {
+      test('$name reads the message rather than spelling it out', () {
+        expect(output, isNot(contains('This field is required')));
+        expect(output, contains('AppInputStyle.config.requiredMessage'));
+      });
+    });
+  });
+
+  group('error alignment', () {
+    test('the shift off the content padding is worked out in one place', () {
+      final style = SharedTemplates.appInputStyle();
+      expect(style, contains('static Widget decorationError('));
+      expect(style, contains('static Widget? decorationErrorOrNull('));
+      expect(style, contains('static TextStyle? errorStyle(BuildContext'));
+      // Underline fields pad nothing, so they are already flush.
+      expect(style, contains('type == AppInputType.underline'));
+      // RTL indents from the other edge — shifting left there would be worse
+      // than leaving it alone.
+      expect(style, contains('Directionality.of(context)'));
+    });
+
+    final decorated = {
+      'appInput': SharedTemplates.appInput(),
+      'dateInput': SharedTemplates.dateInput(),
+      'timeInput': SharedTemplates.timeInput(),
+      'appDropdown': SharedTemplates.appDropdown(),
+      'appMultiSelect': InputsTemplates.appMultiSelect(),
+      'appDateRangeInput': InputsTemplates.appDateRangeInput(),
+      'appCountryPicker': CountryTemplates.appCountryPicker(),
+    };
+
+    decorated.forEach((name, output) {
+      test('$name hands its message to the decoration, not errorText', () {
+        expect(output, contains('AppInputStyle.decorationError'));
+        // `errorText` is what puts the message back at the indent.
+        expect(output, isNot(contains('copyWith(errorText:')));
+      });
+    });
+
+    test('the controls that draw their own line start at the same x', () {
+      for (final output in [
+        SharedTemplates.inputTitle(),
+        InputsTemplates.appFilePickerField(),
+      ]) {
+        expect(output, contains('AppInputStyle.errorStyle(context)'));
+        expect(
+          output,
+          isNot(contains('left: AppConstants.space12')),
+          reason: 'an error line indented to match the old decoration',
+        );
       }
     });
   });

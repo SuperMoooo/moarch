@@ -732,6 +732,7 @@ class AppInputConfig {
     this.size = AppInputSize.medium,
     this.showRequiredMarker = true,
     this.requiredMarker = ' *',
+    this.requiredMessage = 'This field is required',
     this.labelGap = AppConstants.space8,
     this.floatingLabelBehavior = FloatingLabelBehavior.auto,
     this.showCounter = false,
@@ -784,6 +785,19 @@ class AppInputConfig {
 
   /// What marks a required field — `' *'`, `' (required)'`, anything.
   final String requiredMarker;
+
+  /// What every input in the kit says when a required field is left empty.
+  ///
+  /// Each `validate` writes this message rather than its own copy, so the
+  /// wording is one edit here — including translating it:
+  ///
+  ///   AppInputConfig.defaults = AppInputConfig(
+  ///     requiredMessage: AppLocalizations.of(context).fieldRequired,
+  ///   );
+  ///
+  /// It is read at validate time, so assigning [defaults] after a locale
+  /// change re-words errors raised from then on.
+  final String requiredMessage;
 
   /// Space between an [AppInputLabelMode.above] label and its field.
   final double labelGap;
@@ -852,6 +866,7 @@ class AppInputConfig {
     AppInputSize? size,
     bool? showRequiredMarker,
     String? requiredMarker,
+    String? requiredMessage,
     double? labelGap,
     FloatingLabelBehavior? floatingLabelBehavior,
     bool? showCounter,
@@ -875,6 +890,7 @@ class AppInputConfig {
       size: size ?? this.size,
       showRequiredMarker: showRequiredMarker ?? this.showRequiredMarker,
       requiredMarker: requiredMarker ?? this.requiredMarker,
+      requiredMessage: requiredMessage ?? this.requiredMessage,
       labelGap: labelGap ?? this.labelGap,
       floatingLabelBehavior:
           floatingLabelBehavior ?? this.floatingLabelBehavior,
@@ -978,6 +994,58 @@ class AppInputStyle {
         ? '$label${config.requiredMarker}'
         : label;
   }
+
+  /// How a validation message is drawn. One style, so the line under a text
+  /// field and the one a checkbox draws for itself match.
+  static TextStyle? errorStyle(BuildContext context) =>
+      context.textTheme.bodySmall?.copyWith(color: context.colorScheme.error);
+
+  /// The message an [InputDecoration] shows when a field fails validation,
+  /// pulled back into line with the field's own left edge.
+  ///
+  /// Flutter lays that line out at the decoration's `contentPadding`, so by
+  /// default it sits indented under a field whose [AppInputLabelMode.above]
+  /// label is flush with the edge — the label starts at one x and the error
+  /// explaining it at another. That slot has no padding of its own to set, so
+  /// the message is shifted back by the indent instead.
+  ///
+  /// Hand it to `TextFormField.errorBuilder`, or to [InputDecoration.error] on
+  /// a field built from a bare [FormField]. Never to `errorText` — an
+  /// [InputDecoration] refuses to hold both.
+  static Widget decorationError(
+    BuildContext context,
+    String errorText, {
+    AppInputType? type,
+  }) {
+    final indent = _subtextIndentOf(type ?? config.type);
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    return Transform.translate(
+      offset: Offset(rtl ? indent : -indent, 0),
+      child: Text(errorText, style: errorStyle(context)),
+    );
+  }
+
+  /// [decorationError] for a message that may be absent — what a hand-built
+  /// [FormField] hands straight to [InputDecoration.error].
+  static Widget? decorationErrorOrNull(
+    BuildContext context,
+    String? errorText, {
+    AppInputType? type,
+  }) => errorText == null
+      ? null
+      : decorationError(context, errorText, type: type);
+
+  /// Where a decoration starts the line under a field: the horizontal
+  /// `contentPadding` [decoration] sets, plus the gap an outlined border
+  /// reserves for its floating label. An underline field pads neither, so its
+  /// message is already flush.
+  static double _subtextIndentOf(AppInputType type) =>
+      type == AppInputType.underline
+      ? 0
+      : AppConstants.space12 + _outlineGapPadding;
+
+  /// `OutlineInputBorder.gapPadding`'s default, which [_border] leaves alone.
+  static const double _outlineGapPadding = 4;
 
   static bool _isFilled(AppInputType type) => type == AppInputType.filled;
 
@@ -1321,18 +1389,12 @@ class SelectionFormField<T> extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             builder(state),
+            // Flush with the control it explains, the way the fields built on
+            // [InputDecoration] draw theirs.
             if (error != null)
               Padding(
-                padding: const EdgeInsets.only(
-                  top: AppConstants.space4,
-                  left: AppConstants.space12,
-                ),
-                child: Text(
-                  error,
-                  style: context.textTheme.bodySmall?.copyWith(
-                    color: context.colorScheme.error,
-                  ),
-                ),
+                padding: const EdgeInsets.only(top: AppConstants.space4),
+                child: Text(error, style: AppInputStyle.errorStyle(context)),
               ),
           ],
         );
@@ -1943,7 +2005,9 @@ class AppInput extends StatefulWidget {
     bool required = false,
   }) {
     final text = value ?? '';
-    if (required && text.trim().isEmpty) return 'This field is required';
+    if (required && text.trim().isEmpty) {
+      return AppInputStyle.config.requiredMessage;
+    }
     if (text.isEmpty) return null;
 
     final result = ValidationService.validate(
@@ -2057,6 +2121,10 @@ class _AppInputState extends State<AppInput> {
       onChanged: widget.onChanged,
       onFieldSubmitted: widget.onSubmitted,
       onTap: widget.onTap,
+      // Draws the message flush with the field rather than at the indent
+      // Flutter puts it — see [AppInputStyle.decorationError].
+      errorBuilder: (context, error) =>
+          AppInputStyle.decorationError(context, error, type: widget.type),
       cursorColor: accent,
       style: AppInputStyle.textStyle(
         context,
@@ -2324,7 +2392,7 @@ class AppDateInput extends StatefulWidget {
   /// hold a date.
   static String? validate(String? value, {bool required = false}) =>
       required && (value == null || value.trim().isEmpty)
-      ? 'This field is required'
+      ? AppInputStyle.config.requiredMessage
       : null;
 
   @override
@@ -2458,6 +2526,8 @@ class _AppDateInputState extends State<AppDateInput> {
         validator:
             widget.validator ??
             (value) => AppDateInput.validate(value, required: widget.required),
+        errorBuilder: (context, error) =>
+            AppInputStyle.decorationError(context, error, type: widget.type),
         style: AppInputStyle.textStyle(
           context,
           size: widget.size,
@@ -2575,7 +2645,7 @@ class AppTimeInput extends StatefulWidget {
   /// hold a time.
   static String? validate(String? value, {bool required = false}) =>
       required && (value == null || value.trim().isEmpty)
-      ? 'This field is required'
+      ? AppInputStyle.config.requiredMessage
       : null;
 
   @override
@@ -2701,6 +2771,8 @@ class _AppTimeInputState extends State<AppTimeInput> {
         validator:
             widget.validator ??
             (value) => AppTimeInput.validate(value, required: widget.required),
+        errorBuilder: (context, error) =>
+            AppInputStyle.decorationError(context, error, type: widget.type),
         style: AppInputStyle.textStyle(
           context,
           size: widget.size,
@@ -3354,7 +3426,9 @@ class AppDropdownInput<T> extends StatelessWidget {
   ///       AppDropdownInput.validate(id, required: true) ??
   ///       (id == 'archived' ? 'That category is closed' : null),
   static String? validate(String? id, {bool required = false}) =>
-      required && (id == null || id.isEmpty) ? 'This field is required' : null;
+      required && (id == null || id.isEmpty)
+      ? AppInputStyle.config.requiredMessage
+      : null;
 
   /// The item an id points at, or null when no row carries it.
   T? _itemFor(String? id) {
@@ -3396,7 +3470,9 @@ class AppDropdownInput<T> extends StatelessWidget {
     prefixIcon: prefixIcon,
     suffixIcon: suffix,
     enabled: enabled,
-  ).copyWith(errorText: errorText);
+  ).copyWith(
+    error: AppInputStyle.decorationErrorOrNull(context, errorText, type: type),
+  );
 
   /// What sits at the end of the field: the caller's own suffix if there is
   /// one, else the clear button when there is something to clear, ahead of the
@@ -3576,6 +3652,8 @@ class AppDropdownInput<T> extends StatelessWidget {
       autovalidateMode:
           autovalidateMode ?? AppInputStyle.config.autovalidateMode,
       validator: _validate,
+      errorBuilder: (context, error) =>
+          AppInputStyle.decorationError(context, error, type: type),
       // A null onChanged is what disables a dropdown: it greys the value out
       // and takes the field out of the focus order, which no wrapper can do.
       onChanged: enabled ? _onMenuChanged : null,

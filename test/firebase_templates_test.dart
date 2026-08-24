@@ -182,11 +182,13 @@ void main() {
       final model =
           FeatureTemplates.model('order', 'Order', useFirestore: true);
 
-      expect(entity, contains('final String id;'));
+      expect(entity, contains('required String id,'));
       expect(model, contains('factory OrderModel.fromDoc(DocumentSnapshot'));
-      expect(model, contains('id: doc.id'));
-      // Writing the id back as a field would store it twice.
-      expect(model, isNot(contains("'id': id,")));
+      expect(model, contains("{...?doc.data(), 'id': doc.id}"));
+      // `add()` assigns the id only once the write lands, so a copy kept in
+      // the body is stale from the moment it is written.
+      expect(model,
+          contains('@JsonKey(includeToJson: false) required String id,'));
     });
 
     test('the repository exposes the live query, the Dio one does not', () {
@@ -337,12 +339,13 @@ void main() {
     });
 
     test('the Dio entity and model keep the int id', () {
-      expect(
-          FeatureTemplates.entity('order', 'Order'), contains('final int id;'));
-      expect(
-        FeatureTemplates.model('order', 'Order'),
-        contains("id: json['id'] as int"),
-      );
+      expect(FeatureTemplates.entity('order', 'Order'),
+          contains('required int id,'));
+      final model = FeatureTemplates.model('order', 'Order');
+      expect(model, contains('required int id,'));
+      // No document to key, so the id is an ordinary field on the payload.
+      expect(model, isNot(contains('includeToJson')));
+      expect(model, isNot(contains('fromDoc')));
     });
   });
 
@@ -419,11 +422,18 @@ void main() {
           contains('factory AuthUserModel.fromFirebaseUser(User user)'));
       expect(output, contains('id: user.uid'));
       expect(output, isNot(contains('accessToken')));
-      // The profile JSON only comes with Firestore.
-      expect(output, isNot(contains('toJson')));
+      // The profile JSON only comes with Firestore: freezed writes `toJson`
+      // for a class that has a `fromJson`, and asking for a `.g.dart` part
+      // nothing generates would fail the build.
+      expect(output, isNot(contains('fromJson')));
+      expect(output, isNot(contains('.g.dart')));
       expect(
         FirebaseAuthTemplates.model(withFirestore: true),
-        contains('Map<String, dynamic> toJson()'),
+        contains(r'_$AuthUserModelFromJson(json)'),
+      );
+      expect(
+        FirebaseAuthTemplates.model(withFirestore: true),
+        contains("part 'auth_user_model.g.dart';"),
       );
     });
 

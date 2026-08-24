@@ -407,6 +407,15 @@ abstract final class ScaffoldCatalog {
       description:
           'The same contract for Firestore and Firebase Auth calls and streams.',
     ),
+    ScaffoldSpec(
+      name: 'timestamp-converter',
+      title: 'TimestampConverter',
+      path: 'lib/core/network/timestamp_converter.dart',
+      category: 'Network',
+      template: (_) => CoreTemplates.timestampConverter(),
+      description:
+          'Keeps a model DateTime stored as a Firestore Timestamp, not a string.',
+    ),
 
     // ── Security ────────────────────────────────────────────────────────────
     ScaffoldSpec(
@@ -880,6 +889,16 @@ abstract final class ScaffoldCatalog {
       category: 'Project',
       template: (_) => DevTemplates.nativeSplash(),
       description: 'Splash colors for light and dark, Android 12 included.',
+    ),
+    ScaffoldSpec(
+      name: 'build-yaml',
+      title: 'build.yaml',
+      path: 'build.yaml',
+      category: 'Project',
+      template: (_) => DevTemplates.buildYaml(),
+      description:
+          'How build_runner writes the entities and models — one option, and '
+          'it is load-bearing.',
     ),
     ScaffoldSpec(
       name: 'fvmrc',

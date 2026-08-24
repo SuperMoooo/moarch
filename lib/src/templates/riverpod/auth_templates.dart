@@ -7,14 +7,18 @@ class AuthTemplates {
 
   /// Returns the generated auth tokens entity template.
   static String entity() => r'''
-class AuthTokensEntity {
-  const AuthTokensEntity({
-    required this.accessToken,
-    required this.refreshToken,
-  });
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-  final String accessToken;
-  final String refreshToken;
+part 'auth_tokens_entity.freezed.dart';
+
+/// The session, as the domain sees it. Freezed writes the constructor,
+/// `copyWith` and an equality covering both tokens.
+@freezed
+abstract class AuthTokensEntity with _$AuthTokensEntity {
+  const factory AuthTokensEntity({
+    required String accessToken,
+    required String refreshToken,
+  }) = _AuthTokensEntity;
 }
 ''';
 
@@ -69,21 +73,44 @@ $syncDeviceToken  /// User id extracted from the access token when the session w
 
   /// Returns the generated auth tokens model template.
   static String model() => r'''
+import 'package:freezed_annotation/freezed_annotation.dart';
+
 import '../../domain/entities/auth_tokens_entity.dart';
 
-class AuthTokensModel extends AuthTokensEntity {
-  const AuthTokensModel({
-    required super.accessToken,
-    required super.refreshToken,
-  });
+part 'auth_tokens_model.freezed.dart';
+part 'auth_tokens_model.g.dart';
 
-  factory AuthTokensModel.fromJson(Map<String, dynamic> json) {
-    // Adjust the keys to your API contract.
-    return AuthTokensModel(
-      accessToken: json['accessToken'] as String,
-      refreshToken: json['refreshToken'] as String,
-    );
-  }
+/// The token pair as the API sends it.
+///
+/// It does not extend the entity — freezed generates the concrete class, so
+/// there is no constructor to inherit. [toEntity] crosses the line instead.
+///
+/// Adjust the keys to your API contract with `@JsonKey(name: 'access_token')`
+/// on the field, rather than by hand-writing the parse.
+@freezed
+abstract class AuthTokensModel with _$AuthTokensModel {
+  /// Freezed needs a private constructor before a class may declare members
+  /// of its own — [toEntity] below is one.
+  const AuthTokensModel._();
+
+  const factory AuthTokensModel({
+    required String accessToken,
+    required String refreshToken,
+  }) = _AuthTokensModel;
+
+  factory AuthTokensModel.fromJson(Map<String, dynamic> json) =>
+      _$AuthTokensModelFromJson(json);
+
+  factory AuthTokensModel.fromEntity(AuthTokensEntity entity) =>
+      AuthTokensModel(
+        accessToken: entity.accessToken,
+        refreshToken: entity.refreshToken,
+      );
+
+  AuthTokensEntity toEntity() => AuthTokensEntity(
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+      );
 }
 ''';
 

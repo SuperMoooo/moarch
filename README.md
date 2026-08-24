@@ -61,10 +61,10 @@ moarch init --state bloc   # pick the stack without the checklist (riverpod | bl
 moarch create feature <featureName>
 moarch create model <featureName> <modelName> # generate the model and entity
 moarch create model <featureName> <modelName> --from-json sample.json # infer the fields from a JSON payload
+moarch create model <featureName> <modelName> --from-entity # write the model for an entity you already have, mapping nested entities both ways
 moarch create model --empty <featureName> <modelName> # Inject a .empty() factory into an existing entity.
 moarch create flavors # dev/staging/prod via flutter_flavorizr — one main.dart, untouched
 moarch create empty-factories # generate .empty() in all entities
-moarch create entity-copys <featureName> # inject copyWith into the feature's entities (omit name for all features)
 moarch create bloc <featureName> <blocName> # add a state+event+bloc trio to an existing feature
 moarch create widget <name>        # add a UI-kit widget on demand (e.g. switch, otp, list-tile)
 moarch create widget all           # generate the whole UI kit + the preview screen
@@ -315,6 +315,7 @@ names, the same `AppException` reaching the same `AppAsyncView`.
 | datasource holds | `final Dio _dio;` | `final FirebaseFirestore _firestore;` |
 | calls go through | `safeApiCall` | `safeFirebaseCall` / `safeFirebaseStream` |
 | entity `id` | `int` | `String` — a document id |
+| model shape | freezed + json_serializable | plus `fromDoc`, an id kept out of the body, and dates stored as `Timestamp` |
 | errors mapped by | `AppException.fromDioError` | `fromFirebaseError` + `fromFirebaseAuthError` |
 | auth feature | tokens in secure storage, refresh interceptor | Firebase Auth, email/password + Google |
 
@@ -965,11 +966,34 @@ switch is all of those files at once. Files moarch wrote and nobody edited are
 rewritten silently; if you have edited one, nothing is written and the diffs are
 yours to apply (or `--force`).
 
-## Models from a JSON sample
+## Entities and models
 
-`moarch create model` writes an entity + model with an `id` and TODOs where
-the fields go. Hand it a sample of the payload the API actually returns and it
-fills them in:
+Both layers are **freezed** classes, and both are generated: run
+`fvm dart run build_runner build` after editing either.
+
+- `domain/entities/<x>_entity.dart` — freezed only. No JSON ever reaches
+  `domain/`.
+- `data/models/<x>_model.dart` — freezed + json_serializable, plus
+  `fromEntity()` / `toEntity()`.
+
+The model does **not** extend its entity: freezed generates the concrete class,
+so there is no constructor left to inherit. The fields are declared in both and
+mapped explicitly — the cost of keeping a change to the payload out of the
+domain.
+
+Equality is freezed's, which covers every field. The hand-written `==` this
+replaced was keyed on `id` alone, and a multi-step create form builds drafts
+that all share an empty id — so every draft compared equal, `Bloc.emit`
+short-circuited, and the form quietly lost what had been typed into it.
+`copyWith` improves too: freezed's can set a nullable field back to `null`,
+which `?? this.x` cannot.
+
+`.empty()` is not something freezed writes, so moarch still does.
+
+### From a JSON sample
+
+Hand `create model` a sample of the payload the API actually returns and the
+fields are inferred instead of left as TODOs:
 
 ```bash
 moarch create model orders order --from-json sample.json
@@ -978,18 +1002,57 @@ moarch create model orders order --from-json sample.json
 ```dart
 // from {"id": 7, "customer_name": "Ana", "total": 12.5,
 //       "created_at": "2026-08-01T10:30:00Z", "tags": ["vip"]}
-final int id;
-final String customerName;   // fromJson reads json['customer_name']
-final double total;          // parsed through num — an int in the payload is fine
-final DateTime createdAt;    // ISO-dated strings become DateTime
-final List<String> tags;     // homogeneous lists keep their element type
+required int id,
+@JsonKey(name: 'customer_name') required String customerName,
+required double total,
+@JsonKey(name: 'created_at') required DateTime createdAt,
+required List<String> tags,     // homogeneous lists keep their element type
 ```
 
-`fromJson` / `toJson` keep the original JSON keys, and `fromEntity` /
-`toEntity` and `==` / `hashCode` come out complete. A top-level JSON *list* is
-sampled at its first element — the common shape of a list endpoint's response.
-A `null` in the sample can only type as `dynamic` (a null says nothing about
-its type), and the command calls those fields out so you can tighten them.
+A key that differs from the Dart name is stated once as a `@JsonKey`, and
+json_serializable owns both directions. A top-level JSON *list* is sampled at
+its first element — the common shape of a list endpoint's response. A `null` in
+the sample can only type as `dynamic` (a null says nothing about its type), and
+the command calls those fields out so you can tighten them.
+
+On a Firestore project, add `--doc` when the sample is a document:
+
+```bash
+moarch create model works fatura --from-json doc-sample.json --doc
+```
+
+That adds `fromDoc` and a `String id` — **including one the sample does not
+have**, since a document's id is its name rather than a field of its data. An
+`id` the sample typed as something other than `String` is retyped, because
+`doc.id` always is one. Without `--doc` you get the nested-value shape, for a
+map that lives inside someone else's document.
+
+### From an entity you wrote by hand
+
+An aggregate with nested parts is written entity-first. `--from-entity` reads
+the entity off disk and writes the model against it:
+
+```bash
+moarch create model works datas --from-entity        # the nested value objects
+moarch create model works work  --from-entity --doc  # the document root
+```
+
+A field holding another entity is **converted, not assigned** — the model holds
+a `DatasModel` where the entity holds a `DatasEntity`:
+
+```dart
+datas:        DatasModel.fromEntity(entity.datas),          // datas.toEntity()
+morada:       entity.morada == null ? null : MoradaModel.fromEntity(entity.morada!),
+utilizadores: entity.utilizadores.map(UtilizadorModel.fromEntity).toList(),
+```
+
+`--doc` marks a Firestore document root — it works on `--from-json` too. It
+adds `fromDoc` and keeps the id out of the body, since `add()` assigns it after
+the write. Leave it off for a value object nested inside a document: one can
+carry an `id` of its own and still be a plain map. Either way, on a Firestore
+project every `DateTime` gets a `@TimestampConverter()`, because a nested map
+lives inside a document just the same — so dates stay sortable and queryable
+server-side instead of being stored as ISO text.
 
 ## Flavors
 

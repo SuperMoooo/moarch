@@ -282,15 +282,22 @@ next person knows it exists at all.
 
 ### 4. Run code generation
 
-`lib/config/env/app_env.dart` does not read `.env` at runtime. The values are
-compiled in by **envied**, through `build_runner`:
+Three things in this project are generated rather than written:
+`lib/config/env/app_env.dart` compiles `.env` in through **envied**, and every
+entity and model gets its `.freezed.dart` (and a model its `.g.dart`) from
+**freezed** and **json_serializable**.
 
 ```bash
 fvm dart run build_runner build --delete-conflicting-outputs
 ```
 
-Run it again whenever `.env` or `app_env.dart` changes. Until it has run once,
-`app_env.g.dart` does not exist and the app will not compile.
+Run it again whenever `.env` changes, or whenever you add a field to an entity
+or a model. Until it has run once none of the generated halves exist and the
+project will not analyze — which is why `.github/workflows` runs it before
+`analyze` and before `test`.
+
+The generated files are gitignored: they are one command away and a
+regenerated file is a guaranteed merge conflict.
 
 ### 5. Run the app
 
@@ -306,7 +313,8 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
 
 | Symptom | Fix |
 |---|---|
-| `app_env.g.dart` not found | you skipped step 4 |
+| `app_env.g.dart` not found, or `_\$XModel` / `_\$XEntity` undefined | you skipped step 4 |
+| A model's `toJson()` holds an object instead of a map | `build.yaml` is missing or lost its `explicit_to_json` |
 | build_runner: "conflicting outputs" | re-run it with `--delete-conflicting-outputs` |
 | iOS build fails on pods | `cd ios && pod install && cd ..` |
 | The analyzer flags things `fvm flutter analyze` does not | run `fvm use`, then reload the window |
@@ -351,6 +359,10 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
         'The service locator. Repositories and services are registered in `lib/config/di/injector.dart` and read back with `getIt<T>()`.');
     row('envied',
         'Compiles `.env` values into `app_env.dart` instead of shipping the file.');
+    row('freezed_annotation',
+        'Marks the entities and models. `freezed` (dev) writes the constructor, `copyWith` and an equality covering every field.');
+    row('json_annotation',
+        'Marks the models\' JSON. `json_serializable` (dev) writes `fromJson` and `toJson` from the field list.');
     if (withDio) {
       row('dio',
           'The HTTP client. Configured in `lib/core/network/dio_client.dart`.');
@@ -535,13 +547,18 @@ An **entity** is a plain Dart object. No JSON, no packages, no Flutter:
 
 ```dart
 // lib/features/profile/domain/entities/profile_entity.dart
-class ProfileEntity {
-  const ProfileEntity({required this.id, required this.name});
-
-  final String id;
-  final String name;
+@freezed
+abstract class ProfileEntity with _\$ProfileEntity {
+  const factory ProfileEntity({
+    required String id,
+    required String name,
+  }) = _ProfileEntity;
 }
 ```
+
+Freezed writes the constructor, `copyWith`, `==` and `hashCode` from that field
+list, so equality covers **every** field — which is what the state layer runs
+on. There is no JSON here: `domain/` never imports `json_annotation`.
 
 A **repository interface** is what the feature promises it can do — never how:
 
@@ -558,24 +575,51 @@ every change to the API, the client and the UI.
 
 ### `data/` — the world
 
-A **model** is the entity plus serialisation:
+A **model** is the same fields with serialisation on them:
 
 ```dart
 // lib/features/profile/data/models/profile_model.dart
-class ProfileModel extends ProfileEntity {
-  const ProfileModel({required super.id, required super.name});
+@freezed
+abstract class ProfileModel with _\$ProfileModel {
+  const ProfileModel._();
 
-  factory ProfileModel.fromJson(Map<String, dynamic> json) => ProfileModel(
-        id: json['id'] as String,
-        name: json['name'] as String,
-      );
+  const factory ProfileModel({
+    required String id,
+    required String name,
+  }) = _ProfileModel;
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name};
+  factory ProfileModel.fromJson(Map<String, dynamic> json) =>
+      _\$ProfileModelFromJson(json);
+
+  factory ProfileModel.fromEntity(ProfileEntity entity) =>
+      ProfileModel(id: entity.id, name: entity.name);
+
+  ProfileEntity toEntity() => ProfileEntity(id: id, name: name);
 }
 ```
 
-It **extends** the entity, so it can be returned anywhere an entity is
-expected. The UI is handed `ProfileEntity` and never learns that JSON exists.
+It does **not** extend the entity — freezed generates the concrete class, so
+there is no constructor left to inherit. `toEntity()` is what crosses the line
+instead, and the repository calls it on the way out of `data/`. The fields are
+written twice on purpose: that is what stops a change to the payload from
+reaching `domain/`.
+
+A field holding another entity is converted, not assigned — the model holds a
+`AddressModel` where the entity holds an `AddressEntity`:
+
+```dart
+address: AddressModel.fromEntity(entity.address),   // and address.toEntity()
+tags: entity.tags.map(TagModel.fromEntity).toList(),
+```
+
+`moarch create model <feature> <name> --from-entity` writes all of that from
+the entity's own fields.
+
+Both halves are code-generated: after editing either file run
+
+```bash
+fvm dart run build_runner build --delete-conflicting-outputs
+```
 
 A **datasource** is where the bytes come from${withDio ? ' — an HTTP call through the shared\nDio client' : ''}. A **repository implementation** puts
 the two together and is the only class that satisfies the interface:
@@ -588,7 +632,10 @@ class ProfileRepositoryImpl implements ProfileRepository {
   final ProfileRemoteDataSource _remote;
 
   @override
-  Future<List<ProfileEntity>> fetchAll() => _remote.fetchAll();
+  Future<List<ProfileEntity>> fetchAll() async {
+    final models = await _remote.fetchAll();
+    return models.map((model) => model.toEntity()).toList();
+  }
 }
 ```
 
@@ -940,9 +987,9 @@ ${withRouter ? '5. **Route to it.** Add the path to `lib/config/router/app_route
 | Command | What it does |
 |---|---|
 | `moarch create feature <name>` | A whole feature, layers selectable |
-| `moarch create model <feature> <name>` | A model + entity inside an existing feature |${bloc ? '\n| `moarch create bloc <feature> <name>` | Another state + event + bloc trio |' : ''}
+| `moarch create model <feature> <name>` | A model + entity inside an existing feature |
+| `moarch create model <feature> <name> --from-entity` | The model for an entity you wrote by hand, nested fields mapped both ways |${bloc ? '\n| `moarch create bloc <feature> <name>` | Another state + event + bloc trio |' : ''}
 | `moarch create widget <name>` | A widget from the kit (`docs/UI_KIT.md`) |
-| `moarch create entity-copys [feature]` | Injects `copyWith`, `==` and `hashCode` into every entity |
 | `moarch create empty-factories [feature]` | Injects `.empty()` factories into every entity |
 | `moarch create theme` | Switches the project between one theme and light + dark |
 | `moarch create flavors [names…]` | See section 8 |

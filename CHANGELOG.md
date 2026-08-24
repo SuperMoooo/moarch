@@ -2,6 +2,110 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 7.0.0
+
+### Breaking
+
+- **Entities and models are now `freezed` classes, and models add
+  `json_serializable`.** Every generated entity and model changes shape, and a
+  generated project gains four dependencies (`freezed_annotation` and
+  `json_annotation` at runtime, `freezed` and `json_serializable` in dev). The
+  entity/model split is unchanged: `domain/entities/` stays JSON-free,
+  `data/models/` keeps `fromEntity()` / `toEntity()`. What is gone is
+  `class XModel extends XEntity` — freezed generates the concrete class, so
+  there is no constructor left to inherit. The model declares its own fields
+  and maps them explicitly.
+
+  This does **not** migrate a project that already exists: `moarch update`
+  compares hashes and refuses to overwrite an edited file, and it never touches
+  `pubspec.yaml`. In particular, refreshing the auth feature (`moarch update
+  auth`) on a project scaffolded before this release writes freezed sources
+  into a project that has no freezed. Add the four dependencies first.
+
+- `moarch create entity-copys` is removed. It injected `copyWith`, `==` and
+  `hashCode` into an entity; freezed writes all three, and injecting them on
+  top is a duplicate-member compile error. `moarch create model <feature>
+  <name> --from-entity` is what replaces it — see below.
+  `moarch create empty-factories` stays: `.empty()` is a hand-written
+  convenience freezed does not produce.
+
+### Fixed
+
+- **A hand-written `==` keyed on `id` alone silently dropped state.** Both
+  stacks' entity templates, and `create model --from-json`, generated
+  `other is XEntity && other.id == id`. A multi-step create form builds drafts
+  that all share an empty id, so every draft compared equal to the last —
+  `Bloc.emit` short-circuits on `state == _state`, and a Riverpod notifier only
+  rebuilds listeners on a changed state, so every update after the first was
+  dropped and the form quietly lost what had been typed into it. The same
+  equality was on `AuthUserEntity`, where a changed display name or photo never
+  reached the UI. Freezed's equality covers every field and compares
+  collections by content.
+- **A hand-written `copyWith` could not set a nullable field back to `null`.**
+  `x ?? this.x` cannot tell "not passed" from "passed null". Freezed uses a
+  sentinel and gets it right.
+- **The Firestore model wrote a stale `id` into the document body.** `add()`
+  assigns the id only once the write lands, so the copy stored beside the data
+  was wrong from the moment it was written. The id now carries
+  `@JsonKey(includeToJson: false)` and is read back off the snapshot —
+  `fromDoc` folds `doc.id` into the payload before parsing.
+- **A Firestore `DateTime` was stored as an ISO string**, which the server
+  sorts and ranges as text, so a range query compared character by character
+  and an index on the field bought nothing. A generated `TimestampConverter`
+  (`lib/core/network/timestamp_converter.dart`) stores it as a real
+  `Timestamp`, and reads it back in UTC so the same document does not decode to
+  a different `DateTime` on two devices.
+
+### Added
+
+- `moarch create model <feature> <name> --from-entity` — writes the model for
+  an entity you wrote by hand, mapping its fields in both directions. A field
+  whose type is another entity is **converted, not assigned**:
+  `DatasModel.fromEntity(entity.datas)` one way and `datas.toEntity()` the
+  other, element-wise for a `List<XEntity>`, null-guarded when the field can be
+  absent. It also imports the sibling models it maps to and names the ones that
+  do not exist yet.
+- `--doc` marks a Firestore document root, on `--from-entity` and `--from-json`
+  alike: the model gets `fromDoc` and keeps its id out of the body. Leave it off
+  for a value object nested inside a document, which can carry an `id` of its
+  own and still be a plain map. On `--from-json` it also supplies the `String
+  id` the sample could not — a document's id is its name, so an exported payload
+  does not carry one — and retypes an `id` the sample inferred as something
+  else, since `doc.id` is always a String.
+- `build.yaml` is now generated, carrying `explicit_to_json: true`. Without it
+  json_serializable leaves a nested model in `toJson()`'s map as the object it
+  is rather than as a map — `jsonEncode` papers over that, but
+  `FirebaseFirestore.add(model.toJson())` throws on it.
+- `*.freezed.dart` and `*.g.dart` are added to `.gitignore`. CI already runs
+  `build_runner build` before `analyze` and `test`, so they are a command away.
+
+### Changed
+
+- `moarch create model` now reads Firestore off the project like every other
+  command — on the plain scaffold and on `--from-json` — so a Firestore project
+  gets the document-shaped model rather than a REST one its own datasource
+  cannot use, and its dates are stored as `Timestamp`s.
+- `bloc_lint` is floored at `^0.4.1` rather than `^0.4.2`. 0.4.2 needs
+  `_fe_analyzer_shared >=100`, which only analyzer 13 brings, while freezed 3.x
+  caps analyzer below 11 — the two do not resolve together, and a bloc project
+  simply failed `pub get`. 0.4.1 accepts what analyzer 10 ships.
+- `freezed` is pinned below 4 on purpose: 4.0.0 raised its floor to Dart 3.13,
+  which no released Flutter stable ships yet. The class shape moarch writes is
+  the same in both, so this is a floor to raise, not a rewrite.
+
+### Inputs
+
+- **A validation error is drawn flush with the field** instead of indented by
+  the decoration's content padding, which left it out of line with the label
+  above it. `AppInputStyle.decorationError` is the one place that cancels the
+  indent, and every field in the kit goes through it — `TextFormField` and
+  `DropdownButtonFormField` via `errorBuilder`, the `FormField`-based pickers
+  via `InputDecoration.error`, and the controls that draw their own line
+  (checkbox, radio, slider, file picker) via `AppInputStyle.errorStyle`.
+- **"This field is required" is declared once**, as
+  `AppInputConfig.requiredMessage`. It was spelled out in nine widgets;
+  translating it is now a one-line assignment to `AppInputConfig.defaults`.
+
 ## 6.5.0
 
 ### Fixed

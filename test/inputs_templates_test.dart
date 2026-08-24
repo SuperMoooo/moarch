@@ -18,7 +18,9 @@ void main() {
       expect(
         output,
         contains(
-            "if (required && ids.isEmpty) return 'This field is required';"),
+          'if (required && ids.isEmpty) '
+          'return AppInputStyle.config.requiredMessage;',
+        ),
       );
       expect(output, contains("return 'Pick at least \$min';"));
       expect(output, contains("return 'Pick no more than \$max';"));

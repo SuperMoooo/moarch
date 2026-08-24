@@ -12,6 +12,8 @@ import 'package:moarch/moarch.dart';
 /// moarch create feature orders                  # feature with selectable layers
 /// moarch create model orders order              # entity + model, TODO fields
 /// moarch create model orders order --from-json sample.json   # fields inferred
+/// moarch create model orders order --from-entity           # model for an
+///                                               # entity you already wrote
 /// moarch create widget switch                   # one UI-kit widget on demand
 /// moarch create widget all                      # the whole kit + preview screen
 /// moarch create flavors                         # dev/staging/prod via

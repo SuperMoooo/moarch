@@ -16,21 +16,36 @@ class FeatureTemplates {
   /// document's name, not a numeric column.
   static String entity(String name, String cls, {bool useFirestore = false}) =>
       '''
-class ${cls}Entity {
-  const ${cls}Entity({
-    required this.id,
-  });
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-  ${useFirestore ? '/// The Firestore document id.\n  final String id;' : 'final int id;'}
+part '${name}_entity.freezed.dart';
 
-  // TODO: add copyWith if needed
+/// What the app reasons about, with no idea where it came from.
+///
+/// Freezed writes the constructor, `copyWith`, `==` and `hashCode` from the
+/// field list below, so equality covers every field you add — which is what a
+/// bloc state depends on: `emit` drops a state that compares equal to the
+/// current one, so a hand-written `==` that misses a field silently loses the
+/// change. Its `copyWith` also tells "not passed" from "passed null", which
+/// `?? this.x` cannot.
+///
+/// No JSON here on purpose — parsing is the model's job in `data/`, so a
+/// change to the API never reaches `domain/`.
+///
+/// Run `fvm dart run build_runner build --delete-conflicting-outputs` after
+/// editing this file.
+@freezed
+abstract class ${cls}Entity with _\$${cls}Entity {
+  const factory ${cls}Entity({
+${useFirestore ? "    /// The Firestore document id.\n    required String id," : '    required int id,'}
+    // TODO: add your other fields
+  }) = _${cls}Entity;
 
-  @override
-  bool operator ==(Object other) =>
-      other is ${cls}Entity && other.id == id;
-
-  @override
-  int get hashCode => id.hashCode;
+  /// A blank $cls — what a create form starts from before anything is filled
+  /// in. Freezed does not write this one, so it is yours to keep in step with
+  /// the fields above.
+  factory ${cls}Entity.empty() =>
+      const ${cls}Entity(id: ${useFirestore ? "''" : '0'});
 }
 ''';
 
@@ -65,80 +80,118 @@ ${useFirestore ? '''
   /// The [useFirestore] variant reads the id off the document rather than out
   /// of the payload, and leaves it out of `toJson` — writing it back as a
   /// field would store it twice, and the two copies drift.
-  static String model(String name, String cls, {bool useFirestore = false}) {
-    if (useFirestore) {
-      return '''
+  static String model(String name, String cls, {bool useFirestore = false}) =>
+      useFirestore ? _firestoreModel(name, cls) : _restModel(name, cls);
+
+  /// The Firestore document's shape: the id is the document's own name, and
+  /// `fromDoc` puts it back into the payload rather than reading it out of it.
+  static String _firestoreModel(String name, String cls) => '''
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../domain/entities/${name}_entity.dart';
 
-class ${cls}Model extends ${cls}Entity {
-  const ${cls}Model({
-    required super.id,
-  });
+part '${name}_model.freezed.dart';
+part '${name}_model.g.dart';
 
-  factory ${cls}Model.fromJson(Map<String, dynamic> json, {required String id}) {
-    return ${cls}Model(
-      id: id,
-      // TODO: parse your other fields
-    );
-  }
+$_modelDoc
+@freezed
+abstract class ${cls}Model with _\$${cls}Model {
+  /// Freezed needs a private constructor before a class may declare members
+  /// of its own — [toEntity] below is one.
+  const ${cls}Model._();
 
-  /// The id lives on the document, not in its data.
+  const factory ${cls}Model({
+    /// The document's own name rather than one of its fields.
+    ///
+    /// `includeToJson: false` keeps it out of the body: `add()` assigns the id
+    /// only once the write lands, so a copy stored beside the data is stale
+    /// from the moment it is written.
+    @JsonKey(includeToJson: false) required String id,
+    // TODO: add your other fields, mirroring the entity's. A DateTime belongs
+    // on the wire as a Firestore Timestamp — annotate it `@TimestampConverter()`
+    // (core/network/timestamp_converter.dart) so it stays queryable
+    // server-side; an ISO string sorts as text.
+  }) = _${cls}Model;
+
+  factory ${cls}Model.fromJson(Map<String, dynamic> json) =>
+      _\$${cls}ModelFromJson(json);
+
+  /// The id lives on the document, so it is folded into the payload before
+  /// parsing.
   factory ${cls}Model.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) =>
-      ${cls}Model.fromJson(doc.data() ?? const <String, dynamic>{}, id: doc.id);
+      ${cls}Model.fromJson({...?doc.data(), 'id': doc.id});
 
-  Map<String, dynamic> toJson() {
-    return {
-      // TODO: add your other fields — not `id`, Firestore keys the document by it
-    };
-  }
-
+$_mappingDoc
   factory ${cls}Model.fromEntity(${cls}Entity entity) => ${cls}Model(
     id: entity.id,
   );
 
-  ${cls}Entity toEntity() =>
-      ${cls}Entity(
-        id: id,
-      );
+  ${cls}Entity toEntity() => ${cls}Entity(
+    id: id,
+  );
 }
 ''';
-    }
 
-    return '''
+  /// The REST payload's shape.
+  static String _restModel(String name, String cls) => '''
+import 'package:freezed_annotation/freezed_annotation.dart';
+
 import '../../domain/entities/${name}_entity.dart';
 
-class ${cls}Model extends ${cls}Entity{
-   const ${cls}Model({
-    required super.id,
-  });
+part '${name}_model.freezed.dart';
+part '${name}_model.g.dart';
 
-  factory ${cls}Model.fromJson(Map<String, dynamic> json) {
-    return ${cls}Model(
-      id: json['id'] as int,
-      // TODO: parse your other fields
-    );
-  }
+$_modelDoc
+@freezed
+abstract class ${cls}Model with _\$${cls}Model {
+  /// Freezed needs a private constructor before a class may declare members
+  /// of its own — [toEntity] below is one.
+  const ${cls}Model._();
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      // TODO: add your other fields
-    };
-  }
+  const factory ${cls}Model({
+    required int id,
+    // TODO: add your other fields, mirroring the entity's. Where the payload's
+    // key differs from the Dart name, say so once:
+    // `@JsonKey(name: 'created_at') DateTime? createdAt,`.
+  }) = _${cls}Model;
 
+  factory ${cls}Model.fromJson(Map<String, dynamic> json) =>
+      _\$${cls}ModelFromJson(json);
+
+$_mappingDoc
   factory ${cls}Model.fromEntity(${cls}Entity entity) => ${cls}Model(
     id: entity.id,
   );
 
-  ${cls}Entity toEntity() =>
-      ${cls}Entity(
-        id: id,
-      );
+  ${cls}Entity toEntity() => ${cls}Entity(
+    id: id,
+  );
 }
 ''';
-  }
+
+  /// The header both model variants carry, explaining why the model no longer
+  /// extends its entity.
+  static const String _modelDoc = '''
+/// The wire shape, and the only layer that knows it.
+///
+/// It does not extend the entity: freezed generates the concrete class, so
+/// there is no constructor left to inherit. The fields are declared again here
+/// and mapped explicitly below — that duplication is the price of keeping a
+/// change to the payload out of `domain/`.
+///
+/// Run `fvm dart run build_runner build --delete-conflicting-outputs` after
+/// editing this file.''';
+
+  /// The note above the two mapping members, which is where a nested field
+  /// stops being free.
+  static const String _mappingDoc = '''
+  // A field holding another entity has to be converted, not assigned: this
+  // model holds a `ThingModel` where the entity holds a `ThingEntity`.
+  //   thing: ThingModel.fromEntity(entity.thing),      // and thing.toEntity()
+  //   things: entity.things.map(ThingModel.fromEntity).toList(),
+  // `moarch create model <feature> <name> --from-entity` writes both from the
+  // entity's own fields.''';
 
   // ── Data — Remote datasource ────────────────────────────────────────────────
 

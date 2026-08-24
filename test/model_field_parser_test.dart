@@ -259,47 +259,141 @@ class B {
     });
   });
 
-  group('buildCopyWith', () {
-    test('takes and forwards every field', () {
-      final fields = ModelFieldParser.parse(_userEntity, 'UserEntity');
-      final copyWith = ModelFieldParser.buildCopyWith('UserEntity', fields);
+  group('freezed classes', () {
+    const workEntity = '''
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-      expect(copyWith, contains('Map<String, dynamic>? meta,'));
-      expect(copyWith, contains('meta: meta ?? this.meta,'));
-      expect(copyWith, contains('List<String>? tags,'));
+part 'work_entity.freezed.dart';
+
+@freezed
+abstract class WorkEntity with _\$WorkEntity {
+  const factory WorkEntity({
+    required String id,
+    /// When the work runs.
+    required DatasEntity datas,
+    MoradaEntity? morada,
+    required List<UtilizadorEntity> utilizadores,
+    List<AnexoEntity>? anexos,
+    @Default(false) bool arquivado,
+    required Map<String, dynamic> extras,
+  }) = _WorkEntity;
+
+  factory WorkEntity.empty() => const WorkEntity(id: '');
+}
+''';
+
+    final fields = ModelFieldParser.parse(workEntity, 'WorkEntity');
+    ModelField field(String name) => fields.firstWhere((f) => f.name == name);
+
+    test('reads the fields off the redirecting factory', () {
+      // A freezed class declares no fields at all — the parameters are the
+      // field list, and the `= _WorkEntity;` redirect is what tells that
+      // factory from `empty`.
+      expect(
+        fields.map((f) => f.name),
+        [
+          'id',
+          'datas',
+          'morada',
+          'utilizadores',
+          'anexos',
+          'arquivado',
+          'extras'
+        ],
+      );
+      expect(field('extras').type, 'Map<String, dynamic>');
     });
 
-    test('does not double up the ? on a nullable field', () {
-      final fields = ModelFieldParser.parse(_userEntity, 'UserEntity');
-      final copyWith = ModelFieldParser.buildCopyWith('UserEntity', fields);
-      expect(copyWith, contains('String? nickname,'));
-      expect(copyWith, isNot(contains('String?? nickname')));
+    test('a doc comment on a parameter is not part of its type', () {
+      expect(field('datas').type, 'DatasEntity');
+    });
+
+    test('keeps @Default, and the field it makes optional', () {
+      expect(field('arquivado').annotations, ['@Default(false)']);
+      expect(field('arquivado').isRequired, isFalse);
+      expect(field('id').isRequired, isTrue);
+      expect(field('arquivado').asModelParameter,
+          '@Default(false) bool arquivado');
     });
   });
 
-  group('buildEquality', () {
-    test('keys on id when the class has one', () {
-      final fields = ModelFieldParser.parse(_userEntity, 'UserEntity');
-      final equality = ModelFieldParser.buildEquality('UserEntity', fields);
+  group('crossing the domain/data line', () {
+    ModelField f(String type) => ModelField(name: 'x', type: type);
 
-      expect(equality, contains('other.id == id'));
-      expect(equality, contains('int get hashCode => id.hashCode;'));
-      expect(equality, isNot(contains('other.meta')));
+    test('a plain field is carried across untouched', () {
+      for (final type in [
+        'String',
+        'int?',
+        'DateTime',
+        'List<String>',
+        'Map<String, dynamic>',
+        'dynamic'
+      ]) {
+        expect(ModelFieldParser.holdsEntity(type), isFalse, reason: type);
+        expect(ModelFieldParser.modelTypeOf(type), type);
+        expect(ModelFieldParser.fromEntityValue(f(type)), 'entity.x');
+        expect(ModelFieldParser.toEntityValue(f(type)), 'x');
+      }
     });
 
-    test('keys on every field when there is no id', () {
-      const source = '''
-class PointEntity {
-  final int x;
-  final int y;
-}
-''';
-      final fields = ModelFieldParser.parse(source, 'PointEntity');
-      final equality = ModelFieldParser.buildEquality('PointEntity', fields);
+    test('a nested entity is converted, not assigned', () {
+      expect(ModelFieldParser.holdsEntity('DatasEntity'), isTrue);
+      expect(ModelFieldParser.modelTypeOf('DatasEntity'), 'DatasModel');
+      expect(
+        ModelFieldParser.fromEntityValue(f('DatasEntity')),
+        'DatasModel.fromEntity(entity.x)',
+      );
+      expect(ModelFieldParser.toEntityValue(f('DatasEntity')), 'x.toEntity()');
+    });
 
-      expect(equality, contains('other.x == x'));
-      expect(equality, contains('other.y == y'));
-      expect(equality, contains('Object.hash('));
+    test('a nullable nested entity is null-guarded, never forced', () {
+      expect(ModelFieldParser.modelTypeOf('MoradaEntity?'), 'MoradaModel?');
+      expect(
+        ModelFieldParser.fromEntityValue(f('MoradaEntity?')),
+        'entity.x == null ? null : MoradaModel.fromEntity(entity.x!)',
+      );
+      expect(
+          ModelFieldParser.toEntityValue(f('MoradaEntity?')), 'x?.toEntity()');
+    });
+
+    test('a list of entities maps element-wise, both ways', () {
+      expect(
+        ModelFieldParser.modelTypeOf('List<UtilizadorEntity>'),
+        'List<UtilizadorModel>',
+      );
+      expect(
+        ModelFieldParser.fromEntityValue(f('List<UtilizadorEntity>')),
+        'entity.x.map(UtilizadorModel.fromEntity).toList()',
+      );
+      expect(
+        ModelFieldParser.toEntityValue(f('List<UtilizadorEntity>')),
+        'x.map((e) => e.toEntity()).toList()',
+      );
+    });
+
+    test('a nullable list of entities keeps the null', () {
+      expect(
+        ModelFieldParser.fromEntityValue(f('List<AnexoEntity>?')),
+        'entity.x?.map(AnexoModel.fromEntity).toList()',
+      );
+      expect(
+        ModelFieldParser.toEntityValue(f('List<AnexoEntity>?')),
+        'x?.map((e) => e.toEntity()).toList()',
+      );
+    });
+
+    test('a list of nullable entities promotes rather than forcing', () {
+      // `e` is a callback parameter, so the compiler promotes it — a `!`
+      // there would trip unnecessary_non_null_assertion.
+      expect(
+        ModelFieldParser.fromEntityValue(f('List<AnexoEntity?>')),
+        'entity.x.map((e) => e == null ? null : AnexoModel.fromEntity(e))'
+        '.toList()',
+      );
+    });
+
+    test('a list of plain values is left alone', () {
+      expect(ModelFieldParser.fromEntityValue(f('List<String>')), 'entity.x');
     });
   });
 }

@@ -160,7 +160,7 @@ class AppMultiSelectInput<T> extends StatelessWidget {
     int? min,
     int? max,
   }) {
-    if (required && ids.isEmpty) return 'This field is required';
+    if (required && ids.isEmpty) return AppInputStyle.config.requiredMessage;
     // An empty optional field is not "fewer than min" — it is untouched, and
     // saying "pick at least 2" to someone who picked none is noise.
     if (min != null && ids.isNotEmpty && ids.length < min) {
@@ -304,7 +304,13 @@ class AppMultiSelectInput<T> extends StatelessWidget {
                   prefixIcon: prefixIcon,
                   suffixIcon: _trailing(state),
                   enabled: enabled,
-                ).copyWith(errorText: state.errorText),
+                ).copyWith(
+                  error: AppInputStyle.decorationErrorOrNull(
+                    context,
+                    state.errorText,
+                    type: type,
+                  ),
+                ),
                 isEmpty: selectedIds.isEmpty,
                 child: selectedIds.isEmpty ? null : _value(context, state),
               ),
@@ -497,7 +503,7 @@ class AppDateRangeInput extends StatefulWidget {
     int? maxDays,
   }) {
     if (range == null) {
-      return required ? 'This field is required' : null;
+      return required ? AppInputStyle.config.requiredMessage : null;
     }
     if (maxDays != null && range.duration.inDays + 1 > maxDays) {
       return 'Pick a range of $maxDays days or fewer';
@@ -647,7 +653,13 @@ class _AppDateRangeInputState extends State<AppDateRangeInput> {
                   prefixIcon: widget.prefixIcon,
                   suffixIcon: _trailing(),
                   enabled: widget.enabled,
-                ).copyWith(errorText: state.errorText),
+                ).copyWith(
+                  error: AppInputStyle.decorationErrorOrNull(
+                    context,
+                    state.errorText,
+                    type: widget.type,
+                  ),
+                ),
                 isEmpty: _range == null,
                 child: _range == null
                     ? null
@@ -820,7 +832,9 @@ class AppFilePickerField extends StatelessWidget {
     bool required = false,
     int? max,
   }) {
-    if (required && files.isEmpty) return 'This field is required';
+    if (required && files.isEmpty) {
+      return AppInputStyle.config.requiredMessage;
+    }
     if (max != null && files.length > max) {
       return 'Attach no more than $max file${max == 1 ? '' : 's'}';
     }
@@ -882,18 +896,12 @@ class AppFilePickerField extends StatelessWidget {
                   onRemove: enabled ? () => _remove(i, state) : null,
                 ),
               if (enabled && !_atLimit) _addArea(context, state, error != null),
+              // Flush with the rows it explains, the way the fields built on
+              // [InputDecoration] draw theirs.
               if (error != null)
                 Padding(
-                  padding: const EdgeInsets.only(
-                    top: AppConstants.space4,
-                    left: AppConstants.space12,
-                  ),
-                  child: Text(
-                    error,
-                    style: context.textTheme.bodySmall?.copyWith(
-                      color: context.colorScheme.error,
-                    ),
-                  ),
+                  padding: const EdgeInsets.only(top: AppConstants.space4),
+                  child: Text(error, style: AppInputStyle.errorStyle(context)),
                 ),
             ],
           );

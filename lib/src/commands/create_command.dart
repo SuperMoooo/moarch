@@ -2,7 +2,6 @@ import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/commands/create/create_bloc_command.dart';
 import 'package:moarch/src/commands/create/create_empty_factories_command.dart';
-import 'package:moarch/src/commands/create/create_entity_copys_command.dart';
 import 'package:moarch/src/commands/create/create_feature_command.dart';
 import 'package:moarch/src/commands/create/create_flavors_command.dart';
 import 'package:moarch/src/commands/create/create_model_command.dart';
@@ -17,7 +16,6 @@ class CreateCommand extends Command<int> {
     addSubcommand(CreateBlocCommand(logger: logger));
     addSubcommand(CreateModelCommand(logger: logger));
     addSubcommand(CreateEmptyFactoriesCommand(logger: logger));
-    addSubcommand(CreateEntityCopysCommand(logger: logger));
     addSubcommand(CreateWidgetCommand(logger: logger));
     addSubcommand(CreateThemeCommand(logger: logger));
     addSubcommand(CreateFlavorsCommand(logger: logger));

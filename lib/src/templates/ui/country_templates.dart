@@ -177,7 +177,7 @@ class AppCountryPicker extends StatelessWidget {
   ///       (_blocked.contains(iso) ? 'We do not ship there yet' : null),
   static String? validate(String? iso, {bool required = false}) {
     if (required && (iso == null || iso.isEmpty)) {
-      return 'This field is required';
+      return AppInputStyle.config.requiredMessage;
     }
     return null;
   }
@@ -261,7 +261,13 @@ class AppCountryPicker extends StatelessWidget {
                   prefixIcon: prefixIcon,
                   suffixIcon: suffixIcon ?? _trailing(state, country),
                   enabled: enabled,
-                ).copyWith(errorText: state.errorText),
+                ).copyWith(
+                  error: AppInputStyle.decorationErrorOrNull(
+                    context,
+                    state.errorText,
+                    type: type,
+                  ),
+                ),
                 // Drives the hint and the floating label the way an empty
                 // text field would.
                 isEmpty: country == null,

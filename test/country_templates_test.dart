@@ -80,7 +80,7 @@ void main() {
 
     test('wears the family decoration rather than one of its own', () {
       expect(output, contains('AppInputStyle.decoration('));
-      expect(output, contains('.copyWith(errorText: state.errorText)'));
+      expect(output, contains('AppInputStyle.decorationErrorOrNull('));
       expect(output, contains('return InputFieldLayout('));
     });
 

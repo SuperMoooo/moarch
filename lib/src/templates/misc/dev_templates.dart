@@ -68,6 +68,28 @@ linter:
         avoid_print: true
 ''';
 
+  /// The `build.yaml` that configures the generators behind the entities and
+  /// models.
+  ///
+  /// One option, and it is not cosmetic: without `explicit_to_json`,
+  /// json_serializable writes a nested model into `toJson()`'s map as the
+  /// object it is rather than as a map of its own. `jsonEncode` papers over
+  /// that — it calls `toJson()` on whatever it finds — but anything handed the
+  /// raw map does not. `FirebaseFirestore.add(model.toJson())` throws on the
+  /// nested value, and so does any code that reads the map back.
+  static String buildYaml() => r'''
+targets:
+    $default:
+        builders:
+            json_serializable:
+                options:
+                    # Makes `toJson()` call `toJson()` on a nested model,
+                    # rather than leaving the model object in the map. Off by
+                    # default in json_serializable, and the failure only shows
+                    # up once something other than `jsonEncode` reads the map.
+                    explicit_to_json: true
+''';
+
   /// The FVM pin written at the project root.
   static String fvmrc() => '{\n  "flutter": "stable"\n}\n';
 

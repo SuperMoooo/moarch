@@ -868,6 +868,78 @@ $authStreamCatch    if (error is FirebaseException) {
 ''';
   }
 
+  /// Returns the generated timestampConverter template.
+  ///
+  /// Firestore's own date type is `Timestamp`, and json_serializable knows
+  /// nothing about it — left alone it would write a `DateTime` out as an ISO
+  /// string, which sorts as text and takes a range query with it. This is the
+  /// translation, and it belongs to the model layer alone: `domain/` keeps
+  /// plain `DateTime`s.
+  static String timestampConverter() => r'''
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:json_annotation/json_annotation.dart';
+
+/// Keeps a `DateTime` field stored as a Firestore `Timestamp`.
+///
+/// Annotate the field on the *model* — never on an entity, which has no
+/// business knowing what the wire looks like:
+///
+///   const factory OrderModel({
+///     @TimestampConverter() required DateTime placedAt,
+///     @NullableTimestampConverter() DateTime? shippedAt,
+///   }) = _OrderModel;
+///
+/// Why it matters: without it json_serializable writes the date as an ISO
+/// string. Firestore then sorts and ranges it as text, so `where('placedAt',
+/// isGreaterThan: ...)` compares character by character and an index on the
+/// field is useless. A `Timestamp` is a real point in time to the server.
+///
+/// **Everything comes back in UTC**, so keep your dates in UTC too —
+/// `DateTime.now().toUtc()`. `Timestamp.toDate()` hands back the device's
+/// local time, which means the same document reads as a different `DateTime`
+/// on two phones. That is not cosmetic: a freezed entity compares dates with
+/// `==`, and `DateTime` counts its UTC flag as part of equality — so a state
+/// rebuilt from a fresh read would differ from the one already on screen for
+/// no reason a user could see. Call `.toLocal()` where you *display* a date.
+class TimestampConverter implements JsonConverter<DateTime, Object?> {
+  /// Creates the converter. `const` so it can be used as an annotation.
+  const TimestampConverter();
+
+  @override
+  DateTime fromJson(Object? json) {
+    if (json is Timestamp) return json.toDate().toUtc();
+    // Documents written by a seed script, an export or another SDK often hold
+    // the date as a string or as epoch millis. Reading those costs nothing and
+    // saves a migration.
+    if (json is String) return DateTime.parse(json).toUtc();
+    if (json is int) {
+      return DateTime.fromMillisecondsSinceEpoch(json, isUtc: true);
+    }
+    throw FormatException('Not a Firestore timestamp', json);
+  }
+
+  @override
+  Object toJson(DateTime date) => Timestamp.fromDate(date);
+}
+
+/// [TimestampConverter] for a field that may be absent.
+///
+/// A separate class because a `JsonConverter<DateTime, …>` cannot be applied
+/// to a `DateTime?` field — the types have to line up.
+class NullableTimestampConverter implements JsonConverter<DateTime?, Object?> {
+  /// Creates the converter. `const` so it can be used as an annotation.
+  const NullableTimestampConverter();
+
+  @override
+  DateTime? fromJson(Object? json) =>
+      json == null ? null : const TimestampConverter().fromJson(json);
+
+  @override
+  Object? toJson(DateTime? date) =>
+      date == null ? null : Timestamp.fromDate(date);
+}
+''';
+
   /// Returns the generated dioClient template.
   ///
   /// The same client in both stacks: `buildDioClient` takes the
