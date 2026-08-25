@@ -132,6 +132,14 @@ class ScaffoldContext {
   /// Firebase Auth is installed.
   bool get hasFirebaseAuth => hasPackage('firebase_auth');
 
+  /// The locator's registrations are split one file per layer, rather than
+  /// all in `injector.dart`.
+  ///
+  /// Read off disk like every other option: projects scaffolded before the
+  /// split still have the single file, and `update` has to refresh each as
+  /// the shape it actually is.
+  bool get hasSplitDi => hasFile('lib/config/di/data_module.dart');
+
   /// The auth feature was generated, in either variant — the router's redirect
   /// reads its notifier (riverpod) or its bloc.
   bool get hasAuthFeature =>
@@ -553,17 +561,61 @@ abstract final class ScaffoldCatalog {
       description:
           'Signpost to where FirebaseAuth and Firestore are registered.',
     ),
+    // ── The locator ─────────────────────────────────────────────────────────
+    // Five files rather than one: `injector.dart` holds `getIt` and calls one
+    // registrar per layer, and the registrations themselves live beside the
+    // layer they belong to, so no single file grows with the app. A project
+    // scaffolded before that split still has everything in `injector.dart`,
+    // which is why the spec below asks the project which shape it is.
     ScaffoldSpec(
       name: 'injector',
       title: 'Injector',
       path: 'lib/config/di/injector.dart',
       category: 'Config',
-      template: (c) => c.stack.injector(
+      template: (c) => c.hasSplitDi
+          ? c.stack.injector()
+          : c.stack.singleFileInjector(
+              withDio: c.hasDio,
+              withFirestore: c.hasFirestore,
+              withFirebaseAuth: c.hasFirebaseAuth,
+              withAuthFeature: c.hasAuthFeature,
+              withFirebaseAuthFeature: c.hasFirebaseAuthFeature,
+              withMedia: c.hasFile('lib/core/services/media_service.dart'),
+              withUrlLauncher:
+                  c.hasFile('lib/core/services/url_launcher_service.dart'),
+              withNotifications: c.hasNotifications,
+              withFirebaseNotifications: c.hasFirebaseNotifications,
+              withDebouncer:
+                  c.hasFile('lib/core/services/debouncer_service.dart'),
+              withBiometric: c.hasBiometric,
+              withLocalization: c.hasLocalization,
+              withConnectivity:
+                  c.hasFile('lib/core/services/connectivity_service.dart'),
+            ),
+      description:
+          'The get_it service locator: getIt, and setupInjector() calling one registrar per layer.',
+    ),
+    ScaffoldSpec(
+      name: 'di-external',
+      title: 'External module',
+      path: 'lib/config/di/external_module.dart',
+      category: 'Config',
+      template: (c) => c.stack.externalModule(
         withDio: c.hasDio,
         withFirestore: c.hasFirestore,
         withFirebaseAuth: c.hasFirebaseAuth,
         withAuthFeature: c.hasAuthFeature,
         withFirebaseAuthFeature: c.hasFirebaseAuthFeature,
+      ),
+      description:
+          'External layer of the locator: Dio, the Firebase handles, secure storage.',
+    ),
+    ScaffoldSpec(
+      name: 'di-core',
+      title: 'Core module',
+      path: 'lib/config/di/core_module.dart',
+      category: 'Config',
+      template: (c) => c.stack.coreModule(
         withMedia: c.hasFile('lib/core/services/media_service.dart'),
         withUrlLauncher:
             c.hasFile('lib/core/services/url_launcher_service.dart'),
@@ -571,12 +623,37 @@ abstract final class ScaffoldCatalog {
         withFirebaseNotifications: c.hasFirebaseNotifications,
         withDebouncer: c.hasFile('lib/core/services/debouncer_service.dart'),
         withBiometric: c.hasBiometric,
-        withLocalization: c.hasLocalization,
         withConnectivity:
             c.hasFile('lib/core/services/connectivity_service.dart'),
       ),
+      description: 'Core layer of the locator: the services under lib/core.',
+    ),
+    ScaffoldSpec(
+      name: 'di-data',
+      title: 'Data module',
+      path: 'lib/config/di/data_module.dart',
+      category: 'Config',
+      template: (c) => c.stack.dataModule(
+        withDio: c.hasDio,
+        withFirestore: c.hasFirestore,
+        withAuthFeature: c.hasAuthFeature,
+        withFirebaseAuthFeature: c.hasFirebaseAuthFeature,
+        withFirebaseNotifications: c.hasFirebaseNotifications,
+      ),
       description:
-          'The get_it service locator every dependency is registered in.',
+          'Data layer of the locator: datasources and repositories. `create feature` writes here.',
+    ),
+    ScaffoldSpec(
+      name: 'di-presentation',
+      title: 'Presentation module',
+      path: 'lib/config/di/presentation_module.dart',
+      category: 'Config',
+      template: (c) => c.stack.presentationModule(
+        withAuthFeature: c.hasAuthFeature,
+        withLocalization: c.hasLocalization,
+      ),
+      description:
+          'Presentation layer of the locator: the blocs. Bloc projects only.',
     ),
 
     // ── Auth feature ────────────────────────────────────────────────────────

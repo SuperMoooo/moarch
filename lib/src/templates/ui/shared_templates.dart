@@ -265,14 +265,18 @@ class AppImage extends StatelessWidget {
         '                final verified = await getIt<BiometricService>()\n'
         '                    .verifyUserLocalAuth(context);\n';
 
+    // One guard for the three ways a press can be refused, so a caller never
+    // has to remember which of them ElevatedButton already knows about.
+    const guard = 'isDisabled || isLoading || onPressed == null';
+
     final onPressedWiring = !hasBiometricAuth
-        ? 'isLoading || onPressed == null\n'
+        ? '$guard\n'
             '            ? null\n'
             '            : () {\n'
             '                HapticFeedback.selectionClick();\n'
             '                onPressed!();\n'
             '              }'
-        : 'isLoading || onPressed == null\n'
+        : '$guard\n'
             '            ? null\n'
             '            : () async {\n'
             '                HapticFeedback.selectionClick();\n'
@@ -325,6 +329,7 @@ $classDeclaration
     required this.label,
     this.onPressed,
     this.isLoading = false,
+    this.isDisabled = false,
     this.type = AppButtonType.filled,
     this.shape = AppButtonShape.rounded,
     this.prefixIcon,
@@ -337,12 +342,25 @@ $classDeclaration
   final AppButtonVariant variant;
   final String label;
 
-  /// Tap handler. Pass null to render the button in its disabled state.
+  /// Tap handler. Null disables the button, same as [isDisabled].
   final VoidCallback? onPressed;
 
   /// When true, the label is replaced by a spinner and taps are ignored, while
   /// the button keeps its size so the surrounding layout doesn't jump.
+  ///
+  /// A loading button keeps its full color: it is busy, not unavailable. Only
+  /// a disabled one fades.
   final bool isLoading;
+
+  /// When true, the button is greyed out and ignores taps, whatever
+  /// [onPressed] is.
+  ///
+  /// The same end state as `onPressed: null`, said the other way round:
+  /// `isDisabled: !form.isValid` rather than
+  /// `onPressed: form.isValid ? _submit : null`. Both work, and they compose —
+  /// this one keeps the handler visible at the call site.
+  final bool isDisabled;
+
   final AppButtonType type;
   final AppButtonShape shape;
   final IconData? prefixIcon;
@@ -424,6 +442,12 @@ $classDeclaration
         ),
     };
 
+    // Busy is not the same as unavailable: a loading button keeps its full
+    // color and only stops responding, while one that is actually disabled —
+    // [isDisabled], or a null [onPressed] — fades, and stays faded even if it
+    // is loading too.
+    final showsBusy = isLoading && !isDisabled && onPressed != null;
+
     final button = SizedBox(
       width: width ?? double.infinity,
       height: sizeConfig.height,
@@ -434,12 +458,10 @@ $classDeclaration
           padding: sizeConfig.padding,
           backgroundColor: backgroundColor,
           foregroundColor: foregroundColor,
-          // While loading, the button keeps its full color (just non-tappable);
-          // only a truly disabled button (onPressed == null) fades.
           disabledBackgroundColor:
-              isLoading ? backgroundColor : disabledBackground,
+              showsBusy ? backgroundColor : disabledBackground,
           disabledForegroundColor:
-              isLoading ? foregroundColor : disabledForeground,
+              showsBusy ? foregroundColor : disabledForeground,
           shape: RoundedRectangleBorder(
             borderRadius: switch (shape) {
               AppButtonShape.rounded => AppConstants.borderRadius12,
@@ -9233,6 +9255,16 @@ $toggleAction              const SizedBox(width: AppConstants.space8),
                       variant: AppButtonVariant.primary,
                       label: 'Disabled (onPressed: null)',
                       onPressed: null,
+                    ),
+                    const SizedBox(height: AppConstants.space8),
+                    // The same end state reached the other way round: the
+                    // handler stays visible and a condition decides whether it
+                    // may run.
+                    AppButton(
+                      variant: AppButtonVariant.primary,
+                      label: 'Disabled (isDisabled: true)',
+                      isDisabled: true,
+                      onPressed: () {},
                     ),
                     const SizedBox(height: AppConstants.space8),
                     const AppButton(

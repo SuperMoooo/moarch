@@ -154,11 +154,96 @@ class StackTemplates {
   String dioClient({bool withAuthFeature = false}) =>
       CoreTemplates.dioClient(withAuthFeature: withAuthFeature);
 
-  /// The get_it service locator.
+  /// Whether this stack has a `config/di/presentation_module.dart`.
+  ///
+  /// Bloc does: a bloc is an ordinary dependency, constructed from a
+  /// repository and handed out by type. Riverpod does not — a notifier needs
+  /// the `Ref` Riverpod owns, so it lives behind its provider and there is
+  /// nothing about it for get_it to hold.
+  bool get hasPresentationModule => isBloc;
+
+  /// The root of the get_it service locator: `getIt`, and `setupInjector()`
+  /// calling one registrar per layer.
   ///
   /// Both stacks have one: DI is get_it's job either way. What varies is only
-  /// whether the state holders are in it — see [InjectorTemplates].
-  String injector({
+  /// whether there is a presentation module among the layers — see
+  /// [InjectorTemplates].
+  String injector() =>
+      InjectorTemplates.injector(stateManagement: stateManagement);
+
+  /// The locator's external layer — Dio, Firebase, secure storage. Same in
+  /// both stacks.
+  String externalModule({
+    bool withDio = false,
+    bool withFirestore = false,
+    bool withFirebaseAuth = false,
+    bool withAuthFeature = false,
+    bool withFirebaseAuthFeature = false,
+  }) =>
+      InjectorTemplates.externalModule(
+        withDio: withDio,
+        withFirestore: withFirestore,
+        withFirebaseAuth: withFirebaseAuth,
+        withAuthFeature: withAuthFeature,
+        withFirebaseAuthFeature: withFirebaseAuthFeature,
+      );
+
+  /// The locator's core-services layer. Same in both stacks.
+  String coreModule({
+    bool withMedia = false,
+    bool withUrlLauncher = false,
+    bool withNotifications = false,
+    bool withFirebaseNotifications = false,
+    bool withDebouncer = false,
+    bool withBiometric = false,
+    bool withConnectivity = false,
+  }) =>
+      InjectorTemplates.coreModule(
+        withMedia: withMedia,
+        withUrlLauncher: withUrlLauncher,
+        withNotifications: withNotifications,
+        withFirebaseNotifications: withFirebaseNotifications,
+        withDebouncer: withDebouncer,
+        withBiometric: withBiometric,
+        withConnectivity: withConnectivity,
+      );
+
+  /// The locator's data layer — datasources and repositories. Same in both
+  /// stacks, and where `moarch create feature` writes.
+  String dataModule({
+    bool withDio = false,
+    bool withFirestore = false,
+    bool withAuthFeature = false,
+    bool withFirebaseAuthFeature = false,
+    bool withFirebaseNotifications = false,
+  }) =>
+      InjectorTemplates.dataModule(
+        withDio: withDio,
+        withFirestore: withFirestore,
+        withAuthFeature: withAuthFeature,
+        withFirebaseAuthFeature: withFirebaseAuthFeature,
+        withFirebaseNotifications: withFirebaseNotifications,
+      );
+
+  /// The locator's presentation layer — the blocs.
+  ///
+  /// Only meaningful when [hasPresentationModule]; callers guard on that
+  /// rather than this returning something empty.
+  String presentationModule({
+    bool withAuthFeature = false,
+    bool withLocalization = false,
+  }) =>
+      InjectorTemplates.presentationModule(
+        withAuthFeature: withAuthFeature,
+        withLocalization: withLocalization,
+      );
+
+  /// The pre-split single-file locator, for projects that still have one.
+  ///
+  /// See [InjectorTemplates.singleFileInjector] — nothing new is generated
+  /// with this, but `moarch update` has to be able to refresh a project as
+  /// the shape it actually is.
+  String singleFileInjector({
     bool withDio = false,
     bool withFirestore = false,
     bool withFirebaseAuth = false,
@@ -173,7 +258,7 @@ class StackTemplates {
     bool withLocalization = false,
     bool withConnectivity = false,
   }) =>
-      InjectorTemplates.injector(
+      InjectorTemplates.singleFileInjector(
         stateManagement: stateManagement,
         withDio: withDio,
         withFirestore: withFirestore,

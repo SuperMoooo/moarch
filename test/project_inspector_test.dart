@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/utils/file_utils.dart';
+import 'package:moarch/src/utils/injector_utils.dart';
 import 'package:moarch/src/utils/project_inspector.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
 import 'package:path/path.dart' as p;
@@ -30,16 +31,32 @@ void main() {
     await Directory(p.join(root, '.fvm', 'flutter_sdk'))
         .create(recursive: true);
     // The locator is part of a healthy project in both stacks now: it is
-    // where the data layer is wired, whichever one holds the state.
+    // where the data layer is wired, whichever one holds the state. And it is
+    // five files rather than one — `injector.dart` calls a registrar per
+    // layer, so every module it calls has to be there too. This fixture is
+    // Riverpod, so there is no presentation module.
     await File(p.join(libPath, 'config', 'di', 'injector.dart'))
         .create(recursive: true)
         .then((file) => file.writeAsString('''
 final getIt = GetIt.instance;
 
 Future<void> setupInjector() async {
-  // moarch:registrations
+  registerExternals();
+  registerCoreServices();
+  registerDataLayer();
+  await getIt.allReady();
 }
 '''));
+    for (final module in ['external_module', 'core_module']) {
+      await File(p.join(libPath, 'config', 'di', '$module.dart'))
+          .writeAsString('void register() {}\n');
+    }
+    await File(p.join(libPath, 'config', 'di', 'data_module.dart'))
+        .writeAsString('''
+void registerDataLayer() {
+  // moarch:registrations
+}
+''');
     await File(p.join(root, 'pubspec.yaml')).writeAsString('''
 name: demo
 
@@ -171,6 +188,108 @@ dependencies:
       final findings = await ProjectInspector.inspect(root);
       expect(matching(findings, '.fvmrc'), hasLength(1));
       expect(matching(findings, 'settings.json'), isEmpty);
+    });
+  });
+
+  group('the locator', () {
+    /// Replaces the split layout the healthy fixture scaffolds with the one
+    /// file projects generated before the split still have.
+    Future<void> collapseToSingleFile() async {
+      final di = Directory(p.join(libPath, 'config', 'di'));
+      for (final file in di.listSync().whereType<File>()) {
+        if (p.basename(file.path) != 'injector.dart') file.deleteSync();
+      }
+      await File(p.join(di.path, 'injector.dart')).writeAsString('''
+final getIt = GetIt.instance;
+
+Future<void> setupInjector() async {
+  // moarch:registrations
+}
+''');
+    }
+
+    test('flags a module injector.dart calls but does not have', () async {
+      await scaffoldHealthyProject();
+      File(p.join(libPath, 'config', 'di', 'core_module.dart')).deleteSync();
+
+      final findings = await ProjectInspector.inspect(root);
+      final finding = matching(findings, 'core_module.dart').single;
+      expect(finding.severity, DiagnosticSeverity.error);
+      expect(finding.hint, contains('registerCoreServices()'));
+    });
+
+    test('flags a data module that lost its anchor', () async {
+      await scaffoldHealthyProject();
+      final dataFile = File(InjectorUtils.dataFileFor(libPath));
+      await dataFile.writeAsString(
+        dataFile.readAsStringSync().replaceAll(InjectorUtils.anchor, '//'),
+      );
+
+      final findings = await ProjectInspector.inspect(root);
+      final finding = matching(findings, 'data_module.dart').single;
+      expect(finding.severity, DiagnosticSeverity.warning);
+      expect(finding.hint, contains('never wired up'));
+    });
+
+    test('asks a bloc project for its presentation module', () async {
+      await scaffoldHealthyProject();
+      await File(p.join(root, 'pubspec.yaml')).writeAsString('''
+name: demo
+
+dependencies:
+  flutter_bloc: ^8.0.0
+  get_it: ^8.0.0
+  envied: ^0.5.0
+''');
+
+      final findings = await ProjectInspector.inspect(root);
+      expect(matching(findings, 'presentation_module.dart'), hasLength(1));
+    });
+
+    test('does not ask a Riverpod project for one', () async {
+      await scaffoldHealthyProject();
+
+      final findings = await ProjectInspector.inspect(root);
+      expect(matching(findings, 'presentation_module.dart'), isEmpty);
+    });
+
+    test('notes the pre-split layout without calling it a problem', () async {
+      await scaffoldHealthyProject();
+      await collapseToSingleFile();
+
+      final findings = await ProjectInspector.inspect(root);
+      final finding = matching(findings, 'one file').single;
+      // Informational: the single file still works, and moarch still writes
+      // to it. `doctor` prints this and exits 0.
+      expect(finding.severity, DiagnosticSeverity.info);
+      expect(finding.hint, contains('data_module'));
+      // Nothing is asked of the modules a pre-split project never had.
+      expect(matching(findings, 'external_module.dart'), isEmpty);
+    });
+
+    test('still wants the anchor in a pre-split locator', () async {
+      await scaffoldHealthyProject();
+      await collapseToSingleFile();
+      final injector = File(InjectorUtils.fileFor(libPath));
+      await injector.writeAsString(
+        injector.readAsStringSync().replaceAll(InjectorUtils.anchor, '//'),
+      );
+
+      final findings = await ProjectInspector.inspect(root);
+      expect(
+        matching(findings, 'injector.dart has no').single.severity,
+        DiagnosticSeverity.warning,
+      );
+    });
+
+    test('a locator that is not there at all is the only finding', () async {
+      await scaffoldHealthyProject();
+      Directory(p.join(libPath, 'config', 'di')).deleteSync(recursive: true);
+
+      final findings = await ProjectInspector.inspect(root);
+      // One error, not five: without injector.dart the modules are moot.
+      expect(matching(findings, 'config/di'), hasLength(1));
+      expect(matching(findings, 'injector.dart is missing'), hasLength(1));
     });
   });
 

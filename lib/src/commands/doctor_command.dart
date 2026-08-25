@@ -47,16 +47,22 @@ class DoctorCommand extends Command<int> {
     }
     _logger.info('');
 
-    final findings = await ProjectInspector.inspect(targetPath);
+    final reported = await ProjectInspector.inspect(targetPath);
 
-    if (findings.isEmpty) {
-      _logger.success('  ✓  No issues found.');
-      _logger.info('');
-      return 0;
+    // Informational findings are printed but do not count: `info` means
+    // nothing is wrong, and a doctor that exits 1 over a note is one people
+    // learn to stop reading.
+    final findings =
+        reported.where((f) => f.severity != DiagnosticSeverity.info).toList();
+
+    for (final finding in reported) {
+      _report(finding);
     }
 
-    for (final finding in findings) {
-      _report(finding);
+    if (findings.isEmpty) {
+      if (reported.isEmpty) _logger.success('  ✓  No issues found.');
+      _logger.info('');
+      return 0;
     }
 
     final fixable = findings.where((f) => f.isFixable).toList();
@@ -104,7 +110,9 @@ class DoctorCommand extends Command<int> {
 
     // Re-inspect rather than assume: a fix reports what it did, not whether
     // the project as a whole came out clean.
-    final remaining = await ProjectInspector.inspect(targetPath);
+    final remaining = (await ProjectInspector.inspect(targetPath))
+        .where((f) => f.severity != DiagnosticSeverity.info)
+        .toList();
     _logger.info('');
     if (remaining.isEmpty) {
       _logger.success('  ✓  No issues remaining.');

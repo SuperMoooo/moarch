@@ -109,6 +109,25 @@ patched later carry an anchor comment — `injector_utils.dart` inserts get_it
 registrations above `// moarch:registrations`; the anchor is load-bearing and
 says so in the generated source.
 
+### The locator is one file per layer
+
+`lib/config/di/` is five files, not one: `injector.dart` holds `getIt` and a
+`setupInjector()` calling one registrar per layer, and the registrations live
+in `external_module.dart`, `core_module.dart`, `data_module.dart` and — bloc
+only — `presentation_module.dart`. So `injector.dart` does not grow with the
+app, and Riverpod's lack of a presentation module is the layout stating the
+rule: notifiers are the one thing get_it does not hold.
+
+`create feature` writes each half of a feature into its own module, so
+`InjectorUtils.registrationsFor` returns an `InjectorRegistrations` split into
+`data`/`holders` rather than one string. Projects scaffolded before the split
+still have everything in `injector.dart`; which layout a project has is
+**detected** (`InjectorUtils.isSplit`, `ScaffoldContext.hasSplitDi`), and both
+are supported — `InjectorTemplates.singleFileInjector` exists so
+`moarch update injector` refreshes an old project as what it is instead of
+handing it a root that calls modules it does not have. Do not delete it
+without a migration.
+
 `ProjectInspector` (`lib/src/utils/project_inspector.dart`) is the checks
 behind `doctor`, each `Diagnostic` optionally carrying a fix for `doctor --fix`.
 
@@ -128,7 +147,9 @@ asserting against the generated source text.
 What the templates produce, since most changes here are about it:
 
 ```
-lib/config/{di,env,theme,router,firebase}
+lib/config/di/{injector,external_module,core_module,data_module,
+               presentation_module}.dart
+lib/config/{env,theme,router,firebase}
 lib/core/{constants,errors,network,security,services,utils}
 lib/features/<feature>/{data/{datasources,models,repositories},
                         domain/{entities,repositories},

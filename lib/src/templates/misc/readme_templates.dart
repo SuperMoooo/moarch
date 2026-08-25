@@ -174,7 +174,7 @@ presentation ─────► domain ◄───── data
 ```
 
 `presentation` never imports `data`. It asks the `domain` interface for what it
-needs, and the wiring in `lib/config/di/injector.dart` decides which
+needs, and the wiring in `lib/config/di/` decides which
 implementation answers. That indirection is what makes the data layer
 replaceable${withDio ? ' — swapping REST for something else touches `data/` only' : ''}, and what makes the rules testable
 without a device.
@@ -356,7 +356,7 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
       row('flutter_riverpod', 'State management — see section 6.');
     }
     row('get_it',
-        'The service locator. Repositories and services are registered in `lib/config/di/injector.dart` and read back with `getIt<T>()`.');
+        'The service locator. Repositories and services are registered in `lib/config/di/`, one file per layer, and read back with `getIt<T>()`.');
     row('envied',
         'Compiles `.env` values into `app_env.dart` instead of shipping the file.');
     row('freezed_annotation',
@@ -479,7 +479,7 @@ ${packages.toString().trimRight()}
 ```
 lib/
 ├── config/                          # How the app is wired together
-│   ├── di/injector.dart             # get_it registrations — the wiring
+│   ├── di/                           # get_it registrations, one file per layer
 │   ├── env/app_env.dart             # the compiled-in .env values
 │   ├── theme/app_theme.dart         # colours, typography, component themes
 ${withRouter ? '│   ├── router/                      # GoRouter routes + the auth redirect\n' : ''}${withFirebase ? '│   ├── firebase/                    # Firebase instances, behind providers\n' : ''}│   └── ...
@@ -639,10 +639,10 @@ class ProfileRepositoryImpl implements ProfileRepository {
 }
 ```
 
-### The wiring: `lib/config/di/injector.dart`
+### The wiring: `lib/config/di/`
 
-One file knows both sides — which implementation answers which interface. It
-uses **get_it**, a service locator:
+The locator knows both sides — which implementation answers which interface. It
+uses **get_it**:
 
 ```dart
 getIt.registerLazySingleton<ProfileRepository>(
@@ -657,9 +657,27 @@ Anywhere else in the app, `getIt<ProfileRepository>()` hands back that instance
   The default for repositories and services.
 - `registerFactory` — a new instance every call.
 
-> ⚠️ `injector.dart` contains a `// moarch:registrations` comment.
-> `moarch create feature` inserts new registrations directly above it. Keep the
-> line where it is or the tooling has nothing to anchor to.
+The registrations are one file per layer, so none of them grows with the app:
+
+| file | holds |
+| --- | --- |
+| `injector.dart` | `getIt`, and `setupInjector()` calling the registrars below. Nothing else. |
+| `external_module.dart` | The instances that are not ours: the HTTP client, the Firebase handles, the platform keystore. |
+| `core_module.dart` | The services under `lib/core` — permissions, media, notifications. |
+| `data_module.dart` | Datasources and repositories, one block per feature. |${bloc ? '\n| `presentation_module.dart` | The blocs. |' : ''}
+
+`setupInjector()` calls them in that order, but the order is a readability
+choice: every registration is lazy, so a layer may depend on one registered
+after it.${bloc ? '' : '''
+
+There is no presentation module: a notifier needs the `Ref` Riverpod owns, so
+it lives behind its provider and reads what it depends on out of the locator.
+Riverpod holds the state; get_it holds everything the state is built from.'''}
+
+> ⚠️ `data_module.dart`${bloc ? ' and `presentation_module.dart` each contain a' : ' contains a'}
+> `// moarch:registrations` comment. `moarch create feature` inserts new
+> registrations directly above ${bloc ? 'them' : 'it'}. Keep the line${bloc ? 's' : ''} where ${bloc ? 'they are' : 'it is'} or the
+> tooling has nothing to anchor to.
 
 ### Errors: exactly one type reaches the UI
 
@@ -880,7 +898,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
 ```
 
 - The repository is a constructor parameter, so a test hands it a fake. The
-  locator is what fills it in, in `injector.dart`:
+  locator is what fills it in, in `presentation_module.dart`:
   `getIt.registerFactory<ProfileBloc>(() => ProfileBloc(getIt<ProfileRepository>()))`.
 - `emit` is only valid inside a handler, and only while it is still running.
   Emitting after an `await` that outlived the handler throws.
@@ -967,7 +985,7 @@ moarch create feature profile
 ```
 
 That scaffolds `lib/features/profile/` with the layers you tick, registers the
-repository in `injector.dart` above the `// moarch:registrations` anchor, and
+repository in `data_module.dart` above the `// moarch:registrations` anchor${bloc ? '\n(and the bloc in `presentation_module.dart`, above its own)' : ''}, and
 generates the presentation layer in this project's stack:
 ${bloc ? 'the bloc, its sealed event and state families, and the page that provides\nit to the widget tree.' : 'the notifier and the immutable state class it owns.'}
 
@@ -1374,7 +1392,7 @@ Read these in order — a day, and the rest of this file will read easily:
 - [Flutter documentation](https://docs.flutter.dev) · [API reference](https://api.flutter.dev)
 - [Dart documentation](https://dart.dev/guides) · [pub.dev](https://pub.dev)
 $stateDocs
-- [get_it](https://pub.dev/packages/get_it) — the service locator behind `injector.dart`${withDio ? '\n- [Dio](https://pub.dev/packages/dio) — the HTTP client' : ''}${withRouter ? '\n- [go_router](https://pub.dev/packages/go_router) — routing and redirects' : ''}${withFirebase ? '\n- [Firebase for Flutter](https://firebase.google.com/docs/flutter/setup)' : ''}${withLocalization || withEasyLocalization ? '\n- [Internationalizing Flutter apps](https://docs.flutter.dev/ui/accessibility-and-internationalization/internationalization)' : ''}${withBiometric ? '\n- [local_auth](https://pub.dev/packages/local_auth) — biometric authentication' : ''}
+- [get_it](https://pub.dev/packages/get_it) — the service locator behind `config/di/`${withDio ? '\n- [Dio](https://pub.dev/packages/dio) — the HTTP client' : ''}${withRouter ? '\n- [go_router](https://pub.dev/packages/go_router) — routing and redirects' : ''}${withFirebase ? '\n- [Firebase for Flutter](https://firebase.google.com/docs/flutter/setup)' : ''}${withLocalization || withEasyLocalization ? '\n- [Internationalizing Flutter apps](https://docs.flutter.dev/ui/accessibility-and-internationalization/internationalization)' : ''}${withBiometric ? '\n- [local_auth](https://pub.dev/packages/local_auth) — biometric authentication' : ''}
 - [FVM](https://fvm.app) — the Flutter version manager
 - [flutter_flavorizr](https://pub.dev/packages/flutter_flavorizr) — flavors
 - [moarch](https://pub.dev/packages/moarch) — the generator this scaffold came from

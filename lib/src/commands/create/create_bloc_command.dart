@@ -104,7 +104,7 @@ class CreateBlocCommand extends Command<int> {
     final progress = _logger.progress('Scaffolding');
     FileUtils.beginSession();
 
-    var registered = false;
+    var patch = InjectorPatchResult.none;
 
     try {
       await FileUtils.writeFile(
@@ -129,7 +129,7 @@ class CreateBlocCommand extends Command<int> {
           repositoryClass: featureClass,
         ),
       );
-      registered = await InjectorUtils.register(
+      patch = await InjectorUtils.register(
         libPath,
         className: className,
         registrations: InjectorUtils.registrationsFor(
@@ -143,12 +143,10 @@ class CreateBlocCommand extends Command<int> {
           // The feature's repository, which this bloc shares rather than
           // declaring a data layer of its own.
           blocRepositoryClass: hasRepository ? featureClass : null,
+          // Its own file, though: a second bloc in a feature is not named
+          // after the feature.
+          blocFileName: blocName,
         ),
-        imports: [
-          if (hasRepository)
-            "import '../../features/$featureName/domain/repositories/${featureName}_repository.dart';",
-          "import '../../features/$featureName/presentation/blocs/${blocName}_bloc.dart';",
-        ],
       );
 
       progress.complete('Bloc scaffolded');
@@ -166,8 +164,8 @@ class CreateBlocCommand extends Command<int> {
     _logger.info('  └── blocs/${blocName}_bloc.dart');
     _logger.info('');
 
-    if (registered) {
-      _logger.info('  Registered in ${InjectorUtils.path}.');
+    if (patch.complete) {
+      _logger.info('  Registered in ${patch.describeWritten}.');
       if (!hasRepository) {
         // Nothing to take, so it was registered taking nothing. Say so — the
         // alternative is finding out from a constructor that does not match.
@@ -175,8 +173,8 @@ class CreateBlocCommand extends Command<int> {
             'takes nothing yet.');
       }
     } else {
-      _logger
-          .warn('  Nothing was registered in ${InjectorUtils.path} — register');
+      _logger.warn(
+          '  Nothing was registered in ${patch.describeMissing} — register');
       _logger.info('  ${className}Bloc there yourself, or put back the '
           '`${InjectorUtils.anchor}`');
       _logger.info('  comment.');

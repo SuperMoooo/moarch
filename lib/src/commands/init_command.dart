@@ -1735,27 +1735,57 @@ class InitCommand extends Command<int> {
       );
     }
 
-    // The get_it wiring — everything the checklist selected, registered in one
-    // place. Both stacks get it: the difference is only that a bloc project's
-    // state holders are in there too.
+    // The get_it wiring — everything the checklist selected, registered one
+    // file per layer so no single file grows with the app. `injector.dart`
+    // itself is only `getIt` and the four calls. Both stacks get the first
+    // three; the presentation module is bloc's, since a Riverpod notifier
+    // needs the `Ref` Riverpod owns and stays behind its provider.
     await FileUtils.writeFile(
       p.join(c, 'di', 'injector.dart'),
-      templates.injector(
+      templates.injector(),
+    );
+    await FileUtils.writeFile(
+      p.join(c, 'di', 'external_module.dart'),
+      templates.externalModule(
         withDio: stack.contains(_kDio),
         withFirestore: stack.contains(_kFirestore),
         withFirebaseAuth: stack.contains(_kFirebaseAuth),
         withAuthFeature: stack.contains(_kAuthFeature),
         withFirebaseAuthFeature:
             stack.contains(_kAuthFeature) && stack.contains(_kFirebaseAuth),
+      ),
+    );
+    await FileUtils.writeFile(
+      p.join(c, 'di', 'core_module.dart'),
+      templates.coreModule(
         withMedia: stack.contains(_kMediaService),
         withUrlLauncher: stack.contains(_kLaunchUrlService),
         withNotifications: stack.contains(_kNotificationsService),
         withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
         withDebouncer: stack.contains(_kDebouncerService),
         withBiometric: stack.contains(_kBiometricAuth),
-        withLocalization: stack.contains(_kLocalizations),
       ),
     );
+    await FileUtils.writeFile(
+      p.join(c, 'di', 'data_module.dart'),
+      templates.dataModule(
+        withDio: stack.contains(_kDio),
+        withFirestore: stack.contains(_kFirestore),
+        withAuthFeature: stack.contains(_kAuthFeature),
+        withFirebaseAuthFeature:
+            stack.contains(_kAuthFeature) && stack.contains(_kFirebaseAuth),
+        withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
+      ),
+    );
+    if (templates.hasPresentationModule) {
+      await FileUtils.writeFile(
+        p.join(c, 'di', 'presentation_module.dart'),
+        templates.presentationModule(
+          withAuthFeature: stack.contains(_kAuthFeature),
+          withLocalization: stack.contains(_kLocalizations),
+        ),
+      );
+    }
   }
 
   Future<void> _buildShared(

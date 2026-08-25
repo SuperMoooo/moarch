@@ -43,6 +43,11 @@ class Diagnostic {
   const Diagnostic.warning(this.message, {this.hint, this.fix})
       : severity = DiagnosticSeverity.warning;
 
+  /// An informational finding. Nothing is wrong, so `doctor` prints it and
+  /// still exits 0.
+  const Diagnostic.info(this.message, {this.hint, this.fix})
+      : severity = DiagnosticSeverity.info;
+
   /// How much this finding matters.
   final DiagnosticSeverity severity;
 
@@ -209,6 +214,120 @@ abstract final class ProjectInspector {
     return findings;
   }
 
+  // ── The locator ──────────────────────────────────────────────
+
+  /// Checks `lib/config/di/`, in whichever of the two shapes the project has.
+  ///
+  /// A project with no locator has nothing to resolve a dependency from, and
+  /// the failure is a runtime "Object/factory with type X is not registered".
+  /// One with a locator but no anchor is worse: `create feature` writes the
+  /// feature and silently wires up none of it.
+  static List<Diagnostic> _locator(
+    String libPath,
+    StateManagement stateManagement,
+  ) {
+    final findings = <Diagnostic>[];
+    final injector = File(InjectorUtils.fileFor(libPath));
+
+    if (!injector.existsSync()) {
+      return [
+        Diagnostic.error(
+          'lib/config/di/injector.dart is missing',
+          hint: 'The generated '
+              '${stateManagement.isBloc ? 'pages resolve their blocs' : 'notifiers resolve their repositories'} '
+              'with `getIt<...>()`. Run `moarch update injector`, or write '
+              'it by hand.',
+        ),
+      ];
+    }
+
+    // Which shape this project is, read off disk: the registrations are split
+    // one file per layer now, and a project scaffolded before that has them
+    // all in `injector.dart`. Both are supported; only the checks differ.
+    if (!InjectorUtils.isSplit(libPath)) {
+      if (!injector.readAsStringSync().contains(InjectorUtils.anchor)) {
+        findings.add(
+          const Diagnostic.warning(
+            'lib/config/di/injector.dart has no `${InjectorUtils.anchor}` '
+            'comment',
+            hint: 'That line is where `moarch create feature` inserts new '
+                'registrations. Without it a generated feature is written but '
+                'never wired up. Put it back anywhere inside setupInjector().',
+          ),
+        );
+      }
+      findings.add(
+        const Diagnostic.info(
+          'lib/config/di/injector.dart holds every registration in one file',
+          hint: 'Newer projects split them one file per layer — '
+              'external_module, core_module, data_module and (on bloc) '
+              'presentation_module — so no single file grows with the app. '
+              'Nothing is wrong with the single file and moarch keeps '
+              'writing to it; splitting it is a hand migration if you want '
+              'the newer shape.',
+        ),
+      );
+      return findings;
+    }
+
+    // Split layout. Each module `injector.dart` calls has to be there, and
+    // the two `create` writes into have to keep their anchor.
+    const modules = {
+      'external_module.dart': 'registerExternals()',
+      'core_module.dart': 'registerCoreServices()',
+      'data_module.dart': 'registerDataLayer()',
+    };
+    for (final entry in modules.entries) {
+      if (!File(p.join(libPath, 'config', 'di', entry.key)).existsSync()) {
+        findings.add(
+          Diagnostic.error(
+            'lib/config/di/${entry.key} is missing',
+            hint: 'setupInjector() calls ${entry.value} from it, so the '
+                'project does not compile without it. Run '
+                '`moarch update injector` to see the current shape, or write '
+                'the file by hand.',
+          ),
+        );
+      }
+    }
+    if (stateManagement.isBloc &&
+        !File(InjectorUtils.presentationFileFor(libPath)).existsSync()) {
+      findings.add(
+        const Diagnostic.error(
+          'lib/config/di/presentation_module.dart is missing',
+          hint: 'On bloc the state holders are registered like any other '
+              'dependency, and setupInjector() calls registerBlocs() from '
+              'this file.',
+        ),
+      );
+    }
+
+    // The anchors. One per file `create` writes into, and each is the only
+    // thing telling it where to write.
+    final anchored = <String, String>{
+      InjectorUtils.dataPath: InjectorUtils.dataFileFor(libPath),
+      if (stateManagement.isBloc)
+        InjectorUtils.presentationPath:
+            InjectorUtils.presentationFileFor(libPath),
+    };
+    for (final entry in anchored.entries) {
+      final file = File(entry.value);
+      if (!file.existsSync()) continue;
+      if (file.readAsStringSync().contains(InjectorUtils.anchor)) continue;
+      findings.add(
+        Diagnostic.warning(
+          '${entry.key} has no `${InjectorUtils.anchor}` comment',
+          hint: 'That line is where `moarch create feature` inserts new '
+              'registrations. Without it a generated feature is written but '
+              'never wired up. Put it back anywhere inside the registrar '
+              'function.',
+        ),
+      );
+    }
+
+    return findings;
+  }
+
   // ── Dependencies ────────────────────────────────────────────────────────────
 
   static List<Diagnostic> _dependencies(String libPath, String pubspec) {
@@ -235,32 +354,7 @@ abstract final class ProjectInspector {
         ),
     ];
 
-    // A project with no locator has nothing to resolve a dependency from, and
-    // the failure is a runtime "Object/factory with type X is not registered".
-    {
-      final injector = File(p.join(libPath, 'config', 'di', 'injector.dart'));
-      if (!injector.existsSync()) {
-        findings.add(
-          Diagnostic.error(
-            'lib/config/di/injector.dart is missing',
-            hint: 'The generated '
-                '${stateManagement.isBloc ? 'pages resolve their blocs' : 'notifiers resolve their repositories'} '
-                'with `getIt<...>()`. Run `moarch update injector`, or write '
-                'it by hand.',
-          ),
-        );
-      } else if (!injector.readAsStringSync().contains(InjectorUtils.anchor)) {
-        findings.add(
-          const Diagnostic.warning(
-            'lib/config/di/injector.dart has no `${InjectorUtils.anchor}` '
-            'comment',
-            hint: 'That line is where `moarch create feature` inserts new '
-                'registrations. Without it a generated feature is written but '
-                'never wired up. Put it back anywhere inside setupInjector().',
-          ),
-        );
-      }
-    }
+    findings.addAll(_locator(libPath, stateManagement));
 
     // go_router and config/router/ are generated together — one without the
     // other means an edit went half-applied.

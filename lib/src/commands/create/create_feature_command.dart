@@ -247,7 +247,7 @@ class CreateFeatureCommand extends Command<int> {
     final progress = _logger.progress('Scaffolding');
     FileUtils.beginSession();
 
-    var registeredInInjector = false;
+    var injectorPatch = InjectorPatchResult.none;
 
     try {
       if (selected.contains(_kRemoteDatasource)) {
@@ -331,20 +331,12 @@ class CreateFeatureCommand extends Command<int> {
       // provider and reads the locator from there, so there is nothing to
       // register for it.
       final hasBloc = templates.isBloc && selected.contains(holderItem);
-      registeredInInjector = await InjectorUtils.register(
+      injectorPatch = await InjectorUtils.register(
         libPath,
         className: className,
         registrations: InjectorUtils.registrationsFor(
           featureName: featureName,
           className: className,
-          hasRemote: selected.contains(_kRemoteDatasource),
-          hasLocal: selected.contains(_kLocalDatasource),
-          hasRepository: selected.contains(_kRepository),
-          hasBloc: hasBloc,
-          useFirestore: useFirestore,
-        ),
-        imports: InjectorUtils.importsFor(
-          featureName: featureName,
           hasRemote: selected.contains(_kRemoteDatasource),
           hasLocal: selected.contains(_kLocalDatasource),
           hasRepository: selected.contains(_kRepository),
@@ -383,17 +375,21 @@ class CreateFeatureCommand extends Command<int> {
         selected.contains(_kRepository) ||
         (templates.isBloc && selected.contains(holderItem));
     if (needsInjector) {
-      if (registeredInInjector) {
-        _logger.info('  Registered in ${InjectorUtils.path}.');
+      if (injectorPatch.complete) {
+        _logger.info('  Registered in ${injectorPatch.describeWritten}.');
       } else {
-        // Either there is no locator, or the anchor comment was removed. Both
-        // leave the feature unresolvable, and neither is guessable from the
-        // error the app throws at runtime.
+        // Either a module is not there, or its anchor comment was removed.
+        // Both leave that half of the feature unresolvable, and neither is
+        // guessable from the error the app throws at runtime. A feature can
+        // land half-registered — name the half that did, so the warning is
+        // about what is actually missing.
+        if (injectorPatch.written.isNotEmpty) {
+          _logger.info('  Registered in ${injectorPatch.describeWritten}.');
+        }
         _logger.warn(
-            '  Nothing was registered in ${InjectorUtils.path} — add the');
-        _logger.info('  datasource, repository and '
-            '${templates.holderLabel} there yourself, or put');
-        _logger.info('  back the `${InjectorUtils.anchor}` comment.');
+            '  Nothing was registered in ${injectorPatch.describeMissing} —');
+        _logger.info('  add what belongs there yourself, or put back the');
+        _logger.info('  `${InjectorUtils.anchor}` comment.');
       }
       _logger.info('');
     }

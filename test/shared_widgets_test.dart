@@ -294,6 +294,50 @@ void main() {
     });
   });
 
+  group('appButton disabled state', () {
+    test('one guard covers all three ways a press is refused', () {
+      for (final hasBiometricAuth in [false, true]) {
+        final output =
+            SharedTemplates.appButton(hasBiometricAuth: hasBiometricAuth);
+
+        expect(output, contains('this.isDisabled = false,'),
+            reason: 'biometric: $hasBiometricAuth');
+        expect(output, contains('final bool isDisabled;'),
+            reason: 'biometric: $hasBiometricAuth');
+        expect(
+          output,
+          contains('onPressed: isDisabled || isLoading || onPressed == null'),
+          reason: 'biometric: $hasBiometricAuth',
+        );
+      }
+    });
+
+    test('busy is not the same as unavailable', () {
+      final output = SharedTemplates.appButton();
+
+      // A loading button keeps its full color; one that is actually disabled
+      // fades, and stays faded even while it loads.
+      expect(
+        output,
+        contains(
+            'final showsBusy = isLoading && !isDisabled && onPressed != null;'),
+      );
+      expect(
+        output,
+        contains('disabledBackgroundColor:\n'
+            '              showsBusy ? backgroundColor : disabledBackground,'),
+      );
+    });
+
+    test('the preview screen shows both ways of disabling', () {
+      final preview = SharedTemplates.designSystemView();
+
+      expect(preview, contains("label: 'Disabled (onPressed: null)'"));
+      expect(preview, contains("label: 'Disabled (isDisabled: true)'"));
+      expect(preview, contains('isDisabled: true,'));
+    });
+  });
+
   group('appButton hint', () {
     final output = SharedTemplates.appButton();
 

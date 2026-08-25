@@ -382,9 +382,12 @@ void main() {
         useFirestore: false,
       );
 
-      expect(output,
+      // A bloc is a state holder, so it goes in the presentation module and
+      // the data module is left with nothing to add.
+      expect(output.holders,
           contains('getIt.registerFactory<OrdersBloc>(OrdersBloc.new);'));
-      expect(output, isNot(contains('OrdersRepository')));
+      expect(output.holders, isNot(contains('OrdersRepository')));
+      expect(output.data, isEmpty);
     });
 
     test('a second bloc is registered with the feature\'s repository', () {
@@ -399,11 +402,23 @@ void main() {
         hasBloc: true,
         useFirestore: false,
         blocRepositoryClass: 'Orders',
+        blocFileName: 'order_feed',
       );
 
-      expect(output, contains('getIt.registerFactory<OrderFeedBloc>('));
+      expect(output.holders, contains('getIt.registerFactory<OrderFeedBloc>('));
+      expect(output.holders,
+          contains('() => OrderFeedBloc(getIt<OrdersRepository>()),'));
+      // Its own file, under the feature it belongs to.
       expect(
-          output, contains('() => OrderFeedBloc(getIt<OrdersRepository>()),'));
+        output.holderImports,
+        contains(
+            "import '../../features/orders/presentation/blocs/order_feed_bloc.dart';"),
+      );
+      expect(
+        output.holderImports,
+        contains(
+            "import '../../features/orders/domain/repositories/orders_repository.dart';"),
+      );
     });
   });
 
@@ -443,10 +458,20 @@ void main() {
         useFirestore: false,
       );
 
+      // The two halves land in different files: the repository in the data
+      // module, the bloc in the presentation module.
+      expect(output.dataBlock,
+          contains('getIt.registerLazySingleton<OrdersRepository>('));
+      expect(output.dataBlock, isNot(contains('OrdersBloc')));
       expect(
-          output, contains('getIt.registerLazySingleton<OrdersRepository>('));
-      expect(output, contains('getIt.registerFactory<OrdersBloc>('));
-      expect(output, contains('OrdersBloc(getIt<OrdersRepository>())'));
+          output.holderBlock, contains('getIt.registerFactory<OrdersBloc>('));
+      expect(output.holderBlock,
+          contains('OrdersBloc(getIt<OrdersRepository>())'));
+      // Each block carries the heading that makes re-registering a no-op —
+      // and the single-file layout takes both under one.
+      expect(output.dataBlock, contains('// ── Orders '));
+      expect(output.holderBlock, contains('// ── Orders '));
+      expect('// ── Orders '.allMatches(output.combined).length, 1);
     });
 
     test('inserts above the anchor and adds only the missing imports', () {

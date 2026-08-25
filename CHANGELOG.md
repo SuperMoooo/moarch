@@ -2,6 +2,53 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 7.1.1
+
+- **The get_it registrations are split one file per layer.** `moarch init` now
+  writes `lib/config/di/` as five files rather than one: `injector.dart` holds
+  `getIt` and a `setupInjector()` that calls one registrar per layer, and the
+  registrations live beside the layer they belong to —
+  `external_module.dart` (Dio, the Firebase handles, secure storage),
+  `core_module.dart` (the services under `lib/core`), `data_module.dart`
+  (datasources and repositories) and, on bloc, `presentation_module.dart` (the
+  blocs). `injector.dart` is the same length in a one-feature app and a
+  fifty-feature one.
+
+    On Riverpod there is no presentation module at all, which is the layout
+    saying out loud what was already true: a notifier needs the `Ref` Riverpod
+    owns, so it lives behind its provider and reads what it depends on out of
+    the locator. Everything else — clients, services, datasources,
+    repositories — is in get_it in both stacks.
+
+- **`AppButton` gains `isDisabled`.** The same end state as `onPressed: null`,
+  said the other way round — `isDisabled: !form.isValid` rather than
+  `onPressed: form.isValid ? _submit : null` — so the handler stays visible
+  at the call site. Both routes work and they compose. A loading button still
+  keeps its full color, because busy is not the same as unavailable; a
+  disabled one fades, and stays faded even while it loads.
+
+## 7.1.0
+
+- `moarch create feature` and `moarch create bloc` now write each half of a
+  feature into the module it belongs to: the datasource and repository into
+  `data_module.dart`, the bloc into `presentation_module.dart`. Both files
+  carry the `// moarch:registrations` anchor.
+
+- `moarch update` gains four slugs — `di-external`, `di-core`, `di-data`
+  and `di-presentation` — all under the `config` group.
+
+- **Projects generated before this release keep working, untouched.** Which
+  layout a project has is detected off disk, not remembered: `create feature`
+  patches the single `injector.dart` when that is what the project has, and
+  `moarch update injector` refreshes it as the single file rather than
+  replacing it with a root that calls modules the project does not have.
+  `moarch doctor` notes the older layout as information — nothing is
+  wrong, and it exits 0.
+
+- `moarch doctor` no longer fails over an informational finding. `info`
+  severity is printed and does not count towards the exit code; errors and
+  warnings are unchanged.
+
 ## 7.0.1
 
 - For Failure bloc states, failure is unique
@@ -20,9 +67,9 @@ All notable changes to this package are documented in this file, newest first.
   there is no constructor left to inherit. The model declares its own fields
   and maps them explicitly.
 
-        This does **not** migrate a project that already exists: `moarch update`
-        compares hashes and refuses to overwrite an edited file, and it never touches
-        `pubspec.yaml`. In particular, refreshing the auth feature (`moarch update
+            This does **not** migrate a project that already exists: `moarch update`
+            compares hashes and refuses to overwrite an edited file, and it never touches
+            `pubspec.yaml`. In particular, refreshing the auth feature (`moarch update
 
     auth`) on a project scaffolded before this release writes freezed sources
     into a project that has no freezed. Add the four dependencies first.
@@ -292,9 +339,9 @@ feature` and the five steps that are still yours; flavors; the build
   read; the conventions the analyzer cannot check; contacts and access; and
   where the rest of `docs/` picks up.
 
-                It replaces the README `flutter create` leaves behind and only that one —
-                matched on two of its own sentences, the same way `main.dart` and
-                `widget_test.dart` already are, so a README you wrote is never touched.
+                        It replaces the README `flutter create` leaves behind and only that one —
+                        matched on two of its own sentences, the same way `main.dart` and
+                        `widget_test.dart` already are, so a README you wrote is never touched.
 
 - The README is a catalog entry, so `moarch update readme` refreshes it and
   `--diff` shows what a refresh would change. Like every other template it
@@ -715,8 +762,8 @@ look at in the diff it offers:
       `doctor --fix` points it back at `.fvm/flutter_sdk`.
     - `settings.json` missing, or carrying no `dart.flutterSdkPath` — **warning**.
 
-                                                                                                An absolute path is left alone as a deliberate override, and a project with no
-                                                                                                `.fvmrc` gets none of these findings.
+                                                                                                      An absolute path is left alone as a deliberate override, and a project with no
+                                                                                                      `.fvmrc` gets none of these findings.
 
 - The README documents that the generated `.fvmrc` pins the `stable` _alias_
   rather than a version, so `fvm install` on CI or a teammate's machine can
