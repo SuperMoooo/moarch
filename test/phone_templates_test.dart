@@ -295,6 +295,17 @@ void main() {
       expect(output, contains('_maxHeightFactor'));
     });
 
+    test('backs its rows with a Material, not a decorated box', () {
+      // The sheet is opened transparent, so its own surface is the nearest
+      // Material the rows have. Painting that surface with a BoxDecoration
+      // instead puts an opaque box in front of it, and every ListTile
+      // ripple lands behind the sheet.
+      expect(output, contains('child: Material('));
+      expect(output, contains('color: theme.colorScheme.surface,'));
+      expect(output, contains('clipBehavior: Clip.antiAlias,'));
+      expect(output, contains('top: Radius.circular(AppConstants.radius24),'));
+    });
+
     test('says so when nothing matches', () {
       expect(output, contains('widget.emptyLabel'));
     });

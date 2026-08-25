@@ -2,6 +2,15 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 7.2.1
+
+- **`SearchPickerSheet` paints its surface as a `Material`.** The sheet opens
+  transparent, so the `Container` it drew its background with sat in front of
+  the nearest `Material` — the one every `ListTile` in the list paints its
+  ripple onto. Rows took taps but never flashed, and debug builds logged a
+  framework assertion on every row build. `moarch update search-sheet`
+  refreshes it.
+
 ## 7.2.0
 
 - **`ref.listenChange(...)`, beside `ref.listenAction(...)`.** Not every result

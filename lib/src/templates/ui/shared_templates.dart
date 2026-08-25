@@ -3100,110 +3100,113 @@ class _SearchPickerSheetState<T> extends State<SearchPickerSheet<T>> {
 
     return Padding(
       padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
-      child: Container(
-        constraints: BoxConstraints(
-          maxHeight: mediaQuery.size.height * _maxHeightFactor,
+      child: Material(
+        color: theme.colorScheme.surface,
+        clipBehavior: Clip.antiAlias,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppConstants.radius24),
         ),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(AppConstants.radius24),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: mediaQuery.size.height * _maxHeightFactor,
           ),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: AppConstants.padding16,
-                child: Column(
-                  children: [
-                    Text(
-                      widget.title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: AppConstants.space12),
-                    AppSearchField(
-                      hint: widget.searchHint,
-                      autofocus: true,
-                      variant: widget.variant,
-                      onChanged: _onQueryChanged,
-                    ),
-                  ],
-                ),
-              ),
-              Divider(height: 1, color: theme.colorScheme.outlineVariant),
-              Flexible(
-                child: rows.isEmpty
-                    ? Padding(
-                        padding: AppConstants.padding24,
-                        child: Text(
-                          widget.emptyLabel,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: AppConstants.padding16,
+                  child: Column(
+                    children: [
+                      Text(
+                        widget.title,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
                         ),
-                      )
-                    : ListView.builder(
-                        controller: _scrollController,
-                        // A fixed extent is what makes _initialOffset exact,
-                        // and it keeps a 238-row list cheap to scroll.
-                        itemExtent: _rowHeight,
-                        padding: EdgeInsets.zero,
-                        itemCount: rows.length,
-                        itemBuilder: (context, index) {
-                          final item = rows[index];
-                          final id = widget.idOf(item);
-                          final selected = widget.multiSelect
-                              ? _picked.contains(id)
-                              : id == widget.selectedId;
-                          final trailing = widget.trailingLabelOf?.call(item);
-                          // Past the ceiling only the ticked rows still answer:
-                          // offering a pick the caller has to throw away is
-                          // worse than showing it can't be made.
-                          final enabled =
-                              !widget.multiSelect || selected || !_atLimit;
-
-                          return ListTile(
-                            enabled: enabled,
-                            selected: selected,
-                            selectedColor: accent,
-                            leading: widget.leadingOf?.call(item),
-                            title: Text(
-                              widget.labelOf(item),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: selected
-                                  ? const TextStyle(fontWeight: FontWeight.bold)
-                                  : null,
-                            ),
-                            trailing: _rowTrailing(
-                              theme: theme,
-                              accent: accent,
-                              trailingLabel: trailing,
-                              selected: selected,
-                              enabled: enabled,
-                              id: id,
-                            ),
-                            onTap: enabled
-                                ? () {
-                                    if (widget.multiSelect) {
-                                      _toggle(id);
-                                      return;
-                                    }
-                                    HapticFeedback.selectionClick();
-                                    Navigator.pop(context, item);
-                                  }
-                                : null,
-                          );
-                        },
                       ),
-              ),
-              if (widget.multiSelect) _confirmBar(theme, accent),
-            ],
+                      const SizedBox(height: AppConstants.space12),
+                      AppSearchField(
+                        hint: widget.searchHint,
+                        autofocus: true,
+                        variant: widget.variant,
+                        onChanged: _onQueryChanged,
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(height: 1, color: theme.colorScheme.outlineVariant),
+                Flexible(
+                  child: rows.isEmpty
+                      ? Padding(
+                          padding: AppConstants.padding24,
+                          child: Text(
+                            widget.emptyLabel,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: _scrollController,
+                          // A fixed extent is what makes _initialOffset exact,
+                          // and it keeps a 238-row list cheap to scroll.
+                          itemExtent: _rowHeight,
+                          padding: EdgeInsets.zero,
+                          itemCount: rows.length,
+                          itemBuilder: (context, index) {
+                            final item = rows[index];
+                            final id = widget.idOf(item);
+                            final selected = widget.multiSelect
+                                ? _picked.contains(id)
+                                : id == widget.selectedId;
+                            final trailing = widget.trailingLabelOf?.call(item);
+                            // Past the ceiling only the ticked rows still
+                            // answer: offering a pick the caller has to throw
+                            // away is worse than showing it can't be made.
+                            final enabled =
+                                !widget.multiSelect || selected || !_atLimit;
+
+                            return ListTile(
+                              enabled: enabled,
+                              selected: selected,
+                              selectedColor: accent,
+                              leading: widget.leadingOf?.call(item),
+                              title: Text(
+                                widget.labelOf(item),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: selected
+                                    ? const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      )
+                                    : null,
+                              ),
+                              trailing: _rowTrailing(
+                                theme: theme,
+                                accent: accent,
+                                trailingLabel: trailing,
+                                selected: selected,
+                                enabled: enabled,
+                                id: id,
+                              ),
+                              onTap: enabled
+                                  ? () {
+                                      if (widget.multiSelect) {
+                                        _toggle(id);
+                                        return;
+                                      }
+                                      HapticFeedback.selectionClick();
+                                      Navigator.pop(context, item);
+                                    }
+                                  : null,
+                            );
+                          },
+                        ),
+                ),
+                if (widget.multiSelect) _confirmBar(theme, accent),
+              ],
+            ),
           ),
         ),
       ),
