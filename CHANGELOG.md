@@ -2,6 +2,36 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 7.2.0
+
+- **`ref.listenChange(...)`, beside `ref.listenAction(...)`.** Not every result
+  of an action is a message. The same extension now hands a screen the rest of
+  them: select any value off the state, be called once when it appears or
+  changes.
+
+    ```dart
+    ref.listenChange<OrdersState, String>(
+      context,
+      ordersNotifierProvider,
+      select: (state) => state.createdOrderId,
+      onChange: (id) => ref.read(routerProvider).push(AppRoutes.orderOf(id)),
+    );
+    ```
+
+    A null selection means there is nothing to react to, so a request the
+    notifier has already cleared does not fire again, and `onChange` never
+    receives one — `(state) => state.isDone ? true : null` is how a plain flag
+    says *now*. It compares against the previous state, so a value that stays
+    put through later rebuilds fires once rather than on every one, and it
+    holds the same rules `listenAction` does: nothing while the state is still
+    in flight, nothing once the context is gone.
+
+    It knows nothing about routes, which is the point — navigation, popping,
+    focus, scroll controllers and analytics all come out of one helper, and the
+    notifier keeps reporting *what happened* while the screen decides what to
+    do about it. `listenAction` is unchanged, so nothing generated before this
+    needs touching.
+
 ## 7.1.1
 
 - **The get_it registrations are split one file per layer.** `moarch init` now

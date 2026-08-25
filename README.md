@@ -533,7 +533,26 @@ per action, never both. Pass `onError` / `onSuccess` to navigate or log instead;
 that *replaces* the toast, so a screen that pops on success does not also flash a
 message on the way out.
 
-Both are part of `moarch init`, and `moarch create feature` writes them into an
+Not every result of an action is a message, so the same extension has
+`listenChange` for the rest of them — select any value off the state and be
+called once when it appears or changes:
+
+```dart
+ref.listenChange<OrdersState, String>(
+  context,
+  ordersNotifierProvider,
+  select: (state) => state.createdOrderId,
+  onChange: (id) => ref.read(routerProvider).push(AppRoutes.orderOf(id)),
+);
+```
+
+A null selection means there is nothing to react to, so a request the notifier
+has cleared does not fire again — `(state) => state.isDone ? true : null` is how
+a plain flag says *now*. The notifier reports what happened; the screen decides
+what to do about it, which is what keeps routes, focus and controllers out of
+the notifier.
+
+All of it is part of `moarch init`, and `moarch create feature` writes it into an
 older project rather than generating a view that cannot compile.
 
 ### Phone numbers mask themselves, per country
@@ -921,9 +940,9 @@ The kit covers:
   `AppSectionHeader`, `AppExpansionTile`, `AppTimeline`, `AppTable`,
   `AppDragSection`, `AppRichText` (a style and a tap handler per span, with the
   recognizers handled for you)
-- **feedback** — `AppAsyncView`, `ref.listenAction`, `AppBanner`,
-  `AppProgressBar`, `AppScreenLock`, skeleton list, loading overlay,
-  `ErrorView`, `EmptyView`
+- **feedback** — `AppAsyncView`, `ref.listenAction` / `ref.listenChange`,
+  `AppBanner`, `AppProgressBar`, `AppScreenLock`, skeleton list, loading
+  overlay, `ErrorView`, `EmptyView`
 - **media** — `AppAvatar`, `AppImage`, `AppCarousel`, `AppAudioPlayer`
 - **navigation** — `AppAppBar`, `AppBottomNav` (Material 3, classic, pill or
   dot; labels beside, below or nowhere; each of which can float as a stadium,

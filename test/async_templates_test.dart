@@ -165,6 +165,34 @@ void main() {
       expect(output, contains('final error = errorOf?.call(state);'));
       expect(output, contains('final success = successOf?.call(state);'));
     });
+
+    test('listenChange takes any value off the state, not just a message', () {
+      expect(output, contains('void listenChange<S, T extends Object>('));
+      expect(output, contains('required T? Function(S state) select,'));
+      expect(output, contains('required void Function(T value) onChange,'));
+    });
+
+    test('a null selection is nothing to react to', () {
+      // How a cleared request, and a state that never carries one, stay quiet.
+      expect(output, contains('final value = select(state);'));
+      expect(output, contains('if (value == null) return;'));
+    });
+
+    test('listenChange fires on the change, not on every state after it', () {
+      expect(output, contains('final before = previous?.value;'));
+      expect(
+        output,
+        contains('if (before != null && select(before) == value) return;'),
+      );
+      expect(output, contains('onChange(value);'));
+    });
+
+    test('listenChange holds the same in-flight and mounted rules', () {
+      final body = output.substring(output.indexOf('void listenChange<S,'));
+      expect(body, contains('if (next.isLoading) return;'));
+      expect(body, contains('if (state == null) return;'));
+      expect(body, contains('if (!context.mounted) return;'));
+    });
   });
 
   group('the generated view', () {

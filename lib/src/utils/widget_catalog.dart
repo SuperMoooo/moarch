@@ -702,7 +702,7 @@ abstract final class WidgetCatalog {
       // from `BlocConsumer`'s own listener.
       stacks: {StateManagement.riverpod},
       description:
-          '`ref.listenAction(...)` — turns a notifier\'s one-shot action outcome into a toast, or into whatever you pass instead.',
+          '`ref.listenAction(...)` — turns a notifier\'s one-shot action outcome into a toast, or into whatever you pass instead, plus `ref.listenChange(...)` for the one-shot results that are not a message.',
     ),
     WidgetSpec(
       name: 'loading-data',

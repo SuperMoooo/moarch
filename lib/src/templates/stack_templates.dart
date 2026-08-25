@@ -289,7 +289,9 @@ class StackTemplates {
   String appAsyncView() => riverpod.AsyncTemplates.appAsyncView();
 
   /// `ref.listenAction(...)`, which turns a notifier's one-shot outcome into
-  /// a toast. Riverpod only; a bloc screen uses `BlocConsumer`'s listener.
+  /// a toast, and `ref.listenChange(...)`, which hands the screen whatever
+  /// else the action left on the state. Riverpod only; a bloc screen uses
+  /// `BlocConsumer`'s listener.
   String actionListener() => riverpod.AsyncTemplates.actionListener();
 
   /// The maintenance gate.

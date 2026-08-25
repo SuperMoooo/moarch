@@ -347,8 +347,9 @@ import 'package:flutter_riverpod/misc.dart';
 
 import '../overlays/app_toast.dart';
 
-/// Reports a notifier's one-shot `error` / `success` messages to the user.
-/// Call it from `build`, like any other `ref.listen`.
+/// Reports a notifier's one-shot `error` / `success` messages to the user,
+/// and carries out whatever else a finished action left on the state.
+/// Call them from `build`, like any other `ref.listen`.
 ///
 /// ```dart
 /// ref.listenAction<HomeState>(
@@ -401,6 +402,60 @@ extension ActionListener on WidgetRef {
           AppToast.success(context, success);
         }
       }
+    });
+  }
+
+  /// Calls [onChange] once for each new value [select] reads off the state —
+  /// the open half of the pair, for the one-shot results that are not a
+  /// message: the id a create left behind, the flag a sheet closes on, the
+  /// step a form moved to.
+  ///
+  /// ```dart
+  /// ref.listenChange<CreateOrderState, String>(
+  ///   context,
+  ///   createOrderNotifierProvider,
+  ///   select: (state) => state.createdOrderId,
+  ///   onChange: (id) =>
+  ///       ref.read(routerProvider).push(AppRoutes.featureDetailOf(id)),
+  /// );
+  /// ```
+  ///
+  /// The notifier says *what happened*; this decides what to do about it, so
+  /// routes, focus and controllers stay out of the notifier. Register it
+  /// *after* [listenAction], so a success toast is raised before the screen it
+  /// belongs to navigates away.
+  ///
+  /// A null from [select] means "nothing to react to": a request the notifier
+  /// has already cleared does not fire, and neither does a state that never
+  /// carries one. For a plain flag, select the moment rather than the value —
+  /// `(state) => state.isDone ? true : null`.
+  ///
+  /// Where several screens share one provider, give each its own value to
+  /// select, so a screen only ever reacts to the action it started.
+  void listenChange<S, T extends Object>(
+    BuildContext context,
+    ProviderListenable<AsyncValue<S>> provider, {
+    required T? Function(S state) select,
+    required void Function(T value) onChange,
+  }) {
+    listen<AsyncValue<S>>(provider, (previous, next) {
+      // The same rule [listenAction] holds: a state still in flight has no
+      // outcome on it yet, and a failed one is the view's error to draw.
+      if (next.isLoading) return;
+      final state = next.value;
+      if (state == null) return;
+
+      final value = select(state);
+      if (value == null) return;
+
+      // One-shot: fire when the value appears or changes, not on every later
+      // state that happens to still carry it.
+      final before = previous?.value;
+      if (before != null && select(before) == value) return;
+
+      // The screen can be gone by the time its action lands.
+      if (!context.mounted) return;
+      onChange(value);
     });
   }
 }
