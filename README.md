@@ -931,8 +931,8 @@ Every widget in the kit that holds a value takes `readOnly` alongside its
 enabled/`onChanged` switch, and the two say different things:
 
 ```dart
-AppCheckboxLabel(label: 'Terms', value: true, onChanged: null)              // greyed out
-AppCheckboxLabel(label: 'Terms', value: true, readOnly: true, onChanged: (_) {})  // normal, inert
+AppCheckboxLabel(label: 'Terms', value: true)                    // greyed out
+AppCheckboxLabel(label: 'Terms', value: true, readOnly: true)    // normal, inert
 ```
 
 A disabled control greys itself out because its value is not the user's to set
@@ -940,6 +940,13 @@ yet. A read-only one keeps every color at full strength — the value it is
 showing is real and worth reading — and simply stops answering, to the pointer
 and to the keyboard both. It also keeps validating, so a `required` field the
 user cannot reach still fails the form rather than passing quietly.
+
+`readOnly: true` is the whole of what you write. No callback is required, and
+none has to be invented: a `Checkbox`, a `Switch` or a `Slider` greys itself out
+the moment its callback goes null, so each control hands Material a no-op of its
+own — one the read-only gate guarantees is never reached. The picker-backed
+fields assert that a field the user *can* pick in was given an `onChanged`, so
+the looser signature cannot quietly hide a forgotten one.
 
 Everything else in the kit is one command away, catalogued in the generated
 `docs/UI_KIT.md`:

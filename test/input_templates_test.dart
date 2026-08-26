@@ -282,6 +282,66 @@ void main() {
       });
     });
 
+    test('readOnly is the whole of what a caller writes', () {
+      // Not `readOnly: true, onChanged: (_) {}`. A required callback would put
+      // that no-op back on the caller, so none of these may have one.
+      valueBearing.forEach((name, template) {
+        final output = template();
+        expect(
+          output,
+          isNot(contains('required this.onChanged')),
+          reason: name,
+        );
+        expect(
+          output,
+          isNot(contains('required this.onSelected')),
+          reason: name,
+        );
+        expect(output, isNot(contains('required this.onPick')), reason: name);
+      });
+    });
+
+    test('a read-only control still paints live with no callback at all', () {
+      // Material greys out anything handed a null callback, so each of these
+      // works out for itself that it should hand over one that is never
+      // reached — which is what `|| readOnly` is doing in every one of them.
+      final painting = <String, String Function()>{
+        'appCheckbox': SharedTemplates.appCheckbox,
+        'appCheckboxLabel': SharedTemplates.appCheckboxLabel,
+        'appSwitch': SharedTemplates.appSwitch,
+        'appSegmented': SharedTemplates.appSegmented,
+        'appChoiceChip': SharedTemplates.appChoiceChip,
+        'appRadioGroup': SharedTemplates.appRadioGroup,
+        'appSlider': SharedTemplates.appSlider,
+        'appStepper': SharedTemplates.appStepper,
+        'appRating': InputsTemplates.appRating,
+      };
+      painting.forEach((name, template) {
+        expect(template(), contains('|| readOnly;'), reason: name);
+      });
+    });
+
+    test('a pickable field with no callback trips an assert, not silence', () {
+      // The looser signature is for read-only fields; forgetting the callback
+      // on one the user can actually pick in has to be loud.
+      final picking = <String, String Function()>{
+        'appDropdown': SharedTemplates.appDropdown,
+        'appMultiSelect': InputsTemplates.appMultiSelect,
+        'appCountryPicker': CountryTemplates.appCountryPicker,
+      };
+      picking.forEach((name, template) {
+        expect(
+          template(),
+          contains('onChanged != null || readOnly,'),
+          reason: name,
+        );
+      });
+      expect(
+        InputsTemplates.appFilePickerField(),
+        contains('(onPick != null && onChanged != null) || readOnly,'),
+      );
+    });
+
     test('the gate is declared once, with the inputs that reach for it', () {
       final style = SharedTemplates.appInputStyle();
       expect(style, contains('class ReadOnlyGate'));

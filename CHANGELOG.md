@@ -2,6 +2,10 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 7.3.1
+
+- Adjustments
+
 ## 7.3.0
 
 - **`readOnly`, across the whole input family.** Fifteen more widgets take it —
@@ -15,9 +19,18 @@ All notable changes to this package are documented in this file, newest first.
   user cannot reach still fails the form rather than passing quietly.
 
     ```dart
-    AppCheckboxLabel(label: 'Terms', value: true, onChanged: null)
-    AppCheckboxLabel(label: 'Terms', value: true, readOnly: true, onChanged: (_) {})
+    AppCheckboxLabel(label: 'Terms', value: true)                  // greyed out
+    AppCheckboxLabel(label: 'Terms', value: true, readOnly: true)  // normal, inert
     ```
+
+    `readOnly: true` is the whole of what a caller writes. The controls'
+    callbacks stopped being `required` to make that possible, and each one now
+    hands Material a no-op of its own when it is read-only — a `Checkbox` or a
+    `Slider` greys itself out the moment its callback goes null, which is the
+    one thing read-only must not do. Nobody should have to invent an
+    `onChanged: (_) {}` to keep a frozen control from looking disabled. The
+    four picker-backed fields assert that a field the user _can_ pick in was
+    given an `onChanged`, so the looser signature cannot hide a forgotten one.
 
     A new `ReadOnlyGate` in `app_input_style.dart` is the one place that
     behaviour lives. Three widgets have a reason not to reach for it and say so
@@ -87,14 +100,14 @@ All notable changes to this package are documented in this file, newest first.
     A null selection means there is nothing to react to, so a request the
     notifier has already cleared does not fire again, and `onChange` never
     receives one — `(state) => state.isDone ? true : null` is how a plain flag
-    says *now*. It compares against the previous state, so a value that stays
+    says _now_. It compares against the previous state, so a value that stays
     put through later rebuilds fires once rather than on every one, and it
     holds the same rules `listenAction` does: nothing while the state is still
     in flight, nothing once the context is gone.
 
     It knows nothing about routes, which is the point — navigation, popping,
     focus, scroll controllers and analytics all come out of one helper, and the
-    notifier keeps reporting *what happened* while the screen decides what to
+    notifier keeps reporting _what happened_ while the screen decides what to
     do about it. `listenAction` is unchanged, so nothing generated before this
     needs touching.
 
@@ -163,9 +176,9 @@ All notable changes to this package are documented in this file, newest first.
   there is no constructor left to inherit. The model declares its own fields
   and maps them explicitly.
 
-            This does **not** migrate a project that already exists: `moarch update`
-            compares hashes and refuses to overwrite an edited file, and it never touches
-            `pubspec.yaml`. In particular, refreshing the auth feature (`moarch update
+                This does **not** migrate a project that already exists: `moarch update`
+                compares hashes and refuses to overwrite an edited file, and it never touches
+                `pubspec.yaml`. In particular, refreshing the auth feature (`moarch update
 
     auth`) on a project scaffolded before this release writes freezed sources
     into a project that has no freezed. Add the four dependencies first.
@@ -435,9 +448,9 @@ feature` and the five steps that are still yours; flavors; the build
   read; the conventions the analyzer cannot check; contacts and access; and
   where the rest of `docs/` picks up.
 
-                        It replaces the README `flutter create` leaves behind and only that one —
-                        matched on two of its own sentences, the same way `main.dart` and
-                        `widget_test.dart` already are, so a README you wrote is never touched.
+                                It replaces the README `flutter create` leaves behind and only that one —
+                                matched on two of its own sentences, the same way `main.dart` and
+                                `widget_test.dart` already are, so a README you wrote is never touched.
 
 - The README is a catalog entry, so `moarch update readme` refreshes it and
   `--diff` shows what a refresh would change. Like every other template it
@@ -858,8 +871,8 @@ look at in the diff it offers:
       `doctor --fix` points it back at `.fvm/flutter_sdk`.
     - `settings.json` missing, or carrying no `dart.flutterSdkPath` — **warning**.
 
-                                                                                                      An absolute path is left alone as a deliberate override, and a project with no
-                                                                                                      `.fvmrc` gets none of these findings.
+                                                                                                          An absolute path is left alone as a deliberate override, and a project with no
+                                                                                                          `.fvmrc` gets none of these findings.
 
 - The README documents that the generated `.fvmrc` pins the `stable` _alias_
   rather than a version, so `fvm install` on CI or a teammate's machine can

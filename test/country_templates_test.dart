@@ -31,8 +31,8 @@ void main() {
     });
 
     test('hands back the whole country, not just its code', () {
-      expect(output, contains('final ValueChanged<AppCountry> onChanged;'));
-      expect(output, contains('onChanged(picked);'));
+      expect(output, contains('final ValueChanged<AppCountry>? onChanged;'));
+      expect(output, contains('onChanged?.call(picked);'));
     });
 
     test('validates on the caller\'s selection, not on its own lagging copy',

@@ -46,7 +46,7 @@ class AppMultiSelectInput<T> extends StatelessWidget {
     required this.items,
     required this.idOf,
     required this.labelOf,
-    required this.onChanged,
+    this.onChanged,
     this.selectedIds = const [],
     this.onSelected,
     this.hint = 'Select options',
@@ -86,8 +86,9 @@ class AppMultiSelectInput<T> extends StatelessWidget {
 
   /// Called with the complete new selection, in the order the items appear in
   /// [items] — not in the order they were ticked, which no caller wants to
-  /// store.
-  final ValueChanged<List<String>> onChanged;
+  /// store. Only a [readOnly] field may leave it out — one whose sheet never
+  /// opens has nothing to report.
+  final ValueChanged<List<String>>? onChanged;
 
   /// The current selection.
   final List<String> selectedIds;
@@ -228,7 +229,7 @@ class AppMultiSelectInput<T> extends StatelessWidget {
     // Marks the field as interacted with, so a form set to validate on
     // interaction clears its error the moment a selection lands.
     state.didChange(ids);
-    onChanged(ids);
+    onChanged?.call(ids);
     onSelected?.call(picked);
   }
 
@@ -272,6 +273,11 @@ class AppMultiSelectInput<T> extends StatelessWidget {
       items.map(idOf).toSet().length == items.length,
       'AppMultiSelectInput<$T>: idOf returned the same id for more than one '
       'item. Ids are what the selection is made of, so they have to be unique.',
+    );
+    assert(
+      onChanged != null || readOnly,
+      'AppMultiSelectInput<$T>: a field the user can pick in needs an '
+      'onChanged. Pass readOnly: true for one that only shows the selection.',
     );
 
     return InputFieldLayout(
@@ -784,8 +790,8 @@ class AppFilePickerField extends StatelessWidget {
     super.key,
     required this.label,
     required this.files,
-    required this.onPick,
-    required this.onChanged,
+    this.onPick,
+    this.onChanged,
     this.hint = 'Add a file',
     this.maxFiles,
     this.enabled = true,
@@ -808,11 +814,13 @@ class AppFilePickerField extends StatelessWidget {
 
   /// Opens whatever picker the app uses and resolves to what was chosen.
   /// Returning null or an empty list leaves the field alone, so a cancelled
-  /// picker costs nothing.
-  final Future<List<AppPickedFile>?> Function() onPick;
+  /// picker costs nothing. Only a [readOnly] field may leave it out — it draws
+  /// no add area to open one from.
+  final Future<List<AppPickedFile>?> Function()? onPick;
 
-  /// Called with the complete new list, added or removed.
-  final ValueChanged<List<AppPickedFile>> onChanged;
+  /// Called with the complete new list, added or removed. Only a [readOnly]
+  /// field may leave it out — nothing can be added to or removed from one.
+  final ValueChanged<List<AppPickedFile>>? onChanged;
 
   /// Copy on the add area.
   final String hint;
@@ -873,8 +881,12 @@ class AppFilePickerField extends StatelessWidget {
   }
 
   Future<void> _add(FormFieldState<List<AppPickedFile>> state) async {
+    final pick = onPick;
+    // Unreachable while there is no add area to tap, which is the only state
+    // that leaves this null — but read as a local it stays non-null below.
+    if (pick == null) return;
     HapticFeedback.selectionClick();
-    final picked = await onPick();
+    final picked = await pick();
     if (picked == null || picked.isEmpty) return;
 
     // Trims at the ceiling rather than refusing the whole pick: someone who
@@ -882,18 +894,24 @@ class AppFilePickerField extends StatelessWidget {
     final next = [...files, ...picked];
     final limited = maxFiles == null ? next : next.take(maxFiles!).toList();
     state.didChange(limited);
-    onChanged(limited);
+    onChanged?.call(limited);
   }
 
   void _remove(int index, FormFieldState<List<AppPickedFile>> state) {
     HapticFeedback.selectionClick();
     final next = [...files]..removeAt(index);
     state.didChange(next);
-    onChanged(next);
+    onChanged?.call(next);
   }
 
   @override
   Widget build(BuildContext context) {
+    assert(
+      (onPick != null && onChanged != null) || readOnly,
+      'AppFilePickerField: a field that can be added to needs onPick and '
+      'onChanged. Pass readOnly: true for one that only lists what is there.',
+    );
+
     return InputFieldLayout(
       label: label,
       required: required,
@@ -1172,8 +1190,10 @@ class AppRating extends StatelessWidget {
   static String? validate(double value, {bool required = false}) =>
       required && value <= 0 ? 'Please choose a rating' : null;
 
-  /// Whether the rating belongs to a form at all — a display-only one does not.
-  bool get _enabled => onChanged != null;
+  /// Whether the rating belongs to a form at all — a display-only one does
+  /// not, while a read-only one still does: its score is a real answer, and a
+  /// `required` one that is still 0 has to be able to say so.
+  bool get _enabled => onChanged != null || readOnly;
 
   /// Whether a tap on it does anything. Narrower than [_enabled]: a read-only
   /// rating is still the form's, it simply cannot be scored from here.
@@ -1194,7 +1214,7 @@ class AppRating extends StatelessWidget {
     HapticFeedback.selectionClick();
     // Tapping the score you already gave takes it back, when the field allows
     // an empty answer at all.
-    onChanged!(allowClear && next == value ? 0 : next);
+    onChanged?.call(allowClear && next == value ? 0 : next);
   }
 
   @override

@@ -8,7 +8,7 @@ void main() {
     final output = InputsTemplates.appMultiSelect();
 
     test('reports the whole selection, in items order', () {
-      expect(output, contains('final ValueChanged<List<String>> onChanged;'));
+      expect(output, contains('final ValueChanged<List<String>>? onChanged;'));
       expect(output, contains('List<T> get _selected => ['));
       expect(output, contains('if (selectedIds.contains(idOf(item))) item,'));
     });
@@ -172,7 +172,7 @@ void main() {
       expect(output, isNot(contains("import 'package:file_picker")));
       expect(output, isNot(contains("import 'package:image_picker")));
       expect(output,
-          contains('final Future<List<AppPickedFile>?> Function() onPick;'));
+          contains('final Future<List<AppPickedFile>?> Function()? onPick;'));
     });
 
     test('a cancelled pick costs nothing', () {
@@ -208,7 +208,10 @@ void main() {
     final output = InputsTemplates.appRating();
 
     test('is the same widget read-only and interactive', () {
-      expect(output, contains('bool get _enabled => onChanged != null;'));
+      expect(
+        output,
+        contains('bool get _enabled => onChanged != null || readOnly;'),
+      );
       expect(output, contains('if (!_enabled) return row;'));
       expect(output, contains('if (!_interactive) return star;'));
     });
@@ -241,7 +244,7 @@ void main() {
 
     test('tapping the score again takes it back, when allowed', () {
       expect(output,
-          contains('onChanged!(allowClear && next == value ? 0 : next);'));
+          contains('onChanged?.call(allowClear && next == value ? 0 : next);'));
     });
 
     test('pairs the outline star with the filled one it was given', () {

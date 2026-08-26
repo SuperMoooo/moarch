@@ -55,7 +55,7 @@ enum AppCountryDisplay {
 class AppCountryPicker extends StatelessWidget {
   const AppCountryPicker({
     super.key,
-    required this.onChanged,
+    this.onChanged,
     this.label = 'Country',
     this.selectedIso,
     this.hint = 'Select a country',
@@ -81,8 +81,9 @@ class AppCountryPicker extends StatelessWidget {
 
   /// Called with the whole country, not just its code — the caller usually
   /// wants the dial code or the flag as well, and looking it back up by ISO
-  /// to get them is work this already did.
-  final ValueChanged<AppCountry> onChanged;
+  /// to get them is work this already did. Only a [readOnly] field may leave it
+  /// out — one whose sheet never opens has nothing to report.
+  final ValueChanged<AppCountry>? onChanged;
 
   final String label;
 
@@ -216,11 +217,17 @@ class AppCountryPicker extends StatelessWidget {
     );
     if (picked == null) return;
     state.didChange(picked.iso);
-    onChanged(picked);
+    onChanged?.call(picked);
   }
 
   @override
   Widget build(BuildContext context) {
+    assert(
+      onChanged != null || readOnly,
+      'AppCountryPicker: a field the user can pick in needs an onChanged. '
+      'Pass readOnly: true for one that only shows the country.',
+    );
+
     final country = _selected;
 
     return InputFieldLayout(

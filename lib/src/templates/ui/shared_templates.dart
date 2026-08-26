@@ -1352,6 +1352,14 @@ class AppInputStyle {
 /// reading; it simply cannot be changed from here. Greying it out would say
 /// the wrong thing about the data.
 ///
+/// Which is why the controls behind this gate hand Material a callback even
+/// when the caller gave them none. A `Checkbox`, a `Switch` or a `Slider` greys
+/// itself out the moment its callback goes null, and not greying out is the
+/// whole point of read-only — so they pass one that is never reached, this gate
+/// having already taken the pointer and the focus away. `readOnly: true` is the
+/// entire thing a caller has to write; nobody should have to invent an
+/// `onChanged: (_) {}` to keep a frozen control from looking disabled.
+///
 /// [AppInput] and the fields built on it hand `readOnly` to Flutter's own.
 /// Every other control in the kit — from [AppCheckbox] to a whole calendar —
 /// wraps itself in this instead and goes on painting as if enabled.
@@ -3465,7 +3473,7 @@ class AppDropdownInput<T> extends StatelessWidget {
     required this.items,
     required this.idOf,
     required this.labelOf,
-    required this.onChanged,
+    this.onChanged,
     this.onSelected,
     this.onCleared,
     this.selectedId,
@@ -3503,8 +3511,10 @@ class AppDropdownInput<T> extends StatelessWidget {
   /// Extract the display label from an item.
   final String Function(T item) labelOf;
 
-  /// Called with the selected id when the user picks an option.
-  final ValueChanged<String> onChanged;
+  /// Called with the selected id when the user picks an option. Only a
+  /// [readOnly] field may leave it out — one that cannot be picked in has
+  /// nothing to report.
+  final ValueChanged<String>? onChanged;
 
   /// Called with the item itself, alongside [onChanged]. Saves the caller
   /// looking up an entity this field had in its hand a moment earlier.
@@ -3676,7 +3686,7 @@ class AppDropdownInput<T> extends StatelessWidget {
   /// the tapped row has already given feedback of its own.
   void _pick(T item, {bool haptic = true}) {
     if (haptic) HapticFeedback.selectionClick();
-    onChanged(idOf(item));
+    onChanged?.call(idOf(item));
     onSelected?.call(item);
   }
 
@@ -3715,6 +3725,11 @@ class AppDropdownInput<T> extends StatelessWidget {
       items.map(idOf).toSet().length == items.length,
       'AppDropdownInput<$T>: idOf returned the same id for more than one item. '
       'Ids are what pick the selection, so they have to be unique.',
+    );
+    assert(
+      onChanged != null || readOnly,
+      'AppDropdownInput<$T>: a field the user can pick in needs an onChanged. '
+      'Pass readOnly: true for one that only shows what was picked.',
     );
 
     final selected = _selected;
@@ -3867,7 +3882,7 @@ class AppCheckbox extends StatelessWidget {
   const AppCheckbox({
     super.key,
     required this.value,
-    required this.onChanged,
+    this.onChanged,
     this.variant,
     this.size,
     this.shape,
@@ -3876,7 +3891,11 @@ class AppCheckbox extends StatelessWidget {
   });
 
   final bool? value;
+
+  /// Leave it out — or pass null — to render the box disabled. [readOnly] is
+  /// the other way to make it uneditable, and the one that keeps its colors.
   final ValueChanged<bool?>? onChanged;
+
   final AppInputVariant? variant;
   final AppInputSize? size;
 
@@ -3887,8 +3906,12 @@ class AppCheckbox extends StatelessWidget {
 
   /// Shows the value at full strength but refuses to change it — see
   /// [ReadOnlyGate]. Not the same as passing a null [onChanged], which greys
-  /// the box out.
+  /// the box out. It needs no [onChanged] of its own.
   final bool readOnly;
+
+  /// Whether the box paints as live: it has an owner, or it is read-only and
+  /// showing a real value. See [ReadOnlyGate].
+  bool get _live => onChanged != null || readOnly;
 
   static const double _borderWidth = 1.5;
   static const double _idleBorderOpacity = 0.6;
@@ -3911,12 +3934,12 @@ class AppCheckbox extends StatelessWidget {
         child: Checkbox(
           value: value,
           tristate: tristate,
-          onChanged: onChanged == null
-              ? null
-              : (v) {
+          onChanged: _live
+              ? (v) {
                   HapticFeedback.selectionClick();
-                  onChanged!(v);
-                },
+                  onChanged?.call(v);
+                }
+              : null,
           // Null in every one of these leaves `checkboxTheme` to paint the box,
           // so the app's theme is what colors it. A variant takes it over.
           activeColor: accent,
@@ -3961,7 +3984,7 @@ class AppCheckboxLabel extends StatelessWidget {
     super.key,
     required this.label,
     required this.value,
-    required this.onChanged,
+    this.onChanged,
     this.subtitle,
     this.required = false,
     this.requiredError = 'This box must be ticked',
@@ -3977,7 +4000,7 @@ class AppCheckboxLabel extends StatelessWidget {
   final String? subtitle;
   final bool value;
 
-  /// Pass null to render the whole row disabled.
+  /// Leave it out — or pass null — to render the whole row disabled.
   final ValueChanged<bool>? onChanged;
 
   /// Marks the row and refuses to validate until it is ticked.
@@ -3999,10 +4022,15 @@ class AppCheckboxLabel extends StatelessWidget {
   /// Shows the row at full strength but refuses to toggle it — see
   /// [ReadOnlyGate]. A ticked read-only box still says "ticked"; passing a null
   /// [onChanged] instead greys the whole row out, which says something else.
+  /// It needs no [onChanged] of its own.
   ///
   /// The row keeps validating either way, so a `required: true` box the user
   /// cannot reach still fails the form rather than passing quietly.
   final bool readOnly;
+
+  /// Whether the row paints as live: it has an owner, or it is read-only and
+  /// showing a real value. See [ReadOnlyGate].
+  bool get _live => onChanged != null || readOnly;
 
   /// The rule in force: the caller's, else the required check, else nothing to
   /// enforce at all.
@@ -4016,7 +4044,7 @@ class AppCheckboxLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = context.textTheme;
     final fontSize = AppInputStyle.configOf(size).fontSize;
-    final enabled = onChanged != null;
+    final live = _live;
     final dimmed = context.colorScheme.onSurface.withValues(
       alpha: AppInputStyle.config.disabledOpacity,
     );
@@ -4024,7 +4052,7 @@ class AppCheckboxLabel extends StatelessWidget {
     return SelectionFormField<bool>(
       value: value,
       validator: _rule,
-      enabled: enabled,
+      enabled: live,
       autovalidateMode: autovalidateMode,
       builder: (state) {
         void toggle(bool next) {
@@ -4032,7 +4060,7 @@ class AppCheckboxLabel extends StatelessWidget {
           // Tells the FormField it has been interacted with, so a form set to
           // validate on interaction drops the error as soon as it is ticked.
           state.didChange(next);
-          onChanged!(next);
+          onChanged?.call(next);
         }
 
         // The whole row toggles the value, so it should be read as one
@@ -4044,7 +4072,7 @@ class AppCheckboxLabel extends StatelessWidget {
               borderRadius: AppConstants.borderRadius8,
               // The square has its own haptic in AppCheckbox, so this one only
               // covers the rest of the row — one buzz either way.
-              onTap: enabled ? () => toggle(!value) : null,
+              onTap: live ? () => toggle(!value) : null,
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   vertical: AppConstants.space4,
@@ -4054,7 +4082,7 @@ class AppCheckboxLabel extends StatelessWidget {
                   children: [
                     AppCheckbox(
                       value: value,
-                      onChanged: enabled ? (v) => toggle(v ?? false) : null,
+                      onChanged: live ? (v) => toggle(v ?? false) : null,
                       variant: variant,
                       size: size,
                       shape: shape,
@@ -4071,7 +4099,7 @@ class AppCheckboxLabel extends StatelessWidget {
                               fontSize: fontSize,
                               // Null leaves the theme's own body color in
                               // place; only a disabled row overpaints it.
-                              color: enabled ? null : dimmed,
+                              color: live ? null : dimmed,
                             ),
                           ),
                           if (subtitle != null)
@@ -4111,20 +4139,26 @@ class AppSwitch extends StatelessWidget {
   const AppSwitch({
     super.key,
     required this.value,
-    required this.onChanged,
+    this.onChanged,
     this.variant,
     this.readOnly = false,
   });
 
   final bool value;
 
-  /// Pass null to render the switch disabled.
+  /// Leave it out — or pass null — to render the switch disabled.
   final ValueChanged<bool>? onChanged;
+
   final AppInputVariant? variant;
 
   /// Shows the state at full strength but refuses to change it — see
   /// [ReadOnlyGate]. Not the same as a null [onChanged], which greys it out.
+  /// It needs no [onChanged] of its own.
   final bool readOnly;
+
+  /// Whether the switch paints as live: it has an owner, or it is read-only and
+  /// showing a real state. See [ReadOnlyGate].
+  bool get _live => onChanged != null || readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -4138,12 +4172,12 @@ class AppSwitch extends StatelessWidget {
         // checked box does.
         activeTrackColor: accent,
         activeThumbColor: AppInputStyle.onAccentOrNull(context, variant),
-        onChanged: onChanged == null
-            ? null
-            : (v) {
+        onChanged: _live
+            ? (v) {
                 HapticFeedback.selectionClick();
-                onChanged!(v);
-              },
+                onChanged?.call(v);
+              }
+            : null,
       ),
     );
   }
@@ -4178,7 +4212,7 @@ class AppSegmented<T> extends StatelessWidget {
     required this.segments,
     required this.selected,
     required this.labelOf,
-    required this.onChanged,
+    this.onChanged,
     this.iconOf,
     this.variant,
     this.readOnly = false,
@@ -4194,14 +4228,19 @@ class AppSegmented<T> extends StatelessWidget {
   final String Function(T value) labelOf;
   final IconData? Function(T value)? iconOf;
 
-  /// Pass null to render the whole control disabled.
+  /// Leave it out — or pass null — to render the whole control disabled.
   final ValueChanged<T>? onChanged;
 
   final AppInputVariant? variant;
 
   /// Shows the choice at full strength but refuses to change it — see
   /// [ReadOnlyGate]. Not the same as a null [onChanged], which greys it out.
+  /// It needs no [onChanged] of its own.
   final bool readOnly;
+
+  /// Whether the control paints as live: it has an owner, or it is read-only
+  /// and showing a real choice. See [ReadOnlyGate].
+  bool get _live => onChanged != null || readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -4213,7 +4252,6 @@ class AppSegmented<T> extends StatelessWidget {
 
     final accent = AppInputStyle.accentOrNull(context, variant);
     final onAccent = AppInputStyle.onAccentOrNull(context, variant);
-    final enabled = onChanged != null;
 
     return ReadOnlyGate(
       readOnly: readOnly,
@@ -4221,10 +4259,10 @@ class AppSegmented<T> extends StatelessWidget {
         showSelectedIcon: false,
         selected: {selected},
         // Null is what disables a SegmentedButton; there is no `enabled` flag.
-        onSelectionChanged: enabled
+        onSelectionChanged: _live
             ? (set) {
                 HapticFeedback.selectionClick();
-                onChanged!(set.first);
+                onChanged?.call(set.first);
               }
             : null,
         segments: [
@@ -4282,7 +4320,7 @@ class AppChoiceChip extends StatelessWidget {
     super.key,
     required this.label,
     required this.selected,
-    required this.onSelected,
+    this.onSelected,
     this.icon,
     this.variant,
     this.readOnly = false,
@@ -4291,7 +4329,7 @@ class AppChoiceChip extends StatelessWidget {
   final String label;
   final bool selected;
 
-  /// Pass null to render the chip disabled.
+  /// Leave it out — or pass null — to render the chip disabled.
   final ValueChanged<bool>? onSelected;
 
   final IconData? icon;
@@ -4299,7 +4337,12 @@ class AppChoiceChip extends StatelessWidget {
 
   /// Shows the chip at full strength but refuses to toggle it — see
   /// [ReadOnlyGate]. Not the same as a null [onSelected], which greys it out.
+  /// It needs no [onSelected] of its own.
   final bool readOnly;
+
+  /// Whether the chip paints as live: it has an owner, or it is read-only and
+  /// showing a real pick. See [ReadOnlyGate].
+  bool get _live => onSelected != null || readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -4331,12 +4374,12 @@ class AppChoiceChip extends StatelessWidget {
         selectedColor: accent,
         side: accent == null ? null : BorderSide.none,
         // Null is what disables a ChoiceChip; there is no `enabled` flag.
-        onSelected: onSelected == null
-            ? null
-            : (v) {
+        onSelected: _live
+            ? (v) {
                 HapticFeedback.selectionClick();
-                onSelected!(v);
-              },
+                onSelected?.call(v);
+              }
+            : null,
       ),
     );
   }
@@ -4367,7 +4410,7 @@ class AppRadioGroup<T> extends StatelessWidget {
     required this.values,
     required this.groupValue,
     required this.labelOf,
-    required this.onChanged,
+    this.onChanged,
     this.subtitleOf,
     this.required = false,
     this.requiredError = 'Please choose an option',
@@ -4387,7 +4430,7 @@ class AppRadioGroup<T> extends StatelessWidget {
   final String Function(T value) labelOf;
   final String? Function(T value)? subtitleOf;
 
-  /// Pass null to render the whole group disabled.
+  /// Leave it out — or pass null — to render the whole group disabled.
   final ValueChanged<T>? onChanged;
 
   /// Refuses to validate until an option is chosen.
@@ -4405,9 +4448,14 @@ class AppRadioGroup<T> extends StatelessWidget {
   final AppInputVariant? variant;
 
   /// Shows the choice at full strength but refuses to change it — see
-  /// [ReadOnlyGate]. A read-only group still validates, so a `required: true`
-  /// one with nothing chosen still fails the form rather than passing quietly.
+  /// [ReadOnlyGate], and needs no [onChanged] of its own. A read-only group
+  /// still validates, so a `required: true` one with nothing chosen still fails
+  /// the form rather than passing quietly.
   final bool readOnly;
+
+  /// Whether the group paints as live: it has an owner, or it is read-only and
+  /// showing a real choice. See [ReadOnlyGate].
+  bool get _live => onChanged != null || readOnly;
 
   /// The rule in force: the caller's, else the required check, else nothing to
   /// enforce at all.
@@ -4426,12 +4474,12 @@ class AppRadioGroup<T> extends StatelessWidget {
     );
 
     final accent = AppInputStyle.accentOrNull(context, variant);
-    final enabled = onChanged != null;
+    final live = _live;
 
     return SelectionFormField<T?>(
       value: groupValue,
       validator: _rule,
-      enabled: enabled,
+      enabled: live,
       autovalidateMode: autovalidateMode,
       builder: (state) {
         void select(T value) {
@@ -4439,7 +4487,7 @@ class AppRadioGroup<T> extends StatelessWidget {
           // Tells the FormField it has been interacted with, so a form set to
           // validate on interaction drops the error as soon as one is chosen.
           state.didChange(value);
-          onChanged!(value);
+          onChanged?.call(value);
         }
 
         return ReadOnlyGate(
@@ -4447,7 +4495,7 @@ class AppRadioGroup<T> extends StatelessWidget {
           child: RadioGroup<T>(
             groupValue: groupValue,
             onChanged: (value) {
-              if (value != null && enabled) select(value);
+              if (value != null && live) select(value);
             },
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -4458,7 +4506,7 @@ class AppRadioGroup<T> extends StatelessWidget {
                   MergeSemantics(
                     child: InkWell(
                       borderRadius: AppConstants.borderRadius8,
-                      onTap: enabled ? () => select(value) : null,
+                      onTap: live ? () => select(value) : null,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           vertical: AppConstants.space4,
@@ -4482,7 +4530,7 @@ class AppRadioGroup<T> extends StatelessWidget {
                               child: _RadioLabel(
                                 label: labelOf(value),
                                 subtitle: subtitleOf?.call(value),
-                                enabled: enabled,
+                                enabled: live,
                               ),
                             ),
                           ],
@@ -4558,7 +4606,7 @@ class AppSlider extends StatelessWidget {
   const AppSlider({
     super.key,
     required this.value,
-    required this.onChanged,
+    this.onChanged,
     this.min = 0,
     this.max = 1,
     this.divisions,
@@ -4568,7 +4616,10 @@ class AppSlider extends StatelessWidget {
   });
 
   final double value;
+
+  /// Leave it out — or pass null — to render the slider disabled.
   final ValueChanged<double>? onChanged;
+
   final double min;
   final double max;
   final int? divisions;
@@ -4577,7 +4628,12 @@ class AppSlider extends StatelessWidget {
 
   /// Shows the value at full strength but refuses to drag — see
   /// [ReadOnlyGate]. Not the same as a null [onChanged], which greys it out.
+  /// It needs no [onChanged] of its own.
   final bool readOnly;
+
+  /// Whether the slider paints as live: it has an owner, or it is read-only and
+  /// showing a real value. See [ReadOnlyGate].
+  bool get _live => onChanged != null || readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -4604,20 +4660,20 @@ class AppSlider extends StatelessWidget {
             max: max,
             divisions: divisions,
             label: label,
-            onChangeStart: onChanged == null
-                ? null
-                : (_) => HapticFeedback.selectionClick(),
-            onChanged: onChanged == null
-                ? null
-                : (v) {
+            onChangeStart: _live
+                ? (_) => HapticFeedback.selectionClick()
+                : null,
+            onChanged: _live
+                ? (v) {
                     // A stepped slider ticks as it snaps. A continuous one
                     // would buzz on every pixel, so for that one the grab is
                     // the only feedback.
                     if (divisions != null && v != value) {
                       HapticFeedback.selectionClick();
                     }
-                    onChanged!(v);
-                  },
+                    onChanged?.call(v);
+                  }
+                : null,
           ),
         ),
       ),
@@ -8005,7 +8061,7 @@ class AppStepper extends StatelessWidget {
   const AppStepper({
     super.key,
     required this.value,
-    required this.onChanged,
+    this.onChanged,
     this.min = 0,
     this.max = 99,
     this.step = 1,
@@ -8016,8 +8072,9 @@ class AppStepper extends StatelessWidget {
 
   final int value;
 
-  /// Pass null to render the whole stepper disabled.
+  /// Leave it out — or pass null — to render the whole stepper disabled.
   final ValueChanged<int>? onChanged;
+
   final int min;
   final int max;
 
@@ -8028,7 +8085,12 @@ class AppStepper extends StatelessWidget {
 
   /// Shows the count at full strength but refuses to change it — see
   /// [ReadOnlyGate]. Not the same as a null [onChanged], which greys it out.
+  /// It needs no [onChanged] of its own.
   final bool readOnly;
+
+  /// Whether the stepper paints as live: it has an owner, or it is read-only
+  /// and showing a real count. See [ReadOnlyGate].
+  bool get _live => onChanged != null || readOnly;
 
   static const double _fillOpacity = 0.06;
   static const double _borderOpacity = 0.25;
@@ -8039,7 +8101,7 @@ class AppStepper extends StatelessWidget {
     final theme = context.theme;
     final accent = AppInputStyle.accentOrNull(context, variant);
     final sizeConfig = AppInputStyle.configOf(size);
-    final enabled = onChanged != null;
+    final live = _live;
 
     // With no variant the stepper wears the theme's own icon color over the
     // same fill a filled AppInput takes, so it sits on a form as one of the
@@ -8054,7 +8116,7 @@ class AppStepper extends StatelessWidget {
 
     void emit(int next) {
       HapticFeedback.selectionClick();
-      onChanged!(next.clamp(min, max));
+      onChanged?.call(next.clamp(min, max));
     }
 
     return ReadOnlyGate(
@@ -8076,7 +8138,7 @@ class AppStepper extends StatelessWidget {
               color: foreground,
               iconSize: sizeConfig.iconSize,
               disabledOpacity: _disabledOpacity,
-              onTap: enabled && value > min ? () => emit(value - step) : null,
+              onTap: live && value > min ? () => emit(value - step) : null,
             ),
             ConstrainedBox(
               constraints: const BoxConstraints(minWidth: AppConstants.space32),
@@ -8085,7 +8147,7 @@ class AppStepper extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontSize: sizeConfig.fontSize,
-                  color: enabled
+                  color: live
                       ? theme.colorScheme.onSurface
                       : theme.colorScheme.onSurface.withValues(
                           alpha: _disabledOpacity,
@@ -8099,7 +8161,7 @@ class AppStepper extends StatelessWidget {
               color: foreground,
               iconSize: sizeConfig.iconSize,
               disabledOpacity: _disabledOpacity,
-              onTap: enabled && value < max ? () => emit(value + step) : null,
+              onTap: live && value < max ? () => emit(value + step) : null,
             ),
           ],
         ),
@@ -9295,11 +9357,10 @@ $toggleAction              const SizedBox(width: AppConstants.space8),
                     // easy to confuse until you see them together. This one
                     // keeps every color it would have had — the tick is real
                     // and worth reading — and only stops answering.
-                    AppCheckboxLabel(
+                    const AppCheckboxLabel(
                       label: 'Read-only row (ticked, and staying that way)',
                       value: true,
                       readOnly: true,
-                      onChanged: (_) {},
                     ),
                   ],
                 ),
@@ -9622,13 +9683,10 @@ $toggleAction              const SizedBox(width: AppConstants.space8),
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Managed by your administrator'),
-                        // Full-strength colors, no response: the setting is on,
-                        // and it is not this screen's to turn off.
-                        AppSwitch(
-                          value: true,
-                          readOnly: true,
-                          onChanged: (_) {},
-                        ),
+                        // Full-strength colors, no response: the setting is
+                        // on, and it is not this screen's to turn off. No
+                        // onChanged to invent — readOnly is the whole of it.
+                        const AppSwitch(value: true, readOnly: true),
                       ],
                     ),
                   ],

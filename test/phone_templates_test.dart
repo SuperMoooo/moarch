@@ -331,7 +331,7 @@ void main() {
       // Same callback either way: both forms report through one _pick, which
       // is the only place the caller's onChanged is called at all.
       expect('_pick('.allMatches(output).length, greaterThanOrEqualTo(3));
-      expect('onChanged(idOf(item));'.allMatches(output).length, 1);
+      expect('onChanged?.call(idOf(item));'.allMatches(output).length, 1);
     });
 
     test('a list long enough to need a search gets one unasked', () {
