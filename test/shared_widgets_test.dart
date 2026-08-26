@@ -592,7 +592,7 @@ void main() {
     test('the checkbox row merges', () {
       expect(
         SharedTemplates.appCheckboxLabel(),
-        contains('return MergeSemantics('),
+        contains('child: MergeSemantics('),
       );
     });
 

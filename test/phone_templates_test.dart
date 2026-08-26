@@ -322,11 +322,11 @@ void main() {
       expect(output, contains('final bool? searchable;'));
       expect(
         output,
-        contains('? _searchableField(context, selected, accent, alignment)'),
+        contains('? _searchableField(context, selected, alignment)'),
       );
       expect(
         output,
-        contains(': _menuField(context, selected, accent, alignment)'),
+        contains(': _menuField(context, selected, alignment)'),
       );
       // Same callback either way: both forms report through one _pick, which
       // is the only place the caller's onChanged is called at all.

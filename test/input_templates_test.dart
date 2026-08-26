@@ -1,3 +1,5 @@
+import 'package:moarch/src/templates/config/config_templates.dart';
+import 'package:moarch/src/templates/ui/calendar_templates.dart';
 import 'package:moarch/src/templates/ui/country_templates.dart';
 import 'package:moarch/src/templates/ui/inputs_templates.dart';
 import 'package:moarch/src/templates/ui/phone_templates.dart';
@@ -213,6 +215,172 @@ void main() {
           expect(output, isNot(contains(hardcoded)), reason: hardcoded);
         }
       }
+    });
+  });
+
+  group('read-only across the family', () {
+    // Every widget in the kit whose value the user can change. Read-only is not
+    // disabled: the control keeps its colors — the value it is showing is real
+    // and worth reading — and only stops answering.
+    final valueBearing = <String, String Function()>{
+      'appInput': SharedTemplates.appInput,
+      'dateInput': SharedTemplates.dateInput,
+      'timeInput': SharedTemplates.timeInput,
+      'appDropdown': SharedTemplates.appDropdown,
+      'appOtpInput': SharedTemplates.appOtpInput,
+      'appCheckbox': SharedTemplates.appCheckbox,
+      'appCheckboxLabel': SharedTemplates.appCheckboxLabel,
+      'appSwitch': SharedTemplates.appSwitch,
+      'appSegmented': SharedTemplates.appSegmented,
+      'appChoiceChip': SharedTemplates.appChoiceChip,
+      'appRadioGroup': SharedTemplates.appRadioGroup,
+      'appSlider': SharedTemplates.appSlider,
+      'appStepper': SharedTemplates.appStepper,
+      'appMultiSelect': InputsTemplates.appMultiSelect,
+      'appDateRangeInput': InputsTemplates.appDateRangeInput,
+      'appFilePickerField': InputsTemplates.appFilePickerField,
+      'appRating': InputsTemplates.appRating,
+      'appPhoneInput': PhoneTemplates.appPhoneInput,
+      'appCountryPicker': CountryTemplates.appCountryPicker,
+      'appCalendar': CalendarTemplates.appCalendar,
+    };
+
+    // How each one goes inert. Most wrap themselves in the shared gate; the
+    // rest have a reason not to, recorded here so that no widget can quietly
+    // opt out of read-only altogether by having no reason at all.
+    const notGated = {
+      'appInput': 'hands it to TextFormField.readOnly',
+      'dateInput': 'hands it to the TextFormField under the picker',
+      'timeInput': 'hands it to the TextFormField under the picker',
+      'appDateRangeInput': 'hands it to the TextFormField under the picker',
+      'appPhoneInput': 'passes it down to the AppInput it is built on',
+      'appFilePickerField': 'drops the add area rather than gating a live one',
+      'appCalendar': 'only the day tap goes; paging months changes no value',
+    };
+
+    valueBearing.forEach((name, template) {
+      test('$name takes readOnly', () {
+        final output = template();
+        expect(output, contains('this.readOnly = false,'), reason: name);
+        expect(output, contains('final bool readOnly;'), reason: name);
+      });
+
+      test('$name acts on the flag rather than just declaring it', () {
+        final output = template();
+        final reason = notGated[name];
+        if (reason == null) {
+          expect(output, contains('ReadOnlyGate('), reason: name);
+        } else {
+          expect(output, isNot(contains('ReadOnlyGate(')), reason: reason);
+        }
+        // Declared, documented, and never read is the failure worth catching.
+        expect(
+          'readOnly'.allMatches(output).length,
+          greaterThan(2),
+          reason: name,
+        );
+      });
+    });
+
+    test('the gate is declared once, with the inputs that reach for it', () {
+      final style = SharedTemplates.appInputStyle();
+      expect(style, contains('class ReadOnlyGate'));
+      // Focus goes with the pointer, or a tab lands on something inert.
+      expect(
+        style,
+        contains('ExcludeFocus(child: IgnorePointer(child: child))'),
+      );
+    });
+
+    test('nothing is excused from the gate that no longer takes readOnly', () {
+      // Otherwise a renamed widget leaves an excuse behind that silently
+      // covers for whatever takes its name next.
+      for (final name in notGated.keys) {
+        expect(valueBearing.keys, contains(name));
+      }
+    });
+  });
+
+  group('theme-first painting', () {
+    test('the config names no variant, so the theme is what paints', () {
+      final config = SharedTemplates.appInputConfig();
+      expect(config, contains('final AppInputVariant? variant;'));
+      expect(config, isNot(contains('this.variant = AppInputVariant')));
+    });
+
+    test('accentOrNull is what hands a color slot back to the theme', () {
+      final style = SharedTemplates.appInputStyle();
+      expect(style, contains('static Color? accentOrNull('));
+      expect(style, contains('static Color? onAccentOrNull('));
+      expect(style, contains('if (resolved == null) return null;'));
+      // The non-null pair stay, for the slots with no themed default to reach.
+      expect(style, contains('static Color accentOf('));
+      expect(style, contains('static Color onAccentOf('));
+    });
+
+    test('a filled field with no variant takes the theme fill untinted', () {
+      // Which is the color AppCard paints too, so a field and a card standing
+      // next to each other read as one surface.
+      final style = SharedTemplates.appInputStyle();
+      expect(style, contains('final baseFill = decorationTheme.fillColor ??'));
+      expect(style, contains('? baseFill'));
+      expect(style, contains('Color.alphaBlend('));
+    });
+
+    test('AppCard is painted by cardTheme', () {
+      final card = SharedTemplates.appCard();
+      expect(card, contains('final cardTheme = theme.cardTheme;'));
+      expect(card, contains('cardTheme.color ??'));
+      expect(card, contains('cardTheme.shadowColor ??'));
+      expect(card, contains('final shape = cardTheme.shape;'));
+      // The hardcoded surface it used to paint whatever the theme said.
+      expect(
+        card,
+        isNot(contains('color: theme.colorScheme.surfaceContainerLowest,')),
+      );
+    });
+
+    test('AppListTile reads listTileTheme, being no ListTile itself', () {
+      final tile = SharedTemplates.appListTile();
+      expect(tile, contains('final tileTheme = theme.listTileTheme;'));
+      expect(tile, contains('tileTheme.contentPadding ??'));
+      expect(tile, contains('tileTheme.iconColor ??'));
+    });
+
+    test('the Material-backed controls leave their colors null', () {
+      // Each of these wraps a widget the theme already has an opinion about,
+      // so passing a color unasked is what stopped the theme applying.
+      final wrapping = <String, String Function()>{
+        'appCheckbox': SharedTemplates.appCheckbox,
+        'appSwitch': SharedTemplates.appSwitch,
+        'appSlider': SharedTemplates.appSlider,
+        'appChoiceChip': SharedTemplates.appChoiceChip,
+        'appSegmented': SharedTemplates.appSegmented,
+        'appRadioGroup': SharedTemplates.appRadioGroup,
+      };
+      wrapping.forEach((name, template) {
+        expect(
+          template(),
+          contains('AppInputStyle.accentOrNull('),
+          reason: name,
+        );
+      });
+    });
+
+    test('the theme sets the geometry the widgets used to hardcode', () {
+      // Twice over: the light getter and the dark one. These have to match what
+      // the widgets were drawing, or every card and chip changes shape the day
+      // it starts reading the theme.
+      final theme = ConfigTemplates.appTheme(withDark: true);
+      expect(
+        'borderRadius: AppConstants.borderRadius16'.allMatches(theme).length,
+        2,
+      );
+      expect(
+        'borderRadius: AppConstants.borderRadiusFull,'.allMatches(theme).length,
+        2,
+      );
+      expect('shadowColor: Colors.black,'.allMatches(theme).length, 2);
     });
   });
 

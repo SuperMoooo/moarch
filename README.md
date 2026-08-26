@@ -906,10 +906,40 @@ Any field still overrides it: `AppInput(label: 'Email', labelMode: AppInputLabel
 
 It also owns the numbers that used to be private constants — border widths, the
 resting-border and fill opacities, and the font/icon/padding metrics behind
-`small` / `medium` / `large`. What it deliberately does **not** own is color:
-that comes from `ColorScheme` so it can differ between light and dark, and the
-fill tint blends into the theme's `inputDecorationTheme.fillColor`. Raw sizes
-stay in `AppConstants`; the config decides which token each input size picks.
+`small` / `medium` / `large`. Raw sizes stay in `AppConstants`; the config
+decides which token each input size picks.
+
+What it deliberately does **not** own is color. `AppInputConfig.variant` starts
+at `null`, and that null is the rule the whole kit is painted by:
+
+> **No variant means the theme paints it.** A checkbox with no variant is
+> colored by `checkboxTheme`, a card by `cardTheme`, a chip by `chipTheme`, a
+> field by `inputDecorationTheme` — so `lib/config/theme/app_theme.dart` is the
+> one file that restyles the app. Naming a variant hands that widget's colors
+> back to the kit: `AppInput(label: 'Amount', variant: AppInputVariant.danger)`
+> is danger-colored whatever the theme says.
+
+Geometry stays the kit's either way — `AppInputType`, `AppInputShape` and
+`AppInputSize` decide a field's borders and padding, because a theme has no way
+to describe four variants at once. A filled field with no variant takes
+`inputDecorationTheme.fillColor` **untinted**, which is the same color `AppCard`
+paints, so a field and a card standing next to each other match.
+
+### Read-only is not disabled
+
+Every widget in the kit that holds a value takes `readOnly` alongside its
+enabled/`onChanged` switch, and the two say different things:
+
+```dart
+AppCheckboxLabel(label: 'Terms', value: true, onChanged: null)              // greyed out
+AppCheckboxLabel(label: 'Terms', value: true, readOnly: true, onChanged: (_) {})  // normal, inert
+```
+
+A disabled control greys itself out because its value is not the user's to set
+yet. A read-only one keeps every color at full strength — the value it is
+showing is real and worth reading — and simply stops answering, to the pointer
+and to the keyboard both. It also keeps validating, so a `required` field the
+user cannot reach still fails the form rather than passing quietly.
 
 Everything else in the kit is one command away, catalogued in the generated
 `docs/UI_KIT.md`:

@@ -748,7 +748,7 @@ typedef InputSizeConfig = ({
 class AppInputConfig {
   const AppInputConfig({
     this.labelMode = AppInputLabelMode.above,
-    this.variant = AppInputVariant.primary,
+    this.variant,
     this.type = AppInputType.filled,
     this.shape = AppInputShape.rounded,
     this.size = AppInputSize.medium,
@@ -831,7 +831,18 @@ class AppInputConfig {
 
   // ── Defaults every input starts from ───────────────────────────────────────
 
-  final AppInputVariant variant;
+  /// The color role every input takes when the call site names none.
+  ///
+  /// **Null — the default — means the theme paints them.** An input with no
+  /// variant hands its colors back to `inputDecorationTheme`, `checkboxTheme`,
+  /// `switchTheme` and the rest, so editing `config/theme/app_theme.dart` is
+  /// what restyles the kit. Naming one here paints every input in that role
+  /// instead, and the theme's own input colors stop being consulted.
+  ///
+  /// A single field still overrides either way:
+  /// `AppInput(label: 'Amount', variant: AppInputVariant.danger)`.
+  final AppInputVariant? variant;
+
   final AppInputType type;
   final AppInputShape shape;
   final AppInputSize size;
@@ -960,10 +971,26 @@ class AppInputStyle {
   /// The app-wide input config. Every number below is read from it.
   static AppInputConfig get config => AppInputConfig.defaults;
 
-  /// The variant's color — the single source every other color derives from.
-  static Color accentOf(BuildContext context, AppInputVariant? variant) {
+  /// The variant in force: the field's, else [AppInputConfig.variant].
+  ///
+  /// Null means no variant is in play at all — the field never named one and
+  /// the config does not either — and the widget should leave its colors to
+  /// the theme.
+  static AppInputVariant? variantOf(AppInputVariant? variant) =>
+      variant ?? config.variant;
+
+  /// The variant's color, or null when there is no variant to derive one from.
+  ///
+  /// **Null is the signal to hand a color slot back to the theme.** Passed
+  /// straight into `Checkbox.activeColor`, `InputDecoration.prefixIconColor`
+  /// or a `copyWith`, it leaves whatever `config/theme/app_theme.dart` set in
+  /// place. Every widget in the kit paints through this, which is what makes
+  /// editing the theme enough to restyle an app that names no variant.
+  static Color? accentOrNull(BuildContext context, AppInputVariant? variant) {
+    final resolved = variantOf(variant);
+    if (resolved == null) return null;
     final colorScheme = context.theme.colorScheme;
-    return switch (variant ?? config.variant) {
+    return switch (resolved) {
       AppInputVariant.primary => colorScheme.primary,
       AppInputVariant.secondary => colorScheme.secondary,
       AppInputVariant.tertiary => colorScheme.tertiary,
@@ -971,21 +998,45 @@ class AppInputStyle {
     };
   }
 
+  /// The variant's color, falling back to [ColorScheme.primary] where the
+  /// slot has no themed default to fall through to — a cursor, a focus ring,
+  /// a spinner. Prefer [accentOrNull] anywhere null can be passed on.
+  static Color accentOf(BuildContext context, AppInputVariant? variant) =>
+      accentOrNull(context, variant) ?? context.theme.colorScheme.primary;
+
   /// The color that reads on top of [accentOf] — what a checked box, a selected
   /// segment or a filled chip puts its glyph and label in.
   ///
   /// Every control that fills itself with the accent needs this, and each one
   /// guessing separately is how a selected segment ends up unreadable: the
   /// surface color is only the right answer in a light theme.
-  static Color onAccentOf(BuildContext context, AppInputVariant? variant) {
+  static Color onAccentOf(BuildContext context, AppInputVariant? variant) =>
+      onAccentOrNull(context, variant) ?? context.theme.colorScheme.onPrimary;
+
+  /// [onAccentOf], null when no variant is in play — the companion to
+  /// [accentOrNull], so a control fills and letters itself from the theme or
+  /// from the variant as one decision rather than two.
+  static Color? onAccentOrNull(BuildContext context, AppInputVariant? variant) {
+    final resolved = variantOf(variant);
+    if (resolved == null) return null;
     final colorScheme = context.theme.colorScheme;
-    return switch (variant ?? config.variant) {
+    return switch (resolved) {
       AppInputVariant.primary => colorScheme.onPrimary,
       AppInputVariant.secondary => colorScheme.onSecondary,
       AppInputVariant.tertiary => colorScheme.onTertiary,
       AppInputVariant.danger => colorScheme.onError,
     };
   }
+
+  /// The colour a field's trailing icon takes: the variant's, else whatever
+  /// `inputDecorationTheme` gives every other field's suffix — so a control
+  /// that draws its own chevron matches the ones that let the decoration do it.
+  static Color? suffixIconColorOf(
+    BuildContext context,
+    AppInputVariant? variant,
+  ) =>
+      accentOrNull(context, variant) ??
+      context.theme.inputDecorationTheme.suffixIconColor;
 
   /// Font, icon and padding metrics for a size. Retune the scale in
   /// [AppInputConfig], not here.
@@ -997,6 +1048,31 @@ class AppInputStyle {
       context.theme.textTheme.bodyMedium?.copyWith(
         fontSize: configOf(size).fontSize,
       );
+
+  /// Style for the value a field is holding — what was typed into it, or the
+  /// label of whatever was picked in it.
+  ///
+  /// A field with a variant puts its value in that variant's color and weights
+  /// it, so the content reads louder than the chrome around it. **Without one,
+  /// the theme's own body style is handed back untouched** — `copyWith`
+  /// ignores a null, so nothing is overpainted with a guess and
+  /// `app_theme.dart`'s `textTheme` is what styles the value.
+  static TextStyle? valueStyle(
+    BuildContext context, {
+    AppInputSize? size,
+    AppInputVariant? variant,
+    bool enabled = true,
+  }) {
+    final accent = accentOrNull(context, variant);
+    return textStyle(context, size: size)?.copyWith(
+      color: enabled
+          ? accent
+          : context.colorScheme.onSurface.withValues(
+              alpha: config.disabledOpacity,
+            ),
+      fontWeight: accent == null ? null : FontWeight.bold,
+    );
+  }
 
   /// [TextAlign] as an [AlignmentGeometry], for widgets that align a child box
   /// rather than a run of text — the dropdown's items and hint.
@@ -1080,6 +1156,16 @@ class AppInputStyle {
         },
       };
 
+  /// The color the theme drew a border in — what a field with no variant to
+  /// derive one from should use. [fallback] covers a theme that left the slot
+  /// alone, and a [BorderSide.none], which is a width of zero rather than a
+  /// color worth reusing.
+  static Color _themedBorderColor(InputBorder? border, Color fallback) {
+    final side = border?.borderSide;
+    if (side == null || side.style == BorderStyle.none) return fallback;
+    return side.color;
+  }
+
   static InputBorder _border(
     AppInputType type,
     AppInputShape shape,
@@ -1124,7 +1210,8 @@ class AppInputStyle {
     final resolvedSize = size ?? config.size;
     final mode = labelMode ?? config.labelMode;
 
-    final accent = accentOf(context, variant);
+    final accent = accentOrNull(context, variant);
+    final decorationTheme = theme.inputDecorationTheme;
     final errorColor = theme.colorScheme.error;
     final filled = _isFilled(resolvedType);
     final sizeConfig = configOf(resolvedSize);
@@ -1139,18 +1226,28 @@ class AppInputStyle {
           );
 
     // Filled inputs carry their color in the fill, so they stay borderless
-    // until focused. Outlined and underline inputs need a visible resting edge.
+    // until focused. Outlined and underline inputs need a visible resting edge
+    // — which, with no variant to draw it from, is the one the theme drew.
     final idleColor = filled
         ? Colors.transparent
-        : accent.withValues(alpha: config.idleBorderOpacity);
+        : accent?.withValues(alpha: config.idleBorderOpacity) ??
+              _themedBorderColor(
+                decorationTheme.enabledBorder ?? decorationTheme.border,
+                theme.colorScheme.outline,
+              );
+    final focusedColor =
+        accent ??
+        _themedBorderColor(
+          decorationTheme.focusedBorder,
+          theme.colorScheme.primary,
+        );
     final disabledColor = theme.colorScheme.onSurface.withValues(
       alpha: config.disabledOpacity / 2,
     );
 
-    // Tint the theme's fill with the variant instead of replacing it, so the
-    // input still sits correctly on the surface in both light and dark themes.
-    final baseFill =
-        theme.inputDecorationTheme.fillColor ?? theme.colorScheme.surface;
+    // The theme's own fill — the same color AppCard paints — so a field and a
+    // card standing next to each other read as one surface.
+    final baseFill = decorationTheme.fillColor ?? theme.colorScheme.surface;
 
     final marked = markedLabel(label, required: required);
 
@@ -1165,12 +1262,17 @@ class AppInputStyle {
       suffixIcon: sized(suffixIcon),
       enabled: enabled,
       filled: filled,
-      fillColor: filled
-          ? Color.alphaBlend(
+      // A variant tints that fill rather than replacing it, so the field still
+      // sits correctly on the surface in light and dark alike. With no variant
+      // there is nothing to tint with, and the theme's fill is already right.
+      fillColor: !filled
+          ? Colors.transparent
+          : accent == null
+          ? baseFill
+          : Color.alphaBlend(
               accent.withValues(alpha: config.fillOpacity),
               baseFill,
-            )
-          : Colors.transparent,
+            ),
       border: _border(
         resolvedType,
         resolvedShape,
@@ -1186,7 +1288,7 @@ class AppInputStyle {
       focusedBorder: _border(
         resolvedType,
         resolvedShape,
-        accent,
+        focusedColor,
         config.focusedBorderWidth,
       ),
       disabledBorder: _border(
@@ -1210,20 +1312,24 @@ class AppInputStyle {
       prefixIconColor: enabled ? accent : disabledColor,
       suffixIconColor: enabled ? accent : disabledColor,
       // At rest a floating label sits where the hint would, so it reads like
-      // one; once it floats it becomes the field's accent.
-      labelStyle: theme.textTheme.bodyMedium?.copyWith(
-        color: enabled
-            ? accent.withValues(alpha: config.hintOpacity)
-            : disabledColor,
-        fontSize: sizeConfig.fontSize,
-      ),
-      floatingLabelStyle: theme.textTheme.bodyMedium?.copyWith(
-        color: enabled ? accent : disabledColor,
-      ),
-      hintStyle: theme.textTheme.bodyMedium?.copyWith(
-        color: accent.withValues(alpha: config.hintOpacity),
-        fontSize: sizeConfig.fontSize,
-      ),
+      // one; once it floats it becomes the field's accent. With no variant in
+      // play the color is left null, and the theme's own label and hint styles
+      // come through underneath — only the size is imposed on top.
+      labelStyle: (decorationTheme.labelStyle ?? theme.textTheme.bodyMedium)
+          ?.copyWith(
+            color: enabled
+                ? accent?.withValues(alpha: config.hintOpacity)
+                : disabledColor,
+            fontSize: sizeConfig.fontSize,
+          ),
+      floatingLabelStyle:
+          (decorationTheme.floatingLabelStyle ?? theme.textTheme.bodyMedium)
+              ?.copyWith(color: enabled ? accent : disabledColor),
+      hintStyle: (decorationTheme.hintStyle ?? theme.textTheme.bodyMedium)
+          ?.copyWith(
+            color: accent?.withValues(alpha: config.hintOpacity),
+            fontSize: sizeConfig.fontSize,
+          ),
       // The counter is opt-in: a maxLength is usually a guard rail, not
       // something the user needs to watch tick down.
       counterText: (showCounter ?? config.showCounter) ? null : '',
@@ -1233,6 +1339,37 @@ class AppInputStyle {
             ? 0
             : AppConstants.space12,
       ),
+    );
+  }
+}
+
+/// Renders [child] exactly as it looks when live, but inert.
+///
+/// This is what separates read-only from disabled across the kit. A disabled
+/// control greys itself out because its value is not the user's to set — the
+/// form is waiting on something else first. A read-only one keeps every color
+/// it would have had, because the value it is showing is real and worth
+/// reading; it simply cannot be changed from here. Greying it out would say
+/// the wrong thing about the data.
+///
+/// [AppInput] and the fields built on it hand `readOnly` to Flutter's own.
+/// Every other control in the kit — from [AppCheckbox] to a whole calendar —
+/// wraps itself in this instead and goes on painting as if enabled.
+class ReadOnlyGate extends StatelessWidget {
+  const ReadOnlyGate({super.key, required this.readOnly, required this.child});
+
+  final bool readOnly;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!readOnly) return child;
+    // Focus is excluded as well as pointers: a control the finger cannot reach
+    // must not be reachable by keyboard either, or a tab lands on something
+    // that then refuses to answer.
+    return Semantics(
+      readOnly: true,
+      child: ExcludeFocus(child: IgnorePointer(child: child)),
     );
   }
 }
@@ -2148,10 +2285,11 @@ class _AppInputState extends State<AppInput> {
       errorBuilder: (context, error) =>
           AppInputStyle.decorationError(context, error, type: widget.type),
       cursorColor: accent,
-      style: AppInputStyle.textStyle(
+      style: AppInputStyle.valueStyle(
         context,
         size: widget.size,
-      )?.copyWith(color: accent, fontWeight: FontWeight.bold),
+        variant: widget.variant,
+      ),
       decoration: AppInputStyle.decoration(
         context,
         variant: widget.variant,
@@ -2550,10 +2688,11 @@ class _AppDateInputState extends State<AppDateInput> {
             (value) => AppDateInput.validate(value, required: widget.required),
         errorBuilder: (context, error) =>
             AppInputStyle.decorationError(context, error, type: widget.type),
-        style: AppInputStyle.textStyle(
+        style: AppInputStyle.valueStyle(
           context,
           size: widget.size,
-        )?.copyWith(color: accent, fontWeight: FontWeight.bold),
+          variant: widget.variant,
+        ),
         textAlign: widget.textAlign,
         cursorColor: accent,
         decoration: AppInputStyle.decoration(
@@ -2795,10 +2934,11 @@ class _AppTimeInputState extends State<AppTimeInput> {
             (value) => AppTimeInput.validate(value, required: widget.required),
         errorBuilder: (context, error) =>
             AppInputStyle.decorationError(context, error, type: widget.type),
-        style: AppInputStyle.textStyle(
+        style: AppInputStyle.valueStyle(
           context,
           size: widget.size,
-        )?.copyWith(color: accent, fontWeight: FontWeight.bold),
+          variant: widget.variant,
+        ),
         textAlign: widget.textAlign,
         cursorColor: accent,
         decoration: AppInputStyle.decoration(
@@ -3349,6 +3489,7 @@ class AppDropdownInput<T> extends StatelessWidget {
     this.shape,
     this.size,
     this.textAlign = TextAlign.start,
+    this.readOnly = false,
   });
 
   final String label;
@@ -3377,6 +3518,11 @@ class AppDropdownInput<T> extends StatelessWidget {
   final String? selectedId;
   final String hint;
   final bool enabled;
+
+  /// Shows the selection at full strength but refuses to reopen the list — see
+  /// [ReadOnlyGate]. Unlike `enabled: false` it does not grey the value out,
+  /// which matters for a field whose value is the point of the screen.
+  final bool readOnly;
 
   /// Marks the label, and — unless [validator] replaces the rule — rejects an
   /// empty selection when the form validates.
@@ -3572,7 +3718,6 @@ class AppDropdownInput<T> extends StatelessWidget {
     );
 
     final selected = _selected;
-    final accent = AppInputStyle.accentOf(context, variant);
     final alignment = AppInputStyle.alignmentOf(textAlign);
 
     return InputFieldLayout(
@@ -3582,11 +3727,15 @@ class AppDropdownInput<T> extends StatelessWidget {
       variant: variant,
       size: size,
       textAlign: textAlign,
-      // Both forms turn themselves off from the inside — an IgnorePointer here
-      // would block the tap but leave the field painting itself as live.
-      field: _searchable
-          ? _searchableField(context, selected, accent, alignment)
-          : _menuField(context, selected, accent, alignment),
+      // Disabling turns each form off from the inside — an IgnorePointer here
+      // would block the tap but leave the field painting itself as live. Which
+      // is exactly what read-only wants, so that one is a gate on the outside.
+      field: ReadOnlyGate(
+        readOnly: readOnly,
+        child: _searchable
+            ? _searchableField(context, selected, alignment)
+            : _menuField(context, selected, alignment),
+      ),
     );
   }
 
@@ -3600,7 +3749,6 @@ class AppDropdownInput<T> extends StatelessWidget {
   Widget _searchableField(
     BuildContext context,
     T? selected,
-    Color accent,
     AlignmentGeometry alignment,
   ) {
     return FormField<String>(
@@ -3641,10 +3789,11 @@ class AppDropdownInput<T> extends StatelessWidget {
                         textAlign: textAlign,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppInputStyle.textStyle(
+                        style: AppInputStyle.valueStyle(
                           context,
                           size: size,
-                        )?.copyWith(color: accent, fontWeight: FontWeight.bold),
+                          variant: variant,
+                        ),
                       ),
                     ),
             ),
@@ -3657,7 +3806,6 @@ class AppDropdownInput<T> extends StatelessWidget {
   Widget _menuField(
     BuildContext context,
     T? selected,
-    Color accent,
     AlignmentGeometry alignment,
   ) {
     return DropdownButtonFormField<String>(
@@ -3666,10 +3814,7 @@ class AppDropdownInput<T> extends StatelessWidget {
       // — restored state waiting on a fetch, a list refreshed out from under
       // the selection — would otherwise throw.
       initialValue: selected == null ? null : selectedId,
-      style: AppInputStyle.textStyle(
-        context,
-        size: size,
-      )?.copyWith(color: accent, fontWeight: FontWeight.bold),
+      style: AppInputStyle.valueStyle(context, size: size, variant: variant),
       decoration: _decoration(context),
       isExpanded: true,
       // A dropdown has no textAlign, so align the item boxes instead.
@@ -3682,7 +3827,9 @@ class AppDropdownInput<T> extends StatelessWidget {
       // A null onChanged is what disables a dropdown: it greys the value out
       // and takes the field out of the focus order, which no wrapper can do.
       onChanged: enabled ? _onMenuChanged : null,
-      iconEnabledColor: accent,
+      // A dropdown draws this one itself rather than through the decoration,
+      // so it has to ask for the colour the decoration would have given it.
+      iconEnabledColor: AppInputStyle.suffixIconColorOf(context, variant),
       iconSize: AppInputStyle.configOf(size).iconSize,
       // The trailing widget belongs here, not in the decoration: a dropdown
       // draws exactly one, and `icon` is the slot it reads first — anything
@@ -3712,10 +3859,10 @@ class AppDropdownInput<T> extends StatelessWidget {
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import './app_input_style.dart';
-import '../../../core/constants/app_constants.dart';
 
-/// A [Checkbox] colored and sized from [AppInputVariant] and [AppInputSize],
-/// so it reads as part of the same input family.
+/// A [Checkbox] sized from [AppInputSize] so it reads as part of the same input
+/// family. Its colors come from `checkboxTheme` unless an [AppInputVariant]
+/// takes them over.
 class AppCheckbox extends StatelessWidget {
   const AppCheckbox({
     super.key,
@@ -3725,6 +3872,7 @@ class AppCheckbox extends StatelessWidget {
     this.size,
     this.shape,
     this.tristate = false,
+    this.readOnly = false,
   });
 
   final bool? value;
@@ -3733,9 +3881,14 @@ class AppCheckbox extends StatelessWidget {
   final AppInputSize? size;
 
   /// [AppInputShape.pill] renders as a circular checkbox; any other shape
-  /// renders as a rounded square.
+  /// leaves the corners to `checkboxTheme`.
   final AppInputShape? shape;
   final bool tristate;
+
+  /// Shows the value at full strength but refuses to change it — see
+  /// [ReadOnlyGate]. Not the same as passing a null [onChanged], which greys
+  /// the box out.
+  final bool readOnly;
 
   static const double _borderWidth = 1.5;
   static const double _idleBorderOpacity = 0.6;
@@ -3749,30 +3902,39 @@ class AppCheckbox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final config = AppInputStyle.config;
-    final accent = AppInputStyle.accentOf(context, variant);
+    final accent = AppInputStyle.accentOrNull(context, variant);
 
-    return Transform.scale(
-      scale: _scaleOf(size ?? config.size),
-      child: Checkbox(
-        value: value,
-        tristate: tristate,
-        onChanged: onChanged == null
-            ? null
-            : (v) {
-                HapticFeedback.selectionClick();
-                onChanged!(v);
-              },
-        activeColor: accent,
-        checkColor: AppInputStyle.onAccentOf(context, variant),
-        side: BorderSide(
-          color: accent.withValues(alpha: _idleBorderOpacity),
-          width: _borderWidth,
+    return ReadOnlyGate(
+      readOnly: readOnly,
+      child: Transform.scale(
+        scale: _scaleOf(size ?? config.size),
+        child: Checkbox(
+          value: value,
+          tristate: tristate,
+          onChanged: onChanged == null
+              ? null
+              : (v) {
+                  HapticFeedback.selectionClick();
+                  onChanged!(v);
+                },
+          // Null in every one of these leaves `checkboxTheme` to paint the box,
+          // so the app's theme is what colors it. A variant takes it over.
+          activeColor: accent,
+          checkColor: AppInputStyle.onAccentOrNull(context, variant),
+          side: accent == null
+              ? null
+              : BorderSide(
+                  color: accent.withValues(alpha: _idleBorderOpacity),
+                  width: _borderWidth,
+                ),
+          // A pill is a shape the theme has no way to ask for; every other
+          // shape is left to `checkboxTheme.shape`.
+          shape: (shape ?? config.shape) == AppInputShape.pill
+              ? const CircleBorder()
+              : null,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
         ),
-        shape: (shape ?? config.shape) == AppInputShape.pill
-            ? const CircleBorder()
-            : RoundedRectangleBorder(borderRadius: AppConstants.borderRadius4),
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.compact,
       ),
     );
   }
@@ -3808,6 +3970,7 @@ class AppCheckboxLabel extends StatelessWidget {
     this.variant,
     this.size,
     this.shape,
+    this.readOnly = false,
   });
 
   final String label;
@@ -3833,6 +3996,14 @@ class AppCheckboxLabel extends StatelessWidget {
   final AppInputSize? size;
   final AppInputShape? shape;
 
+  /// Shows the row at full strength but refuses to toggle it — see
+  /// [ReadOnlyGate]. A ticked read-only box still says "ticked"; passing a null
+  /// [onChanged] instead greys the whole row out, which says something else.
+  ///
+  /// The row keeps validating either way, so a `required: true` box the user
+  /// cannot reach still fails the form rather than passing quietly.
+  final bool readOnly;
+
   /// The rule in force: the caller's, else the required check, else nothing to
   /// enforce at all.
   String? Function(bool value)? get _rule {
@@ -3846,6 +4017,9 @@ class AppCheckboxLabel extends StatelessWidget {
     final textTheme = context.textTheme;
     final fontSize = AppInputStyle.configOf(size).fontSize;
     final enabled = onChanged != null;
+    final dimmed = context.colorScheme.onSurface.withValues(
+      alpha: AppInputStyle.config.disabledOpacity,
+    );
 
     return SelectionFormField<bool>(
       value: value,
@@ -3863,54 +4037,55 @@ class AppCheckboxLabel extends StatelessWidget {
 
         // The whole row toggles the value, so it should be read as one
         // checkbox with a name — not a checkbox, then some text beside it.
-        return MergeSemantics(
-          child: InkWell(
-            borderRadius: AppConstants.borderRadius8,
-            // The square has its own haptic in AppCheckbox, so this one only
-            // covers the rest of the row — one buzz either way.
-            onTap: enabled ? () => toggle(!value) : null,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                vertical: AppConstants.space4,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  AppCheckbox(
-                    value: value,
-                    onChanged: enabled ? (v) => toggle(v ?? false) : null,
-                    variant: variant,
-                    size: size,
-                    shape: shape,
-                  ),
-                  const SizedBox(width: AppConstants.space8),
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          label,
-                          style: textTheme.bodyLarge?.copyWith(
-                            fontSize: fontSize,
-                            color: enabled
-                                ? null
-                                : context.colorScheme.onSurface.withValues(
-                                    alpha: AppInputStyle.config.disabledOpacity,
-                                  ),
-                          ),
-                        ),
-                        if (subtitle != null)
+        return ReadOnlyGate(
+          readOnly: readOnly,
+          child: MergeSemantics(
+            child: InkWell(
+              borderRadius: AppConstants.borderRadius8,
+              // The square has its own haptic in AppCheckbox, so this one only
+              // covers the rest of the row — one buzz either way.
+              onTap: enabled ? () => toggle(!value) : null,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppConstants.space4,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    AppCheckbox(
+                      value: value,
+                      onChanged: enabled ? (v) => toggle(v ?? false) : null,
+                      variant: variant,
+                      size: size,
+                      shape: shape,
+                    ),
+                    const SizedBox(width: AppConstants.space8),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                            subtitle!,
-                            style: textTheme.bodySmall?.copyWith(
-                              color: context.colorScheme.onSurfaceVariant,
+                            label,
+                            style: textTheme.bodyLarge?.copyWith(
+                              fontSize: fontSize,
+                              // Null leaves the theme's own body color in
+                              // place; only a disabled row overpaints it.
+                              color: enabled ? null : dimmed,
                             ),
                           ),
-                      ],
+                          if (subtitle != null)
+                            Text(
+                              subtitle!,
+                              style: textTheme.bodySmall?.copyWith(
+                                color: context.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -3927,14 +4102,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import './app_input_style.dart';
 
-/// A [Switch] colored from [AppInputVariant], for on/off settings. Pair it with
-/// a label by dropping it into an [AppListTile] as the trailing widget.
+/// An on/off toggle for settings rows. Pair it with a label by dropping it into
+/// an [AppListTile] as the trailing widget.
+///
+/// Its colors come from `switchTheme` unless an [AppInputVariant] takes them
+/// over, so the app's theme is what restyles it.
 class AppSwitch extends StatelessWidget {
   const AppSwitch({
     super.key,
     required this.value,
     required this.onChanged,
     this.variant,
+    this.readOnly = false,
   });
 
   final bool value;
@@ -3943,21 +4122,29 @@ class AppSwitch extends StatelessWidget {
   final ValueChanged<bool>? onChanged;
   final AppInputVariant? variant;
 
+  /// Shows the state at full strength but refuses to change it — see
+  /// [ReadOnlyGate]. Not the same as a null [onChanged], which greys it out.
+  final bool readOnly;
+
   @override
   Widget build(BuildContext context) {
-    final accent = AppInputStyle.accentOf(context, variant);
-    return Switch(
-      value: value,
-      activeTrackColor: accent,
-      // The thumb rides on the accent track once on, so it takes the same
-      // foreground a checked box does rather than the theme's default.
-      activeThumbColor: AppInputStyle.onAccentOf(context, variant),
-      onChanged: onChanged == null
-          ? null
-          : (v) {
-              HapticFeedback.selectionClick();
-              onChanged!(v);
-            },
+    final accent = AppInputStyle.accentOrNull(context, variant);
+    return ReadOnlyGate(
+      readOnly: readOnly,
+      child: Switch(
+        value: value,
+        // Null leaves the track and thumb to `switchTheme`. With a variant the
+        // thumb rides on the accent track, so it takes the same foreground a
+        // checked box does.
+        activeTrackColor: accent,
+        activeThumbColor: AppInputStyle.onAccentOrNull(context, variant),
+        onChanged: onChanged == null
+            ? null
+            : (v) {
+                HapticFeedback.selectionClick();
+                onChanged!(v);
+              },
+      ),
     );
   }
 }
@@ -3970,8 +4157,11 @@ import 'package:flutter/services.dart';
 import './app_input_style.dart';
 import '../../../core/constants/app_constants.dart';
 
-/// An exclusive single-choice segmented control (2-4 options), styled from
-/// [AppInputVariant]. Ideal for Day/Week/Month-style switches.
+/// An exclusive single-choice segmented control (2-4 options), for
+/// Day/Week/Month-style switches.
+///
+/// It is styled by `segmentedButtonTheme` unless an [AppInputVariant] takes
+/// the painting over.
 ///
 /// Usage:
 /// ```dart
@@ -3991,6 +4181,7 @@ class AppSegmented<T> extends StatelessWidget {
     required this.onChanged,
     this.iconOf,
     this.variant,
+    this.readOnly = false,
   });
 
   final List<T> segments;
@@ -4008,6 +4199,10 @@ class AppSegmented<T> extends StatelessWidget {
 
   final AppInputVariant? variant;
 
+  /// Shows the choice at full strength but refuses to change it — see
+  /// [ReadOnlyGate]. Not the same as a null [onChanged], which greys it out.
+  final bool readOnly;
+
   @override
   Widget build(BuildContext context) {
     assert(
@@ -4016,43 +4211,53 @@ class AppSegmented<T> extends StatelessWidget {
       'render with nothing highlighted.',
     );
 
-    final accent = AppInputStyle.accentOf(context, variant);
-    final onAccent = AppInputStyle.onAccentOf(context, variant);
+    final accent = AppInputStyle.accentOrNull(context, variant);
+    final onAccent = AppInputStyle.onAccentOrNull(context, variant);
     final enabled = onChanged != null;
 
-    return SegmentedButton<T>(
-      showSelectedIcon: false,
-      selected: {selected},
-      // Null is what disables a SegmentedButton; there is no `enabled` flag.
-      onSelectionChanged: enabled
-          ? (set) {
-              HapticFeedback.selectionClick();
-              onChanged!(set.first);
-            }
-          : null,
-      segments: [
-        for (final segment in segments)
-          ButtonSegment<T>(
-            value: segment,
-            label: Text(labelOf(segment)),
-            icon: iconOf?.call(segment) == null
-                ? null
-                : Icon(iconOf!.call(segment)),
-          ),
-      ],
-      style: ButtonStyle(
-        side: const WidgetStatePropertyAll(BorderSide.none),
-        backgroundColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? accent
-              : Colors.transparent,
-        ),
-        foregroundColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? onAccent : accent,
-        ),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: AppConstants.borderRadius8),
-        ),
+    return ReadOnlyGate(
+      readOnly: readOnly,
+      child: SegmentedButton<T>(
+        showSelectedIcon: false,
+        selected: {selected},
+        // Null is what disables a SegmentedButton; there is no `enabled` flag.
+        onSelectionChanged: enabled
+            ? (set) {
+                HapticFeedback.selectionClick();
+                onChanged!(set.first);
+              }
+            : null,
+        segments: [
+          for (final segment in segments)
+            ButtonSegment<T>(
+              value: segment,
+              label: Text(labelOf(segment)),
+              icon: iconOf?.call(segment) == null
+                  ? null
+                  : Icon(iconOf!.call(segment)),
+            ),
+        ],
+        // A null style leaves the whole control to `segmentedButtonTheme`,
+        // which is where an app that names no variant should be restyled.
+        style: accent == null
+            ? null
+            : ButtonStyle(
+                side: const WidgetStatePropertyAll(BorderSide.none),
+                backgroundColor: WidgetStateProperty.resolveWith(
+                  (states) => states.contains(WidgetState.selected)
+                      ? accent
+                      : Colors.transparent,
+                ),
+                foregroundColor: WidgetStateProperty.resolveWith(
+                  (states) =>
+                      states.contains(WidgetState.selected) ? onAccent : accent,
+                ),
+                shape: WidgetStatePropertyAll(
+                  RoundedRectangleBorder(
+                    borderRadius: AppConstants.borderRadius8,
+                  ),
+                ),
+              ),
       ),
     );
   }
@@ -4067,8 +4272,11 @@ import './app_input_style.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
-/// A single selectable chip styled from [AppInputVariant]. Lay several out in a
-/// [Wrap] for a multi-select tag/filter row.
+/// A single selectable chip. Lay several out in a [Wrap] for a multi-select
+/// tag/filter row.
+///
+/// Its fill, label and corners come from `chipTheme` unless an
+/// [AppInputVariant] takes them over.
 class AppChoiceChip extends StatelessWidget {
   const AppChoiceChip({
     super.key,
@@ -4077,6 +4285,7 @@ class AppChoiceChip extends StatelessWidget {
     required this.onSelected,
     this.icon,
     this.variant,
+    this.readOnly = false,
   });
 
   final String label;
@@ -4088,37 +4297,47 @@ class AppChoiceChip extends StatelessWidget {
   final IconData? icon;
   final AppInputVariant? variant;
 
+  /// Shows the chip at full strength but refuses to toggle it — see
+  /// [ReadOnlyGate]. Not the same as a null [onSelected], which greys it out.
+  final bool readOnly;
+
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
-    final accent = AppInputStyle.accentOf(context, variant);
-    final onAccent = AppInputStyle.onAccentOf(context, variant);
+    final accent = AppInputStyle.accentOrNull(context, variant);
+    final onAccent = AppInputStyle.onAccentOrNull(context, variant);
 
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      showCheckmark: false,
-      avatar: icon == null
-          ? null
-          : Icon(
-              icon,
-              size: AppConstants.iconSmall,
-              color: selected ? onAccent : accent,
-            ),
-      labelStyle: theme.textTheme.labelLarge?.copyWith(
-        color: selected ? onAccent : theme.colorScheme.onSurface,
+    return ReadOnlyGate(
+      readOnly: readOnly,
+      child: ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        showCheckmark: false,
+        avatar: icon == null
+            ? null
+            : Icon(
+                icon,
+                size: AppConstants.iconSmall,
+                color: selected ? onAccent : accent,
+              ),
+        // The resting fill and the corners are `chipTheme`'s either way — it
+        // is the app's chip, and a variant only says what color it goes when
+        // it is picked. With no variant even that is left to the theme.
+        labelStyle: accent == null
+            ? null
+            : theme.textTheme.labelLarge?.copyWith(
+                color: selected ? onAccent : theme.colorScheme.onSurface,
+              ),
+        selectedColor: accent,
+        side: accent == null ? null : BorderSide.none,
+        // Null is what disables a ChoiceChip; there is no `enabled` flag.
+        onSelected: onSelected == null
+            ? null
+            : (v) {
+                HapticFeedback.selectionClick();
+                onSelected!(v);
+              },
       ),
-      selectedColor: accent,
-      backgroundColor: theme.colorScheme.surfaceContainerLowest,
-      side: BorderSide.none,
-      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadiusFull),
-      // Null is what disables a ChoiceChip; there is no `enabled` flag.
-      onSelected: onSelected == null
-          ? null
-          : (v) {
-              HapticFeedback.selectionClick();
-              onSelected!(v);
-            },
     );
   }
 }
@@ -4133,9 +4352,12 @@ import './input_title.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
-/// A vertical single-select list of labeled radio options, colored from
-/// [AppInputVariant]. The whole row is tappable, not just the dot. Built on the
-/// current [RadioGroup] ancestor API (requires Flutter 3.32+).
+/// A vertical single-select list of labeled radio options. The whole row is
+/// tappable, not just the dot. Built on the current [RadioGroup] ancestor API
+/// (requires Flutter 3.32+).
+///
+/// The dots take their color from `radioTheme` unless an [AppInputVariant]
+/// takes it over.
 ///
 /// `required: true` refuses to validate while [groupValue] is still null, and
 /// says so under the list.
@@ -4152,6 +4374,7 @@ class AppRadioGroup<T> extends StatelessWidget {
     this.validator,
     this.autovalidateMode,
     this.variant,
+    this.readOnly = false,
   });
 
   final List<T> values;
@@ -4181,6 +4404,11 @@ class AppRadioGroup<T> extends StatelessWidget {
 
   final AppInputVariant? variant;
 
+  /// Shows the choice at full strength but refuses to change it — see
+  /// [ReadOnlyGate]. A read-only group still validates, so a `required: true`
+  /// one with nothing chosen still fails the form rather than passing quietly.
+  final bool readOnly;
+
   /// The rule in force: the caller's, else the required check, else nothing to
   /// enforce at all.
   String? Function(T? value)? get _rule {
@@ -4197,7 +4425,7 @@ class AppRadioGroup<T> extends StatelessWidget {
       'render with nothing selected.',
     );
 
-    final accent = AppInputStyle.accentOf(context, variant);
+    final accent = AppInputStyle.accentOrNull(context, variant);
     final enabled = onChanged != null;
 
     return SelectionFormField<T?>(
@@ -4214,52 +4442,56 @@ class AppRadioGroup<T> extends StatelessWidget {
           onChanged!(value);
         }
 
-        return RadioGroup<T>(
-          groupValue: groupValue,
-          onChanged: (value) {
-            if (value != null && enabled) select(value);
-          },
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final value in values)
-                // The whole row selects, so it should be read as one option
-                // with a name — not a radio, then some text beside it.
-                MergeSemantics(
-                  child: InkWell(
-                    borderRadius: AppConstants.borderRadius8,
-                    onTap: enabled ? () => select(value) : null,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: AppConstants.space4,
-                      ),
-                      child: Row(
-                        children: [
-                          // The row's InkWell drives selection, so the Radio
-                          // is display-only; the RadioGroup above supplies
-                          // its state.
-                          IgnorePointer(
-                            child: Radio<T>(
-                              value: value,
-                              activeColor: accent,
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
+        return ReadOnlyGate(
+          readOnly: readOnly,
+          child: RadioGroup<T>(
+            groupValue: groupValue,
+            onChanged: (value) {
+              if (value != null && enabled) select(value);
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final value in values)
+                  // The whole row selects, so it should be read as one option
+                  // with a name — not a radio, then some text beside it.
+                  MergeSemantics(
+                    child: InkWell(
+                      borderRadius: AppConstants.borderRadius8,
+                      onTap: enabled ? () => select(value) : null,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppConstants.space4,
+                        ),
+                        child: Row(
+                          children: [
+                            // The row's InkWell drives selection, so the Radio
+                            // is display-only; the RadioGroup above supplies
+                            // its state.
+                            IgnorePointer(
+                              child: Radio<T>(
+                                value: value,
+                                // Null leaves the dot to `radioTheme`.
+                                activeColor: accent,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: AppConstants.space8),
-                          Expanded(
-                            child: _RadioLabel(
-                              label: labelOf(value),
-                              subtitle: subtitleOf?.call(value),
-                              enabled: enabled,
+                            const SizedBox(width: AppConstants.space8),
+                            Expanded(
+                              child: _RadioLabel(
+                                label: labelOf(value),
+                                subtitle: subtitleOf?.call(value),
+                                enabled: enabled,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -4317,8 +4549,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import './app_input_style.dart';
 
-/// A [Slider] colored from [AppInputVariant], with an optional value label
-/// shown while dragging (set [divisions] to snap to steps).
+/// A [Slider] with an optional value label shown while dragging (set
+/// [divisions] to snap to steps).
+///
+/// Its track, thumb and overlay come from `sliderTheme` unless an
+/// [AppInputVariant] takes them over.
 class AppSlider extends StatelessWidget {
   const AppSlider({
     super.key,
@@ -4329,6 +4564,7 @@ class AppSlider extends StatelessWidget {
     this.divisions,
     this.label,
     this.variant,
+    this.readOnly = false,
   });
 
   final double value;
@@ -4339,41 +4575,50 @@ class AppSlider extends StatelessWidget {
   final String? label;
   final AppInputVariant? variant;
 
+  /// Shows the value at full strength but refuses to drag — see
+  /// [ReadOnlyGate]. Not the same as a null [onChanged], which greys it out.
+  final bool readOnly;
+
   @override
   Widget build(BuildContext context) {
-    final accent = AppInputStyle.accentOf(context, variant);
+    final accent = AppInputStyle.accentOrNull(context, variant);
     // Slider announces its value but never what the value is *of*, so the
     // label that draws the bubble names the control too.
     return Semantics(
       label: label,
-      child: SliderTheme(
-        data: SliderTheme.of(context).copyWith(
-          activeTrackColor: accent,
-          inactiveTrackColor: accent.withValues(alpha: 0.15),
-          thumbColor: accent,
-          overlayColor: accent.withValues(alpha: 0.12),
-          valueIndicatorColor: accent,
-        ),
-        child: Slider(
-          value: value,
-          min: min,
-          max: max,
-          divisions: divisions,
-          label: label,
-          onChangeStart: onChanged == null
-              ? null
-              : (_) => HapticFeedback.selectionClick(),
-          onChanged: onChanged == null
-              ? null
-              : (v) {
-                  // A stepped slider ticks as it snaps. A continuous one would
-                  // buzz on every pixel, so for that one the grab is the only
-                  // feedback.
-                  if (divisions != null && v != value) {
-                    HapticFeedback.selectionClick();
-                  }
-                  onChanged!(v);
-                },
+      child: ReadOnlyGate(
+        readOnly: readOnly,
+        child: SliderTheme(
+          // copyWith leaves a null alone, so with no variant every color here
+          // stays exactly as `sliderTheme` set it.
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: accent,
+            inactiveTrackColor: accent?.withValues(alpha: 0.15),
+            thumbColor: accent,
+            overlayColor: accent?.withValues(alpha: 0.12),
+            valueIndicatorColor: accent,
+          ),
+          child: Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            label: label,
+            onChangeStart: onChanged == null
+                ? null
+                : (_) => HapticFeedback.selectionClick(),
+            onChanged: onChanged == null
+                ? null
+                : (v) {
+                    // A stepped slider ticks as it snaps. A continuous one
+                    // would buzz on every pixel, so for that one the grab is
+                    // the only feedback.
+                    if (divisions != null && v != value) {
+                      HapticFeedback.selectionClick();
+                    }
+                    onChanged!(v);
+                  },
+          ),
         ),
       ),
     );
@@ -4420,6 +4665,10 @@ class AppListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
+    // A hand-built row rather than a Material ListTile, so it has to read
+    // `listTileTheme` itself — otherwise a project sets its row inset there and
+    // watches nothing move.
+    final tileTheme = theme.listTileTheme;
     final titleColor =
         danger ? theme.colorScheme.error : theme.colorScheme.onSurface;
 
@@ -4427,7 +4676,7 @@ class AppListTile extends StatelessWidget {
     if (resolvedTrailing == null && showChevron) {
       resolvedTrailing = Icon(
         Icons.chevron_right,
-        color: theme.colorScheme.onSurfaceVariant,
+        color: tileTheme.iconColor ?? theme.colorScheme.onSurfaceVariant,
         size: AppConstants.iconMedium,
       );
     }
@@ -4441,10 +4690,12 @@ class AppListTile extends StatelessWidget {
               onTap!();
             },
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppConstants.space12,
-          vertical: AppConstants.space12,
-        ),
+        padding:
+            tileTheme.contentPadding ??
+            const EdgeInsets.symmetric(
+              horizontal: AppConstants.space12,
+              vertical: AppConstants.space12,
+            ),
         child: Row(
           children: [
             if (leading != null) ...[
@@ -4511,6 +4762,11 @@ import '../../../core/utils/extensions.dart';
 enum AppCardType { elevated, filled, outlined }
 
 /// A themed surface container. Provide [onTap] to make the whole card tappable.
+///
+/// Its surface is `cardTheme.color` from `config/theme/app_theme.dart` — the
+/// same color `AppInputStyle` fills a field with — so a card and an input
+/// standing next to each other read as one surface, and moving the theme moves
+/// both.
 class AppCard extends StatelessWidget {
   const AppCard({
     super.key,
@@ -4550,7 +4806,21 @@ class AppCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
-    final radius = AppConstants.borderRadius16;
+    final cardTheme = theme.cardTheme;
+
+    // `cardTheme` decides what a card is made of, so a project restyles its
+    // cards there rather than here. The fallbacks cover one that has not
+    // themed cards at all.
+    final surface = cardTheme.color ?? theme.colorScheme.surfaceContainerLowest;
+    final shadow = cardTheme.shadowColor ?? Colors.black;
+
+    // Only a rounded rectangle has a BorderRadius to hand the ripple and the
+    // clip; a stadium or a beveled border does not, so the kit's own token
+    // stands in for those rather than guessing at one.
+    final shape = cardTheme.shape;
+    final radius = shape is RoundedRectangleBorder
+        ? shape.borderRadius.resolve(Directionality.of(context))
+        : AppConstants.borderRadius16;
 
     // Outlined always draws a border; the other two only once asked for one.
     final border = borderColor == null && type != AppCardType.outlined
@@ -4559,19 +4829,19 @@ class AppCard extends StatelessWidget {
 
     final decoration = switch (type) {
       AppCardType.elevated => BoxDecoration(
-          color: theme.colorScheme.surfaceContainerLowest,
+          color: surface,
           borderRadius: radius,
           border: border,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
+              color: shadow.withValues(alpha: 0.08),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
           ],
         ),
       AppCardType.filled => BoxDecoration(
-          color: theme.colorScheme.surfaceContainerLowest,
+          color: surface,
           borderRadius: radius,
           border: border,
         ),
@@ -4685,7 +4955,6 @@ class AppCardTile extends StatelessWidget {
   /// Returns the generated appBadge template.
   static String appBadge() => r'''
 import 'package:flutter/material.dart';
-import '../../../core/utils/extensions.dart';
 
 /// Wraps [child] with a notification [Badge] — a small count or dot in the
 /// top-end corner. Pass [count] for a number (hidden when 0), or leave it null
@@ -4702,21 +4971,22 @@ class AppBadge extends StatelessWidget {
   final Widget child;
   final int? count;
   final bool showDot;
+
+  /// Null leaves the badge to `badgeTheme`, which is where an app changes what
+  /// all of its badges look like.
   final Color? color;
 
   @override
   Widget build(BuildContext context) {
-    final badgeColor = color ?? context.theme.colorScheme.error;
-
     if (count == null && !showDot) return child;
     if (count != null && count! <= 0) return child;
 
     if (count == null) {
-      return Badge(backgroundColor: badgeColor, smallSize: 8, child: child);
+      return Badge(backgroundColor: color, smallSize: 8, child: child);
     }
 
     return Badge(
-      backgroundColor: badgeColor,
+      backgroundColor: color,
       label: Text(count! > 99 ? '99+' : '$count'),
       child: child,
     );
@@ -5079,12 +5349,15 @@ class AppBottomNav extends StatelessWidget {
       selectedIndex: index,
       // Floating, the card behind it owns the surface and the shadow — a bar
       // painting its own would draw a second edge inside the rounded one.
-      backgroundColor:
-          floating ? Colors.transparent : context.colorScheme.surface,
+      backgroundColor: floating ? Colors.transparent : null,
       elevation: floating ? 0 : null,
-      indicatorColor: accent.withValues(
-        alpha: AppInputStyle.config.fillOpacity * 2,
-      ),
+      // Null without a variant, so the bar's fill and its indicator both come
+      // from `navigationBarTheme`. The pill style below still needs a colour
+      // it can count on — it paints a surface the theme cannot describe.
+      indicatorColor: AppInputStyle.accentOrNull(
+        context,
+        variant,
+      )?.withValues(alpha: AppInputStyle.config.fillOpacity * 2),
       // Material's indicator is the same fill the pill style draws by hand, so
       // a project that named a corner for one means it for both. Null leaves
       // NavigationBarTheme's own.
@@ -6301,6 +6574,7 @@ class AppOtpInput extends StatelessWidget {
     this.labelMode,
     this.variant,
     this.type,
+    this.readOnly = false,
   });
 
   final String label;
@@ -6318,6 +6592,10 @@ class AppOtpInput extends StatelessWidget {
   final AppInputVariant? variant;
   final AppInputType? type;
 
+  /// Shows the code at full strength but refuses to edit it — see
+  /// [ReadOnlyGate]. For a code already verified, still worth reading back.
+  final bool readOnly;
+
   /// The code cells have no decoration to host a label inside them, so every
   /// mode but [AppInputLabelMode.none] puts the title above them.
   AppInputLabelMode get _labelMode =>
@@ -6332,11 +6610,14 @@ class AppOtpInput extends StatelessWidget {
   };
 
   Mo2FACellVariant get _cellVariant =>
-      switch (variant ?? AppInputStyle.config.variant) {
-        AppInputVariant.primary => Mo2FACellVariant.primary,
+      switch (AppInputStyle.variantOf(variant)) {
         AppInputVariant.secondary => Mo2FACellVariant.secondary,
         AppInputVariant.tertiary => Mo2FACellVariant.tertiary,
         AppInputVariant.danger => Mo2FACellVariant.error,
+        // The cells are painted inside mo_2fa_code, which has no "leave it to
+        // the theme" variant to ask for — so a field that names none takes the
+        // package's own primary rather than nothing at all.
+        _ => Mo2FACellVariant.primary,
       };
 
   @override
@@ -6346,16 +6627,21 @@ class AppOtpInput extends StatelessWidget {
       required: required,
       labelMode: _labelMode,
       variant: variant,
-      field: Mo2FACodeField(
-        length: length,
-        controller: controller,
-        autoFocus: autoFocus,
-        obscureText: obscureText,
-        hapticFeedback: true,
-        onChanged: onChanged,
-        onCompleted: onCompleted,
-        validator: validator,
-        style: Mo2FACodeStyle(variant: _cellVariant, shape: _shape),
+      field: ReadOnlyGate(
+        readOnly: readOnly,
+        child: Mo2FACodeField(
+          length: length,
+          controller: controller,
+          // A read-only field must not grab focus and raise a keyboard for a
+          // code the user cannot change.
+          autoFocus: autoFocus && !readOnly,
+          obscureText: obscureText,
+          hapticFeedback: true,
+          onChanged: onChanged,
+          onCompleted: onCompleted,
+          validator: validator,
+          style: Mo2FACodeStyle(variant: _cellVariant, shape: _shape),
+        ),
       ),
     );
   }
@@ -7190,6 +7476,9 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   /// A [TabBar] or any other bar below the toolbar.
   final PreferredSizeWidget? bottom;
+
+  /// Null leaves the bar to `appBarTheme`, which is where an app decides what
+  /// all of its bars look like.
   final Color? backgroundColor;
 
   /// Swap for `Icons.arrow_back_ios_new` on an iOS-leaning design, or
@@ -7219,7 +7508,7 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
     final showsOwnBack = leading == null && showBack && canPop;
 
     return AppBar(
-      backgroundColor: backgroundColor ?? theme.colorScheme.surface,
+      backgroundColor: backgroundColor,
       surfaceTintColor: Colors.transparent,
       scrolledUnderElevation: 0.5,
       centerTitle: centerTitle,
@@ -7488,7 +7777,7 @@ class AppProgressBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
-    final accent = AppInputStyle.accentOf(context, variant);
+    final accent = AppInputStyle.accentOrNull(context, variant);
     final progress = value?.clamp(0.0, 1.0).toDouble();
     final percent = progress == null ? null : (progress * 100).round();
 
@@ -7497,8 +7786,10 @@ class AppProgressBar extends StatelessWidget {
       child: LinearProgressIndicator(
         value: progress,
         minHeight: _thickness,
+        // Null leaves both to `progressIndicatorTheme`, so a project sets the
+        // color of every bar in one place.
         color: accent,
-        backgroundColor: accent.withValues(alpha: _trackOpacity),
+        backgroundColor: accent?.withValues(alpha: _trackOpacity),
         // The caption is a drawing; these two are what is actually spoken, so
         // the bar names itself whether or not a caption is on screen.
         semanticsLabel: label,
@@ -7720,6 +8011,7 @@ class AppStepper extends StatelessWidget {
     this.step = 1,
     this.variant,
     this.size,
+    this.readOnly = false,
   });
 
   final int value;
@@ -7734,6 +8026,10 @@ class AppStepper extends StatelessWidget {
   final AppInputVariant? variant;
   final AppInputSize? size;
 
+  /// Shows the count at full strength but refuses to change it — see
+  /// [ReadOnlyGate]. Not the same as a null [onChanged], which greys it out.
+  final bool readOnly;
+
   static const double _fillOpacity = 0.06;
   static const double _borderOpacity = 0.25;
   static const double _disabledOpacity = 0.35;
@@ -7741,55 +8037,72 @@ class AppStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
-    final accent = AppInputStyle.accentOf(context, variant);
+    final accent = AppInputStyle.accentOrNull(context, variant);
     final sizeConfig = AppInputStyle.configOf(size);
     final enabled = onChanged != null;
+
+    // With no variant the stepper wears the theme's own icon color over the
+    // same fill a filled AppInput takes, so it sits on a form as one of the
+    // fields rather than as something painted separately.
+    final foreground =
+        accent ?? theme.iconTheme.color ?? theme.colorScheme.onSurface;
+    final baseFill =
+        theme.inputDecorationTheme.fillColor ?? theme.colorScheme.surface;
+    final fill = accent == null
+        ? baseFill
+        : Color.alphaBlend(accent.withValues(alpha: _fillOpacity), baseFill);
 
     void emit(int next) {
       HapticFeedback.selectionClick();
       onChanged!(next.clamp(min, max));
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: _fillOpacity),
-        borderRadius: AppConstants.borderRadiusFull,
-        border: Border.all(color: accent.withValues(alpha: _borderOpacity)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _StepButton(
-            icon: Icons.remove,
-            tooltip: 'Decrease',
-            color: accent,
-            iconSize: sizeConfig.iconSize,
-            disabledOpacity: _disabledOpacity,
-            onTap: enabled && value > min ? () => emit(value - step) : null,
+    return ReadOnlyGate(
+      readOnly: readOnly,
+      child: Container(
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: AppConstants.borderRadiusFull,
+          border: Border.all(
+            color: foreground.withValues(alpha: _borderOpacity),
           ),
-          ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: AppConstants.space32),
-            child: Text(
-              '$value',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontSize: sizeConfig.fontSize,
-                color: enabled
-                    ? theme.colorScheme.onSurface
-                    : theme.colorScheme.onSurface
-                        .withValues(alpha: _disabledOpacity),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _StepButton(
+              icon: Icons.remove,
+              tooltip: 'Decrease',
+              color: foreground,
+              iconSize: sizeConfig.iconSize,
+              disabledOpacity: _disabledOpacity,
+              onTap: enabled && value > min ? () => emit(value - step) : null,
+            ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: AppConstants.space32),
+              child: Text(
+                '$value',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontSize: sizeConfig.fontSize,
+                  color: enabled
+                      ? theme.colorScheme.onSurface
+                      : theme.colorScheme.onSurface.withValues(
+                          alpha: _disabledOpacity,
+                        ),
+                ),
               ),
             ),
-          ),
-          _StepButton(
-            icon: Icons.add,
-            tooltip: 'Increase',
-            color: accent,
-            iconSize: sizeConfig.iconSize,
-            disabledOpacity: _disabledOpacity,
-            onTap: enabled && value < max ? () => emit(value + step) : null,
-          ),
-        ],
+            _StepButton(
+              icon: Icons.add,
+              tooltip: 'Increase',
+              color: foreground,
+              iconSize: sizeConfig.iconSize,
+              disabledOpacity: _disabledOpacity,
+              onTap: enabled && value < max ? () => emit(value + step) : null,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -7993,8 +8306,8 @@ class AppExpansionTile extends StatelessWidget {
         },
         shape: shape,
         collapsedShape: shape,
-        iconColor: theme.colorScheme.primary,
-        collapsedIconColor: theme.colorScheme.onSurfaceVariant,
+        // iconColor and collapsedIconColor are left out on purpose: unset,
+        // the chevron is `expansionTileTheme`'s to colour.
         tilePadding: const EdgeInsets.symmetric(
           horizontal: AppConstants.space12,
         ),
@@ -8978,6 +9291,16 @@ $toggleAction              const SizedBox(width: AppConstants.space8),
                       value: false,
                       onChanged: null,
                     ),
+                    // Directly under the disabled row on purpose: the two are
+                    // easy to confuse until you see them together. This one
+                    // keeps every color it would have had — the tick is real
+                    // and worth reading — and only stops answering.
+                    AppCheckboxLabel(
+                      label: 'Read-only row (ticked, and staying that way)',
+                      value: true,
+                      readOnly: true,
+                      onChanged: (_) {},
+                    ),
                   ],
                 ),
               ),
@@ -9283,13 +9606,30 @@ $toggleAction              const SizedBox(width: AppConstants.space8),
               // ── AppSwitch ─────────────────────────────────────────────────
               _Section(
                 title: 'AppSwitch',
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Column(
                   children: [
-                    const Text('Enable notifications'),
-                    AppSwitch(
-                      value: _switchValue,
-                      onChanged: (v) => setState(() => _switchValue = v),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Enable notifications'),
+                        AppSwitch(
+                          value: _switchValue,
+                          onChanged: (v) => setState(() => _switchValue = v),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Managed by your administrator'),
+                        // Full-strength colors, no response: the setting is on,
+                        // and it is not this screen's to turn off.
+                        AppSwitch(
+                          value: true,
+                          readOnly: true,
+                          onChanged: (_) {},
+                        ),
+                      ],
                     ),
                   ],
                 ),

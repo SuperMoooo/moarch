@@ -88,8 +88,12 @@ class AppTabBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = AppInputStyle.accentOf(context, variant);
-    final onAccent = AppInputStyle.onAccentOf(context, variant);
+    final accent = AppInputStyle.accentOrNull(context, variant);
+    // The pill is a shape `tabBarTheme` has no way to describe, so it needs a
+    // colour whether or not a variant named one — an indicator painted null
+    // would simply not be drawn.
+    final pillFill = AppInputStyle.accentOf(context, variant);
+    final onPill = AppInputStyle.onAccentOf(context, variant);
     final pill = style == AppTabsStyle.pill;
 
     return TabBar(
@@ -107,16 +111,19 @@ class AppTabBar extends StatelessWidget implements PreferredSizeWidget {
       indicatorSize: pill ? TabBarIndicatorSize.tab : TabBarIndicatorSize.label,
       indicator: pill
           ? BoxDecoration(
-              color: accent,
+              color: pillFill,
               borderRadius: AppConstants.borderRadiusFull,
             )
           : null,
+      // Null on either half leaves that half to `tabBarTheme`.
       indicatorColor: pill ? null : accent,
       // Ignored once `indicator` is set, but TabBar asserts it is positive
       // either way — so the pill branch cannot answer 0.
       indicatorWeight: AppInputStyle.config.focusedBorderWidth * 2,
-      labelColor: pill ? onAccent : accent,
-      unselectedLabelColor: context.colorScheme.onSurfaceVariant,
+      labelColor: pill ? onPill : accent,
+      unselectedLabelColor: accent == null
+          ? null
+          : context.colorScheme.onSurfaceVariant,
       labelStyle: context.textTheme.titleSmall?.copyWith(
         fontWeight: FontWeight.bold,
       ),

@@ -111,10 +111,10 @@ void main() {
 
     test('a floating bar leaves the surface and the shadow to its card', () {
       // Two edges inside one rounded corner is what painting both would give.
+      // Null attached, so the surface is `navigationBarTheme`'s to paint.
       expect(
         output,
-        contains("backgroundColor:\n"
-            "          floating ? Colors.transparent : context.colorScheme.surface,"),
+        contains('backgroundColor: floating ? Colors.transparent : null,'),
       );
       expect(output, contains('elevation: floating ? 0 : null,'));
       expect(output, contains('if (floating) return row;'));

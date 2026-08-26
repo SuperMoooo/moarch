@@ -62,6 +62,7 @@ class AppCountryPicker extends StatelessWidget {
     this.display = AppCountryDisplay.flagAndName,
     this.countries,
     this.enabled = true,
+    this.readOnly = false,
     this.required = false,
     this.validator,
     this.autovalidateMode,
@@ -97,6 +98,10 @@ class AppCountryPicker extends StatelessWidget {
   final List<AppCountry>? countries;
 
   final bool enabled;
+
+  /// Shows the country at full strength but refuses to reopen the sheet — see
+  /// [ReadOnlyGate]. For a country settled elsewhere and only shown here.
+  final bool readOnly;
 
   /// Marks the label and, unless [validator] replaces the rule, rejects an
   /// empty selection when the form validates.
@@ -238,47 +243,54 @@ class AppCountryPicker extends StatelessWidget {
               ? rule(selectedIso)
               : validate(selectedIso, required: required);
         },
-        builder: (state) => MergeSemantics(
-          // An InkWell announces nothing on its own; without this a screen
-          // reader reads out the country and never says it can be opened.
-          child: Semantics(
-            button: true,
-            enabled: enabled,
-            child: InkWell(
-              onTap: enabled ? () => _open(context, state) : null,
-              borderRadius: AppConstants.borderRadius12,
-              child: InputDecorator(
-                decoration: AppInputStyle.decoration(
-                  context,
-                  variant: variant,
-                  type: type,
-                  shape: shape,
-                  size: size,
-                  label: label,
-                  labelMode: labelMode,
-                  required: required,
-                  hint: hint,
-                  prefixIcon: prefixIcon,
-                  suffixIcon: suffixIcon ?? _trailing(state, country),
-                  enabled: enabled,
-                ).copyWith(
-                  error: AppInputStyle.decorationErrorOrNull(
+        builder: (state) => ReadOnlyGate(
+          readOnly: readOnly,
+          child: MergeSemantics(
+            // An InkWell announces nothing on its own; without this a screen
+            // reader reads out the country and never says it can be opened.
+            child: Semantics(
+              button: true,
+              enabled: enabled,
+              child: InkWell(
+                onTap: enabled ? () => _open(context, state) : null,
+                borderRadius: AppConstants.borderRadius12,
+                child: InputDecorator(
+                  decoration: AppInputStyle.decoration(
                     context,
-                    state.errorText,
+                    variant: variant,
                     type: type,
+                    shape: shape,
+                    size: size,
+                    label: label,
+                    labelMode: labelMode,
+                    required: required,
+                    hint: hint,
+                    prefixIcon: prefixIcon,
+                    suffixIcon: suffixIcon ?? _trailing(state, country),
+                    enabled: enabled,
+                  ).copyWith(
+                    error: AppInputStyle.decorationErrorOrNull(
+                      context,
+                      state.errorText,
+                      type: type,
+                    ),
                   ),
+                  // Drives the hint and the floating label the way an empty
+                  // text field would.
+                  isEmpty: country == null,
+                  child: country == null
+                      ? null
+                      : Text(
+                          _labelFor(country),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppInputStyle.valueStyle(
+                            context,
+                            size: size,
+                            variant: variant,
+                          ),
+                        ),
                 ),
-                // Drives the hint and the floating label the way an empty
-                // text field would.
-                isEmpty: country == null,
-                child: country == null
-                    ? null
-                    : Text(
-                        _labelFor(country),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppInputStyle.textStyle(context, size: size),
-                      ),
               ),
             ),
           ),

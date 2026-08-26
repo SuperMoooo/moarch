@@ -2,6 +2,63 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 7.3.0
+
+- **`readOnly`, across the whole input family.** Fifteen more widgets take it —
+  checkbox, checkbox label, switch, segmented, choice chip, radio group, slider,
+  stepper, OTP, rating, dropdown, multi-select, file picker, country picker and
+  calendar — joining the fields that already had it. Read-only is not disabled:
+  a disabled control greys out because its value is not the user's to set yet,
+  while a read-only one keeps every colour at full strength — the value it is
+  showing is real and worth reading — and only stops answering, to the pointer
+  and to the keyboard both. It keeps validating too, so a `required` box the
+  user cannot reach still fails the form rather than passing quietly.
+
+    ```dart
+    AppCheckboxLabel(label: 'Terms', value: true, onChanged: null)
+    AppCheckboxLabel(label: 'Terms', value: true, readOnly: true, onChanged: (_) {})
+    ```
+
+    A new `ReadOnlyGate` in `app_input_style.dart` is the one place that
+    behaviour lives. Three widgets have a reason not to reach for it and say so
+    in their docs: the picker-backed fields hand `readOnly` to the
+    `TextFormField` underneath, the file picker drops its add area rather than
+    leaving a live-looking one inert, and the calendar freezes only the day tap
+    because paging to another month changes no value.
+
+- **The app theme is what paints the kit now.** `AppInputConfig.variant` starts
+  at `null`, and that null is the rule: **no variant means the theme paints it**
+  — a checkbox by `checkboxTheme`, a card by `cardTheme`, a chip by `chipTheme`,
+  a field by `inputDecorationTheme`. Until now `app_theme.dart` declared
+  twenty-five component themes and the kit read one property from one of them,
+  so editing it moved almost nothing. Naming a variant still hands that widget's
+  colours back to the kit, and geometry — `AppInputType`, `AppInputShape`,
+  `AppInputSize` — stays the kit's either way, because a theme has no way to
+  describe four variants at once.
+
+- **A filled input and an `AppCard` are the same colour again.** The field's
+  fill was the theme's `fillColor` with 6% of the variant blended over it, while
+  the card painted `surfaceContainerLowest` flat, so the two never quite
+  matched. With no variant there is nothing to tint with, and both now take the
+  theme's own surface — `inputDecorationTheme.fillColor` and `cardTheme.color`.
+
+- **`AppCard`, `AppListTile`, `AppBadge`, `AppAppBar`, `AppTabs`,
+  `AppProgressBar` and `AppExpansionTile` read their component themes** instead
+  of painting past them. `AppCard` takes its colour, corner radius and shadow
+  from `cardTheme`; `AppListTile`, a hand-built row rather than a Material
+  `ListTile`, reads `listTileTheme` for its inset and icon colour.
+
+- Some defaults move with all this — every one of them into `app_theme.dart`,
+  where they can now be edited, rather than staying locked inside a widget:
+  `cardTheme` is rounded to 16 and `chipTheme` to a pill, which is what those
+  widgets were already drawing; `listTileTheme.contentPadding` becomes the inset
+  `AppListTile` was using; and `appBarTheme` becomes surface-on-`onSurface`,
+  which is the bar `AppAppBar` was drawing over the theme's brand-coloured one.
+  A project that had edited any of these gets to keep its edit, since `update`
+  never overwrites a changed file.
+
+    `moarch update widgets theme` refreshes the lot.
+
 ## 7.2.1
 
 - **`SearchPickerSheet` paints its surface as a `Material`.** The sheet opens

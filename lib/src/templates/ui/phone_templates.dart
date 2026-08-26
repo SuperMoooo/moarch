@@ -536,7 +536,6 @@ import './app_country_picker.dart';
 import './app_input_style.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/security/validation_service.dart';
-import '../../../core/utils/extensions.dart';
 
 export './app_country.dart';
 
@@ -779,16 +778,11 @@ class _AppPhoneInputState extends State<AppPhoneInput> {
                 const SizedBox(width: AppConstants.space4),
                 Text(
                   _country.dialCode,
-                  style: AppInputStyle.textStyle(
+                  style: AppInputStyle.valueStyle(
                     context,
                     size: widget.size,
-                  )?.copyWith(
-                    color: enabled
-                        ? accent
-                        : context.theme.colorScheme.onSurface.withValues(
-                            alpha: AppInputStyle.config.disabledOpacity,
-                          ),
-                    fontWeight: FontWeight.bold,
+                    variant: widget.variant,
+                    enabled: enabled,
                   ),
                 ),
               ],

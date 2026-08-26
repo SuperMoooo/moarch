@@ -60,6 +60,7 @@ class AppCalendar extends StatefulWidget {
     this.variant,
     this.locale,
     this.rowHeight = 46,
+    this.readOnly = false,
   });
 
   /// The day drawn as selected. Null selects nothing.
@@ -108,6 +109,14 @@ class AppCalendar extends StatefulWidget {
   /// Colors the selected day, today's ring and the event dots. Null follows
   /// [AppInputConfig.defaults], like every other field in the kit.
   final AppInputVariant? variant;
+
+  /// Shows the month at full strength but refuses to change the selection.
+  ///
+  /// The one control in the kit that does not reach for [ReadOnlyGate]: paging
+  /// to another month does not change the value, so there is no reason to stop
+  /// it. Only the day tap goes. Dropping [onSelected] instead would do the
+  /// same, but says the calendar has no owner rather than that it is frozen.
+  final bool readOnly;
 
   /// A locale tag such as `'pt_PT'`. Null uses the app's.
   ///
@@ -271,7 +280,7 @@ class _AppCalendarState extends State<AppCalendar> {
         final count = markers[DateTime.utc(day.year, day.month, day.day)] ?? 0;
         return List<Object>.filled(count, _dot);
       },
-      onDaySelected: enabled
+      onDaySelected: enabled && !widget.readOnly
           ? (selectedDay, focusedDay) {
               HapticFeedback.selectionClick();
               setState(() => _focused = focusedDay);

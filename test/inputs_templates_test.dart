@@ -50,8 +50,15 @@ void main() {
     });
 
     test('a chip can drop its own pick', () {
-      expect(output,
-          contains('onDeleted: enabled ? () => _remove(item, state) : null,'));
+      expect(output, contains('onDeleted: enabled && !readOnly'));
+      expect(output, contains('? () => _remove(item, state)'));
+    });
+
+    test('a read-only field keeps its chips but not their X', () {
+      // The whole field is gated, so the delete would be inert anyway — an X
+      // that does nothing is worse than no X.
+      expect(output, contains('builder: (state) => ReadOnlyGate('));
+      expect(output, contains('onDeleted: enabled && !readOnly'));
     });
 
     test('trips on duplicate ids rather than selecting the wrong row', () {
@@ -177,7 +184,7 @@ void main() {
           output,
           contains(
               'final limited = maxFiles == null ? next : next.take(maxFiles!).toList();'));
-      expect(output, contains('if (enabled && !_atLimit) _addArea('));
+      expect(output, contains('if (enabled && !readOnly && !_atLimit)'));
     });
 
     test('reads a file well enough to draw it', () {
@@ -203,7 +210,17 @@ void main() {
     test('is the same widget read-only and interactive', () {
       expect(output, contains('bool get _enabled => onChanged != null;'));
       expect(output, contains('if (!_enabled) return row;'));
-      expect(output, contains('if (!_enabled) return star;'));
+      expect(output, contains('if (!_interactive) return star;'));
+    });
+
+    test('readOnly freezes the stars without leaving the form', () {
+      // Narrower than dropping onChanged: the rating is still the form's, so a
+      // required one still fails validation rather than passing quietly.
+      expect(
+        output,
+        contains('bool get _interactive => _enabled && !readOnly;'),
+      );
+      expect(output, contains('builder: (_) => ReadOnlyGate('));
     });
 
     test('a display-only rating stays out of the form', () {

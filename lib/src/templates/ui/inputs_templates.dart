@@ -51,6 +51,7 @@ class AppMultiSelectInput<T> extends StatelessWidget {
     this.onSelected,
     this.hint = 'Select options',
     this.enabled = true,
+    this.readOnly = false,
     this.required = false,
     this.minSelected,
     this.maxSelected,
@@ -96,6 +97,11 @@ class AppMultiSelectInput<T> extends StatelessWidget {
 
   final String hint;
   final bool enabled;
+
+  /// Shows the selection at full strength but refuses to reopen the sheet —
+  /// see [ReadOnlyGate]. The chips lose their delete buttons with it, since a
+  /// chip that cannot be removed should not offer an X.
+  final bool readOnly;
 
   /// Marks the label, and — unless [validator] replaces the rule — rejects an
   /// empty selection when the form validates.
@@ -283,36 +289,39 @@ class AppMultiSelectInput<T> extends StatelessWidget {
         // the caller owns the selection, so its answer is the true one even
         // before a rebuild has reached here.
         validator: (_) => _validate(selectedIds),
-        builder: (state) => MergeSemantics(
-          child: Semantics(
-            button: true,
-            enabled: enabled,
-            child: InkWell(
-              onTap: enabled ? () => _openSheet(context, state) : null,
-              borderRadius: AppConstants.borderRadius12,
-              child: InputDecorator(
-                decoration: AppInputStyle.decoration(
-                  context,
-                  variant: variant,
-                  type: type,
-                  shape: shape,
-                  size: size,
-                  label: label,
-                  labelMode: labelMode,
-                  required: required,
-                  hint: hint,
-                  prefixIcon: prefixIcon,
-                  suffixIcon: _trailing(state),
-                  enabled: enabled,
-                ).copyWith(
-                  error: AppInputStyle.decorationErrorOrNull(
+        builder: (state) => ReadOnlyGate(
+          readOnly: readOnly,
+          child: MergeSemantics(
+            child: Semantics(
+              button: true,
+              enabled: enabled,
+              child: InkWell(
+                onTap: enabled ? () => _openSheet(context, state) : null,
+                borderRadius: AppConstants.borderRadius12,
+                child: InputDecorator(
+                  decoration: AppInputStyle.decoration(
                     context,
-                    state.errorText,
+                    variant: variant,
                     type: type,
+                    shape: shape,
+                    size: size,
+                    label: label,
+                    labelMode: labelMode,
+                    required: required,
+                    hint: hint,
+                    prefixIcon: prefixIcon,
+                    suffixIcon: _trailing(state),
+                    enabled: enabled,
+                  ).copyWith(
+                    error: AppInputStyle.decorationErrorOrNull(
+                      context,
+                      state.errorText,
+                      type: type,
+                    ),
                   ),
+                  isEmpty: selectedIds.isEmpty,
+                  child: selectedIds.isEmpty ? null : _value(context, state),
                 ),
-                isEmpty: selectedIds.isEmpty,
-                child: selectedIds.isEmpty ? null : _value(context, state),
               ),
             ),
           ),
@@ -322,11 +331,12 @@ class AppMultiSelectInput<T> extends StatelessWidget {
   }
 
   Widget _value(BuildContext context, FormFieldState<List<String>> state) {
-    final accent = AppInputStyle.accentOf(context, variant);
+    final accent = AppInputStyle.accentOrNull(context, variant);
     final selected = _selected;
-    final valueStyle = AppInputStyle.textStyle(context, size: size)?.copyWith(
-      color: accent,
-      fontWeight: FontWeight.bold,
+    final valueStyle = AppInputStyle.valueStyle(
+      context,
+      size: size,
+      variant: variant,
     );
 
     return switch (display) {
@@ -348,7 +358,7 @@ class AppMultiSelectInput<T> extends StatelessWidget {
     BuildContext context,
     List<T> selected,
     FormFieldState<List<String>> state,
-    Color accent,
+    Color? accent,
   ) {
     final overflow = selected.length - maxVisibleChips;
     final shown = overflow > 0 ? selected.take(maxVisibleChips) : selected;
@@ -362,15 +372,21 @@ class AppMultiSelectInput<T> extends StatelessWidget {
           // pick, and it keeps the sheet for the case where several change.
           InputChip(
             label: Text(labelOf(item)),
-            labelStyle: context.textTheme.bodySmall?.copyWith(color: accent),
-            backgroundColor: accent.withValues(
+            // Null in each of these leaves the chip to `chipTheme`; a variant
+            // paints it in the same color the field around it is wearing.
+            labelStyle: accent == null
+                ? null
+                : context.textTheme.bodySmall?.copyWith(color: accent),
+            backgroundColor: accent?.withValues(
               alpha: AppInputStyle.config.fillOpacity * 2,
             ),
-            side: BorderSide.none,
+            side: accent == null ? null : BorderSide.none,
             visualDensity: VisualDensity.compact,
             deleteIcon: const Icon(Icons.close, size: AppConstants.iconSmall),
             deleteIconColor: accent,
-            onDeleted: enabled ? () => _remove(item, state) : null,
+            onDeleted: enabled && !readOnly
+                ? () => _remove(item, state)
+                : null,
           ),
         if (overflow > 0)
           Padding(
@@ -608,7 +624,6 @@ class _AppDateRangeInputState extends State<AppDateRangeInput> {
 
   @override
   Widget build(BuildContext context) {
-    final accent = AppInputStyle.accentOf(context, widget.variant);
     final alignment = AppInputStyle.alignmentOf(widget.textAlign);
 
     return InputFieldLayout(
@@ -670,12 +685,10 @@ class _AppDateRangeInputState extends State<AppDateRangeInput> {
                           textAlign: widget.textAlign,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppInputStyle.textStyle(
+                          style: AppInputStyle.valueStyle(
                             context,
                             size: widget.size,
-                          )?.copyWith(
-                            color: accent,
-                            fontWeight: FontWeight.bold,
+                            variant: widget.variant,
                           ),
                         ),
                       ),
@@ -776,6 +789,7 @@ class AppFilePickerField extends StatelessWidget {
     this.hint = 'Add a file',
     this.maxFiles,
     this.enabled = true,
+    this.readOnly = false,
     this.required = false,
     this.validator,
     this.autovalidateMode,
@@ -808,6 +822,14 @@ class AppFilePickerField extends StatelessWidget {
   final int? maxFiles;
 
   final bool enabled;
+
+  /// Shows the attachments without letting them be changed.
+  ///
+  /// Unlike the rest of the kit this is not a [ReadOnlyGate]: an add area that
+  /// still looks tappable and does nothing is worse than no add area, so a
+  /// read-only field drops it along with the remove buttons. The files
+  /// themselves keep every colour they had — the point is to read them.
+  final bool readOnly;
 
   /// Marks the label, and — unless [validator] replaces the rule — rejects an
   /// empty field when the form validates.
@@ -893,9 +915,12 @@ class AppFilePickerField extends StatelessWidget {
                 _FileRow(
                   file: files[i],
                   variant: variant,
-                  onRemove: enabled ? () => _remove(i, state) : null,
+                  onRemove: enabled && !readOnly
+                      ? () => _remove(i, state)
+                      : null,
                 ),
-              if (enabled && !_atLimit) _addArea(context, state, error != null),
+              if (enabled && !readOnly && !_atLimit)
+                _addArea(context, state, error != null),
               // Flush with the rows it explains, the way the fields built on
               // [InputDecoration] draw theirs.
               if (error != null)
@@ -917,10 +942,17 @@ class AppFilePickerField extends StatelessWidget {
     FormFieldState<List<AppPickedFile>> state,
     bool hasError,
   ) {
-    final accent = AppInputStyle.accentOf(context, variant);
+    final config = AppInputStyle.config;
+    final accent = AppInputStyle.accentOrNull(context, variant);
+    final theme = context.theme;
+    // With no variant the area wears the theme's own outline over the same
+    // fill a filled AppInput takes, so it sits in a form as one of the fields.
+    final edge = accent ?? theme.colorScheme.outline;
     final borderColor = hasError
-        ? context.colorScheme.error
-        : accent.withValues(alpha: AppInputStyle.config.idleBorderOpacity);
+        ? theme.colorScheme.error
+        : edge.withValues(alpha: config.idleBorderOpacity);
+    final baseFill =
+        theme.inputDecorationTheme.fillColor ?? theme.colorScheme.surface;
 
     return Semantics(
       button: true,
@@ -935,9 +967,14 @@ class AppFilePickerField extends StatelessWidget {
             borderRadius: AppConstants.borderRadius12,
             border: Border.all(
               color: borderColor,
-              width: AppInputStyle.config.idleBorderWidth,
+              width: config.idleBorderWidth,
             ),
-            color: accent.withValues(alpha: AppInputStyle.config.fillOpacity),
+            color: accent == null
+                ? baseFill
+                : Color.alphaBlend(
+                    accent.withValues(alpha: config.fillOpacity),
+                    baseFill,
+                  ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -946,14 +983,16 @@ class AppFilePickerField extends StatelessWidget {
               Icon(
                 Icons.attach_file,
                 size: AppInputStyle.configOf(size).iconSize,
+                // Null leaves the glyph to the theme's icon color.
                 color: accent,
               ),
               Text(
                 hint,
-                style: AppInputStyle.textStyle(
+                style: AppInputStyle.valueStyle(
                   context,
                   size: size,
-                )?.copyWith(color: accent, fontWeight: FontWeight.bold),
+                  variant: variant,
+                ),
               ),
             ],
           ),
@@ -1075,6 +1114,7 @@ class AppRating extends StatelessWidget {
     this.emptyIcon,
     this.variant,
     this.labelMode,
+    this.readOnly = false,
   });
 
   /// The score, from 0 to [count]. Halves are only drawn when [allowHalf].
@@ -1122,11 +1162,22 @@ class AppRating extends StatelessWidget {
   final AppInputVariant? variant;
   final AppInputLabelMode? labelMode;
 
+  /// Freezes the score without taking the rating out of the form — see
+  /// [ReadOnlyGate]. Dropping [onChanged] instead makes it display-only, which
+  /// looks the same but stops it being validated at all; this keeps a
+  /// `required: true` rating answerable for itself while it cannot be changed.
+  final bool readOnly;
+
   /// The rule applied when no [validator] is given: a required rating is not 0.
   static String? validate(double value, {bool required = false}) =>
       required && value <= 0 ? 'Please choose a rating' : null;
 
+  /// Whether the rating belongs to a form at all — a display-only one does not.
   bool get _enabled => onChanged != null;
+
+  /// Whether a tap on it does anything. Narrower than [_enabled]: a read-only
+  /// rating is still the form's, it simply cannot be scored from here.
+  bool get _interactive => _enabled && !readOnly;
 
   double get _starSize =>
       starSize ?? AppInputStyle.configOf(AppInputSize.large).iconSize;
@@ -1164,7 +1215,7 @@ class AppRating extends StatelessWidget {
 
   Widget _stars(BuildContext context) {
     final row = Semantics(
-      slider: _enabled,
+      slider: _interactive,
       value: '${value.toStringAsFixed(allowHalf ? 1 : 0)} of $count',
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1191,7 +1242,10 @@ class AppRating extends StatelessWidget {
       value: value,
       autovalidateMode: autovalidateMode,
       validator: validator ?? (v) => validate(v, required: required),
-      builder: (_) => Align(alignment: AlignmentDirectional.centerStart, child: row),
+      builder: (_) => ReadOnlyGate(
+        readOnly: readOnly,
+        child: Align(alignment: AlignmentDirectional.centerStart, child: row),
+      ),
     );
   }
 
@@ -1212,7 +1266,7 @@ class AppRating extends StatelessWidget {
           : accent.withValues(alpha: AppInputStyle.config.idleBorderOpacity),
     );
 
-    if (!_enabled) return star;
+    if (!_interactive) return star;
 
     // A tap has to be located inside the star to tell a half from a whole, so
     // this reads the position rather than taking an onTap.

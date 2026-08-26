@@ -143,19 +143,26 @@ abstract final class AppTheme {
       ),
     ),
 
+    // AppAppBar passes no color of its own, so this is the bar the app wears.
     appBarTheme: const AppBarTheme(
-      backgroundColor: AppConstants.primary,
-      foregroundColor: AppConstants.surface,
+      backgroundColor: AppConstants.surface,
+      foregroundColor: AppConstants.onSurface,
       elevation: 0,
       scrolledUnderElevation: 0,
     ),
 
+    // AppCard reads this — color, corner radius and shadow — so changing a
+    // card anywhere in the app is a change here.
     cardTheme: CardThemeData(
       color: AppConstants.surfaceContainerLowest,
-      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
+      shadowColor: Colors.black,
+      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius16),
     ),
-    navigationBarTheme: const NavigationBarThemeData(
-      indicatorColor: AppConstants.primary,
+    // AppBottomNav reads both. The indicator is a tint rather than a flat
+    // fill: the icon and its label sit on top of it and have to stay readable.
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: AppConstants.surface,
+      indicatorColor: AppConstants.primary.withValues(alpha: 0.12),
     ),
 
     tabBarTheme: TabBarThemeData(
@@ -257,10 +264,14 @@ abstract final class AppTheme {
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
     ),
 
+    // AppChoiceChip and the multi-select's chips read this, so a chip's fill
+    // and its corners are set here rather than on each widget.
     chipTheme: ChipThemeData(
       backgroundColor: AppConstants.surfaceContainerLow,
       selectedColor: AppConstants.primary.withValues(alpha: 0.25),
-      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
+      shape: RoundedRectangleBorder(
+        borderRadius: AppConstants.borderRadiusFull,
+      ),
       side: BorderSide.none,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     ),
@@ -295,16 +306,19 @@ abstract final class AppTheme {
       trackHeight: 4,
     ),
 
-    progressIndicatorTheme: const ProgressIndicatorThemeData(
+    progressIndicatorTheme: ProgressIndicatorThemeData(
       color: AppConstants.primary,
+      linearTrackColor: AppConstants.primary.withValues(alpha: 0.15),
       linearMinHeight: 6,
     ),
 
+    // AppListTile is a hand-built row rather than a Material ListTile, but it
+    // reads this too, so both kinds of row keep the same inset.
     listTileTheme: const ListTileThemeData(
       iconColor: AppConstants.onSurface,
       contentPadding: EdgeInsets.symmetric(
-        horizontal: AppConstants.space16,
-        vertical: AppConstants.space4,
+        horizontal: AppConstants.space12,
+        vertical: AppConstants.space12,
       ),
     ),
 
@@ -433,12 +447,18 @@ $darkGetter}
       scrolledUnderElevation: 0,
     ),
 
+    // AppCard reads this — color, corner radius and shadow — so changing a
+    // card anywhere in the app is a change here.
     cardTheme: CardThemeData(
       color: AppConstants.surfaceContainerLowDark,
-      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
+      shadowColor: Colors.black,
+      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius16),
     ),
-    navigationBarTheme: const NavigationBarThemeData(
-      indicatorColor: AppConstants.primaryDark,
+    // AppBottomNav reads both. The indicator is a tint rather than a flat
+    // fill: the icon and its label sit on top of it and have to stay readable.
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: AppConstants.surfaceDark,
+      indicatorColor: AppConstants.primaryDark.withValues(alpha: 0.12),
     ),
 
     tabBarTheme: TabBarThemeData(
@@ -543,10 +563,14 @@ $darkGetter}
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
     ),
 
+    // AppChoiceChip and the multi-select's chips read this, so a chip's fill
+    // and its corners are set here rather than on each widget.
     chipTheme: ChipThemeData(
       backgroundColor: AppConstants.surfaceContainerLowDark,
       selectedColor: AppConstants.primaryDark.withValues(alpha: 0.25),
-      shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
+      shape: RoundedRectangleBorder(
+        borderRadius: AppConstants.borderRadiusFull,
+      ),
       side: BorderSide.none,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     ),
@@ -581,16 +605,19 @@ $darkGetter}
       trackHeight: 4,
     ),
 
-    progressIndicatorTheme: const ProgressIndicatorThemeData(
+    progressIndicatorTheme: ProgressIndicatorThemeData(
       color: AppConstants.primaryDark,
+      linearTrackColor: AppConstants.primaryDark.withValues(alpha: 0.15),
       linearMinHeight: 6,
     ),
 
+    // AppListTile is a hand-built row rather than a Material ListTile, but it
+    // reads this too, so both kinds of row keep the same inset.
     listTileTheme: const ListTileThemeData(
       iconColor: AppConstants.onSurfaceDark,
       contentPadding: EdgeInsets.symmetric(
-        horizontal: AppConstants.space16,
-        vertical: AppConstants.space4,
+        horizontal: AppConstants.space12,
+        vertical: AppConstants.space12,
       ),
     ),
 
