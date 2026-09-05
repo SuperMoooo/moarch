@@ -994,17 +994,15 @@ Dio buildDioClient(
           // lands in the branch above instead of looping back into here.
           try {
             await refreshSession();
-          } on AppException catch (refreshError) {
+          } on NetworkException {
             // A refresh that failed because the network dropped says nothing
             // about the session, so the tokens stay: the next attempt can
-            // still use them. Anything else means the refresh token is gone
-            // or rejected — clear the session so the auth state holder and
-            // the router redirect send the user back to login.
-            if (refreshError.type != AppExceptionType.network) {
-              await storage.clearSession();
-            }
+            // still use them.
             return handler.next(error);
           } catch (_) {
+            // Anything else means the refresh token is gone or rejected —
+            // clear the session so the auth state holder and the router
+            // redirect send the user back to login.
             await storage.clearSession();
             return handler.next(error);
           }

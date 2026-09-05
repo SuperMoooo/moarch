@@ -2,6 +2,57 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 7.4.0
+
+- **`AppException` is a sealed family.** The single class with an
+  `AppExceptionType` field is now a sealed base with six kinds under it —
+  `NetworkException`, `ServerException`, `NotFoundException`, `AuthException`,
+  `CancelledException`, `UnknownException` — so a `switch` over a failure is
+  checked for completeness, and a kind added later cannot be silently missed at
+  the places that branch on one. Nothing outside `app_exception.dart` can join
+  the family, which is what makes that hold.
+
+    Catching gets shorter wherever it used to test a field:
+
+    ```dart
+    // before
+    } on AppException catch (e) {
+      if (e.type == AppExceptionType.network) return true;
+      await _tokens.clearSession();
+      return false;
+    }
+
+    // now
+    } on NetworkException {
+      return true;
+    } on AppException {
+      await _tokens.clearSession();
+      return false;
+    }
+    ```
+
+    The generated auth repository, the Dio 401 interceptor and both Google
+    sign-in flows are written that way now. Nothing above the datasource
+    changed: `runAction`, `AppAsyncView` and the bloc failure states still catch
+    the base class and show `message`, which is what most code should keep
+    doing.
+
+- **`AppExceptionType` and `.type` stay.** The enum is still generated and
+  `AppException.type` still hands out the same values, so a project that
+  branched on it keeps compiling straight through
+  `moarch update app_exception`. New code does not need it — a `switch` on the
+  exception itself is exhaustive — and the generated file says so, along with a
+  note that adding a subclass makes the getter's switch incomplete on purpose.
+
+    One narrow break: a class outside `app_exception.dart` can no longer
+    `implements AppException`, because sealed forbids it. A test double that
+    did should throw one of the six kinds instead.
+
+- **Every factory keeps its name.** `AppException.noInternet()`,
+  `.sessionExpired()`, `.cancelled()`, `.fromError()`, `.fromDioError()`,
+  `.fromFirebaseError()` and `.fromFirebaseAuthError()` are unchanged at the
+  call site — each now returns the kind it describes.
+
 ## 7.3.1
 
 - Adjustments

@@ -753,10 +753,10 @@ $syncOnRestore
       try {
         final user = await _repo.signInWithGoogle();$syncAfterGoogle
         return _stateFrom(user);
-      } on AppException catch (e) {
-        // Dismissing the Google sheet is not a failure worth showing.
-        if (e.type == AppExceptionType.cancelled) return current;
-        rethrow;
+      } on CancelledException {
+        // Dismissing the Google sheet is not a failure worth showing. Every
+        // other AppException falls through to runAction, which shows it.
+        return current;
       }
     });
   }

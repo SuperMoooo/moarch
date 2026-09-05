@@ -702,6 +702,22 @@ try {
 catch (e) { showDialog(text: '\$e'); }  // stack traces are not user-facing
 ```
 
+`AppException` is sealed, so the kinds below it — `NetworkException`,
+`ServerException`, `NotFoundException`, `AuthException`, `CancelledException`,
+`UnknownException` — are the whole list, and a `switch` over one is checked for
+completeness. Catch the base class wherever all you do is show `message`, which
+is most places. Catch a subclass where one failure needs a path of its own:
+
+```dart
+try {
+  await repository.refresh();
+} on NetworkException {
+  // offline says nothing about the session — keep it
+} on AppException catch (e) {
+  // everything else: e.message is safe to show
+}
+```
+
 Two rules follow from that, and section 11 repeats them because they are the
 ones most often broken:
 

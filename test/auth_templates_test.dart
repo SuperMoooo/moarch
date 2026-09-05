@@ -59,9 +59,11 @@ void main() {
     final output = CoreTemplates.dioClient(withAuthFeature: true);
 
     // A refresh that failed offline says nothing about the session, so the
-    // tokens survive it and the next attempt can use them.
-    expect(output, contains('refreshError.type != AppExceptionType.network'));
+    // tokens survive it and the next attempt can use them. Every other
+    // failure falls through to the clearing branch.
+    expect(output, contains('} on NetworkException {'));
     expect(output, contains('await storage.clearSession();'));
+    expect(output, isNot(contains('AppExceptionType')));
   });
 
   test('dioClient without the auth feature has nothing to refresh', () {

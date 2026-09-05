@@ -290,9 +290,11 @@ class AuthRepositoryImpl implements AuthRepository {
       // Session restore: trade the stored refresh token for fresh tokens.
       await refresh();
       return true;
+    } on NetworkException {
+      // Offline says nothing about the session, so keep it rather than
+      // logging the user out.
+      return true;
     } on AppException catch (e) {
-      // Offline: keep the stored session instead of logging the user out.
-      if (e.type == AppExceptionType.network) return true;
       appLogger.w('Stored session is no longer valid', error: e);
       await _tokens.clearSession();
       return false;

@@ -158,6 +158,57 @@ void main() {
     expect(output, isNot(contains('Firebase.initializeApp')));
   });
 
+  test('appException is a sealed family with one class per kind', () {
+    final output = ErrorTemplates.appException(hasDio: true);
+
+    // Sealed is what makes a switch over a failure exhaustive: nothing outside
+    // the generated file can add a kind the branches have not already seen.
+    expect(
+        output, contains('sealed class AppException implements Exception {'));
+    for (final kind in [
+      'NetworkException',
+      'ServerException',
+      'NotFoundException',
+      'AuthException',
+      'CancelledException',
+      'UnknownException',
+    ]) {
+      expect(output, contains('final class $kind extends AppException {'));
+      // Each kind is reachable from the enum getter, so adding one without
+      // mapping it stops compiling rather than quietly reading as `unknown`.
+      expect(output, contains('$kind() => AppExceptionType.'));
+    }
+  });
+
+  test('appException keeps the type enum for branches written before it sealed',
+      () {
+    final output = ErrorTemplates.appException(hasDio: true);
+
+    expect(
+        output,
+        contains(
+            'enum AppExceptionType { network, server, notFound, auth, cancelled, unknown }'));
+    expect(output, contains('AppExceptionType get type => switch (this) {'));
+  });
+
+  test('appException factories hand back the kind they name', () {
+    final output = ErrorTemplates.appException(hasDio: true);
+
+    expect(output,
+        contains("const NetworkException(message: 'No internet connection')"));
+    expect(output, contains("const CancelledException(message: 'Cancelled')"));
+    expect(
+        output,
+        contains(
+            "const ServerException(message: 'Session expired', statusCode: 401)"));
+    expect(output, contains('return UnknownException(message: message);'));
+    // A 404 is its own kind: a screen usually draws that as empty, not broken.
+    expect(
+        output,
+        contains(
+            'NotFoundException(message: message, statusCode: statusCode)'));
+  });
+
   test('appException records to Crashlytics when requested', () {
     final output = ErrorTemplates.appException(
       hasDio: true,

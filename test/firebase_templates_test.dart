@@ -447,11 +447,10 @@ void main() {
       expect(output, contains('ref.onDispose(subscription.cancel);'));
       expect(output, contains('with ActionNotifierMixin<AuthState>'));
       expect(output, contains('Future<void> signInWithGoogle()'));
-      // A cancelled sign-in leaves the state alone.
-      expect(
-          output,
-          contains(
-              'if (e.type == AppExceptionType.cancelled) return current;'));
+      // A cancelled sign-in leaves the state alone. It is caught as its own
+      // subclass, so every other AppException still reaches runAction.
+      expect(output, contains('} on CancelledException {'));
+      expect(output, contains('return current;'));
     });
 
     test('exposes the same names as the REST auth feature', () {

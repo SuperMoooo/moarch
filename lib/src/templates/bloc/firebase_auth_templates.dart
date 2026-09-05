@@ -885,13 +885,11 @@ $syncOnRestore
     try {
       final user = await _repo.signInWithGoogle();$syncAfterGoogle
       emit(_stateFrom(user));
-    } on AppException catch (e) {
+    } on CancelledException {
       // Dismissing the Google sheet is not a failure worth showing — put the
       // state back exactly as it was and say nothing.
-      if (e.type == AppExceptionType.cancelled) {
-        emit(current);
-        return;
-      }
+      emit(current);
+    } on AppException catch (e) {
       emit(AuthFailure(e.message));
     }
   }

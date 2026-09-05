@@ -1012,8 +1012,8 @@ keytool -list -v -keystore my-release-key.jks -alias my-key-alias
         ..writeln('}')
         ..writeln('```')
         ..writeln()
-        ..writeln('A rejected read arrives as an `AppException` of type '
-            '`auth` ("You don\'t have')
+        ..writeln('A rejected read arrives as an `AuthException` '
+            '("You don\'t have')
         ..writeln('access to this data") — if you see that in development, '
             'it is the rules.')
         ..writeln();
