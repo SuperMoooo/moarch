@@ -123,6 +123,13 @@ class ProjectManifest {
   String? recordedHash(String projectRoot, String path) =>
       files[relativeKey(projectRoot, path)];
 
+  /// Drops the record for [path], for a file moarch has removed from the
+  /// project — otherwise the manifest keeps vouching for something that is no
+  /// longer there and `doctor` reads the absence as a deletion by hand.
+  void forget(String projectRoot, String path) {
+    files.remove(relativeKey(projectRoot, path));
+  }
+
   /// Writes the manifest to [projectRoot], stamped with the running version.
   Future<void> save(String projectRoot) async {
     final file = File(p.join(projectRoot, fileName));

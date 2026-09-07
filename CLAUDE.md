@@ -66,7 +66,12 @@ Two lists decide what exists:
 - `lib/src/utils/scaffold_catalog.dart` — every file `init` writes outside
   `lib/shared/widgets/`, as `ScaffoldSpec`s (slug, path, template fn, group).
 - `lib/src/utils/widget_catalog.dart` — the UI kit, which is also created on
-  demand by `moarch create widget`.
+  demand by `moarch create widget`. A spec's `dir` says which folder under
+  `lib/shared/` it lands in: `widgets` for the kit, `views` for the one entry
+  that is a whole route (the design-system preview). Never join
+  `shared/widgets` by hand — go through `spec.pathIn(libPath)` / `spec.libFile`.
+  A spec that has moved carries `movedFrom`, and `update` reads it to relocate
+  a project's file rather than leave a second copy behind.
 
 `moarch update <name|group|all>`, `--list`, and `doctor` are all driven from
 these. **A new generated file is a template function plus a catalog entry** —
@@ -154,7 +159,7 @@ lib/core/{constants,errors,network,security,services,utils}
 lib/features/<feature>/{data/{datasources,models,repositories},
                         domain/{entities,repositories},
                         presentation/{notifiers|blocs,states,views,pages}}
-lib/shared/widgets/              README.md   docs/*.md   .moarch.yaml   .fvmrc
+lib/shared/{widgets,views}/      README.md   docs/*.md   .moarch.yaml   .fvmrc
 ```
 
 Generated projects are FVM-pinned, so their commands run as `fvm flutter …` /

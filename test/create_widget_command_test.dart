@@ -14,9 +14,8 @@ void main() {
 
   String at(String relative) => p.joinAll([root, ...p.posix.split(relative)]);
 
-  String pathOf(String widget) => at(
-        'lib/shared/widgets/${WidgetCatalog.byName(widget)!.file}',
-      );
+  String pathOf(String widget) =>
+      at('lib/${WidgetCatalog.byName(widget)!.libFile}');
 
   String sourceOf(String widget) => WidgetCatalog.sourceFor(
         WidgetCatalog.byName(widget)!,
@@ -50,6 +49,30 @@ void main() {
   });
 
   tearDown(() async => tempDir.delete(recursive: true));
+
+  group('an entry that has moved', () {
+    final preview = WidgetCatalog.byName('design-system')!;
+
+    test('is not written a second time at the new path', () async {
+      // A project generated before the move still has a working preview
+      // screen. Writing the new path would leave it holding two, so this
+      // command declines and `moarch update` does the relocation.
+      await place('lib/${preview.movedFrom}', preview.template());
+
+      expect(await run(['design-system']), 0);
+
+      expect(File(pathOf('design-system')).existsSync(), isFalse);
+      expect(File(at('lib/${preview.movedFrom}')).existsSync(), isTrue);
+      expect(manifestFiles(), isNot(contains('lib/${preview.libFile}')));
+    });
+
+    test('is written normally when the old path is empty', () async {
+      expect(await run(['design-system']), 0);
+
+      expect(File(pathOf('design-system')).existsSync(), isTrue);
+      expect(manifestFiles(), contains('lib/${preview.libFile}'));
+    });
+  });
 
   test('records every widget it writes', () async {
     expect(await run(['bottom-nav']), 0);
@@ -106,7 +129,9 @@ void main() {
   test('`all` leaves nothing it generated untracked, run twice', () async {
     expect(await run(['all']), 0);
 
-    final onDisk = Directory(at('lib/shared/widgets'))
+    // `lib/shared`, not `lib/shared/widgets`: the kit is not the only thing
+    // the catalog writes there — the preview screen lands in `views/`.
+    final onDisk = Directory(at('lib/shared'))
         .listSync(recursive: true)
         .whereType<File>()
         .where((f) => f.path.endsWith('.dart'))

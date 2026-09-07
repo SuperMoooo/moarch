@@ -274,6 +274,17 @@ class CreateThemeCommand extends Command<int> {
   ) {
     final context = ScaffoldContext.detect(root);
 
+    // Sourced from the catalog rather than written out, so the entry that
+    // moved to `shared/views/` cannot drift out of sync here. The pre-move
+    // path is offered too: a project that has not run `moarch update` yet
+    // still has a preview screen, and it should follow the theme scope
+    // wherever it currently sits.
+    final designSystem = WidgetCatalog.byName('design-system')!;
+    final designSystemSource = SharedTemplates.designSystemView(
+      withDark: target,
+      stateManagement: context.stateManagement,
+    );
+
     final candidates = <String, String>{
       'lib/core/constants/app_constants.dart':
           CoreTemplates.appConstants(withDark: target),
@@ -294,11 +305,9 @@ class CreateThemeCommand extends Command<int> {
       ),
       'lib/shared/widgets/overlays/app_toast.dart':
           SharedTemplates.appToast(withDark: target),
-      'lib/shared/widgets/design_system_view.dart':
-          SharedTemplates.designSystemView(
-        withDark: target,
-        stateManagement: context.stateManagement,
-      ),
+      'lib/${designSystem.libFile}': designSystemSource,
+      if (designSystem.movedFrom != null)
+        'lib/${designSystem.movedFrom}': designSystemSource,
     };
 
     final files = <_ThemeFile>[];

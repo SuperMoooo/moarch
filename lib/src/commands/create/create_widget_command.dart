@@ -98,7 +98,6 @@ class CreateWidgetCommand extends Command<int> {
       return 0;
     }
 
-    final widgetsRoot = p.join(libPath, 'shared', 'widgets');
     final packages = <String>{for (final spec in specs) ...spec.packages};
 
     _logger.info('');
@@ -115,6 +114,12 @@ class CreateWidgetCommand extends Command<int> {
     // have written — so the manifest can vouch for them anyway.
     final adopted = <WidgetSpec>[];
 
+    // Entries the project still holds at the path moarch wrote before they
+    // moved. Writing the new path would leave the project with two copies of
+    // the same screen, so these are left for `moarch update`, which relocates
+    // rather than duplicates.
+    final unmoved = <WidgetSpec>[];
+
     // Records what was generated so `moarch update` can later tell these
     // files apart from ones the user edited. A skipped file whose content
     // differs is left out: that content is the user's, not ours to vouch for.
@@ -123,7 +128,14 @@ class CreateWidgetCommand extends Command<int> {
     try {
       for (final spec in specs) {
         final content = WidgetCatalog.sourceFor(spec, variants);
-        final path = p.join(widgetsRoot, spec.file);
+        final path = spec.pathIn(libPath);
+        final legacy = spec.legacyPathIn(libPath);
+        if (legacy != null &&
+            !File(path).existsSync() &&
+            File(legacy).existsSync()) {
+          unmoved.add(spec);
+          continue;
+        }
         final wrote = await FileUtils.writeFile(path, content);
         if (wrote) {
           manifest.record(projectRoot, path, content);
@@ -158,7 +170,7 @@ class CreateWidgetCommand extends Command<int> {
 
     _logger.success('');
     for (final spec in created) {
-      _logger.info('  + shared/widgets/${spec.file}');
+      _logger.info('  + ${spec.libFile}');
     }
     // Existing files are never overwritten, so say so instead of claiming a
     // write that didn't happen — the caller may be re-running to pull in a
@@ -167,7 +179,7 @@ class CreateWidgetCommand extends Command<int> {
       _logger.info('');
       _logger.info('  Already present, left untouched:');
       for (final spec in skipped) {
-        _logger.info('    · shared/widgets/${spec.file}');
+        _logger.info('    · ${spec.libFile}');
       }
       _logger.info('    Delete a file and re-run to regenerate it.');
       if (adopted.isNotEmpty) {
@@ -177,6 +189,17 @@ class CreateWidgetCommand extends Command<int> {
         _logger.info(
             '  recorded in ${ProjectManifest.fileName}, so `moarch update` can refresh them.');
       }
+    }
+
+    if (unmoved.isNotEmpty) {
+      _logger.info('');
+      _logger.info('  Already present at their previous path:');
+      for (final spec in unmoved) {
+        _logger.info('    · lib/${spec.movedFrom}  →  lib/${spec.libFile}');
+      }
+      _logger.info(
+          '    Run `moarch update ${unmoved.map((s) => s.name).join(' ')}` '
+          'to move them.');
     }
 
     if (packages.isNotEmpty) {

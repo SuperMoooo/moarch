@@ -1793,7 +1793,6 @@ class InitCommand extends Command<int> {
     Set<String> stack,
     StateManagement stateManagement,
   ) async {
-    final s = p.join(libPath, 'shared', 'widgets');
     final hasRouter = stack.contains(_kRouter);
 
     // Taken from the checklist rather than from disk: in a dry run nothing has
@@ -1829,7 +1828,7 @@ class InitCommand extends Command<int> {
         continue;
       }
       await FileUtils.writeFile(
-        p.join(s, spec.file),
+        spec.pathIn(libPath),
         WidgetCatalog.sourceFor(spec, variants),
       );
     }

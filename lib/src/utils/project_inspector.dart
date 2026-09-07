@@ -620,12 +620,24 @@ abstract final class ProjectInspector {
 
   // ── Widget kit ──────────────────────────────────────────────────────────────
 
-  /// The catalog slugs whose file is present under `lib/shared/widgets/`.
-  static List<WidgetSpec> generatedWidgets(String libPath) {
-    final widgetsRoot = p.join(libPath, 'shared', 'widgets');
-    return WidgetCatalog.all
-        .where((spec) => File(p.join(widgetsRoot, spec.file)).existsSync())
-        .toList();
+  /// The catalog entries whose file is present under `lib/shared/`.
+  ///
+  /// An entry that has moved counts as present at either path: a project that
+  /// has not run `moarch update` since the move still holds a real, compiling
+  /// file, and the checks below are about what that file imports — not about
+  /// which directory it sits in.
+  static List<WidgetSpec> generatedWidgets(String libPath) => WidgetCatalog.all
+      .where(
+        (spec) =>
+            File(spec.pathIn(libPath)).existsSync() ||
+            _legacyExists(spec, libPath),
+      )
+      .toList();
+
+  /// Whether [spec] is present at the path moarch wrote before it moved.
+  static bool _legacyExists(WidgetSpec spec, String libPath) {
+    final legacy = spec.legacyPathIn(libPath);
+    return legacy != null && File(legacy).existsSync();
   }
 
   /// Two ways the kit drifts out of sync, both of which stop the project
@@ -641,7 +653,6 @@ abstract final class ProjectInspector {
     if (present.isEmpty) return const [];
 
     final presentNames = {for (final spec in present) spec.name};
-    final widgetsRoot = p.join(libPath, 'shared', 'widgets');
     final findings = <Diagnostic>[];
 
     // Missing widget dependencies.
@@ -672,11 +683,11 @@ abstract final class ProjectInspector {
             final packages = <String>{};
 
             for (final spec in WidgetCatalog.resolve([dep.name])) {
-              final path = p.join(widgetsRoot, spec.file);
+              final path = spec.pathIn(libPath);
               final content = widgetSource(libPath, spec);
               if (await FileUtils.writeFile(path, content)) {
                 manifest.record(root, path, content);
-                written.add(spec.file);
+                written.add(spec.libFile);
               }
               packages.addAll(spec.packages);
             }
@@ -689,7 +700,7 @@ abstract final class ProjectInspector {
             }
             if (written.isNotEmpty) await manifest.save(root);
 
-            return 'generated ${written.map((f) => 'shared/widgets/$f').join(', ')}';
+            return 'generated ${written.join(', ')}';
           },
         ),
       );

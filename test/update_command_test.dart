@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/commands/update_command.dart';
 import 'package:moarch/src/templates/core/core_templates.dart';
+import 'package:moarch/src/templates/ui/shared_templates.dart';
 import 'package:moarch/src/utils/project_manifest.dart';
 import 'package:moarch/src/utils/scaffold_catalog.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
@@ -19,7 +20,7 @@ void main() {
   /// The widget used throughout: written to disk in a "previous version"
   /// form so it differs from what the current template would produce.
   final spec = WidgetCatalog.byName('error-view')!;
-  String widgetPath() => p.join(libPath, 'shared', 'widgets', spec.file);
+  String widgetPath() => spec.pathIn(libPath);
   String staleContent() => '// written by an older moarch\n${spec.template()}';
 
   /// Writes [content] to [path], optionally recording it in the manifest as
@@ -143,7 +144,7 @@ void main() {
     await placeWidget(spec.template(), record: false);
     // Something else stale gives the run a reason to write.
     final other = WidgetCatalog.byName('empty-view')!;
-    final otherPath = p.join(libPath, 'shared', 'widgets', other.file);
+    final otherPath = other.pathIn(libPath);
     await File(otherPath).writeAsString('// older\n${other.template()}');
     final manifest = ProjectManifest.loadOrCreate(root)
       ..record(root, otherPath, '// older\n${other.template()}');
@@ -302,6 +303,111 @@ void main() {
 
     test('rejects an unknown group', () async {
       expect(await runUpdate(['--yes', 'not-a-group']), 1);
+    });
+  });
+
+  group('a catalog entry that has moved', () {
+    // The preview screen moved out of the UI kit into `shared/views/`: it is
+    // a route, not a piece the kit composes with. A project generated before
+    // that still holds it at the old path, and `update` is what relocates it.
+    final preview = WidgetCatalog.byName('design-system')!;
+
+    String legacyPath() => preview.legacyPathIn(libPath)!;
+    String newPath() => preview.pathIn(libPath);
+    String current() => SharedTemplates.designSystemView();
+    String stale() => '// written by an older moarch\n${current()}';
+
+    test('refreshing it moves it instead of copying it', () async {
+      await place(legacyPath(), stale(), record: true);
+
+      expect(await runUpdate(['--yes']), 0);
+
+      expect(File(legacyPath()).existsSync(), isFalse);
+      expect(await File(newPath()).readAsString(), current());
+    });
+
+    test('a file already matching the template still moves', () async {
+      // Nothing to refresh, so the only thing out of date is where it sits.
+      // Moving content that is byte-for-byte the template discards nothing,
+      // which is why this does not need a manifest record to be safe.
+      await place(legacyPath(), current(), record: false);
+
+      expect(await runUpdate(['--yes']), 0);
+
+      expect(File(legacyPath()).existsSync(), isFalse);
+      expect(await File(newPath()).readAsString(), current());
+    });
+
+    test('the manifest stops vouching for the old path', () async {
+      await place(legacyPath(), stale(), record: true);
+
+      expect(await runUpdate(['--yes']), 0);
+
+      final files = ProjectManifest.load(root)!.files;
+      expect(files, isNot(contains('lib/${preview.movedFrom}')));
+      expect(files, contains('lib/${preview.libFile}'));
+    });
+
+    test('a second run is a no-op', () async {
+      await place(legacyPath(), stale(), record: true);
+      expect(await runUpdate(['--yes']), 0);
+
+      expect(await runUpdate(['--yes']), 0);
+      expect(File(legacyPath()).existsSync(), isFalse);
+      expect(await File(newPath()).readAsString(), current());
+    });
+
+    test('a file the user edited is left where it is', () async {
+      await place(legacyPath(), current(), record: true);
+      final edited = '// my own tweak\n${current()}';
+      await File(legacyPath()).writeAsString(edited);
+
+      expect(await runUpdate(['--yes']), 0);
+
+      // Not moved and not overwritten — a move that discards edits is still
+      // discarding edits.
+      expect(await File(legacyPath()).readAsString(), edited);
+      expect(File(newPath()).existsSync(), isFalse);
+    });
+
+    test('--force moves an edited file and discards the edits', () async {
+      await place(legacyPath(), current(), record: true);
+      await File(legacyPath()).writeAsString('// my own tweak\n${current()}');
+
+      expect(await runUpdate(['--yes', '--force']), 0);
+
+      expect(File(legacyPath()).existsSync(), isFalse);
+      expect(await File(newPath()).readAsString(), current());
+    });
+
+    test('--dry-run moves nothing', () async {
+      await place(legacyPath(), stale(), record: true);
+
+      expect(await runUpdate(['--dry-run']), 0);
+
+      expect(await File(legacyPath()).readAsString(), stale());
+      expect(File(newPath()).existsSync(), isFalse);
+    });
+
+    test('a file already at the new path is refreshed in place', () async {
+      await place(newPath(), stale(), record: true);
+
+      expect(await runUpdate(['--yes']), 0);
+
+      expect(await File(newPath()).readAsString(), current());
+      expect(File(legacyPath()).existsSync(), isFalse);
+    });
+
+    test('the move does not drag the rest of the kit along', () async {
+      // `update design-system` names one entry; a widget that has not moved
+      // stays exactly where it is.
+      await place(legacyPath(), stale(), record: true);
+      await placeWidget(staleContent(), record: true);
+
+      expect(await runUpdate(['--yes', 'design-system']), 0);
+
+      expect(await File(widgetPath()).readAsString(), staleContent());
+      expect(File(newPath()).existsSync(), isTrue);
     });
   });
 }

@@ -1,5 +1,8 @@
 import 'package:moarch/src/templates/ui/shared_templates.dart';
+import 'package:moarch/src/utils/scaffold_catalog.dart';
+import 'package:moarch/src/utils/state_management.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 /// Widgets the preview screen deliberately does not import, and why.
@@ -9,6 +12,22 @@ import 'package:test/test.dart';
 /// than an oversight. Adding a widget to the catalog fails
 /// `the preview screen covers the kit` until it is either previewed or listed
 /// here.
+/// Relative imports in generated widgets that point at a file moarch does
+/// not generate, keyed `<stack> <slug> <import>` with why they are tolerated.
+///
+/// Empty is the goal: a generated file importing something that is never
+/// written does not compile. Each entry here is a known bug, not a design.
+const _unresolvedImports = {
+  'bloc design-system ../../core/utils/action_bloc.dart':
+      'the bloc stack declares no AsyncState — moarch generates no '
+          'core/utils/action_bloc.dart, so the bloc preview screen does not '
+          'compile. Pre-existing; the preview needs a bloc branch that drops '
+          'the AppAsyncView section entirely.',
+  'bloc design-system ../widgets/app_async_view.dart':
+      'AppAsyncView is riverpod-only (see its `stacks`), so a bloc project '
+          'never has this file. Same bug as the entry above.',
+};
+
 const _notPreviewed = {
   // Read by every field in the family; there is nothing to look at on its own.
   'input-config': 'configuration, not a widget',
@@ -124,6 +143,73 @@ void main() {
               '${spec.name} is in the kit but DesignSystemView never imports '
               'it. Add a preview section, or add it to _notPreviewed with the '
               'reason.',
+        );
+      }
+    });
+
+    test('every relative import resolves to a file moarch generates', () {
+      // The catalogs know where each generated file lands, so a relative
+      // import can be resolved against them — which is the only check there
+      // is that a file moved between directories still points at its
+      // neighbours. Nothing else in CI parses the code inside a template.
+      final unresolved = <String>[];
+
+      for (final stack in StateManagement.values) {
+        for (final spec in WidgetCatalog.all) {
+          if (!spec.supports(stack)) continue;
+          final source = WidgetCatalog.sourceFor(
+            spec,
+            WidgetVariants(stateManagement: stack, hasDarkTheme: true),
+          );
+          final dir = p.posix.dirname('lib/${spec.libFile}');
+
+          for (final match in RegExp(r"^import '([^:']+)';", multiLine: true)
+              .allMatches(source)) {
+            final import = match.group(1)!;
+            final target = p.posix.normalize(p.posix.join(dir, import));
+            final generated =
+                WidgetCatalog.all.any((s) => 'lib/${s.libFile}' == target) ||
+                    ScaffoldCatalog.all
+                        .any((s) => s.path == target || s.blocPath == target);
+            if (generated) continue;
+
+            final key = '${stack.name} ${spec.name} $import';
+            if (_unresolvedImports.containsKey(key)) continue;
+            unresolved.add('$key -> $target');
+          }
+        }
+      }
+
+      expect(
+        unresolved,
+        isEmpty,
+        reason: 'These generated files import something no catalog writes, so '
+            'they will not compile. Fix the import, or record it in '
+            '_unresolvedImports with the reason.',
+      );
+    });
+
+    test('nothing is excused from an import that now resolves', () {
+      // Otherwise a fixed import keeps its excuse, and the excuse goes on
+      // covering for whatever breaks next in the same file.
+      for (final key in _unresolvedImports.keys) {
+        final parts = key.split(' ');
+        final stack = StateManagement.values
+            .firstWhere((value) => value.name == parts.first);
+        final spec = WidgetCatalog.byName(parts[1]);
+        expect(spec, isNotNull, reason: '$key names no catalog entry');
+        expect(
+          spec!.supports(stack),
+          isTrue,
+          reason: '$key excuses an import in a stack that never gets the file',
+        );
+        expect(
+          WidgetCatalog.sourceFor(
+            spec,
+            WidgetVariants(stateManagement: stack, hasDarkTheme: true),
+          ),
+          contains("import '${parts[2]}';"),
+          reason: '$key is no longer imported — drop the excuse',
         );
       }
     });

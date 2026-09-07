@@ -2,6 +2,45 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 7.5.0
+
+- **The design-system preview moved to `lib/shared/views/`.** `shared/widgets/`
+  is the UI kit — pieces that compose into a screen. The preview screen is not
+  one of those: it owns a whole route and pulls in every widget in the kit, so
+  it consumed the kit rather than belonging to it. It now sits with the screens
+  that answer to no feature, drawing the same line the generated shape already
+  draws with `features/<name>/presentation/views/`.
+
+    ```
+    lib/shared/
+    ├── widgets/     # the UI kit — see docs/UI_KIT.md
+    └── views/       # whole routes that belong to no feature
+    ```
+
+    `moarch update design-system` moves an existing project's copy — it is a
+    move, not a second file: the old path is removed and `.moarch.yaml` stops
+    vouching for it. A copy you edited is left exactly where it is and reported
+    as needing review, the same as any other edited file; `--force` moves it and
+    discards the edits. Nothing else in the kit moved.
+
+    Update any import of the old path afterwards — `update` prints the pairs it
+    moved. `moarch create widget design-system` declines to write the new path
+    while the old one is still there, so a project cannot end up holding two.
+
+- **`update` can relocate a generated file, not just rewrite one.** Previously a
+  catalog entry that changed path would have been written at the new location
+  with the old file orphaned beside it. Relocation is now part of what a refresh
+  means, with the same never-overwrite-your-edits rule and the same rollback.
+
+- **Generated widgets are checked for imports that resolve.** A test now walks
+  every catalog entry in both stacks and resolves each relative import against
+  the catalogs. It records two pre-existing breakages it found: the **bloc**
+  variant of the preview screen imports `core/utils/action_bloc.dart` and
+  `shared/widgets/app_async_view.dart`, neither of which the bloc stack
+  generates, so `moarch create widget design-system` does not compile on
+  flutter_bloc. That is unfixed here and tracked in `_unresolvedImports` in
+  `test/widget_catalog_test.dart`.
+
 ## 7.4.0
 
 - **`AppException` is a sealed family.** The single class with an

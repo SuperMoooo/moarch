@@ -7,6 +7,7 @@ import 'package:moarch/src/templates/config/config_templates.dart';
 import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
 import 'package:moarch/src/utils/project_manifest.dart';
+import 'package:moarch/src/utils/widget_catalog.dart';
 import 'package:moarch/src/templates/riverpod/app_templates.dart' as riverpod;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -162,8 +163,35 @@ void main() {
     await placeLightProject();
 
     expect(await run(['--yes']), 0);
-    expect(File(at('lib/shared/widgets/design_system_view.dart')).existsSync(),
-        isFalse);
+    expect(File(at('lib/${_preview.libFile}')).existsSync(), isFalse);
+    expect(File(at('lib/${_preview.movedFrom}')).existsSync(), isFalse);
+  });
+
+  test('the preview screen follows the scope at its current path', () async {
+    await placeLightProject();
+    await place('lib/${_preview.libFile}', SharedTemplates.designSystemView());
+
+    expect(await run(['--yes']), 0);
+
+    expect(
+        read('lib/${_preview.libFile}'), contains('darkTheme: AppTheme.dark'));
+  });
+
+  test('the preview screen follows the scope from before it moved', () async {
+    // A project generated before the screen moved to `shared/views/` still
+    // has one, and switching the theme scope has to reach it where it is —
+    // relocating it is `moarch update`'s job, not this command's.
+    await placeLightProject();
+    await place(
+        'lib/${_preview.movedFrom}', SharedTemplates.designSystemView());
+
+    expect(await run(['--yes']), 0);
+
+    expect(
+      read('lib/${_preview.movedFrom}'),
+      contains('darkTheme: AppTheme.dark'),
+    );
+    expect(File(at('lib/${_preview.libFile}')).existsSync(), isFalse);
   });
 
   test('fails outside a scaffolded project', () async {
@@ -173,3 +201,7 @@ void main() {
     expect(await run(['--yes']), 1);
   });
 }
+
+/// The one catalog entry that has moved, so the tests above name its paths
+/// through the catalog rather than repeating them.
+final _preview = WidgetCatalog.byName('design-system')!;

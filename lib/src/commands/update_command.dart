@@ -47,6 +47,8 @@ class UpdateCandidate {
     required this.status,
     required this.current,
     required this.generated,
+    this.movedFrom,
+    this.movedFromDisplay,
   });
 
   /// The CLI slug that selects this file on its own, e.g. `validation`.
@@ -72,6 +74,21 @@ class UpdateCandidate {
 
   /// What the current template would write.
   final String generated;
+
+  /// Absolute path this file still occupies from before the entry moved, or
+  /// null when it is already where it belongs.
+  ///
+  /// Set only when the project holds the file at the old path and nothing is
+  /// at the new one, so [current] was read from there and refreshing means
+  /// writing [path] and removing this — a move, not a second copy.
+  final String? movedFrom;
+
+  /// [movedFrom] in the project-relative, forward-slash form [displayPath]
+  /// uses, so the two read as a pair when the move is printed.
+  final String? movedFromDisplay;
+
+  /// Whether refreshing this file relocates it as well as rewriting it.
+  bool get isMove => movedFrom != null;
 
   /// Whether this file can be refreshed without losing user edits.
   bool get isSafe => status == UpdateStatus.stale;
@@ -281,10 +298,26 @@ class UpdateCommand extends Command<int> {
     // project half on the old templates and half on the new.
     final replaced = <String, String>{};
 
+    // Relocations are undone differently: the new path held nothing before,
+    // so putting one back means deleting it and writing the old path again.
+    final moved = <UpdateCandidate>[];
+
     try {
       for (final candidate in toWrite) {
-        replaced[candidate.path] = candidate.current;
+        final from = candidate.movedFrom;
+        if (from == null) {
+          replaced[candidate.path] = candidate.current;
+        } else {
+          await Directory(p.dirname(candidate.path)).create(recursive: true);
+        }
         await File(candidate.path).writeAsString(candidate.generated);
+        if (from != null) {
+          await File(from).delete();
+          moved.add(candidate);
+          // The old path is gone, so the manifest must stop claiming moarch
+          // put a file there.
+          updated.forget(targetPath, from);
+        }
         updated.record(targetPath, candidate.path, candidate.generated);
       }
       // Files that were already current are recorded too, so a project that
@@ -305,13 +338,32 @@ class UpdateCommand extends Command<int> {
           // Best-effort restore — the git diff still shows what changed.
         }
       }
+      for (final candidate in moved) {
+        try {
+          File(candidate.movedFrom!).writeAsStringSync(candidate.current);
+          final written = File(candidate.path);
+          if (written.existsSync()) written.deleteSync();
+        } catch (_) {
+          // Best-effort restore — the git diff still shows what changed.
+        }
+      }
       _logger.info('  Restored the files that had already been refreshed.');
       return 1;
     }
 
     _logger.info('');
     for (final candidate in toWrite) {
-      _logger.info('  ↻ ${candidate.displayPath}');
+      _logger
+          .info('  ${candidate.isMove ? '→' : '↻'} ${candidate.displayPath}');
+    }
+    if (moved.isNotEmpty) {
+      _logger.info('');
+      _logger.info('  ${moved.length} file(s) moved. Update any import of the '
+          'old path:');
+      for (final candidate in moved) {
+        _logger.info('    ${candidate.movedFromDisplay}'
+            '  →  ${candidate.displayPath}');
+      }
     }
     _logger.info('');
     _logger.success('  Updated to moarch v$packageVersion.');
@@ -369,19 +421,31 @@ class UpdateCommand extends Command<int> {
       required String displayPath,
       required String path,
       required String Function() generate,
+      String? legacyPath,
+      String? legacyDisplayPath,
     }) {
       if (only != null && !only.contains(name)) return null;
-      final file = File(path);
-      if (!file.existsSync()) return null;
 
-      final current = file.readAsStringSync();
+      // A file the project still holds where moarch used to write it is read
+      // and judged there. Nothing is at the new path yet, so writing one
+      // without removing the other would leave two copies of the same screen.
+      final relocating = legacyPath != null &&
+          !File(path).existsSync() &&
+          File(legacyPath).existsSync();
+      final source = File(relocating ? legacyPath : path);
+      if (!source.existsSync()) return null;
+
+      final current = source.readAsStringSync();
       final generated = generate();
 
       final UpdateStatus status;
       if (!TextDiff.differ(current, generated)) {
-        status = UpdateStatus.upToDate;
+        // Content already matches the template, so the only thing out of date
+        // is the location. Moving a file that is byte-for-byte what moarch
+        // would write discards nothing, manifest record or not.
+        status = relocating ? UpdateStatus.stale : UpdateStatus.upToDate;
       } else {
-        final recorded = manifest?.recordedHash(projectRoot, path);
+        final recorded = manifest?.recordedHash(projectRoot, source.path);
         if (recorded == null) {
           status = UpdateStatus.unknown;
         } else if (recorded == ProjectManifest.hashContent(current)) {
@@ -400,17 +464,21 @@ class UpdateCommand extends Command<int> {
         status: status,
         current: current,
         generated: generated,
+        movedFrom: relocating ? legacyPath : null,
+        movedFromDisplay: relocating ? legacyDisplayPath : null,
       );
     }
 
-    final widgetsRoot = p.join(libPath, 'shared', 'widgets');
     for (final spec in ProjectInspector.generatedWidgets(libPath)) {
       final candidate = build(
         name: spec.name,
         title: spec.title,
         category: _kWidgetCategory,
-        displayPath: 'lib/shared/widgets/${spec.file}',
-        path: p.join(widgetsRoot, spec.file),
+        displayPath: 'lib/${spec.libFile}',
+        path: spec.pathIn(libPath),
+        legacyPath: spec.legacyPathIn(libPath),
+        legacyDisplayPath:
+            spec.movedFrom == null ? null : 'lib/${spec.movedFrom}',
         generate: () => ProjectInspector.widgetSource(libPath, spec),
       );
       if (candidate != null) candidates.add(candidate);
@@ -470,10 +538,12 @@ class UpdateCommand extends Command<int> {
       UpdateStatus.conflicted => ' (edited)',
       _ => '',
     };
+    final move =
+        candidate.isMove ? ' (moves from ${candidate.movedFromDisplay})' : '';
     final pad = indent ? '      ' : '    ';
     _logger.info('$pad${candidate.name.padRight(24)} '
         '${candidate.displayPath}  '
-        '+${stat.added} -${stat.removed}$label');
+        '+${stat.added} -${stat.removed}$label$move');
 
     if (!showDiff) return;
     for (final line

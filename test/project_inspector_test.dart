@@ -70,7 +70,7 @@ dependencies:
   /// Writes a widget from the catalog into the project as the generator would.
   Future<void> writeWidget(String name) async {
     final spec = WidgetCatalog.byName(name)!;
-    final path = p.join(libPath, 'shared', 'widgets', spec.file);
+    final path = spec.pathIn(libPath);
     await Directory(p.dirname(path)).create(recursive: true);
     await File(path).writeAsString(spec.template());
   }
