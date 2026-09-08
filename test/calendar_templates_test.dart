@@ -9,7 +9,7 @@ void main() {
     test('wraps table_calendar rather than re-implementing a month grid', () {
       expect(output,
           contains("import 'package:table_calendar/table_calendar.dart';"));
-      expect(output, contains('TableCalendar<Object>('));
+      expect(output, contains('TableCalendar<_Marker>('));
     });
 
     test('keeps table_calendar out of the calling screen', () {
@@ -28,16 +28,92 @@ void main() {
       // so a map keyed on what the data holds never matches the grid's lookup.
       expect(output,
           contains('final key = DateTime.utc(day.year, day.month, day.day);'));
-      expect(output, contains('byDay[key] = (byDay[key] ?? 0) + count;'));
       expect(
         output,
-        contains('markers[DateTime.utc(day.year, day.month, day.day)] ?? 0'),
+        contains(
+            '(byDay[key] ??= <Color?>[]).addAll(List<Color?>.filled(count, null));'),
+      );
+      expect(
+        output,
+        contains(
+            'final colors = markers[DateTime.utc(day.year, day.month, day.day)];'),
       );
     });
 
     test('a day with no events loads no markers', () {
       expect(output, contains('if (count <= 0) return;'));
-      expect(output, contains('return List<Object>.filled(count, _dot);'));
+      expect(output, contains('if (colors == null) return const <_Marker>[];'));
+    });
+
+    test('a fourth event does not look like a third', () {
+      // Stopping at three dots makes a busy day under-report itself, which is
+      // the one thing worse than a missing dot.
+      expect(output,
+          contains('typedef _Marker = ({Color? color, int overflow});'));
+      expect(
+        output,
+        contains('(color: null, overflow: colors.length - _maxDots + 1),'),
+      );
+      expect(output, contains("'+\${marker.overflow}'"));
+    });
+
+    test('the counter takes a dot place, so the row still fits the cell', () {
+      // Three dots *plus* a counter is wider than a day cell on a small
+      // phone, so _maxDots counts markers, not dots.
+      expect(
+        output,
+        contains('for (final color in colors.take(_maxDots - 1))'),
+      );
+      expect(output, contains('markersMaxCount: _maxDots,'));
+      expect(output, contains('if (colors.length <= _maxDots) {'));
+    });
+
+    test('a colored day says how many dots it has by saying what they are', () {
+      // eventColors is the count too, so the day is dropped from the count
+      // map rather than drawing both rows.
+      expect(output, contains('final Map<DateTime, List<Color>> eventColors;'));
+      expect(output,
+          contains('this.eventColors = const <DateTime, List<Color>>{},'));
+      expect(output, contains('(colored[key] ??= <Color?>[]).addAll(colors);'));
+      expect(output, contains('if (colored.containsKey(key)) return;'));
+      expect(output, contains('return byDay..addAll(colored);'));
+    });
+
+    test('colors on the same day stack, like counts do', () {
+      // Same re-keying gotcha: two instants in one day are two dots on it.
+      expect(
+        output,
+        contains('final key = DateTime.utc(day.year, day.month, day.day);'),
+      );
+      expect(output, contains('(colored[key] ??= <Color?>[]).addAll(colors);'));
+    });
+
+    test('an empty color list leaves the day to events', () {
+      // `{day: []}` names a day without saying anything about it, so the
+      // count still applies — the same non-entry a count of zero is, and why
+      // neither map can blank a day the other filled.
+      expect(output, contains('if (colors.isEmpty) return;'));
+      expect(output, contains('if (count <= 0) return;'));
+    });
+
+    test('an uncolored dot is still the one CalendarStyle draws', () {
+      // Null falls through to markerDecoration, so adding eventColors did not
+      // quietly re-implement the default marker.
+      expect(output, contains('singleMarkerBuilder: (context, day, marker)'));
+      expect(output, contains('if (color == null) return null;'));
+      expect(output, contains('markerDecoration: _dotDecoration(accent),'));
+      expect(output, contains('markerMargin: _dotMargin,'));
+    });
+
+    test('the dot shape is stated once, for both paths', () {
+      // The accent dot comes from CalendarStyle and the colored one from the
+      // builder; a restyle that only found one of them would split the kit.
+      expect(
+        output,
+        contains('static BoxDecoration _dotDecoration(Color color) =>\n'
+            '      BoxDecoration(color: color, shape: BoxShape.circle);'),
+      );
+      expect(output, contains('decoration: _dotDecoration(color),'));
     });
 
     test('reports the month bounds, not the six weeks drawn around them', () {

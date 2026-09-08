@@ -41,6 +41,20 @@ enum AppCalendarWeekStart { monday, saturday, sunday }
 /// )
 /// ```
 ///
+/// Dots are the accent color. Name a day in [eventColors] instead and it
+/// draws one dot per color, so a month can say what kind of day each one is
+/// rather than only how busy it was:
+///
+/// ```dart
+/// AppCalendar(
+///   selected: _day,
+///   eventColors: {
+///     for (final a in appointments) a.startsAt: [a.status.color],
+///   },
+///   onSelected: (day) => setState(() => _day = day),
+/// )
+/// ```
+///
 /// Leaving [onSelected] null makes it a read-only display — an availability
 /// month with nothing to tap.
 class AppCalendar extends StatefulWidget {
@@ -49,6 +63,7 @@ class AppCalendar extends StatefulWidget {
     this.selected,
     this.onSelected,
     this.events = const <DateTime, int>{},
+    this.eventColors = const <DateTime, List<Color>>{},
     this.onMonthChanged,
     this.firstDate,
     this.lastDate,
@@ -69,13 +84,34 @@ class AppCalendar extends StatefulWidget {
   /// Called with the tapped day. Null makes the calendar read-only.
   final ValueChanged<DateTime>? onSelected;
 
-  /// Day → how many dots to draw under it, capped at three.
+  /// Day → how many dots to draw under it in the accent color.
+  /// [eventColors] is the same thing for a day whose dots differ.
+  ///
+  /// Three markers fit under a day. A day with more spends its last one on a
+  /// `+N` instead, so four events never looks the same as three.
   ///
   /// The keys are re-keyed to the day they fall on, so you can hand this map
   /// whatever `DateTime` your data already carries — two appointments at
   /// 09:00 and 14:00 count as two dots on one day rather than missing the
   /// grid entirely, which is what a raw `DateTime` key does.
   final Map<DateTime, int> events;
+
+  /// Day → the color of each dot under it, for the days whose dots are not
+  /// all the same thing — a status, a calendar they came from, a category.
+  ///
+  /// Alongside [events] rather than instead of it: a day named here takes
+  /// both its dots and how many of them from this list, and [events] still
+  /// speaks for every day that is not named. Re-keyed the same way, so two
+  /// entries at 09:00 and 14:00 put two dots on one day.
+  ///
+  /// An empty list does not count as naming a day: `{day: []}` says nothing
+  /// and leaves the day to [events], the same way a count of zero there says
+  /// nothing. Neither map can blank a day the other filled — to clear one,
+  /// drop its key from both.
+  ///
+  /// A color repeated is a dot repeated: `{day: [red, red]}` is two red dots,
+  /// not one, and past three the last marker becomes the `+N` count.
+  final Map<DateTime, List<Color>> eventColors;
 
   /// Called with the first and last day now on screen, whenever the page
   /// turns or the format changes — the range to fetch [events] for. For
@@ -130,15 +166,27 @@ class AppCalendar extends StatefulWidget {
   State<AppCalendar> createState() => _AppCalendarState();
 }
 
-class _AppCalendarState extends State<AppCalendar> {
-  /// The one instance handed to `eventLoader` per dot. `TableCalendar` only
-  /// counts what it gets back, so there is nothing to carry.
-  static const Object _dot = Object();
+/// One marker under a day: a dot in [color] — null meaning the accent, which
+/// is not known until `build` has a context — or, when [overflow] is not
+/// zero, the `+N` standing for the events that did not fit.
+typedef _Marker = ({Color? color, int overflow});
 
+class _AppCalendarState extends State<AppCalendar> {
   static const double _todayFill = 0.12;
   static const double _disabledOpacity = 0.38;
+
+  /// Markers a day can hold — dots and the `+N` counter together, not dots
+  /// alone, which is what keeps the row inside the cell.
   static const int _maxDots = 3;
   static const double _dotSize = 5;
+  static const double _overflowFontSize = 9;
+  static const EdgeInsets _dotMargin = EdgeInsets.symmetric(horizontal: 1);
+
+  /// The shape of one dot, in one place: `CalendarStyle` draws the accent
+  /// ones and `singleMarkerBuilder` the colored ones, and a team that wants
+  /// pills or a glow should only have to say so once.
+  static BoxDecoration _dotDecoration(Color color) =>
+      BoxDecoration(color: color, shape: BoxShape.circle);
 
   late DateTime _focused;
   late AppCalendarFormat _format;
@@ -167,19 +215,32 @@ class _AppCalendarState extends State<AppCalendar> {
     if (widget.format != oldWidget.format) _format = widget.format;
   }
 
-  /// [AppCalendar.events] re-keyed to the day each entry falls on.
+  /// [AppCalendar.events] and [AppCalendar.eventColors] re-keyed to the day
+  /// each entry falls on, as one list element per dot — null standing for the
+  /// accent, which is not known until `build` has a context.
   ///
   /// Two `DateTime`s in the same day are not equal, so a map keyed on the
   /// instants the data carries never matches the midnight key the grid looks
-  /// up. Counts on the same day are added rather than the last one winning.
-  Map<DateTime, int> get _markers {
-    final byDay = <DateTime, int>{};
+  /// up. Entries on the same day stack rather than the last one winning.
+  Map<DateTime, List<Color?>> get _markers {
+    final colored = <DateTime, List<Color?>>{};
+    widget.eventColors.forEach((day, colors) {
+      if (colors.isEmpty) return;
+      final key = DateTime.utc(day.year, day.month, day.day);
+      (colored[key] ??= <Color?>[]).addAll(colors);
+    });
+
+    final byDay = <DateTime, List<Color?>>{};
     widget.events.forEach((day, count) {
       if (count <= 0) return;
       final key = DateTime.utc(day.year, day.month, day.day);
-      byDay[key] = (byDay[key] ?? 0) + count;
+      // A day that named its colors already said how many dots it has by
+      // saying what they are; counting it again would draw the row twice.
+      if (colored.containsKey(key)) return;
+      (byDay[key] ??= <Color?>[]).addAll(List<Color?>.filled(count, null));
     });
-    return byDay;
+
+    return byDay..addAll(colored);
   }
 
   int get _weekStartIndex => switch (widget.weekStart) {
@@ -254,7 +315,7 @@ class _AppCalendarState extends State<AppCalendar> {
     final today = DateTime.now();
     final enabled = widget.onSelected != null;
 
-    return TableCalendar<Object>(
+    return TableCalendar<_Marker>(
       firstDay: widget.firstDate ?? DateTime(today.year - 5, 1, 1),
       lastDay: widget.lastDate ?? DateTime(today.year + 5, 12, 31),
       focusedDay: _focused,
@@ -277,8 +338,20 @@ class _AppCalendarState extends State<AppCalendar> {
       selectedDayPredicate: (day) => isSameDay(widget.selected, day),
       enabledDayPredicate: widget.selectableDay,
       eventLoader: (day) {
-        final count = markers[DateTime.utc(day.year, day.month, day.day)] ?? 0;
-        return List<Object>.filled(count, _dot);
+        final colors = markers[DateTime.utc(day.year, day.month, day.day)];
+        if (colors == null) return const <_Marker>[];
+        if (colors.length <= _maxDots) {
+          return [for (final color in colors) (color: color, overflow: 0)];
+        }
+        // A fourth event has to look different from three, or a busy day
+        // quietly under-reports itself. The count takes the last dot's place
+        // rather than sitting after a full row, so the markers cannot outgrow
+        // a cell on a narrow screen — and dots plus count still add up.
+        return [
+          for (final color in colors.take(_maxDots - 1))
+            (color: color, overflow: 0),
+          (color: null, overflow: colors.length - _maxDots + 1),
+        ];
       },
       onDaySelected: enabled && !widget.readOnly
           ? (selectedDay, focusedDay) {
@@ -358,14 +431,44 @@ class _AppCalendarState extends State<AppCalendar> {
           color: accent.withValues(alpha: _todayFill),
           shape: BoxShape.circle,
         ),
-        markerDecoration: BoxDecoration(
-          color: accent,
-          shape: BoxShape.circle,
-        ),
+        markerDecoration: _dotDecoration(accent),
         markersMaxCount: _maxDots,
         markerSize: _dotSize,
         markersAlignment: Alignment.bottomCenter,
-        markerMargin: const EdgeInsets.symmetric(horizontal: 1),
+        markerMargin: _dotMargin,
+      ),
+      calendarBuilders: CalendarBuilders<_Marker>(
+        singleMarkerBuilder: (context, day, marker) {
+          if (marker.overflow > 0) {
+            return Padding(
+              padding: _dotMargin,
+              child: Text(
+                '+${marker.overflow}',
+                style: label.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: _overflowFontSize,
+                  fontWeight: FontWeight.w600,
+                  // The line box is pinned to the dot's height so a day with
+                  // a counter does not sit lower than one without; the glyph
+                  // paints past it, which is what `canMarkersOverflow`
+                  // already allows.
+                  height: _dotSize / _overflowFontSize,
+                ),
+              ),
+            );
+          }
+          // A null color hands the dot straight back to `markerDecoration`
+          // above, so a calendar that never mentions colors draws what it
+          // always drew.
+          final color = marker.color;
+          if (color == null) return null;
+          return Container(
+            width: _dotSize,
+            height: _dotSize,
+            margin: _dotMargin,
+            decoration: _dotDecoration(color),
+          );
+        },
       ),
     );
   }

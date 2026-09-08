@@ -612,6 +612,27 @@ marker never appears — so `events` is **re-keyed to the day** each entry falls
 on. Pass the instants your data already carries; two appointments at 09:00 and
 14:00 count as two dots on one day rather than missing the grid entirely.
 
+Those dots are the accent color. When they mean different things — a status, a
+category, which calendar an entry came from — name the day in `eventColors`
+instead and it draws one dot per color:
+
+```dart
+AppCalendar(
+  selected: _day,
+  eventColors: {
+    for (final a in appointments) a.startsAt: [a.status.color],
+  },
+  onSelected: (day) => setState(() => _day = day),
+)
+```
+
+A day named there takes both its dots and how many of them from that list, so
+there is no count to keep in sync; `events` still speaks for every day that is
+not named — including a day named with an empty list, since `{day: []}` says
+nothing rather than blanking a count. Three markers is the cap either way, and
+a day with more spends its last one on a `+N` — four events never looks the
+same as three.
+
 `onMonthChanged` reports the *month's* own bounds, not the six weeks drawn
 around it — the range you actually want to fetch events for. Colors come from
 `AppInputVariant` like the rest of the family, `canChangeFormat` offers the

@@ -2,6 +2,53 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 7.6.0
+
+- **`AppCalendar` dots can say what they are, not just how many.** Alongside
+  `events`, the widget takes an optional
+  `eventColors: Map<DateTime, List<Color>>` — one dot per color, so a month can
+  show a status, a category or which calendar an entry came from rather than
+  only how busy the day was.
+
+    ```dart
+    AppCalendar(
+      selected: _day,
+      eventColors: {
+        for (final a in appointments) a.startsAt: [a.status.color],
+      },
+      onSelected: (day) => setState(() => _day = day),
+    )
+    ```
+
+    A day named there takes both its dots and how many of them from the list,
+    so there is no count to keep in sync; `events` still speaks for every day
+    that is not named. The keys are re-keyed to the day exactly the way
+    `events` is, so entries at 09:00 and 14:00 are two dots on one day. An
+    empty list is a non-entry rather than a suppression — `{day: []}` leaves
+    the day to `events`, the same way a count of zero there says nothing, and
+    neither map can blank a day the other filled.
+
+    Uncolored dots are untouched. A null color falls through to
+    `CalendarStyle.markerDecoration`, so a calendar that never mentions colors
+    draws what it always drew. `moarch update calendar` refreshes an unedited
+    copy; both parameters default to empty, so no existing call site changes.
+
+- **A day with more events than fit now says so.** The grid used to stop at
+  three dots, which made a four-event day look identical to a three-event one.
+  The last marker is now a `+N` standing for everything the dots did not show,
+  so the two add up to the day's real count.
+
+    Three is a cap on *markers*, not dots: a day with more draws two dots and
+    the counter. Three dots plus a counter is ≈34px of markers, and a day cell
+    inside page padding is ≈33px wide on a 320px screen — wide enough to
+    overflow the row `table_calendar` lays the markers out in. Spending a dot
+    on the count keeps them inside the cell at every width.
+
+- **The dot's shape is stated once.** `_dotDecoration` backs both
+  `markerDecoration` and the colored dots, so a fork that wants pills or a glow
+  changes one function instead of finding two definitions and splitting its own
+  kit.
+
 ## 7.5.0
 
 - **The design-system preview moved to `lib/shared/views/`.** `shared/widgets/`

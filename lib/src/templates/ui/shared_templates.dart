@@ -11014,6 +11014,16 @@ $toggleAction              const SizedBox(width: AppConstants.space8),
                     DateTime.now(): 1,
                     DateTime.now().add(const Duration(days: 2)): 3,
                     DateTime.now().subtract(const Duration(days: 3)): 2,
+                    // Past three, the last dot becomes a +N.
+                    DateTime.now().add(const Duration(days: 9)): 6,
+                  },
+                  // A day that names its colors draws those instead of the
+                  // accent, one dot per color.
+                  eventColors: {
+                    DateTime.now().add(const Duration(days: 5)): [
+                      Theme.of(context).colorScheme.tertiary,
+                      Theme.of(context).colorScheme.error,
+                    ],
                   },
                   onSelected: (day) => setState(() => _calendarDay = day),
                 ),
