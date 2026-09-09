@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../templates/ui/adapt_templates.dart';
+import '../templates/bloc/async_templates.dart' as bloc_async;
 import '../templates/riverpod/async_templates.dart';
 import '../templates/ui/audio_templates.dart';
 import '../templates/ui/calendar_templates.dart';
@@ -721,11 +722,27 @@ abstract final class WidgetCatalog {
       deps: ['error-view', 'empty-view'],
       packages: ['skeletonizer: '],
       // Riverpod only: `AsyncValue` is one opaque type that something has to
-      // map onto four screens. A bloc's states are a sealed family, and a
-      // `switch` inside a plain `BlocBuilder` covers them already.
+      // map onto four screens. A bloc's state carries its status as a field,
+      // and one `switch` inside a plain `BlocBuilder` covers it already.
       stacks: {StateManagement.riverpod},
       description:
           'Renders an AsyncValue, a Stream or a Future as the four states it can be in — skeleton, error, empty, data — and keeps the old data on screen through a refresh.',
+    ),
+    WidgetSpec(
+      name: 'status-view',
+      title: 'AppStatusView',
+      file: 'app_status_view.dart',
+      template: bloc_async.AsyncTemplates.appStatusView,
+      category: 'Feedback & loading',
+      common: true,
+      deps: ['error-view', 'empty-view'],
+      packages: ['skeletonizer: '],
+      // Bloc only, and the mirror image of the entry above: it switches over
+      // the `AppStatus` a bloc state carries, which a Riverpod state does not
+      // have — there the four screens come out of `AsyncValue`.
+      stacks: {StateManagement.bloc},
+      description:
+          'Draws a screen\'s AppStatus as the four states it can be in — skeleton, error, empty, body — so a bloc view builds one call instead of a switch.',
     ),
     WidgetSpec(
       name: 'action-listener',

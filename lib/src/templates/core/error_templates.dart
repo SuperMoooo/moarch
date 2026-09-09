@@ -185,7 +185,8 @@ enum AppExceptionType { network, server, notFound, auth, cancelled, unknown }
 /// can join the family, which is what makes that hold.
 ///
 /// Catch the base class wherever all you do is show [message] — which is most
-/// places, and what `runAction` and `AppAsyncView` already do for you. Catch a
+/// places, and what your stack's shell already does for you — `runAction` and
+/// `AppAsyncView` on Riverpod, a bloc handler and `AppStatusView`. Catch a
 /// subclass where one failure needs its own path:
 ///
 /// ```dart

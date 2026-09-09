@@ -17,16 +17,7 @@ import 'package:test/test.dart';
 ///
 /// Empty is the goal: a generated file importing something that is never
 /// written does not compile. Each entry here is a known bug, not a design.
-const _unresolvedImports = {
-  'bloc design-system ../../core/utils/action_bloc.dart':
-      'the bloc stack declares no AsyncState — moarch generates no '
-          'core/utils/action_bloc.dart, so the bloc preview screen does not '
-          'compile. Pre-existing; the preview needs a bloc branch that drops '
-          'the AppAsyncView section entirely.',
-  'bloc design-system ../widgets/app_async_view.dart':
-      'AppAsyncView is riverpod-only (see its `stacks`), so a bloc project '
-          'never has this file. Same bug as the entry above.',
-};
+const _unresolvedImports = <String, String>{};
 
 const _notPreviewed = {
   // Read by every field in the family; there is nothing to look at on its own.
@@ -132,18 +123,24 @@ void main() {
     });
 
     test('the preview screen covers the kit', () {
-      final preview = SharedTemplates.designSystemView();
-      for (final spec in WidgetCatalog.all) {
-        if (spec.name == 'design-system') continue;
-        if (_notPreviewed.containsKey(spec.name)) continue;
-        expect(
-          preview,
-          contains("/${spec.file}'"),
-          reason:
-              '${spec.name} is in the kit but DesignSystemView never imports '
-              'it. Add a preview section, or add it to _notPreviewed with the '
-              'reason.',
+      // Checked per stack: a widget that only one stack gets can only be
+      // previewed on that stack's screen.
+      for (final stack in StateManagement.values) {
+        final preview = SharedTemplates.designSystemView(
+          stateManagement: stack,
         );
+        for (final spec in WidgetCatalog.all) {
+          if (spec.name == 'design-system') continue;
+          if (_notPreviewed.containsKey(spec.name)) continue;
+          if (!spec.supports(stack)) continue;
+          expect(
+            preview,
+            contains("/${spec.file}'"),
+            reason: '${spec.name} is in the ${stack.name} kit but its '
+                'DesignSystemView never imports it. Add a preview section, or '
+                'add it to _notPreviewed with the reason.',
+          );
+        }
       }
     });
 

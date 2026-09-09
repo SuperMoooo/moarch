@@ -94,8 +94,9 @@ as it has run.
 ## General
 
 - [x] `debugShowCheckedModeBanner: false` in the generated app
-- [x] Failures reach the UI as an `AppException` through `AppAsyncView` — no
-      raw exception or stack trace is shown to a user
+- [x] Failures reach the UI as an `AppException` through the view's shell
+      (`AppAsyncView` on Riverpod, `AppStatusView` on bloc) — no raw exception
+      or stack trace is shown to a user
 - [x] `flutter analyze` and `flutter test` gate every push, if you took the
       workflows
 - [ ] The wording of those error messages reviewed — the generated defaults are
@@ -604,7 +605,8 @@ Build configuration and platform settings must be reviewed before release.
       forget to flip — the logger's level and the Dio certificate override are
       both behind `kReleaseMode` / `kDebugMode`
 - [x] Users never see a stack trace — every failure surfaces as an
-      `AppException` with a message, rendered by `AppAsyncView`
+      `AppException` with a message, rendered by `AppAsyncView` (Riverpod) or
+      `AppStatusView` (bloc)
 - [ ] `isDebuggable = false` in the Android release build type
 - [ ] The `AppException` messages reviewed. They are generic by design, but the
       ones you add per feature are where internal detail leaks back in

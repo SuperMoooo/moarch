@@ -1,10 +1,12 @@
 /// Generates feature scaffold templates for the flutter_bloc stack.
 ///
 /// The mirror of `templates/riverpod/feature_templates.dart`: same layers,
-/// same file names, same state class. What differs is the presentation layer
-/// — an event per action and a `Bloc` handling them, instead of an
-/// `AsyncNotifier` with methods — and the wiring, which is `get_it` rather
-/// than a provider declared beside each class.
+/// same file names, and — since the status enum landed — the same one state
+/// class per screen, carrying its data, its `placeholder` and the one-shot
+/// `errorMessage` / `successMessage` the other stack keeps on `ActionState`.
+/// What differs is the presentation layer — an event per action and a `Bloc`
+/// handling them, instead of an `AsyncNotifier` with methods — and the wiring,
+/// which is `get_it` rather than a provider declared beside each class.
 class FeatureTemplates {
   FeatureTemplates._();
 
@@ -386,53 +388,83 @@ $methods
 
   /// Returns the generated state template.
   ///
-  /// Four states and nothing else: `Initial`, `Loading`, `Success`, `Failure`.
-  /// What `Success` carries is the screen's business — the scaffold does not
-  /// guess at a list of entities the feature may never show — so it starts
-  /// empty, with a TODO saying where the fields and their `props` go.
+  /// One class carrying an `AppStatus`, not a sealed state per phase. The
+  /// screen's data then lives in one place, so the view's `_body` can be
+  /// handed the whole state whatever the status is — a phase that draws over
+  /// existing data (submitting, refreshing) is a `copyWith`, not a new class
+  /// that has to declare the fields again.
+  ///
+  /// The status comes from `core/utils/app_status.dart` rather than being
+  /// declared per feature, because `AppStatusView` switches over it.
+  ///
+  /// What the state carries beyond the status is the screen's business — the
+  /// scaffold does not guess at a list of entities the feature may never show
+  /// — so it starts empty, with a TODO saying where a field goes and the four
+  /// places it has to reach.
   static String state(String name, String cls) => '''
 import 'package:equatable/equatable.dart';
 
-/// Every state the $cls screen can be in. Sealed, so the view's `switch` has
-/// to cover all of them.
-sealed class ${cls}State extends Equatable {
-  const ${cls}State();
+import '../../../../core/utils/app_status.dart';
 
-  @override
-  List<Object?> get props => const [];
-}
+/// Everything the $cls screen draws from, in one place.
+///
+/// A status field rather than a sealed state per phase: `_body` in the view is
+/// handed this same class whatever the status is, so a field added here is
+/// added once and every phase can draw it. Showing a spinner over the list
+/// already on screen is a `copyWith` with the status moved to `loading` —
+/// there is nothing to re-declare. The status itself is [AppStatus], shared by
+/// every screen, which is what lets `AppStatusView` draw it.
+class ${cls}State extends Equatable {
+  const ${cls}State({
+    this.status = AppStatus.initial,
+    this.errorMessage,
+    this.successMessage,
+  });
 
-final class ${cls}Initial extends ${cls}State {
-  const ${cls}Initial();
-}
+  /// The state the loading skeleton is traced from.
+  ///
+  /// TODO: as you add fields, give them fake values here — Skeletonizer
+  /// shimmers the tree it is handed, and a body drawn from an empty state
+  /// traces to a blank screen. `BoneMock.name` / `BoneMock.words(3)`
+  /// (skeletonizer) hand out strings whose length becomes the width of the
+  /// bone.
+  static const placeholder = ${cls}State(status: AppStatus.success);
 
-final class ${cls}Loading extends ${cls}State {
-  const ${cls}Loading();
-}
+  final AppStatus status;
 
-final class ${cls}Success extends ${cls}State {
-  const ${cls}Success();
+  /// Why the last attempt failed — and only the last one: [copyWith] drops
+  /// this unless it is passed again, so the next emit clears it. That is what
+  /// makes it safe to both draw it (the failure screen) and fire it once (a
+  /// toast), and it means an action that fails without blanking the screen is
+  /// `copyWith(errorMessage: e.message)` with the status left on success.
+  final String? errorMessage;
+
+  /// What went right, for the screen to say once — 'Saved', 'Sent'. Dropped
+  /// by [copyWith] like [errorMessage], so the toast fires on the emit that
+  /// sets it and not on the next one.
+  final String? successMessage;
 
   // TODO: add what the screen shows, e.g.
-  // `final List<${cls}Entity> items;`, and list it in `props` — without
-  // that, two Success states compare equal and the second emit is dropped.
-}
+  // `final List<${cls}Entity> items;`. A field has to reach four places: the
+  // constructor, `copyWith`, `props` — without which two states compare equal
+  // and the second emit is dropped — and `placeholder`.
 
-final class ${cls}Failure extends ${cls}State {
-  /// Not const, and not value-equal: every failure gets its own [id] off
-  /// [_seq], so two failures with the same message are two different states.
-  /// Without that, a retry that fails the same way equals the current state,
-  /// the emit is dropped, and the toast never fires a second time.
-  ${cls}Failure({required this.message}) : id = ++_seq;
-
-  static int _seq = 0;
-
-  final int id;
-
-  final String message;
+  ${cls}State copyWith({
+    AppStatus? status,
+    String? errorMessage,
+    String? successMessage,
+  }) {
+    return ${cls}State(
+      status: status ?? this.status,
+      // Not `?? this.errorMessage`: see the two fields above. A message not
+      // passed here is a message already shown.
+      errorMessage: errorMessage,
+      successMessage: successMessage,
+    );
+  }
 
   @override
-  List<Object?> get props => [message, id];
+  List<Object?> get props => [status, errorMessage, successMessage];
 }
 ''';
 
@@ -495,11 +527,12 @@ final class ${cls}Started extends ${cls}Event {
       return '''
 import 'package:bloc/bloc.dart';
 
+import '../../../../core/utils/app_status.dart';
 import '${name}_event.dart';
 import '${name}_state.dart';
 
 class ${cls}Bloc extends Bloc<${cls}Event, ${cls}State> {
-  ${cls}Bloc() : super(const ${cls}Initial()) {
+  ${cls}Bloc() : super(const ${cls}State()) {
     on<${cls}Started>(_onStarted);
 
 $handlerTodo
@@ -509,10 +542,11 @@ $handlerTodo
     ${cls}Started event,
     Emitter<${cls}State> emit,
   ) async {
-    emit(const ${cls}Loading());
-    // TODO: load what the screen needs, then emit
-    // ${cls}Success — or ${cls}Failure with a message.
-    emit(const ${cls}Success());
+    emit(state.copyWith(status: AppStatus.loading));
+    // TODO: load what the screen needs, put it on the state, then emit it
+    // with `status: AppStatus.success` — or `AppStatus.failure` and an
+    // `errorMessage`.
+    emit(state.copyWith(status: AppStatus.success));
   }
 }
 ''';
@@ -522,12 +556,13 @@ $handlerTodo
 import 'package:bloc/bloc.dart';
 
 import '../../../../core/errors/app_exception.dart';
+import '../../../../core/utils/app_status.dart';
 import '../../domain/repositories/${repoName}_repository.dart';
 import '${name}_event.dart';
 import '${name}_state.dart';
 
 class ${cls}Bloc extends Bloc<${cls}Event, ${cls}State> {
-  ${cls}Bloc(this._repo) : super(const ${cls}Initial()) {
+  ${cls}Bloc(this._repo) : super(const ${cls}State()) {
     on<${cls}Started>(_onStarted);
 
 $handlerTodo
@@ -539,14 +574,17 @@ $handlerTodo
     ${cls}Started event,
     Emitter<${cls}State> emit,
   ) async {
-    emit(const ${cls}Loading());
+    emit(state.copyWith(status: AppStatus.loading));
     try {
-      // TODO: put what this returns into ${cls}Success —
-      // add a field for it there, and pass it here.
+      // TODO: put what this returns onto the state — add a field for it in
+      // ${cls}State, and pass it in the copyWith below.
       await _repo.fetchAll();
-      emit(const ${cls}Success());
+      emit(state.copyWith(status: AppStatus.success));
     } on AppException catch (e) {
-      emit(${cls}Failure(message: e.message));
+      emit(state.copyWith(
+        status: AppStatus.failure,
+        errorMessage: e.message,
+      ));
     }
   }
 }
@@ -594,8 +632,12 @@ class ${cls}Page extends StatelessWidget {
 
   /// Returns the generated view template.
   ///
-  /// Plain `flutter_bloc` widgets and a `switch` over the sealed state — no
-  /// wrapper of moarch's own. The bloc is provided above it by [page], so this
+  /// A `BlocConsumer` whose builder is one `AppStatusView` call: the skeleton,
+  /// failure and empty shells are the same in every feature anyone scaffolds,
+  /// so they live in the widget and the view names only its body. `_body`
+  /// takes the whole state rather than a success variant, so every status
+  /// hands it the same thing and a phase drawn over already-loaded data needs
+  /// no second body. The bloc is provided above this by [page], so the view
   /// reads it off the context and never builds one.
   static String view(String name, String cls, String varName,
       {required bool hasBloc}) {
@@ -620,9 +662,8 @@ class ${cls}View extends StatelessWidget {
     return '''
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:skeletonizer/skeletonizer.dart';
 
-import '../../../../shared/widgets/error_view.dart';
+import '../../../../shared/widgets/app_status_view.dart';
 import '../../../../shared/widgets/overlays/app_toast.dart';
 import '../blocs/${name}_bloc.dart';
 import '../blocs/${name}_event.dart';
@@ -640,41 +681,44 @@ class ${cls}View extends StatelessWidget {
       // `listener` is for what happens *once* on a new state — a toast, a
       // dialog, a push — and `builder` for what is drawn.
       body: BlocConsumer<${cls}Bloc, ${cls}State>(
-        listenWhen: (previous, current) => previous != current,
+        // Both messages are one-shot: the state that sets one is the only
+        // state that carries it, so this fires once per message and never
+        // replays it on the next rebuild.
+        listenWhen: (previous, current) =>
+            previous.errorMessage != current.errorMessage ||
+            previous.successMessage != current.successMessage,
         listener: (context, state) {
-          switch (state) {
-            case ${cls}Failure(:final message):
-              AppToast.error(context, message);
-            // TODO: what should happen once on success — a toast, a pop.
-            case ${cls}Success():
-            case ${cls}Initial():
-            case ${cls}Loading():
-              break;
-          }
+          final error = state.errorMessage;
+          if (error != null) AppToast.error(context, error);
+
+          final success = state.successMessage;
+          if (success != null) AppToast.success(context, success);
+          // TODO: what else should happen once — a pop, a dialog, a push.
         },
-        builder: (context, state) => switch (state) {
-          // Skeletonizer shimmers the tree it is handed, so loading traces
-          // `_body` over a stand-in ${cls}Success.
-          //
-          // TODO: as you add fields to ${cls}Success, give them fake values
-          // here — a field left empty shimmers as a blank line. `BoneMock`
-          // (skeletonizer) hands out fake strings, names and dates.
-          ${cls}Initial() || ${cls}Loading() => Skeletonizer(
-              child: _body(context, const ${cls}Success()),
-            ),
-          ${cls}Failure(:final message) => ErrorView(
-              message: message,
-              onRetry: () =>
-                  context.read<${cls}Bloc>().add(const ${cls}Started()),
-            ),
-          ${cls}Success() => _body(context, state),
-        },
+        // AppStatusView owns the three shells every screen has — skeleton,
+        // failure, empty — so all this has to name is the body.
+        builder: (context, state) => AppStatusView(
+          status: state.status,
+          message: state.errorMessage,
+          onRetry: () => context.read<${cls}Bloc>().add(const ${cls}Started()),
+          // TODO: once the state has a list, say when it counts as empty:
+          // `isEmpty: state.items.isEmpty,`.
+          skeleton: (context) => _body(context, ${cls}State.placeholder),
+          builder: (context) => _body(context, state),
+        ),
       ),
     );
   }
 
-  // TODO: build the screen from `state`.
-  Widget _body(BuildContext context, ${cls}Success state) {
+  // Handed the whole state whatever the status is, so drawing over data
+  // already loaded needs nothing here.
+  //
+  // TODO: build the screen from `state`. It is also what the skeleton is
+  // traced from, so every field you draw needs a fake value in
+  // `${cls}State.placeholder` — Skeletonizer shimmers the tree it is handed,
+  // and a field left empty shimmers as a blank line. `BoneMock` (skeletonizer)
+  // hands out fake strings, names and dates.
+  Widget _body(BuildContext context, ${cls}State state) {
     return const SizedBox.shrink();
   }
 }

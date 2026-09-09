@@ -3,9 +3,9 @@ import '../../utils/state_management.dart';
 /// Generates reusable shared widget templates.
 ///
 /// The kit is stack-agnostic apart from two widgets: `AppButton`, when it
-/// gates a press on biometrics, and the design-system preview, which shows
-/// `AppAsyncView`. Both take a [StateManagement] rather than being copied
-/// into the per-stack folders.
+/// gates a press on biometrics, and the design-system preview, which previews
+/// `AppAsyncView` only on the stack that has it. Both take a [StateManagement]
+/// rather than being copied into the per-stack folders.
 class SharedTemplates {
   SharedTemplates._();
 
@@ -8737,8 +8737,10 @@ class _NumberedStep extends StatelessWidget {
 
   /// Returns the generated designSystemView template.
   ///
-  /// [stateManagement] only decides which async type the `AppAsyncView`
-  /// section is previewed with — the rest of the kit is stack-agnostic.
+  /// [stateManagement] only decides whether the `AppAsyncView` section is
+  /// there at all: the widget is Riverpod's, so a bloc project has no file to
+  /// import and the section goes with it. The rest of the kit is
+  /// stack-agnostic.
   static String designSystemView({
     bool withDark = false,
     StateManagement stateManagement = StateManagement.riverpod,
@@ -8783,24 +8785,46 @@ class _NumberedStep extends StatelessWidget {
 '''
         : '';
 
-    // The preview's fake async value comes from whichever type the project's
-    // AppAsyncView takes: Riverpod's AsyncValue, or the AsyncState the bloc
-    // stack declares in core/utils/action_bloc.dart.
-    final asyncImport = stateManagement.isBloc
-        ? "import '../../core/utils/action_bloc.dart';"
-        : "import 'package:flutter_riverpod/flutter_riverpod.dart';";
+    // Each stack previews its own four-state renderer: Riverpod's
+    // AppAsyncView, which maps one opaque AsyncValue onto four screens, or
+    // bloc's AppStatusView, which switches over the AppStatus its state
+    // carries. Neither widget is generated into the other's project (see their
+    // `stacks`), so the section and the imports behind it follow the stack
+    // rather than being written into a screen that cannot compile.
+    final isBloc = stateManagement.isBloc;
 
-    final previewAsync = stateManagement.isBloc
-        ? '''  AsyncState<List<String>> get _previewAsync => switch (_asyncState) {
-    1 => const AsyncLoading<List<String>>(),
-    2 => AsyncFailure<List<String>>(
-      AppException.noInternet(),
-      StackTrace.empty,
-    ),
-    3 => const AsyncData<List<String>>([]),
-    _ => const AsyncData<List<String>>(['One', 'Two', 'Three']),
+    final asyncPackageImports = isBloc
+        ? "import 'package:skeletonizer/skeletonizer.dart';\n"
+        : "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
+            "import 'package:skeletonizer/skeletonizer.dart';\n";
+
+    // Read only by the section below: `BoneMock` (skeletonizer) by its
+    // skeleton, and on Riverpod `AppException` by its error case.
+    final asyncLocalImports = isBloc
+        ? "import '../../core/utils/app_status.dart';\n"
+            "import '../widgets/app_status_view.dart';\n"
+        : "import '../../core/errors/app_exception.dart';\n"
+            "import '../widgets/app_async_view.dart';\n";
+
+    const asyncStateField = '\n  int _asyncState = 0;';
+
+    final previewAsync = isBloc
+        ? '''
+
+
+  /// Stands in for a bloc's `state.status`, so the four screens
+  /// [AppStatusView] draws can be stepped through here.
+  AppStatus get _previewStatus => switch (_asyncState) {
+    1 => AppStatus.loading,
+    2 => AppStatus.failure,
+    _ => AppStatus.success,
   };'''
-        : '''  AsyncValue<List<String>> get _previewAsync => switch (_asyncState) {
+        : '''
+
+
+  /// Stands in for `ref.watch(someNotifierProvider)`, so the four states
+  /// [AppAsyncView] draws can be stepped through here.
+  AsyncValue<List<String>> get _previewAsync => switch (_asyncState) {
     1 => const AsyncValue<List<String>>.loading(),
     2 => AsyncValue<List<String>>.error(
       AppException.noInternet(),
@@ -8810,20 +8834,111 @@ class _NumberedStep extends StatelessWidget {
     _ => const AsyncValue<List<String>>.data(['One', 'Two', 'Three']),
   };''';
 
-    final previewAsyncDoc = stateManagement.isBloc
-        ? 'Stands in for a bloc\'s state, so the four states'
-        : 'Stands in for `ref.watch(someNotifierProvider)`, so the four states';
+    final asyncViewSection = isBloc
+        ? r"""              // ── AppStatusView ────────────────────────────────────
+              _Section(
+                title: 'AppStatusView',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AppSegmented<int>(
+                      segments: const [0, 1, 2, 3],
+                      selected: _asyncState,
+                      labelOf: (i) =>
+                          const ['data', 'loading', 'error', 'empty'][i],
+                      onChanged: (i) => setState(() => _asyncState = i),
+                    ),
+                    const SizedBox(height: AppConstants.space12),
+                    SizedBox(
+                      height: 220,
+                      child: AppStatusView(
+                        status: _previewStatus,
+                        message: 'No internet connection.',
+                        // In a real screen this is `state.items.isEmpty`; the
+                        // status stays success either way.
+                        isEmpty: _asyncState == 3,
+                        emptyTitle: 'Nothing to show',
+                        emptyMessage: 'Rows will appear here once there are any.',
+                        onRetry: () => setState(() => _asyncState = 0),
+                        // The shape the skeleton is traced from: the same rows,
+                        // with fake text in them. Fake rows, not an empty list
+                        // — there has to be something there to shimmer.
+                        skeleton: (context) => Column(
+                          children: [
+                            for (var i = 0; i < 3; i++)
+                              AppListTile(
+                                title: BoneMock.name,
+                                subtitle: BoneMock.subtitle,
+                              ),
+                          ],
+                        ),
+                        builder: (context) => Column(
+                          children: [
+                            for (final row in const ['One', 'Two', 'Three'])
+                              AppListTile(title: row, subtitle: 'Loaded'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+"""
+        : r"""              // ── AppAsyncView ──────────────────────────────────────────────
+              _Section(
+                title: 'AppAsyncView',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AppSegmented<int>(
+                      segments: const [0, 1, 2, 3],
+                      selected: _asyncState,
+                      labelOf: (i) =>
+                          const ['data', 'loading', 'error', 'empty'][i],
+                      onChanged: (i) => setState(() => _asyncState = i),
+                    ),
+                    const SizedBox(height: AppConstants.space12),
+                    SizedBox(
+                      height: 220,
+                      child: AppAsyncView<List<String>>(
+                        value: _previewAsync,
+                        isEmpty: (rows) => rows.isEmpty,
+                        emptyTitle: 'Nothing to show',
+                        emptyMessage: 'Rows will appear here once there are any.',
+                        onRetry: () => setState(() => _asyncState = 0),
+                        // The shape the skeleton is traced from: the same list,
+                        // with placeholder rows in it. Fake rows, not an empty
+                        // list — there has to be something there to shimmer.
+                        skeleton: (context) => Column(
+                          children: [
+                            for (var i = 0; i < 3; i++)
+                              AppListTile(
+                                title: BoneMock.name,
+                                subtitle: BoneMock.subtitle,
+                              ),
+                          ],
+                        ),
+                        builder: (context, rows) => Column(
+                          children: [
+                            for (final row in rows)
+                              AppListTile(title: row, subtitle: 'Loaded'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+""";
 
     return '''
 import 'package:flutter/material.dart';
-$asyncImport
-import 'package:skeletonizer/skeletonizer.dart';
-
+$asyncPackageImports
 import '../../config/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/errors/app_exception.dart';
-import '../widgets/app_async_view.dart';
-import '../widgets/buttons/app_button.dart';
+${asyncLocalImports}import '../widgets/buttons/app_button.dart';
 import '../widgets/buttons/app_fab.dart';
 import '../widgets/audio/app_audio_player.dart';
 import '../widgets/buttons/app_icon_button.dart';
@@ -8929,12 +9044,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {$themeState
   List<String> _dragCards = const ['Revenue', 'Orders', 'Refunds'];
   double _rating = 3.5;
   List<AppPickedFile> _attachments = const [];
-  int _railIndex = 0;
-  int _asyncState = 0;
-
-  /// $previewAsyncDoc
-  /// [AppAsyncView] draws can be stepped through here.
-$previewAsync
+  int _railIndex = 0;$asyncStateField$previewAsync
 
   /// One destination list behind the bottom bar, the rail and the drawer —
   /// which is the whole point of them sharing [AppNavDestination].
@@ -10901,53 +11011,7 @@ $toggleAction              const SizedBox(width: AppConstants.space8),
                 ),
               ),
 
-              // ── AppAsyncView ──────────────────────────────────────────────
-              _Section(
-                title: 'AppAsyncView',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    AppSegmented<int>(
-                      segments: const [0, 1, 2, 3],
-                      selected: _asyncState,
-                      labelOf: (i) =>
-                          const ['data', 'loading', 'error', 'empty'][i],
-                      onChanged: (i) => setState(() => _asyncState = i),
-                    ),
-                    const SizedBox(height: AppConstants.space12),
-                    SizedBox(
-                      height: 220,
-                      child: AppAsyncView<List<String>>(
-                        value: _previewAsync,
-                        isEmpty: (rows) => rows.isEmpty,
-                        emptyTitle: 'Nothing to show',
-                        emptyMessage: 'Rows will appear here once there are any.',
-                        onRetry: () => setState(() => _asyncState = 0),
-                        // The shape the skeleton is traced from: the same list,
-                        // with placeholder rows in it. Fake rows, not an empty
-                        // list — there has to be something there to shimmer.
-                        skeleton: (context) => Column(
-                          children: [
-                            for (var i = 0; i < 3; i++)
-                              AppListTile(
-                                title: BoneMock.name,
-                                subtitle: BoneMock.subtitle,
-                              ),
-                          ],
-                        ),
-                        builder: (context, rows) => Column(
-                          children: [
-                            for (final row in rows)
-                              AppListTile(title: row, subtitle: 'Loaded'),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // ── AppPhoneInput ─────────────────────────────────────────────
+$asyncViewSection              // ── AppPhoneInput ─────────────────────────────────────────────
               _Section(
                 title: 'AppPhoneInput',
                 child: AppPhoneInput(

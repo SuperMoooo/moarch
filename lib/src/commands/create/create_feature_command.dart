@@ -400,8 +400,9 @@ class CreateFeatureCommand extends Command<int> {
 
   // ── Writers ─────────────────────────────────────────────────────────────────
 
-  /// Writes the kit widgets the generated view imports — [AppAsyncView] and
-  /// the action listener — along with everything they import in turn.
+  /// Writes the kit widgets the generated view imports — `AppStatusView` on
+  /// bloc, `AppAsyncView` and the action listener on Riverpod — along with
+  /// everything they import in turn.
   ///
   /// A no-op on a project scaffolded by this version ([FileUtils.writeFile]
   /// never overwrites); it is older projects that would otherwise get a view
@@ -412,10 +413,11 @@ class CreateFeatureCommand extends Command<int> {
     // Read off the project, so these come out for the stack the view uses.
     final variants = WidgetVariants.detect(libPath);
     final specs = WidgetCatalog.resolve(
-      // A bloc view imports the kit's error screen and the toast directly, and
-      // draws the rest from its own sealed state.
+      // A bloc view draws its shells through AppStatusView and reports its
+      // one-shot messages from BlocConsumer's own listener, so it needs the
+      // toast directly; `deps` pulls in the error and empty screens under it.
       variants.hasBloc
-          ? ['error-view', 'toast']
+          ? ['status-view', 'toast']
           : ['async-view', 'action-listener'],
       stateManagement: variants.stateManagement,
     );

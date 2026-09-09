@@ -336,6 +336,17 @@ abstract final class ScaffoldCatalog {
       description:
           'The notifier base that turns a one-shot action into error/success fields (Riverpod).',
     ),
+    // Bloc only, for the same reason and by the same filter: a Riverpod
+    // project never has the file, so it is never reported for one.
+    ScaffoldSpec(
+      name: 'app-status',
+      title: 'AppStatus',
+      path: 'lib/core/utils/app_status.dart',
+      category: 'Core',
+      template: (c) => c.stack.actionBase(),
+      description:
+          'The status enum every feature state carries, and AppStatusView switches over (bloc).',
+    ),
     ScaffoldSpec(
       name: 'constants',
       title: 'AppConstants',

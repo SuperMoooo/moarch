@@ -1,5 +1,6 @@
 import '../utils/state_management.dart';
 import 'bloc/app_templates.dart' as bloc;
+import 'bloc/async_templates.dart' as bloc;
 import 'config/config_templates.dart';
 import 'config/injector_templates.dart';
 import 'core/core_templates.dart';
@@ -38,14 +39,17 @@ class StackTemplates {
 
   /// Whether the stack has a shared action base to generate at all.
   ///
-  /// Riverpod does — `ActionState` and the `runAction` mixin, which every
-  /// notifier leans on. Bloc does not: its states are a sealed family per
-  /// feature, so the family *is* the status and there is nothing central left
-  /// to declare.
-  bool get hasActionBase => !isBloc;
+  /// Both do, and they are different files: Riverpod's is `ActionState` and
+  /// the `runAction` mixin every notifier leans on; bloc's is the `AppStatus`
+  /// enum every state carries. Bloc needs one enum rather than one per feature
+  /// because `AppStatusView` switches over it — a widget cannot switch over a
+  /// type it does not know.
+  bool get hasActionBase => true;
 
-  /// The shared action base's file name. Riverpod only — see [hasActionBase].
-  String get actionBaseFile => 'action_notifier.dart';
+  /// The shared action base's file name, which differs by stack — see
+  /// [hasActionBase].
+  String get actionBaseFile =>
+      isBloc ? 'app_status.dart' : 'action_notifier.dart';
 
   /// The presentation folder holding the state holder — `notifiers/` or
   /// `blocs/`.
@@ -131,9 +135,11 @@ class StackTemplates {
               withDarkTheme: withDarkTheme,
             );
 
-  /// The `ActionState` contract and the `runAction` mixin every notifier
-  /// leans on. Riverpod only — see [hasActionBase].
-  String actionBase() => riverpod.AppTemplates.actionNotifier();
+  /// The stack's shared state vocabulary: bloc's `AppStatus` enum, or the
+  /// `ActionState` contract and `runAction` mixin every notifier leans on.
+  String actionBase() => isBloc
+      ? bloc.AsyncTemplates.appStatus()
+      : riverpod.AppTemplates.actionNotifier();
 
   /// The GoRouter setup.
   String appRouter({bool withAuth = false}) => isBloc
@@ -279,14 +285,20 @@ class StackTemplates {
 
   /// Whether this stack has the `AppAsyncView` / action-listener pair.
   ///
-  /// Riverpod does: `AsyncValue` is one opaque type, so something has to map
-  /// it to the four screens. Bloc does not — its states are a sealed family a
-  /// `switch` inside a plain `BlocBuilder` covers, and wrapping that in a
-  /// widget of our own would hide the one thing bloc already does well.
+  /// Riverpod's, both of them: `AsyncValue` is one opaque type that something
+  /// has to map onto four screens, and `ref.listen` needs a helper to turn a
+  /// one-shot outcome into a toast. Bloc reaches the same four screens through
+  /// [appStatusView], off the status field its state already carries, and
+  /// reports its outcomes from `BlocConsumer`'s own listener.
   bool get hasAsyncViewWidgets => !isBloc;
 
   /// `AppAsyncView` — the four-state renderer. Riverpod only.
   String appAsyncView() => riverpod.AsyncTemplates.appAsyncView();
+
+  /// `AppStatusView` — the same four screens off an `AppStatus`. Bloc only,
+  /// and the reason a generated view's `builder` is one call rather than a
+  /// `switch` repeating the same three shells in every feature.
+  String appStatusView() => bloc.AsyncTemplates.appStatusView();
 
   /// `ref.listenAction(...)`, which turns a notifier's one-shot outcome into
   /// a toast, and `ref.listenChange(...)`, which hands the screen whatever
@@ -376,7 +388,8 @@ class StackTemplates {
   /// The feature state.
   ///
   /// [useFirestore] is Riverpod's alone: its state is built from the live
-  /// query. A bloc's four states carry nothing the backend decides.
+  /// query. A bloc's state carries a status and the screen's own fields —
+  /// nothing the backend decides.
   String featureState(
     String name,
     String cls, {

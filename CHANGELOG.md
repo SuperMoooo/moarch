@@ -2,6 +2,89 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 7.7.0
+
+- **A bloc view's builder is one `AppStatusView` call, not a `switch`.** New in
+  the kit for bloc projects: `shared/widgets/app_status_view.dart`, the
+  counterpart to Riverpod's `AppAsyncView`. It owns the three shells every
+  screen repeats — the skeleton, the failure screen and the empty state — so a
+  generated view names only its body:
+
+    ```dart
+    builder: (context, state) => AppStatusView(
+      status: state.status,
+      message: state.errorMessage,
+      onRetry: () => context.read<OrdersBloc>().add(const OrdersStarted()),
+      skeleton: (context) => _body(context, OrdersState.placeholder),
+      builder: (context) => _body(context, state),
+    ),
+    ```
+
+    It takes no type parameter: the caller has the state in hand and closes
+    over it, so both builders are plain `WidgetBuilder`s. `isEmpty` is a plain
+    bool (`state.items.isEmpty`) for the same reason.
+
+- **A bloc feature is one state class with a shared `AppStatus`, not four
+  sealed states.** `moarch create feature` / `create bloc` now generate a
+  single `OrdersState` carrying an `AppStatus` from the new
+  `core/utils/app_status.dart`:
+
+    ```dart
+    class OrdersState extends Equatable {
+      const OrdersState({this.status = AppStatus.initial, ...});
+      static const placeholder = OrdersState(status: AppStatus.success);
+      final AppStatus status;
+    }
+    ```
+
+    With a state class per phase, a screen that keeps its list up while a save
+    runs had to re-declare that list on every phase that could show it, and the
+    view grew a body per shape — `_body` took `OrdersSuccess` and nothing else
+    could reach it. Now every status hands `_body` the same class. The status is
+    shared rather than declared per feature precisely so one widget can switch
+    over it; a phase belonging to one screen alone is a field on that screen's
+    state, not a value on the enum.
+
+    A **refresh** should leave the status on `success` and emit the new data
+    when it lands — moving it to `loading` trades the body for a skeleton and
+    the screen flickers. The old data is still on the state to draw, which is
+    the point of the shape.
+
+- **`errorMessage` and `successMessage` on the bloc state, both one-shot.**
+  `copyWith` drops them unless they are passed again, so the state that sets
+  one is the only state that carries it — the listener fires a toast once
+  instead of on every rebuild, and an action that fails without blanking the
+  screen is `copyWith(errorMessage: e.message)` with the status left on
+  `success`. This is the shape Riverpod's `ActionState` already had, so the two
+  stacks now read the same.
+
+    The `_seq` counter that made two identical `OrdersFailure`s unequal is gone
+    with the sealed states: a retry passes through `loading`, so the second
+    failure is never dropped as equal to the current one.
+
+- **`OrdersState.placeholder`** is the fake state the loading skeleton is
+  traced from, matching the Riverpod side. A new field now has four places to
+  reach — the constructor, `copyWith`, `props` and `placeholder` — and the
+  generated TODO names all four.
+
+- **`moarch update app-status` and `create widget status-view`** are the new
+  catalog entries behind the two files, so both refresh like everything else.
+  `hasActionBase` is now true on both stacks: Riverpod's shared base is
+  `core/utils/action_notifier.dart`, bloc's is `core/utils/app_status.dart`.
+
+- Auth is unchanged: `AuthState` stays a sealed family, because signed in
+  versus signed out is a real either/or the router guard switches on and the
+  two carry different things.
+
+- **Fixed: a bloc project's design-system preview did not compile.** The
+  generated `shared/views/design_system_view.dart` previewed `AppAsyncView` on
+  both stacks, but the widget is Riverpod's — so a bloc project got a screen
+  importing `shared/widgets/app_async_view.dart` and `core/utils/action_bloc.dart`,
+  neither of which moarch ever writes. The section is now Riverpod-only, along
+  with the three imports that existed solely for it (`app_async_view.dart`,
+  `app_exception.dart`, and `skeletonizer` for its `BoneMock` skeleton).
+  Riverpod projects are unaffected.
+
 ## 7.6.0
 
 - **`AppCalendar` dots can say what they are, not just how many.** Alongside

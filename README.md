@@ -105,10 +105,10 @@ layers, the same file names, the same `AppException` reaching the same
 | --- | --- | --- |
 | state holder | `AsyncNotifier<OrdersState>` | `Bloc<OrdersEvent, OrdersState>` |
 | lives in | `presentation/notifiers/orders_notifier.dart` | `presentation/blocs/orders_bloc.dart` (+ `orders_event.dart`) |
-| the state | one class inside `AsyncValue`, in `presentation/states/` | a sealed family: `Initial` / `Loading` / `Success` / `Failure`, in `presentation/blocs/` beside the bloc |
+| the state | one class inside `AsyncValue`, in `presentation/states/` | one class with an `AppStatus` field, in `presentation/blocs/` beside the bloc |
 | you call | `ref.read(p.notifier).refresh()` | `context.read<OrdersBloc>().add(const OrdersStarted())` |
 | the screen | `presentation/views/orders_view.dart` | `presentation/pages/orders_page.dart` provides the bloc, `presentation/views/orders_view.dart` draws it |
-| the view uses | `AppAsyncView` + `ref.listenAction` | `BlocConsumer` + a `switch` |
+| the view uses | `AppAsyncView` + `ref.listenAction` | `BlocConsumer` + `AppStatusView` |
 | dependencies | `get_it`, in `config/di/injector.dart` | `get_it`, in `config/di/injector.dart` |
 | extra packages | `get_it` | `flutter_bloc`, `bloc`, `equatable`, `get_it`, `bloc_lint` |
 
@@ -132,26 +132,47 @@ class OrdersState implements ActionState<OrdersState> {
 }
 ```
 
-**Bloc** gets a sealed family, the same shape as its events — which is what
-makes the view a `switch` the compiler checks:
+**Bloc** gets the same one class, with the phase as a field:
 
 ```dart
-sealed class OrdersState extends Equatable { const OrdersState(); }
+enum AppStatus { initial, loading, success, failure }   // core/utils/
 
-final class OrdersInitial extends OrdersState {}
-final class OrdersLoading extends OrdersState {}
-final class OrdersSuccess extends OrdersState {}          // ← you add its fields
-final class OrdersFailure extends OrdersState { final String message; }
+class OrdersState extends Equatable {
+  final AppStatus status;
+  final String? errorMessage;    // dropped by every copyWith, so it toasts once
+  final String? successMessage;  // ← and you add the screen's own fields
+}
 ```
 
-`Success` is generated empty, with a TODO. What a screen shows is the screen's
-business, and a scaffolded `List<OrderEntity> items` that half the features do
-not want is a line to delete rather than a head start.
+The state is generated with nothing but those three, and a TODO. What a screen
+shows is the screen's business, and a scaffolded `List<OrderEntity> items` that
+half the features do not want is a line to delete rather than a head start.
 
-There is no status flag or enum on top of that. **The family is the status** —
-a second way to say what the screen is doing is one way too many, and the
-whole point of sealing it is that the compiler can check you handled every
-case.
+**One class rather than a sealed state per phase, because the data outlives
+the phase.** A screen that keeps its list up while a save runs leaves the
+status on `success`; with a class per phase, that list has to be re-declared on
+every phase that can show it, and the view grows a body per shape. Here the
+view has one — and does not switch at all:
+
+```dart
+builder: (context, state) => AppStatusView(
+  status: state.status,
+  message: state.errorMessage,
+  onRetry: () => context.read<OrdersBloc>().add(const OrdersStarted()),
+  isEmpty: state.items.isEmpty,
+  skeleton: (context) => _body(context, OrdersState.placeholder),
+  builder: (context) => _body(context, state),
+),
+
+// handed the whole state, whatever the status
+Widget _body(BuildContext context, OrdersState state) => ...;
+```
+
+`AppStatusView` is bloc's half of the pair `AppAsyncView` is Riverpod's: the
+same four screens — skeleton, failure, empty, body — reached from the status
+the state already carries instead of from an `AsyncValue`. The status lives in
+`core/utils/app_status.dart` rather than per feature precisely so one widget
+can switch over it.
 
 `Equatable` is load-bearing rather than decorative: bloc drops an emit whose
 state equals the current one, and `BlocConsumer` rebuilds — and fires its
@@ -167,16 +188,22 @@ final class OrdersStarted extends OrdersEvent {}   // the route, and the retry
 // TODO: one per action the screen can take
 
 class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
-  OrdersBloc(this._repo) : super(const OrdersInitial()) {
+  OrdersBloc(this._repo) : super(const OrdersState()) {
     on<OrdersStarted>(_onStarted);
 
     on<OrdersDeleted>((event, emit) async {
-      emit(const OrdersLoading());
+      emit(state.copyWith(status: AppStatus.loading));
       try {
         await _repo.delete(event.id);
-        emit(const OrdersSuccess());
+        emit(state.copyWith(
+          status: AppStatus.success,
+          successMessage: 'Deleted',
+        ));
       } on AppException catch (e) {
-        emit(OrdersFailure(e.message));
+        emit(state.copyWith(
+          status: AppStatus.failure,
+          errorMessage: e.message,
+        ));
       }
     });
   }
@@ -202,45 +229,48 @@ class OrdersPage extends StatelessWidget {
 
 // presentation/views/orders_view.dart — inside OrdersView
 BlocConsumer<OrdersBloc, OrdersState>(
-  // Only on an actual change — the states are Equatable.
-  listenWhen: (previous, current) => previous != current,
+  // The two message fields are one-shot, so this fires once each.
+  listenWhen: (previous, current) =>
+      previous.errorMessage != current.errorMessage ||
+      previous.successMessage != current.successMessage,
   listener: (context, state) {
-    switch (state) {
-      case OrdersFailure(:final message):
-        AppToast.error(context, message);
-      // TODO: what should happen once on success — a toast, a pop.
-      case OrdersSuccess():
-      case OrdersInitial():
-      case OrdersLoading():
-        break;
-    }
+    final error = state.errorMessage;
+    if (error != null) AppToast.error(context, error);
+
+    final success = state.successMessage;
+    if (success != null) AppToast.success(context, success);
   },
-  builder: (context, state) => switch (state) {
+  builder: (context, state) => AppStatusView(
+    status: state.status,
+    message: state.errorMessage,
+    onRetry: () => context.read<OrdersBloc>().add(const OrdersStarted()),
     // Skeletonizer shimmers the tree it is handed, so loading draws the same
-    // body over a stand-in Success — give its fields fake values as you add them.
-    OrdersInitial() || OrdersLoading() =>
-        Skeletonizer(child: _body(context, const OrdersSuccess())),
-    OrdersFailure(:final message) => ErrorView(message: message, onRetry: ...),
-    OrdersSuccess() => _body(context, state),
-  },
+    // body over `placeholder` — give its fields fake values as you add them.
+    skeleton: (context) => _body(context, OrdersState.placeholder),
+    builder: (context) => _body(context, state),
+  ),
 )
 ```
 
-Add a state and that `switch` stops compiling until it is drawn.
+`_body` takes the whole `OrdersState`, so a phase that has to draw over data
+already loaded needs nothing extra — no second body, and no case to add.
 
 `listener` is the bloc answer to `ref.listen`: it runs **once** per new state,
 which is where a toast, a dialog or a `context.push` belongs. `builder` runs on
 every rebuild, so the same toast raised there would repeat.
 
 `AppAsyncView` and `ref.listenAction` are **not** generated into a bloc
-project, and neither is any shared action base. They exist because Riverpod's
-`AsyncValue` is one opaque type that something has to map onto four screens; a
-sealed family needs no such wrapper. `moarch create widget async-view` in a
-bloc project says so rather than writing a file that cannot compile.
+project — the first because bloc has `AppStatusView` instead, the second
+because `BlocConsumer`'s own listener already does that job. `moarch create
+widget async-view` in a bloc project says so rather than writing a file that
+cannot compile, and `create widget status-view` says the same in a Riverpod
+one. Each stack's shared base follows: `core/utils/action_notifier.dart` on
+Riverpod, `core/utils/app_status.dart` on bloc.
 
-`AuthState` follows the same shape: `AuthInitial` (restoring — what parks the
-router on splash), `AuthLoading`, `AuthAuthenticated`, `AuthUnauthenticated`
-and `AuthFailure`.
+`AuthState` is the exception that stays sealed — `AuthInitial` (restoring —
+what parks the router on splash), `AuthLoading`, `AuthAuthenticated`,
+`AuthUnauthenticated` and `AuthFailure`. Signed in versus signed out is a real
+either/or the router guard switches on, and the two carry different things.
 
 ### Dependencies live in one file
 

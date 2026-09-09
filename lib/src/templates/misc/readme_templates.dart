@@ -870,35 +870,66 @@ the same load, so they dispatch `ProfileStarted` again rather than each getting
 an event of their own. Add one per *action* the screen takes — a delete, a
 submit — not one per way of asking for the same thing.
 
-### The states
+### The state
 
-Four, and `Success` starts empty — what it carries is your screen's business:
+**One class per screen**, with the phase as a field. What it carries beyond
+the status is your screen's business:
 
 ```dart
-sealed class ProfileState extends Equatable { ... }
+// core/utils/app_status.dart — shared by every screen
+enum AppStatus { initial, loading, success, failure }
 
-final class ProfileInitial extends ProfileState { ... }
-final class ProfileLoading extends ProfileState { ... }
-final class ProfileSuccess extends ProfileState {
-  const ProfileSuccess({this.items = const []});
-  final List<ProfileEntity> items;   // ← you add this
+class ProfileState extends Equatable {
+  const ProfileState({
+    this.status = AppStatus.initial,
+    this.errorMessage,
+    this.successMessage,
+    this.items = const [],           // ← you add this
+  });
+
+  static const placeholder = ProfileState(status: AppStatus.success);
+
+  final AppStatus status;
+  final String? errorMessage;
+  final String? successMessage;
+  final List<ProfileEntity> items;
+
+  ProfileState copyWith({...}) => ...;
 
   @override
-  List<Object?> get props => [items];
+  List<Object?> get props => [status, errorMessage, successMessage, items];
 }
-final class ProfileFailure extends ProfileState { ... }
 ```
+
+One class rather than a sealed state per phase, because the data outlives the
+phase. A screen that keeps its list on screen while a save runs leaves the
+status on `success` and emits the new data when it lands — with a state class
+per phase, that list has to be declared on every phase that can show it, and
+the view ends up with a `_body` per shape. Here every status hands the view the
+same `ProfileState`.
+
+The status itself is shared (`core/utils/app_status.dart`) rather than declared
+per feature, because `AppStatusView` below switches over it — a widget cannot
+switch over a type it does not know. A phase that belongs to one screen alone
+is a field on that screen's state, not a value on the enum.
+
+`errorMessage` and `successMessage` are **one-shot**: `copyWith` drops them
+unless they are passed again, so the state that sets one is the only state that
+carries it and a toast fires once instead of on every rebuild. An action that
+fails without blanking the screen is
+`copyWith(errorMessage: e.message)` with the status left on `success`.
 
 **Equatable is not decoration here.** Bloc drops an `emit` whose state equals
 the current one, and `BlocBuilder` rebuilds on the same test. A field left out
 of `props` makes two different states compare equal, and the second emit is
-dropped.
+dropped — so a new field has to reach four places: the constructor, `copyWith`,
+`props`, and `placeholder` (the fake data the loading skeleton is traced from).
 
 ### The bloc
 
 ```dart
 class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
-  ProfileBloc(this._repo) : super(const ProfileInitial()) {
+  ProfileBloc(this._repo) : super(const ProfileState()) {
     on<ProfileStarted>(_onStarted);
   }
 
@@ -908,11 +939,17 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     ProfileStarted event,
     Emitter<ProfileState> emit,
   ) async {
-    emit(const ProfileLoading());
+    emit(state.copyWith(status: AppStatus.loading));
     try {
-      emit(ProfileSuccess(items: await _repo.fetchAll()));
+      emit(state.copyWith(
+        status: AppStatus.success,
+        items: await _repo.fetchAll(),
+      ));
     } on AppException catch (e) {
-      emit(ProfileFailure(message: e.message));
+      emit(state.copyWith(
+        status: AppStatus.failure,
+        errorMessage: e.message,
+      ));
     }
   }
 }
@@ -944,20 +981,60 @@ class ProfilePage extends StatelessWidget {
 
 ```dart
 BlocBuilder<ProfileBloc, ProfileState>(
-  builder: (context, state) => switch (state) {
-    ProfileInitial() || ProfileLoading() =>
-      const Center(child: CircularProgressIndicator()),
-    ProfileSuccess(:final items) => ListView(
-        children: [for (final item in items) Text(item.name)],
-      ),
-    ProfileFailure(:final message) => Text(message),
-  },
+  builder: (context, state) => AppStatusView(
+    status: state.status,
+    message: state.errorMessage,
+    onRetry: () => context.read<ProfileBloc>().add(const ProfileStarted()),
+    isEmpty: state.items.isEmpty,
+    skeleton: (context) => _body(context, ProfileState.placeholder),
+    builder: (context) => _body(context, state),
+  ),
 )
+
+// Handed the whole state, whatever the status — so a phase that draws over
+// data already loaded needs nothing extra here.
+Widget _body(BuildContext context, ProfileState state) => ListView(
+      children: [for (final item in state.items) Text(item.name)],
+    );
 ```
 
-That `switch` is exhaustive **because the state is `sealed`** — add a new state
-and this stops compiling until you handle it. That is the whole reason for the
-sealed hierarchy: an unhandled case is a compile error, not a blank screen.
+`AppStatusView` (`shared/widgets/app_status_view.dart`) owns the three shells
+every screen has — the skeleton, the failure screen and the empty state — so
+the view names only its body. Written out by hand that is the same `switch`
+in every feature you will ever scaffold:
+
+```dart
+// what AppStatusView does for you
+switch (state.status) {
+  AppStatus.initial || AppStatus.loading =>
+    Skeletonizer(child: _body(context, ProfileState.placeholder)),
+  AppStatus.failure => ErrorView(message: state.errorMessage, onRetry: ...),
+  AppStatus.success when state.items.isEmpty => const EmptyView(),
+  AppStatus.success => _body(context, state),
+}
+```
+
+> ⚠️ A **refresh** should not set `AppStatus.loading` — that trades the body
+> for a skeleton and the screen flickers. Leave it on `success` and emit the
+> new data when it arrives; the old data is still on the state to draw.
+
+The one-shot messages go through the listener half:
+
+```dart
+BlocConsumer<ProfileBloc, ProfileState>(
+  listenWhen: (previous, current) =>
+      previous.errorMessage != current.errorMessage ||
+      previous.successMessage != current.successMessage,
+  listener: (context, state) {
+    final error = state.errorMessage;
+    if (error != null) AppToast.error(context, error);
+
+    final success = state.successMessage;
+    if (success != null) AppToast.success(context, success);
+  },
+  builder: ...,
+)
+```
 
 | You want to | Use |
 |---|---|
@@ -989,9 +1066,10 @@ state. The ruleset is in `analysis_options.yaml`.
     required bool withRouter,
   }) {
     final stateStep = bloc
-        ? '''3. **Hold the screen's state.** Add an event to `profile_event.dart`,
-   register it with `on<ProfileSomething>(...)` in the bloc's constructor, and
-   emit the states it produces.'''
+        ? '''3. **Hold the screen's state.** Add the fields to `profile_state.dart`
+   (and to `copyWith`, `props` and `placeholder`), add an event to
+   `profile_event.dart`, register it with `on<ProfileSomething>(...)` in the
+   bloc's constructor, and emit through `state.copyWith(...)`.'''
         : '''3. **Hold the screen's state.** Add the fields to `profile_state.dart`
    (and to `copyWith`), then add methods to the notifier — wrap each one in
    `runAction` so loading and errors are handled for you.''';
