@@ -2,6 +2,17 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 7.8.0
+
+- **A floating `AppBottomNav` clears the system bar instead of sitting on it.**
+  The card was placed at exactly `MediaQuery.paddingOf(context).bottom`, but
+  that inset is the room the system took, not a margin — so on Android's
+  three-button navigation the card came to rest flush against the buttons, and
+  read as a second bar stacked on the first rather than as something floating.
+  The margin is now spent on top of the inset: `AppConstants.space8` above
+  whatever the system reserved, and the full `space16` where it reserved
+  nothing. `moarch update bottom-nav` picks it up.
+
 ## 7.7.0
 
 - **A bloc view's builder is one `AppStatusView` call, not a `switch`.** New in

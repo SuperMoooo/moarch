@@ -121,13 +121,26 @@ void main() {
     });
 
     test('the inset is spent once, by whichever layer owns the edge', () {
-      // Attached, the bar insets itself; floating, the card's margin is the
-      // inset and NavigationBar's own SafeArea has to be taken back off.
+      // Attached, the bar insets itself; floating, the card clears the
+      // inset by hand and NavigationBar's own SafeArea has to be taken
+      // back off.
       expect(output, contains('child: SafeArea(top: false, child: row),'));
       expect(output, contains('MediaQuery.removePadding('));
       expect(output, contains('removeBottom: true,'));
-      expect(output,
-          contains('bottom: inset > 0 ? inset : AppConstants.space16,'));
+      expect(output, contains('bottom: bottomMargin,'));
+    });
+
+    test('a floating card clears the system bar, it does not sit on it', () {
+      // A card placed at exactly the inset is flush against Android's
+      // three-button bar, which is the regression this pins: the margin is
+      // spent on top of whatever the system took, never instead of it.
+      expect(output, contains('final bottomMargin ='));
+      expect(
+        output,
+        contains(
+          'inset + (inset > 0 ? AppConstants.space8 : AppConstants.space16);',
+        ),
+      );
     });
 
     test('only the pill that opens is sized by what is in it', () {

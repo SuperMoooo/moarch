@@ -5537,7 +5537,15 @@ class AppBottomNav extends StatelessWidget {
   /// is cut with, the width it takes of what is left, and the shadow that lifts
   /// it off the content passing underneath.
   Widget _floated(BuildContext context, Widget bar) {
+    // What the system took at the bottom edge: the gesture pill, or Android's
+    // three buttons — which are tall enough that a card sitting at exactly the
+    // inset reads as a second bar stacked on the first.
     final inset = MediaQuery.paddingOf(context).bottom;
+    // So the margin is spent on top of the inset rather than instead of it —
+    // a short one where the system already holds the card off the edge, the
+    // full one where it does not.
+    final bottomMargin =
+        inset + (inset > 0 ? AppConstants.space8 : AppConstants.space16);
     final radius = _radius;
     final border = borderColor;
 
@@ -5612,9 +5620,7 @@ class AppBottomNav extends StatelessWidget {
         left: AppConstants.space16,
         right: AppConstants.space16,
         top: AppConstants.space8,
-        // Just clear of the gesture indicator where there is one, a margin's
-        // worth off the edge where there is not.
-        bottom: inset > 0 ? inset : AppConstants.space16,
+        bottom: bottomMargin,
       ),
       child: placed,
     );
