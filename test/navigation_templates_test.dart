@@ -222,9 +222,9 @@ void main() {
       // Stacked, the open pill's vertical air would push it past the bar.
       expect(
         output,
-        contains('            vertical:\n'
-            '                _labelled && !_opens ? AppConstants.space4 : '
-            'AppConstants.space8,'),
+        contains('    final pillVertical =\n'
+            '        _labelled && !_opens ? AppConstants.space4 : '
+            'AppConstants.space8;'),
       );
     });
 
@@ -418,6 +418,52 @@ void main() {
       expect(output, contains('index >= 0 && index < destinations.length,'));
     });
 
+    test('a destination can carry a count or a dot, and has none by default',
+        () {
+      expect(output, contains('final int? badgeCount;'));
+      expect(output, contains('final bool showBadgeDot;'));
+      expect(output, contains('this.badgeCount,'));
+      expect(output, contains('this.showBadgeDot = false,'));
+    });
+
+    test('draws the badge through AppBadge, on both icons of the bar', () {
+      // Every surface asks the destination, so the badge cannot look different
+      // on the bar and on the rail.
+      expect(output, contains("import '../indicators/app_badge.dart';"));
+      expect(
+        output,
+        contains(
+            'AppBadge(count: badgeCount, showDot: showBadgeDot, child: icon)'),
+      );
+      // The M3 bar swaps icon for selectedIcon — a badge on one would vanish
+      // on selection.
+      expect(output,
+          contains('icon: destination.badged(Icon(destination.icon)),'));
+      expect(output, contains('selectedIcon: destination.badged('));
+    });
+
+    test('a count wins over a dot, and 0 shows nothing', () {
+      expect(
+        output,
+        contains(
+            'bool get hasBadge => badgeCount == null ? showBadgeDot : badgeCount! > 0;'),
+      );
+    });
+
+    test('the opening pill has room for a badge, and says the count aloud', () {
+      // AnimatedSize clips to its own box; the badge hangs outside the icon.
+      expect(output, contains('static const double _badgeOverhang = 4;'));
+      expect(output,
+          contains('top: overhang,\n                      end: overhang,'));
+      expect(output, contains('value: (destination.badgeCount ?? 0) > 0'));
+    });
+
+    test('generating the bar brings the badge along', () {
+      final resolved =
+          WidgetCatalog.resolve(['bottom-nav']).map((s) => s.name).toSet();
+      expect(resolved, contains('badge'));
+    });
+
     test('reads the kit\'s accent rather than reaching for primary', () {
       expect(output, contains("import '../inputs/app_input_style.dart';"));
       expect(output, contains('AppInputStyle.accentOf(context, variant)'));
@@ -431,6 +477,12 @@ void main() {
     test('reads the bottom bar\'s destinations', () {
       expect(output, contains("import './app_bottom_nav.dart';"));
       expect(output, contains('final List<AppNavDestination> destinations;'));
+    });
+
+    test('shows each destination\'s badge', () {
+      expect(output,
+          contains('icon: destination.badged(Icon(destination.icon)),'));
+      expect(output, contains('selectedIcon: destination.badged('));
     });
 
     test('closes itself after a pick', () {
@@ -467,6 +519,12 @@ void main() {
     test('reads the same destinations as the bottom bar', () {
       expect(output, contains("import './app_bottom_nav.dart';"));
       expect(output, contains('NavigationRailDestination('));
+    });
+
+    test('shows each destination\'s badge', () {
+      expect(output,
+          contains('icon: destination.badged(Icon(destination.icon)),'));
+      expect(output, contains('selectedIcon: destination.badged('));
     });
 
     test('does not ask an extended rail for labels as well', () {

@@ -361,8 +361,10 @@ class AppDrawer extends StatelessWidget {
         header ?? const SizedBox.shrink(),
         for (final destination in destinations)
           NavigationDrawerDestination(
-            icon: Icon(destination.icon),
-            selectedIcon: Icon(destination.selectedIcon, color: accent),
+            icon: destination.badged(Icon(destination.icon)),
+            selectedIcon: destination.badged(
+              Icon(destination.selectedIcon, color: accent),
+            ),
             label: Text(destination.label),
           ),
         if (footer != null) ...[
@@ -514,8 +516,10 @@ class AppNavRail extends StatelessWidget {
       destinations: [
         for (final destination in destinations)
           NavigationRailDestination(
-            icon: Icon(destination.icon),
-            selectedIcon: Icon(destination.selectedIcon, color: accent),
+            icon: destination.badged(Icon(destination.icon)),
+            selectedIcon: destination.badged(
+              Icon(destination.selectedIcon, color: accent),
+            ),
             label: Text(destination.label),
           ),
       ],

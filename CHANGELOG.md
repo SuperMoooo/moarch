@@ -2,6 +2,31 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 7.9.0
+
+- **A nav destination can carry a badge.** `AppNavDestination` takes
+  `badgeCount` (an unseen-messages number, a cart count) and `showBadgeDot` (a
+  plain "something is new" dot, read only when there is no count). Null or 0
+  shows nothing, and past 99 it reads "99+". `AppBottomNav`, `AppNavRail` and
+  `AppDrawer` all draw it through `AppNavDestination.badged`, on the selected
+  icon as well as the idle one, so it looks the same on a phone and a tablet:
+
+    ```dart
+    AppNavDestination(
+      icon: Icons.chat_bubble_outline,
+      selectedIcon: Icons.chat_bubble,
+      label: 'Chats',
+      badgeCount: unseenMessagesNumber,
+    )
+    ```
+
+  The count is state, so a destination list that uses it is built where that
+  state is read rather than held `const`. In the pill style that opens sideways
+  the badge is no longer clipped by the pill's `AnimatedSize`, and the custom
+  styles now announce the count to a screen reader. `bottom-nav` now depends on
+  `badge`, so `moarch create widget bottom-nav` brings `app_badge.dart` along.
+  `moarch update bottom-nav nav-rail drawer` picks it up.
+
 ## 7.8.0
 
 - **A floating `AppBottomNav` clears the system bar instead of sitting on it.**

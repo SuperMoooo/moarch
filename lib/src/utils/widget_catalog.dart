@@ -986,9 +986,9 @@ abstract final class WidgetCatalog {
       file: 'navigation/app_bottom_nav.dart',
       template: SharedTemplates.appBottomNav,
       category: 'Navigation',
-      deps: ['input-style'],
+      deps: ['input-style', 'badge'],
       description:
-          'Bottom navigation in four looks — Material 3, classic, expanding pill and minimal dot — with the labels beside the icons, under them or nowhere, and any of it floating as a stadium, rounded or square card. Owns the AppNavDestination type the rail and drawer read.',
+          'Bottom navigation in four looks — Material 3, classic, expanding pill and minimal dot — with the labels beside the icons, under them or nowhere, and any of it floating as a stadium, rounded or square card. Owns the AppNavDestination type the rail and drawer read, badge count included.',
     ),
     WidgetSpec(
       name: 'app-bar',

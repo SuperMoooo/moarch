@@ -5163,22 +5163,57 @@ class AppSkeletonList extends StatelessWidget {
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../indicators/app_badge.dart';
 import '../inputs/app_input_style.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
 /// A single destination for [AppBottomNav] — and for the rail and the drawer,
 /// which read the same list so an app describes its navigation once.
+///
+/// A destination can carry a badge. The count is state, so a list that uses one
+/// is built where that state is read instead of held `const`:
+///
+/// ```dart
+/// final destinations = [
+///   for (var i = 0; i < _tabs.length; i++)
+///     AppNavDestination(
+///       icon: _tabs[i].icon,
+///       selectedIcon: _tabs[i].selectedIcon,
+///       label: _tabs[i].label,
+///       badgeCount: i == 0 ? unseenMessagesNumber : null,
+///     ),
+/// ];
+/// ```
 class AppNavDestination {
   const AppNavDestination({
     required this.icon,
     required this.selectedIcon,
     required this.label,
+    this.badgeCount,
+    this.showBadgeDot = false,
   });
 
   final IconData icon;
   final IconData selectedIcon;
   final String label;
+
+  /// The number on this destination's icon — unseen messages, items in a cart.
+  /// Null or 0 shows none, and past 99 it reads "99+".
+  final int? badgeCount;
+
+  /// A plain presence dot instead of a number, for "something is new" with
+  /// nothing to count. Only read when [badgeCount] is null — a count wins.
+  final bool showBadgeDot;
+
+  /// Whether [badged] draws anything, by the same rule [AppBadge] follows.
+  bool get hasBadge => badgeCount == null ? showBadgeDot : badgeCount! > 0;
+
+  /// [icon] wearing this destination's badge, or bare when it has none. The
+  /// bar, the rail and the drawer all draw their icons through this so the
+  /// badge looks the same on each.
+  Widget badged(Widget icon) =>
+      AppBadge(count: badgeCount, showDot: showBadgeDot, child: icon);
 }
 
 /// How [AppBottomNav] marks the selected destination.
@@ -5434,8 +5469,10 @@ class AppBottomNav extends StatelessWidget {
       destinations: [
         for (final destination in destinations)
           NavigationDestination(
-            icon: Icon(destination.icon),
-            selectedIcon: Icon(destination.selectedIcon, color: accent),
+            icon: destination.badged(Icon(destination.icon)),
+            selectedIcon: destination.badged(
+              Icon(destination.selectedIcon, color: accent),
+            ),
             label: destination.label,
           ),
       ],
@@ -5654,6 +5691,10 @@ class _AppNavItem extends StatelessWidget {
   /// read as a mark rather than as a second icon.
   static const double _dotSize = 6;
 
+  /// How far Material's [Badge] reaches past the top and end of the icon it is
+  /// drawn on.
+  static const double _badgeOverhang = 4;
+
   /// Whether this destination's name is written on screen — which decides both
   /// whether the layouts below make room for it and whether a tooltip naming
   /// the icon would be repeating what is already there.
@@ -5689,11 +5730,23 @@ class _AppNavItem extends StatelessWidget {
         ? Duration.zero
         : AppConstants.duration200;
 
-    final icon = Icon(
-      selected ? destination.selectedIcon : destination.icon,
-      size: AppConstants.iconMedium,
-      color: selected ? selectedColor : idle,
+    final icon = destination.badged(
+      Icon(
+        selected ? destination.selectedIcon : destination.icon,
+        size: AppConstants.iconMedium,
+        color: selected ? selectedColor : idle,
+      ),
     );
+
+    // A badge hangs `_badgeOverhang` past its icon's top and end edges, and the
+    // opening pill's AnimatedSize clips to its own box. A badged destination
+    // moves that much of the pill's padding inside the box, so the badge is
+    // drawn and the pill still lands exactly where it would have.
+    final overhang = destination.hasBadge ? _badgeOverhang : 0.0;
+    final pillHorizontal =
+        _opens && selected ? AppConstants.space16 : AppConstants.space12;
+    final pillVertical =
+        _labelled && !_opens ? AppConstants.space4 : AppConstants.space8;
 
     final label = Text(
       destination.label,
@@ -5756,15 +5809,20 @@ class _AppNavItem extends StatelessWidget {
       AppBottomNavStyle.pill => AnimatedContainer(
           duration: duration,
           curve: Curves.easeOut,
-          padding: EdgeInsets.symmetric(
-            horizontal:
-                _opens && selected ? AppConstants.space16 : AppConstants.space12,
-            // Stacked, the label is inside the fill, and the air an open pill
-            // wears above and below it would push the whole thing past the
-            // height of the bar.
-            vertical:
-                _labelled && !_opens ? AppConstants.space4 : AppConstants.space8,
-          ),
+          // Stacked, the label is inside the fill, and the air an open pill
+          // wears above and below it would push the whole thing past the
+          // height of the bar.
+          padding: _opens
+              ? EdgeInsetsDirectional.fromSTEB(
+                  pillHorizontal,
+                  pillVertical - overhang,
+                  pillHorizontal - overhang,
+                  pillVertical,
+                )
+              : EdgeInsets.symmetric(
+                  horizontal: pillHorizontal,
+                  vertical: pillVertical,
+                ),
           decoration: BoxDecoration(
             color: selected ? accent : Colors.transparent,
             borderRadius: pillRadius,
@@ -5776,15 +5834,21 @@ class _AppNavItem extends StatelessWidget {
               ? AnimatedSize(
                   duration: duration,
                   curve: Curves.easeOut,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      icon,
-                      if (selected) ...[
-                        const SizedBox(width: AppConstants.space8),
-                        Flexible(child: label),
+                  child: Padding(
+                    padding: EdgeInsetsDirectional.only(
+                      top: overhang,
+                      end: overhang,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        icon,
+                        if (selected) ...[
+                          const SizedBox(width: AppConstants.space8),
+                          Flexible(child: label),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 )
               // Stacked, every item holds the same layout whether or not it is
@@ -5819,6 +5883,10 @@ class _AppNavItem extends StatelessWidget {
         // Some of these layouts never draw the label, and a row of unnamed
         // icons is unusable with a screen reader.
         label: destination.label,
+        // The badge is inside the excluded content, so its count is said here.
+        value: (destination.badgeCount ?? 0) > 0
+            ? '${destination.badgeCount}'
+            : null,
         child: _tooltipped(
           // The ripple follows the fill it lands on where there is one, so a
           // squared-off pill is not tapped with a round splash.
@@ -9059,6 +9127,7 @@ class _DesignSystemViewState extends State<DesignSystemView> {$themeState
       icon: Icons.home_outlined,
       selectedIcon: Icons.home,
       label: 'Home',
+      badgeCount: 3,
     ),
     AppNavDestination(
       icon: Icons.search_outlined,
