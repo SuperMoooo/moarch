@@ -50,7 +50,7 @@ abstract final class PackageVersions {
     'logger': '^2.4.0',
     'connectivity_plus': '^7.3.1',
 
-    // ── Codegen (entities and models) ───────────────────────────────────────
+    // ── Codegen (models) ───────────────────────────────────────
     // The annotations are runtime dependencies — the generated `.freezed.dart`
     // and `.g.dart` parts reference them — while the generators below are
     // dev-only.

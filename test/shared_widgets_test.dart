@@ -43,7 +43,7 @@ void main() {
       'appSectionHeader': SharedTemplates.appSectionHeader,
       'appBanner': SharedTemplates.appBanner,
       'appToast': SharedTemplates.appToast,
-      'appBottomNav': SharedTemplates.appBottomNav,
+      'appBottomNav': NavigationTemplates.appBottomNav,
       'appBottomSheetScaffold': SharedTemplates.appBottomSheetScaffold,
       'appFab': SharedTemplates.appFab,
       'appMultiSelect': InputsTemplates.appMultiSelect,

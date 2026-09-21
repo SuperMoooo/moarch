@@ -417,9 +417,13 @@ abstract final class ProjectInspector {
     final usesGoogleSignIn = File(p.join(libPath, 'features', 'auth', 'data',
                 'datasources', 'auth_remote_datasource.dart'))
             .existsSync() &&
-        File(p.join(libPath, 'features', 'auth', 'domain', 'entities',
-                'auth_user_entity.dart'))
-            .existsSync();
+        (File(p.join(libPath, 'features', 'auth', 'domain', 'models',
+                    'auth_user_model.dart'))
+                .existsSync() ||
+            // Where a project scaffolded before 8.0.0 keeps it.
+            File(p.join(libPath, 'features', 'auth', 'data', 'models',
+                    'auth_user_model.dart'))
+                .existsSync());
 
     if (usesGoogleSignIn && !pubspec.contains('google_sign_in:')) {
       findings.add(

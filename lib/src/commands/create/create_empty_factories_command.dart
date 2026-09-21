@@ -8,9 +8,9 @@ import '../../utils/model_field_parser.dart';
 import '../../utils/project_paths.dart';
 import '../../utils/string_utils.dart';
 
-/// Injects `.empty()` factories into every entity file in a feature (or all features).
+/// Injects `.empty()` factories into every model file in a feature (or all features).
 class CreateEmptyFactoriesCommand extends Command<int> {
-  ///  Injects `.empty()` factories into every entity file in a feature (or all features).
+  ///  Injects `.empty()` factories into every model file in a feature (or all features).
   CreateEmptyFactoriesCommand({required Logger logger}) : _logger = logger {
     argParser.addOption(
       'path',
@@ -33,7 +33,7 @@ class CreateEmptyFactoriesCommand extends Command<int> {
 
   @override
   String get description =>
-      'Inject .empty() factories into every *_entity.dart in a feature (or all features).';
+      'Inject .empty() factories into every *_model.dart in a feature (or all features).';
 
   @override
   String get invocation => 'moarch create empty-factories [feature_name]';
@@ -75,24 +75,24 @@ class CreateEmptyFactoriesCommand extends Command<int> {
     int failed = 0;
 
     for (final featureDir in featureDirs) {
-      final entityDir = Directory(
-        p.join(featureDir.path, 'domain', 'entities'),
+      final modelDir = Directory(
+        p.join(featureDir.path, 'domain', 'models'),
       );
-      if (!entityDir.existsSync()) continue;
+      if (!modelDir.existsSync()) continue;
 
-      final entityFiles = entityDir
+      final modelFiles = modelDir
           .listSync()
           .whereType<File>()
-          .where((f) => f.path.endsWith('_entity.dart'))
+          .where((f) => f.path.endsWith('_model.dart'))
           .toList();
 
-      if (entityFiles.isEmpty) continue;
+      if (modelFiles.isEmpty) continue;
 
       final featureName = p.basename(featureDir.path);
       _logger.info('📦 $featureName');
 
-      for (final file in entityFiles) {
-        final result = await _processEntity(
+      for (final file in modelFiles) {
+        final result = await _processModel(
           file: file,
           dryRun: dryRun,
         );
@@ -128,7 +128,7 @@ class CreateEmptyFactoriesCommand extends Command<int> {
     return failed > 0 ? 1 : 0;
   }
 
-  Future<_Result> _processEntity({
+  Future<_Result> _processModel({
     required File file,
     required bool dryRun,
   }) async {

@@ -666,9 +666,9 @@ Future<T> safeApiCall<T>({
   /// most common REST envelope, but its shape is the backend's choice rather
   /// than the app's, so the generated file is written to be renamed and says
   /// so. What survives that edit is the arithmetic — `pageCount`, `hasMore` —
-  /// and the two members a Clean Architecture boundary needs: `map`, to hand
-  /// the domain a page of entities instead of a page of models, and `append`,
-  /// which is the whole of "load more".
+  /// and the two members a paged list needs: `map`, to turn a page of models
+  /// into a page of whatever the screen draws, and `append`, which is the
+  /// whole of "load more".
   ///
   /// Written whenever Dio is, alongside `safeApiCall`. Nothing generated
   /// consumes it yet; a project that does not paginate can delete it.
@@ -759,7 +759,7 @@ class Paginated<T> {
   bool get isNotEmpty => items.isNotEmpty;
 
   /// The same page with every item mapped — how a repository turns a page of
-  /// models into a page of entities without unpacking the envelope.
+  /// models into a page of something else without unpacking the envelope.
   Paginated<R> map<R>(R Function(T item) toItem) => Paginated<R>(
     page: page,
     limit: limit,
@@ -881,8 +881,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 /// Keeps a `DateTime` field stored as a Firestore `Timestamp`.
 ///
-/// Annotate the field on the *model* — never on an entity, which has no
-/// business knowing what the wire looks like:
+/// Annotate the field on the model:
 ///
 ///   const factory OrderModel({
 ///     @TimestampConverter() required DateTime placedAt,
@@ -897,7 +896,7 @@ import 'package:json_annotation/json_annotation.dart';
 /// **Everything comes back in UTC**, so keep your dates in UTC too —
 /// `DateTime.now().toUtc()`. `Timestamp.toDate()` hands back the device's
 /// local time, which means the same document reads as a different `DateTime`
-/// on two phones. That is not cosmetic: a freezed entity compares dates with
+/// on two phones. That is not cosmetic: a freezed model compares dates with
 /// `==`, and `DateTime` counts its UTC flag as part of equality — so a state
 /// rebuilt from a fresh read would differ from the one already on screen for
 /// no reason a user could see. Call `.toLocal()` where you *display* a date.

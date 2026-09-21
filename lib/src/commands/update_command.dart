@@ -493,6 +493,9 @@ class UpdateCommand extends Command<int> {
         category: spec.category,
         displayPath: spec.pathIn(context),
         path: context.resolve(spec.pathIn(context)),
+        legacyPath:
+            spec.movedFrom == null ? null : context.resolve(spec.movedFrom!),
+        legacyDisplayPath: spec.movedFrom,
         generate: () => spec.template(context),
       );
       if (candidate != null) candidates.add(candidate);

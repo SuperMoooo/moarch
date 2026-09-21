@@ -20,7 +20,7 @@ class JsonField {
   final String type;
 }
 
-/// Infers fields from a JSON sample and builds the entity + model sources
+/// Infers fields from a JSON sample and builds the model source
 /// `moarch create model --from-json` writes.
 ///
 /// The sample is a single payload the API actually returns — inference reads
@@ -85,66 +85,6 @@ abstract final class JsonModelBuilder {
       RegExp(r'^\d{4}-\d{2}-\d{2}').hasMatch(value) &&
       DateTime.tryParse(value) != null;
 
-  /// The entity source: the same freezed class the plain template writes,
-  /// with the inferred fields in place of the TODOs.
-  ///
-  /// No JSON on it — parsing belongs to the model. Equality is not written
-  /// here at all: freezed derives it from the whole field list, which is the
-  /// point of moving to it. An `id`-keyed `==` made every draft of a create
-  /// form compare equal, and a state holder that drops an equal state then
-  /// dropped every keystroke after the first.
-  static String entitySource(String name, String cls, List<JsonField> fields) {
-    final params =
-        fields.map((f) => '    required ${f.type} ${f.name},').join('\n');
-    final empty = ModelFieldParser.buildEmptyFactory(
-      '${cls}Entity',
-      fields.map(_asModelField).toList(growable: false),
-    ).trimRight();
-
-    return '''
-import 'package:freezed_annotation/freezed_annotation.dart';
-
-part '${name}_entity.freezed.dart';
-
-/// What the app reasons about, with no idea where it came from.
-///
-/// Run `fvm dart run build_runner build --delete-conflicting-outputs` after
-/// editing this file.
-@freezed
-abstract class ${cls}Entity with _\$${cls}Entity {
-  const factory ${cls}Entity({
-$params
-  }) = _${cls}Entity;
-$empty
-}
-''';
-  }
-
-  /// The model source inferred from a JSON sample.
-  ///
-  /// json_serializable writes `fromJson` and `toJson`; a key that differs from
-  /// the Dart name is stated once as a `@JsonKey(name: …)` rather than twice
-  /// as hand-written parse and write expressions.
-  ///
-  /// [useFirestore] and [isDocumentRoot] mean what they do in
-  /// [modelSourceFor]. Pass [withDocumentId]'s result as [fields] for a
-  /// document root — an exported document usually has no `id` in its payload
-  /// at all, because the id is the document's name.
-  static String modelSource(
-    String name,
-    String cls,
-    List<JsonField> fields, {
-    bool useFirestore = false,
-    bool isDocumentRoot = false,
-  }) =>
-      modelSourceFor(
-        name,
-        cls,
-        fields.map(_asModelField).toList(growable: false),
-        useFirestore: useFirestore,
-        isDocumentRoot: isDocumentRoot,
-      );
-
   /// [fields] with the `String id` a Firestore document root needs.
   ///
   /// A document's id is its name rather than one of its fields, so a payload
@@ -166,8 +106,11 @@ $empty
     ];
   }
 
-  /// The model source for fields read off an entity that already exists —
-  /// what `moarch create model … --from-entity` writes.
+  /// The model source inferred from a JSON sample.
+  ///
+  /// json_serializable writes `fromJson` and `toJson`; a key that differs from
+  /// the Dart name is stated once as a `@JsonKey(name: …)` rather than twice
+  /// as hand-written parse and write expressions.
   ///
   /// [useFirestore] says the payload is a Firestore document rather than a
   /// REST body, which is what decides how a `DateTime` is stored.
@@ -177,22 +120,26 @@ $empty
   /// It is asked for rather than guessed — a nested value object can carry an
   /// `id` of its own and still be a map inside someone else's document, and
   /// guessing wrong writes a model whose `fromJson` demands a key its own
-  /// `toJson` never wrote.
-  static String modelSourceFor(
+  /// `toJson` never wrote. Pass [withDocumentId]'s result as [fields] for a
+  /// document root — an exported document usually has no `id` in its payload
+  /// at all, because the id is the document's name.
+  static String modelSource(
     String name,
     String cls,
-    List<ModelField> fields, {
+    List<JsonField> fields, {
     bool useFirestore = false,
     bool isDocumentRoot = false,
   }) {
-    final asDocument =
-        useFirestore && isDocumentRoot && fields.any((f) => f.name == 'id');
+    final modelFields = fields.map(_asModelField).toList(growable: false);
+    final asDocument = useFirestore &&
+        isDocumentRoot &&
+        modelFields.any((f) => f.name == 'id');
     // Only a Firestore project has a converter to point at — a REST payload
     // carries an ISO string, which json_serializable already reads and writes.
     bool convertsDate(ModelField f) => useFirestore && _isDate(f.type);
-    final dates = fields.any(convertsDate);
+    final dates = modelFields.any(convertsDate);
 
-    final params = fields.map((f) {
+    final params = modelFields.map((f) {
       final prefix = [
         // Only on the id of a document, never on a nested value object's:
         // Firestore keys the document by its own name, so a copy of it in the
@@ -200,30 +147,16 @@ $empty
         if (asDocument && f.name == 'id') '@JsonKey(includeToJson: false)',
         // Without this json_serializable writes the date as an ISO string,
         // which Firestore sorts and ranges as text.
-        if (convertsDate(f))
-          (f.type ?? '').trim().endsWith('?')
-              ? '@NullableTimestampConverter()'
-              : '@TimestampConverter()',
+        if (convertsDate(f)) '@TimestampConverter()',
       ].join(' ');
-      return '    ${prefix.isEmpty ? '' : '$prefix '}${f.asModelParameter},';
+      return '    ${prefix.isEmpty ? '' : '$prefix '}${f.asParameter},';
     }).join('\n');
-
-    final fromEntity = fields
-        .map((f) => '    ${f.name}: ${ModelFieldParser.fromEntityValue(f)},')
-        .join('\n');
-    final toEntity = fields
-        .map((f) => '    ${f.name}: ${ModelFieldParser.toEntityValue(f)},')
-        .join('\n');
 
     final imports = [
       if (asDocument) "import 'package:cloud_firestore/cloud_firestore.dart';",
       "import 'package:freezed_annotation/freezed_annotation.dart';",
-      '',
+      if (dates) '',
       if (dates) "import '../../../../core/network/timestamp_converter.dart';",
-      "import '../../domain/entities/${name}_entity.dart';",
-      // A nested field holds the *model* of that entity, which lives beside
-      // this file.
-      ..._nestedModelImports(fields, self: '${name}_model.dart'),
     ].join('\n');
 
     final fromDoc = asDocument
@@ -236,24 +169,31 @@ $empty
 '''
         : '';
 
+    final empty = ModelFieldParser.buildEmptyFactory(
+      '${cls}Model',
+      modelFields,
+    ).trimRight();
+
     return '''
 $imports
 
 part '${name}_model.freezed.dart';
 part '${name}_model.g.dart';
 
-/// The wire shape, and the only layer that knows it.
+/// What the feature reasons about, and the shape it has on the wire.
 ///
-/// It does not extend the entity — freezed generates the concrete class, so
-/// there is no constructor left to inherit. The fields are declared again and
-/// mapped explicitly below.
+/// Freezed derives the constructor, `copyWith`, `==` and `hashCode` from the
+/// field list, so equality covers every field — none is written here. An
+/// `id`-keyed `==` made every draft of a create form compare equal, and a
+/// state holder that drops an equal state then dropped every keystroke after
+/// the first.
 ///
 /// Run `fvm dart run build_runner build --delete-conflicting-outputs` after
 /// editing this file.
 @freezed
 abstract class ${cls}Model with _\$${cls}Model {
   /// Freezed needs a private constructor before a class may declare members
-  /// of its own — [toEntity] below is one.
+  /// of its own — a getter, or a method that reads the fields.
   const ${cls}Model._();
 
   const factory ${cls}Model({
@@ -263,47 +203,16 @@ $params
   factory ${cls}Model.fromJson(Map<String, dynamic> json) =>
       _\$${cls}ModelFromJson(json);
 $fromDoc
-  factory ${cls}Model.fromEntity(${cls}Entity entity) => ${cls}Model(
-$fromEntity
-  );
-
-  ${cls}Entity toEntity() => ${cls}Entity(
-$toEntity
-  );
+  /// A blank $cls — what a create form starts from before anything is filled
+  /// in. Freezed does not write this one, so it is yours to keep in step with
+  /// the fields above.$empty
 }
 ''';
   }
 
-  /// The sibling imports a model needs for the entities its fields hold.
-  ///
-  /// Sorted and de-duplicated, and never the file being written — a type that
-  /// refers to itself would otherwise import its own file.
-  static List<String> _nestedModelImports(
-    List<ModelField> fields, {
-    required String self,
-  }) {
-    final files = <String>{};
-    for (final field in fields) {
-      final modelType = field.modelType;
-      if (modelType == (field.type ?? '')) continue;
-
-      for (final match
-          in RegExp(r'\b([A-Z][\w$]*)Model\b').allMatches(modelType)) {
-        final file = '${StringUtils.toSnakeCase(match.group(1)!)}_model.dart';
-        if (file != self) files.add(file);
-      }
-    }
-    return (files.toList()..sort())
-        .map((file) => "import './$file';")
-        .toList(growable: false);
-  }
-
-  /// Whether [type] is a `DateTime`, nullable or not — the one type Firestore
-  /// and json_serializable disagree about.
-  static bool _isDate(String? type) {
-    final trimmed = (type ?? '').trim();
-    return trimmed == 'DateTime' || trimmed == 'DateTime?';
-  }
+  /// Whether [type] is a `DateTime` — the one type Firestore and
+  /// json_serializable disagree about.
+  static bool _isDate(String? type) => (type ?? '').trim() == 'DateTime';
 
   /// A field inferred from JSON, as the shared model builder wants it.
   ///

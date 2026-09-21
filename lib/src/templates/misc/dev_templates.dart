@@ -68,7 +68,7 @@ linter:
         avoid_print: true
 ''';
 
-  /// The `build.yaml` that configures the generators behind the entities and
+  /// The `build.yaml` that configures the generators behind the
   /// models.
   ///
   /// One option, and it is not cosmetic: without `explicit_to_json`,

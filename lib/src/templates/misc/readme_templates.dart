@@ -164,8 +164,8 @@ point *inwards*, towards the rules:
 
 | Layer | What lives there | May import |
 |---|---|---|
-| `domain` | Entities (plain Dart objects) and repository **interfaces** — the rules, and the promises the app makes | nothing but Dart |
-| `data` | Models (JSON in / JSON out), datasources${withDio ? ' (Dio, secure storage)' : ''}, and the repository **implementations** | `domain` |
+| `domain` | Models (the one data type a feature has) and repository **interfaces** — the rules, and the promises the app makes | nothing but Dart and the `freezed` / `json_serializable` annotations |
+| `data` | Datasources${withDio ? ' (Dio, secure storage)' : ''} and the repository **implementations** | `domain` |
 | `presentation` | Screens and the ${bloc ? 'blocs' : 'notifiers'} that hold their state | `domain` |
 
 ```
@@ -174,10 +174,14 @@ presentation ─────► domain ◄───── data
 ```
 
 `presentation` never imports `data`. It asks the `domain` interface for what it
-needs, and the wiring in `lib/config/di/` decides which
-implementation answers. That indirection is what makes the data layer
-replaceable${withDio ? ' — swapping REST for something else touches `data/` only' : ''}, and what makes the rules testable
+needs, and the wiring in `lib/config/di/` decides which implementation answers.
+That indirection is what makes the data layer replaceable${withDio ? ' — swapping REST for something else touches `data/` only' : ''}, and what makes the rules testable
 without a device.
+
+There is no separate entity: the **model** is the feature's one data type, so
+every field is written once, and the repository hands the screens the same
+class the API parsed. That is why a model carries JSON annotations from a
+package rather than being plain Dart — the one concession `domain/` makes.
 
 **Why it is worth the extra folders:** a screen that talks to Dio directly
 cannot be tested without a network, cannot be reused when the endpoint changes,
@@ -284,15 +288,14 @@ next person knows it exists at all.
 
 Three things in this project are generated rather than written:
 `lib/config/env/app_env.dart` compiles `.env` in through **envied**, and every
-entity and model gets its `.freezed.dart` (and a model its `.g.dart`) from
-**freezed** and **json_serializable**.
+model gets its `.freezed.dart` and `.g.dart` from **freezed** and
+**json_serializable**.
 
 ```bash
 fvm dart run build_runner build --delete-conflicting-outputs
 ```
 
-Run it again whenever `.env` changes, or whenever you add a field to an entity
-or a model. Until it has run once none of the generated halves exist and the
+Run it again whenever `.env` changes, or whenever you add a field to a model. Until it has run once none of the generated halves exist and the
 project will not analyze — which is why `.github/workflows` runs it before
 `analyze` and before `test`.
 
@@ -313,7 +316,7 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
 
 | Symptom | Fix |
 |---|---|
-| `app_env.g.dart` not found, or `_\$XModel` / `_\$XEntity` undefined | you skipped step 4 |
+| `app_env.g.dart` not found, or `_\$XModel` undefined | you skipped step 4 |
 | A model's `toJson()` holds an object instead of a map | `build.yaml` is missing or lost its `explicit_to_json` |
 | build_runner: "conflicting outputs" | re-run it with `--delete-conflicting-outputs` |
 | iOS build fails on pods | `cd ios && pod install && cd ..` |
@@ -360,7 +363,7 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
     row('envied',
         'Compiles `.env` values into `app_env.dart` instead of shipping the file.');
     row('freezed_annotation',
-        'Marks the entities and models. `freezed` (dev) writes the constructor, `copyWith` and an equality covering every field.');
+        'Marks the models. `freezed` (dev) writes the constructor, `copyWith` and an equality covering every field.');
     row('json_annotation',
         'Marks the models\' JSON. `json_serializable` (dev) writes `fromJson` and `toJson` from the field list.');
     if (withDio) {
@@ -493,10 +496,9 @@ ${withRouter ? '│   ├── router/                      # GoRouter routes +
 ├── features/                        # One folder per feature — the app itself
 │   └── $feature/
 │       ├── domain/
-│       │   ├── entities/                # plain Dart objects, no packages
+│       │   ├── models/                  # the feature's data type, + fromJson / toJson
 │       │   └── repositories/            # the interfaces the UI depends on
 │       ├── data/
-│       │   ├── models/                  # entities + fromJson / toJson
 │       │   ├── datasources/             # where the bytes actually come from
 │       │   └── repositories/            # the implementations
 $presentation
@@ -548,42 +550,11 @@ feature; every feature in `lib/features/` has the same shape.
 
 ### `domain/` — the rules
 
-An **entity** is a plain Dart object. No JSON, no packages, no Flutter:
+A **model** is the feature's one data type — what the screens draw, and the
+payload as it comes over the wire:
 
 ```dart
-// lib/features/profile/domain/entities/profile_entity.dart
-@freezed
-abstract class ProfileEntity with _\$ProfileEntity {
-  const factory ProfileEntity({
-    required String id,
-    required String name,
-  }) = _ProfileEntity;
-}
-```
-
-Freezed writes the constructor, `copyWith`, `==` and `hashCode` from that field
-list, so equality covers **every** field — which is what the state layer runs
-on. There is no JSON here: `domain/` never imports `json_annotation`.
-
-A **repository interface** is what the feature promises it can do — never how:
-
-```dart
-// lib/features/profile/domain/repositories/profile_repository.dart
-abstract interface class ProfileRepository {
-  Future<List<ProfileEntity>> fetchAll();
-}
-```
-
-Nothing under `domain/` imports ${withDio ? 'Dio, ' : ''}Firebase or Flutter. That is the
-point: these files can be tested with a plain `dart test`, and they survive
-every change to the API, the client and the UI.
-
-### `data/` — the world
-
-A **model** is the same fields with serialisation on them:
-
-```dart
-// lib/features/profile/data/models/profile_model.dart
+// lib/features/profile/domain/models/profile_model.dart
 @freezed
 abstract class ProfileModel with _\$ProfileModel {
   const ProfileModel._();
@@ -595,39 +566,40 @@ abstract class ProfileModel with _\$ProfileModel {
 
   factory ProfileModel.fromJson(Map<String, dynamic> json) =>
       _\$ProfileModelFromJson(json);
-
-  factory ProfileModel.fromEntity(ProfileEntity entity) =>
-      ProfileModel(id: entity.id, name: entity.name);
-
-  ProfileEntity toEntity() => ProfileEntity(id: id, name: name);
 }
 ```
 
-It does **not** extend the entity — freezed generates the concrete class, so
-there is no constructor left to inherit. `toEntity()` is what crosses the line
-instead, and the repository calls it on the way out of `data/`. The fields are
-written twice on purpose: that is what stops a change to the payload from
-reaching `domain/`.
+Freezed writes the constructor, `copyWith`, `==` and `hashCode` from that field
+list, so equality covers **every** field — which is what the state layer runs
+on. json_serializable writes `fromJson` / `toJson` from the same list; where the
+payload's key differs from the Dart name, say so once with
+`@JsonKey(name: 'created_at')`.
 
-A field holding another entity is converted, not assigned — the model holds a
-`AddressModel` where the entity holds an `AddressEntity`:
-
-```dart
-address: AddressModel.fromEntity(entity.address),   // and address.toEntity()
-tags: entity.tags.map(TagModel.fromEntity).toList(),
-```
-
-`moarch create model <feature> <name> --from-entity` writes all of that from
-the entity's own fields.
-
-Both halves are code-generated: after editing either file run
+There is no second class to keep in step. A field you add here is in the parsed
+payload and on the screen, with no mapping in between. The other half of the
+class is code-generated: after editing a model run
 
 ```bash
 fvm dart run build_runner build --delete-conflicting-outputs
 ```
 
+A **repository interface** is what the feature promises it can do — never how:
+
+```dart
+// lib/features/profile/domain/repositories/profile_repository.dart
+abstract interface class ProfileRepository {
+  Future<List<ProfileModel>> fetchAll();
+}
+```
+
+Nothing under `domain/` imports ${withDio ? 'Dio, ' : ''}Firebase or Flutter. That is the
+point: these files can be tested with a plain `dart test`, and they survive
+every change to the client and the UI.
+
+### `data/` — the world
+
 A **datasource** is where the bytes come from${withDio ? ' — an HTTP call through the shared\nDio client' : ''}. A **repository implementation** puts
-the two together and is the only class that satisfies the interface:
+the datasources behind the interface and is the only class that satisfies it:
 
 ```dart
 // lib/features/profile/data/repositories/profile_repository_impl.dart
@@ -637,10 +609,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
   final ProfileRemoteDataSource _remote;
 
   @override
-  Future<List<ProfileEntity>> fetchAll() async {
-    final models = await _remote.fetchAll();
-    return models.map((model) => model.toEntity()).toList();
-  }
+  Future<List<ProfileModel>> fetchAll() => _remote.fetchAll();
 }
 ```
 
@@ -747,12 +716,12 @@ An immutable class in `presentation/states/profile_state.dart`:
 class ProfileState implements ActionState<ProfileState> {
   const ProfileState({this.items = const [], this.success, this.error});
 
-  final List<ProfileEntity> items;
+  final List<ProfileModel> items;
   final String? success;
   final String? error;
 
   @override
-  ProfileState copyWith({List<ProfileEntity>? items, String? success}) =>
+  ProfileState copyWith({List<ProfileModel>? items, String? success}) =>
       ProfileState(items: items ?? this.items, success: success);
 }
 ```
@@ -892,7 +861,7 @@ class ProfileState extends Equatable {
   final AppStatus status;
   final String? errorMessage;
   final String? successMessage;
-  final List<ProfileEntity> items;
+  final List<ProfileModel> items;
 
   ProfileState copyWith({...}) => ...;
 
@@ -1090,8 +1059,8 @@ ${bloc ? 'the bloc, its sealed event and state families, and the page that provi
 
 Then the part that is yours:
 
-1. **Describe the data.** Fields on `profile_entity.dart`, and the matching
-   `fromJson` / `toJson` on `profile_model.dart`.
+1. **Describe the data.** Fields on `profile_model.dart`; `fromJson` / `toJson`
+   come with them from json_serializable.
 2. **Say what the feature can do.** Methods on the repository *interface*,
    implemented in `profile_repository_impl.dart`, with the actual call in the
    datasource.
@@ -1104,10 +1073,9 @@ ${withRouter ? '5. **Route to it.** Add the path to `lib/config/router/app_route
 | Command | What it does |
 |---|---|
 | `moarch create feature <name>` | A whole feature, layers selectable |
-| `moarch create model <feature> <name>` | A model + entity inside an existing feature |
-| `moarch create model <feature> <name> --from-entity` | The model for an entity you wrote by hand, nested fields mapped both ways |${bloc ? '\n| `moarch create bloc <feature> <name>` | Another state + event + bloc trio |' : ''}
+| `moarch create model <feature> <name>` | A model inside an existing feature (`--from-json` infers its fields from a sample) |${bloc ? '\n| `moarch create bloc <feature> <name>` | Another state + event + bloc trio |' : ''}
 | `moarch create widget <name>` | A widget from the kit (`docs/UI_KIT.md`) |
-| `moarch create empty-factories [feature]` | Injects `.empty()` factories into every entity |
+| `moarch create empty-factories [feature]` | Injects `.empty()` factories into every model |
 | `moarch create theme` | Switches the project between one theme and light + dark |
 | `moarch create flavors [names…]` | See section 8 |
 | `moarch update --list` | Which generated files are out of date, and which you have edited |

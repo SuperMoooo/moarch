@@ -440,7 +440,7 @@ class InitCommand extends Command<int> {
       PackageVersions.entry('flutter_native_splash'),
       PackageVersions.entry('envied'),
       PackageVersions.entry('skeletonizer'),
-      // Every entity and model is a freezed class, so the annotations are a
+      // Every model is a freezed class, so the annotations are a
       // runtime dependency of the app itself — the generated `.freezed.dart`
       // and `.g.dart` parts reference them. The generators are dev-only,
       // below.
@@ -489,7 +489,7 @@ class InitCommand extends Command<int> {
     final devDependencies = <String>[
       PackageVersions.entry('build_runner'),
       PackageVersions.entry('envied_generator'),
-      // What writes the entity and model classes' other half. Nothing in
+      // What writes the model classes' other half. Nothing in
       // `lib/` analyzes until these have run once — see the README's
       // getting-started steps and the CI workflow, which both run
       // `build_runner build` before `analyze`.
@@ -610,7 +610,7 @@ class InitCommand extends Command<int> {
         DevTemplates.nativeSplash(),
       );
 
-      // How the entity/model generators are configured — see
+      // How the model generators are configured — see
       // [DevTemplates.buildYaml] for why the one option in it is load-bearing.
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), 'build.yaml'),
@@ -1581,17 +1581,13 @@ class InitCommand extends Command<int> {
     final f = p.join(libPath, 'features', 'auth');
 
     await FileUtils.writeFile(
-      p.join(f, 'domain', 'entities', 'auth_tokens_entity.dart'),
-      templates.authEntity(),
-    );
-    await FileUtils.writeFile(
       p.join(f, 'domain', 'repositories', 'auth_repository.dart'),
       templates.authRepositoryInterface(
         withPushNotifications: withPushNotifications,
       ),
     );
     await FileUtils.writeFile(
-      p.join(f, 'data', 'models', 'auth_tokens_model.dart'),
+      p.join(f, 'domain', 'models', 'auth_tokens_model.dart'),
       templates.authModel(),
     );
     await FileUtils.writeFile(
@@ -1648,17 +1644,13 @@ class InitCommand extends Command<int> {
     final f = p.join(libPath, 'features', 'auth');
 
     await FileUtils.writeFile(
-      p.join(f, 'domain', 'entities', 'auth_user_entity.dart'),
-      templates.firebaseAuthEntity(),
-    );
-    await FileUtils.writeFile(
       p.join(f, 'domain', 'repositories', 'auth_repository.dart'),
       templates.firebaseAuthRepositoryInterface(
         withPushNotifications: withPushNotifications,
       ),
     );
     await FileUtils.writeFile(
-      p.join(f, 'data', 'models', 'auth_user_model.dart'),
+      p.join(f, 'domain', 'models', 'auth_user_model.dart'),
       templates.firebaseAuthModel(withFirestore: withFirestore),
     );
     await FileUtils.writeFile(

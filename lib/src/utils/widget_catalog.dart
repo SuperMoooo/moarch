@@ -360,7 +360,7 @@ abstract final class WidgetCatalog {
       category: 'Inputs',
       deps: ['input-style', 'input-title', 'search-sheet'],
       description:
-          'Generic id/label dropdown that reads any entity list, validates like the rest of the family, and swaps its menu for a searchable sheet once the list is long enough.',
+          'Generic id/label dropdown that reads any list of models, validates like the rest of the family, and swaps its menu for a searchable sheet once the list is long enough.',
     ),
     WidgetSpec(
       name: 'multi-select',
@@ -370,7 +370,7 @@ abstract final class WidgetCatalog {
       category: 'Inputs',
       deps: ['input-style', 'input-title', 'search-sheet'],
       description:
-          'AppDropdownInput\'s plural: any number of the same id/label entities, ticked in the search sheet, shown as removable chips.',
+          'AppDropdownInput\'s plural: any number of the same id/label models, ticked in the search sheet, shown as removable chips.',
     ),
     WidgetSpec(
       name: 'date-range-input',
@@ -984,7 +984,7 @@ abstract final class WidgetCatalog {
       name: 'bottom-nav',
       title: 'AppBottomNav',
       file: 'navigation/app_bottom_nav.dart',
-      template: SharedTemplates.appBottomNav,
+      template: NavigationTemplates.appBottomNav,
       category: 'Navigation',
       deps: ['input-style', 'badge'],
       description:

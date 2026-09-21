@@ -2,6 +2,56 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 8.0.0
+
+**Breaking: the scaffold is model-only.** A feature no longer has an entity. Its
+one data type is the freezed model in `domain/models/<x>_model.dart`, which the
+repository interface returns, the state holds and the screens draw. Every field
+is declared once, and there is no `fromEntity()` / `toEntity()` mapping to keep
+in step with it.
+
+The model lives in `domain/` — the place the entity was — so the dependencies
+keep pointing inward and `domain/` imports nothing from `data/`. The trade is
+deliberate: `domain/` now imports the `freezed` / `json_serializable`
+annotations, and a change to a payload's shape reaches the screens that read
+it, where an entity layer would have absorbed it.
+
+- **`create feature` writes no `domain/entities/`.** The model gains the
+  `.empty()` factory the entity used to carry, and the Riverpod state's
+  skeleton placeholder is built from `<X>Model`. The repository implementation
+  passes the datasource's models straight through — on Firestore,
+  `fetchAll()` and `watchAll()` are one line each.
+- **The auth feature is model-only too.** `AuthTokensEntity` is gone (nothing
+  read it), and `AuthUserEntity` with it: the Firebase auth repository, state
+  and event now speak `AuthUserModel`. `auth-entity` and `auth-user-entity` are
+  no longer scaffold slugs.
+- **`create model` writes the model alone**, with its `.empty()` factory.
+  `--from-entity` is removed, and `--empty` now patches
+  `domain/models/<x>_model.dart`. `--from-json` and `--doc` work as before, and
+  the inferred model carries `.empty()` and the private constructor the
+  template has.
+- **`create empty-factories` walks `domain/models/*_model.dart`** instead of
+  `domain/entities/`.
+- **`moarch update auth-model auth-user-model` relocates the auth models** from
+  `data/models/` to `domain/models/`, the way `update` already relocates a
+  moved widget: one copy, at the new path. `doctor` and the update catalog
+  still recognise the Firebase auth variant in a project that has the model at
+  either path.
+- The generated README, the Timestamp converter's notes and the UI-kit
+  examples no longer teach entities.
+
+Migrating an existing project: move each `data/models/<x>_model.dart` to
+`domain/models/`, delete `domain/entities/`, point each repository and state at
+the model, and drop `toEntity()` / `fromEntity()` from the models. `moarch
+update` does the move for the two auth models only — every other model and
+repository has your fields in it, so it is yours to migrate.
+
+- **`AppBottomNav` now lives in the navigation templates.** The template moved
+  from `SharedTemplates` to `NavigationTemplates`, beside `AppNavRail`,
+  `AppDrawer` and `AppAdaptiveNav` that read its `AppNavDestination`. The
+  generated file, its slug and its path are unchanged, so nothing regenerates
+  differently.
+
 ## 7.9.0
 
 - **A nav destination can carry a badge.** `AppNavDestination` takes

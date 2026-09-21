@@ -21,11 +21,11 @@ import '../../../core/utils/extensions.dart';
 /// - [count]: "3 selected" — for a field whose picks are long or many.
 enum AppMultiSelectDisplay { chips, labels, count }
 
-/// [AppDropdownInput]'s plural: the same id/label entity list, any number of
+/// [AppDropdownInput]'s plural: the same id/label item list, any number of
 /// them selected, picked in a [SearchPickerSheet] with a checkbox per row.
 ///
 /// ```dart
-/// AppMultiSelectInput<TagEntity>(
+/// AppMultiSelectInput<TagModel>(
 ///   label: 'Tags',
 ///   items: tags,
 ///   idOf: (t) => t.id,

@@ -540,7 +540,7 @@ $authRoutes      GoRoute(
       // GoRoute(
       //   path: '/recipe/detail',
       //   builder: (context, state) =>
-      //       RecipeDetailView(recipe: state.extra! as RecipeEntity),
+      //       RecipeDetailView(recipe: state.extra! as RecipeModel),
       // ),
     ],
   );

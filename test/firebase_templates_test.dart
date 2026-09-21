@@ -177,12 +177,9 @@ void main() {
     });
 
     test('the id is the document id, not a numeric column', () {
-      final entity =
-          FeatureTemplates.entity('order', 'Order', useFirestore: true);
       final model =
           FeatureTemplates.model('order', 'Order', useFirestore: true);
 
-      expect(entity, contains('required String id,'));
       expect(model, contains('factory OrderModel.fromDoc(DocumentSnapshot'));
       expect(model, contains("{...?doc.data(), 'id': doc.id}"));
       // `add()` assigns the id only once the write lands, so a copy kept in
@@ -195,15 +192,16 @@ void main() {
       final firestore = FeatureTemplates.repositoryInterface('order', 'Order',
           useFirestore: true);
 
-      expect(firestore, contains('Stream<List<OrderEntity>> watchAll();'));
-      expect(firestore, contains('Future<List<OrderEntity>> fetchAll();'));
+      expect(firestore, contains('Stream<List<OrderModel>> watchAll();'));
+      expect(firestore, contains('Future<List<OrderModel>> fetchAll();'));
+      expect(firestore, contains("import '../models/order_model.dart';"));
       expect(
         FeatureTemplates.repositoryInterface('order', 'Order'),
         isNot(contains('watchAll')),
       );
     });
 
-    test('the repository impl maps the datasource, TODO left to the Dio one',
+    test('the repository impl passes the datasource through, TODO left to Dio',
         () {
       final output = FeatureTemplates.repositoryImpl(
         'order',
@@ -214,9 +212,10 @@ void main() {
         useFirestore: true,
       );
 
-      expect(output, contains('await _remote.fetchAll()'));
-      expect(output, contains('_remote.watchAll().map('));
-      expect(output, contains('models.map((model) => model.toEntity())'));
+      expect(output, contains('return _remote.fetchAll();'));
+      expect(output, contains('return _remote.watchAll();'));
+      // The datasource already speaks models, so there is nothing to map.
+      expect(output, isNot(contains('toEntity')));
       expect(output, isNot(contains('UnimplementedError')));
 
       expect(
@@ -227,7 +226,7 @@ void main() {
     });
 
     test('the layer the user declined is not invented for them', () {
-      // No remote datasource selected — there is nothing to map, so both
+      // No remote datasource selected — there is nothing to return, so both
       // methods stay TODOs rather than calling a field that does not exist.
       final output = FeatureTemplates.repositoryImpl(
         'order',
@@ -239,7 +238,7 @@ void main() {
       );
 
       expect(output, isNot(contains('_remote')));
-      expect(output, contains('Stream<List<OrderEntity>> watchAll()'));
+      expect(output, contains('Stream<List<OrderModel>> watchAll()'));
       expect('UnimplementedError'.allMatches(output).length, 2);
     });
 
@@ -247,9 +246,9 @@ void main() {
       final output =
           FeatureTemplates.state('order', 'Order', useFirestore: true);
 
-      expect(output,
-          contains("import '../../domain/entities/order_entity.dart';"));
-      expect(output, contains('final List<OrderEntity> items;'));
+      expect(
+          output, contains("import '../../domain/models/order_model.dart';"));
+      expect(output, contains('final List<OrderModel> items;'));
       expect(output, contains('this.items = const [],'));
       expect(output, contains('items: items ?? this.items,'));
 
@@ -273,7 +272,7 @@ void main() {
       expect(output, contains('items: List.generate('));
       expect(
         output,
-        contains(r"(index) => OrderEntity(id: '${BoneMock.name}$index'),"),
+        contains(r"(index) => OrderModel(id: '${BoneMock.name}$index'),"),
       );
       expect(output, isNot(contains('List.filled(')));
 
@@ -329,8 +328,8 @@ void main() {
         contains(
             'skeleton: (context) => _body(context, OrderState.placeholder),'),
       );
-      // Which is why the view no longer names the entity at all.
-      expect(output, isNot(contains('OrderEntity')));
+      // Which is why the view no longer names the model at all.
+      expect(output, isNot(contains('OrderModel')));
 
       expect(
         FeatureTemplates.view('order', 'Order', 'order', hasNotifier: true),
@@ -338,9 +337,7 @@ void main() {
       );
     });
 
-    test('the Dio entity and model keep the int id', () {
-      expect(FeatureTemplates.entity('order', 'Order'),
-          contains('required int id,'));
+    test('the Dio model keeps the int id', () {
       final model = FeatureTemplates.model('order', 'Order');
       expect(model, contains('required int id,'));
       // No document to key, so the id is an ordinary field on the payload.
@@ -410,7 +407,7 @@ void main() {
       for (final output in [withDb, withoutDb]) {
         expect(output,
             contains('class AuthRepositoryImpl implements AuthRepository'));
-        expect(output, contains('Future<AuthUserEntity> signInWithGoogle()'));
+        expect(output, contains('Future<AuthUserModel> signInWithGoogle()'));
         expect(output, isNot(contains('Provider<')));
       }
     });

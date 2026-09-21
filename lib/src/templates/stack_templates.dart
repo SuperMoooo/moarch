@@ -320,13 +320,6 @@ class StackTemplates {
 
   // ── Feature ─────────────────────────────────────────────────────────────────
 
-  /// The domain entity.
-  String featureEntity(String name, String cls, {bool useFirestore = false}) =>
-      isBloc
-          ? bloc.FeatureTemplates.entity(name, cls, useFirestore: useFirestore)
-          : riverpod.FeatureTemplates.entity(name, cls,
-              useFirestore: useFirestore);
-
   /// The repository contract.
   String featureRepositoryInterface(String name, String cls,
           {bool useFirestore = false}) =>
@@ -336,7 +329,8 @@ class StackTemplates {
           : riverpod.FeatureTemplates.repositoryInterface(name, cls,
               useFirestore: useFirestore);
 
-  /// The data model.
+  /// The data model — the one class a feature passes from datasource to
+  /// screen.
   String featureModel(String name, String cls, {bool useFirestore = false}) =>
       isBloc
           ? bloc.FeatureTemplates.model(name, cls, useFirestore: useFirestore)
@@ -470,10 +464,6 @@ class StackTemplates {
 
   // ── Auth feature (REST) ─────────────────────────────────────────────────────
 
-  /// The token-pair entity.
-  String authEntity() =>
-      isBloc ? bloc.AuthTemplates.entity() : riverpod.AuthTemplates.entity();
-
   /// The auth repository contract.
   String authRepositoryInterface({bool withPushNotifications = false}) => isBloc
       ? bloc.AuthTemplates.repositoryInterface(
@@ -523,11 +513,6 @@ class StackTemplates {
       : riverpod.AuthTemplates.registerView();
 
   // ── Auth feature (Firebase) ─────────────────────────────────────────────────
-
-  /// The signed-in-user entity.
-  String firebaseAuthEntity() => isBloc
-      ? bloc.FirebaseAuthTemplates.entity()
-      : riverpod.FirebaseAuthTemplates.entity();
 
   /// The Firebase auth repository contract.
   String firebaseAuthRepositoryInterface({

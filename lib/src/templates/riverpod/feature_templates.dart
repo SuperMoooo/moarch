@@ -2,47 +2,6 @@
 class FeatureTemplates {
   FeatureTemplates._();
 
-  // ── Domain — Entity ─────────────────────────────────────────────────────────
-
-  /// Returns the generated entity template.
-  ///
-  /// [useFirestore] makes `id` a String: a Firestore document id is the
-  /// document's name, not a numeric column.
-  static String entity(String name, String cls, {bool useFirestore = false}) =>
-      '''
-import 'package:freezed_annotation/freezed_annotation.dart';
-
-part '${name}_entity.freezed.dart';
-
-/// What the app reasons about, with no idea where it came from.
-///
-/// Freezed writes the constructor, `copyWith`, `==` and `hashCode` from the
-/// field list below, so equality covers every field you add — which is what a
-/// notifier depends on: Riverpod only rebuilds listeners when the new state
-/// differs from the old one, so a hand-written `==` that misses a field
-/// silently loses the change. Its `copyWith` also tells "not passed" from
-/// "passed null", which `?? this.x` cannot.
-///
-/// No JSON here on purpose — parsing is the model's job in `data/`, so a
-/// change to the API never reaches `domain/`.
-///
-/// Run `fvm dart run build_runner build --delete-conflicting-outputs` after
-/// editing this file.
-@freezed
-abstract class ${cls}Entity with _\$${cls}Entity {
-  const factory ${cls}Entity({
-${useFirestore ? "    /// The Firestore document id.\n    required String id," : '    required int id,'}
-    // TODO: add your other fields
-  }) = _${cls}Entity;
-
-  /// A blank $cls — what a create form starts from before anything is filled
-  /// in. Freezed does not write this one, so it is yours to keep in step with
-  /// the fields above.
-  factory ${cls}Entity.empty() =>
-      const ${cls}Entity(id: ${useFirestore ? "''" : '0'});
-}
-''';
-
   // ── Domain — Repository interface ───────────────────────────────────────────
 
   /// Returns the generated repositoryInterface template.
@@ -54,16 +13,16 @@ ${useFirestore ? "    /// The Firestore document id.\n    required String id," :
   static String repositoryInterface(String name, String cls,
           {bool useFirestore = false}) =>
       '''
-import '../entities/${name}_entity.dart';
+import '../models/${name}_model.dart';
 
 abstract interface class ${cls}Repository {
-  Future<List<${cls}Entity>> fetchAll();
+  Future<List<${cls}Model>> fetchAll();
 ${useFirestore ? '''
 
   /// A live view of the collection: emits now with what Firestore has, and
   /// again on every change — including the ones made on this device, which
   /// land straight from the local cache before the server confirms them.
-  Stream<List<${cls}Entity>> watchAll();
+  Stream<List<${cls}Model>> watchAll();
 ''' : ''}
   // TODO: add your other methods
 }
@@ -85,8 +44,6 @@ ${useFirestore ? '''
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
-import '../../domain/entities/${name}_entity.dart';
-
 part '${name}_model.freezed.dart';
 part '${name}_model.g.dart';
 
@@ -94,7 +51,7 @@ $_modelDoc
 @freezed
 abstract class ${cls}Model with _\$${cls}Model {
   /// Freezed needs a private constructor before a class may declare members
-  /// of its own — [toEntity] below is one.
+  /// of its own — a getter, or a method that reads the fields.
   const ${cls}Model._();
 
   const factory ${cls}Model({
@@ -104,7 +61,7 @@ abstract class ${cls}Model with _\$${cls}Model {
     /// only once the write lands, so a copy stored beside the data is stale
     /// from the moment it is written.
     @JsonKey(includeToJson: false) required String id,
-    // TODO: add your other fields, mirroring the entity's. A DateTime belongs
+    // TODO: add your other fields. A DateTime belongs
     // on the wire as a Firestore Timestamp — annotate it `@TimestampConverter()`
     // (core/network/timestamp_converter.dart) so it stays queryable
     // server-side; an ISO string sorts as text.
@@ -118,22 +75,16 @@ abstract class ${cls}Model with _\$${cls}Model {
   factory ${cls}Model.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) =>
       ${cls}Model.fromJson({...?doc.data(), 'id': doc.id});
 
-$_mappingDoc
-  factory ${cls}Model.fromEntity(${cls}Entity entity) => ${cls}Model(
-    id: entity.id,
-  );
-
-  ${cls}Entity toEntity() => ${cls}Entity(
-    id: id,
-  );
+  /// A blank $cls — what a create form starts from before anything is filled
+  /// in. Freezed does not write this one, so it is yours to keep in step with
+  /// the fields above.
+  factory ${cls}Model.empty() => const ${cls}Model(id: '');
 }
 ''';
 
   /// The REST payload's shape.
   static String _restModel(String name, String cls) => '''
 import 'package:freezed_annotation/freezed_annotation.dart';
-
-import '../../domain/entities/${name}_entity.dart';
 
 part '${name}_model.freezed.dart';
 part '${name}_model.g.dart';
@@ -142,12 +93,12 @@ $_modelDoc
 @freezed
 abstract class ${cls}Model with _\$${cls}Model {
   /// Freezed needs a private constructor before a class may declare members
-  /// of its own — [toEntity] below is one.
+  /// of its own — a getter, or a method that reads the fields.
   const ${cls}Model._();
 
   const factory ${cls}Model({
     required int id,
-    // TODO: add your other fields, mirroring the entity's. Where the payload's
+    // TODO: add your other fields. Where the payload's
     // key differs from the Dart name, say so once:
     // `@JsonKey(name: 'created_at') DateTime? createdAt,`.
   }) = _${cls}Model;
@@ -155,39 +106,31 @@ abstract class ${cls}Model with _\$${cls}Model {
   factory ${cls}Model.fromJson(Map<String, dynamic> json) =>
       _\$${cls}ModelFromJson(json);
 
-$_mappingDoc
-  factory ${cls}Model.fromEntity(${cls}Entity entity) => ${cls}Model(
-    id: entity.id,
-  );
-
-  ${cls}Entity toEntity() => ${cls}Entity(
-    id: id,
-  );
+  /// A blank $cls — what a create form starts from before anything is filled
+  /// in. Freezed does not write this one, so it is yours to keep in step with
+  /// the fields above.
+  factory ${cls}Model.empty() => const ${cls}Model(id: 0);
 }
 ''';
 
-  /// The header both model variants carry, explaining why the model no longer
-  /// extends its entity.
+  /// The header both model variants carry: the one class a feature uses, on
+  /// the wire and on the screen.
   static const String _modelDoc = '''
-/// The wire shape, and the only layer that knows it.
+/// What the feature reasons about, and the shape it has on the wire.
 ///
-/// It does not extend the entity: freezed generates the concrete class, so
-/// there is no constructor left to inherit. The fields are declared again here
-/// and mapped explicitly below — that duplication is the price of keeping a
-/// change to the payload out of `domain/`.
+/// Freezed writes the constructor, `copyWith`, `==` and `hashCode` from the
+/// field list below, so equality covers every field you add — which is what a
+/// notifier depends on: Riverpod only rebuilds listeners when the new state
+/// differs from the old one, so a hand-written `==` that misses a field
+/// silently loses the change. Its `copyWith` also tells "not passed" from
+/// "passed null", which `?? this.x` cannot.
+///
+/// json_serializable writes `fromJson` / `toJson` from the same field list.
+/// The repository hands this class to the presentation layer as it is, so
+/// every field is declared once.
 ///
 /// Run `fvm dart run build_runner build --delete-conflicting-outputs` after
 /// editing this file.''';
-
-  /// The note above the two mapping members, which is where a nested field
-  /// stops being free.
-  static const String _mappingDoc = '''
-  // A field holding another entity has to be converted, not assigned: this
-  // model holds a `ThingModel` where the entity holds a `ThingEntity`.
-  //   thing: ThingModel.fromEntity(entity.thing),      // and thing.toEntity()
-  //   things: entity.things.map(ThingModel.fromEntity).toList(),
-  // `moarch create model <feature> <name> --from-entity` writes both from the
-  // entity's own fields.''';
 
   // ── Data — Remote datasource ────────────────────────────────────────────────
 
@@ -203,7 +146,7 @@ $_mappingDoc
 import 'package:dio/dio.dart';
 
 import '../../../../core/network/safe_api_call.dart';
-import '../models/${name}_model.dart';
+import '../../domain/models/${name}_model.dart';
 
 class ${cls}RemoteDataSource {
   const ${cls}RemoteDataSource(this._dio);
@@ -229,7 +172,7 @@ class ${cls}RemoteDataSource {
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../../core/network/safe_firebase_call.dart';
-import '../models/${name}_model.dart';
+import '../../domain/models/${name}_model.dart';
 
 class ${cls}RemoteDataSource {
   const ${cls}RemoteDataSource(this._firestore);
@@ -315,8 +258,8 @@ class ${cls}LocalDataSource {
   /// Returns the generated repositoryImpl template.
   ///
   /// [useFirestore] is implemented rather than left as a TODO: the Firestore
-  /// datasource already returns the models and the live query, so all this
-  /// layer has to do is map them to entities.
+  /// datasource already returns the models and the live query, so this
+  /// layer only hands them on.
   static String repositoryImpl(
     String name,
     String cls,
@@ -335,38 +278,35 @@ class ${cls}LocalDataSource {
       if (hasLocal) '  final ${cls}LocalDataSource _local;',
     ].join('\n');
 
-    // Without the remote datasource there is nothing to map, so the Firestore
+    // Without the remote datasource there is nothing to return, so the Firestore
     // methods stay TODOs like the REST one — the layer the user declined is
     // not invented for them.
     final methods = useFirestore && hasRemote
         ? '''
   @override
-  Future<List<${cls}Entity>> fetchAll() async {
-    final models = await _remote.fetchAll();
-    return models.map((model) => model.toEntity()).toList();
+  Future<List<${cls}Model>> fetchAll() {
+    return _remote.fetchAll();
   }
 
   @override
-  Stream<List<${cls}Entity>> watchAll() {
-    return _remote.watchAll().map(
-          (models) => models.map((model) => model.toEntity()).toList(),
-        );
+  Stream<List<${cls}Model>> watchAll() {
+    return _remote.watchAll();
   }'''
         : '''
   @override
-  Future<List<${cls}Entity>> fetchAll() {
+  Future<List<${cls}Model>> fetchAll() {
     // TODO: implement using the datasource(s) above
     throw UnimplementedError();
   }${useFirestore ? '''
 
   @override
-  Stream<List<${cls}Entity>> watchAll() {
+  Stream<List<${cls}Model>> watchAll() {
     // TODO: implement using the datasource(s) above
     throw UnimplementedError();
   }''' : ''}''';
 
     return '''
-${hasRemote ? "import '../datasources/${name}_remote_datasource.dart';\n" : ''}${hasLocal ? "import '../datasources/${name}_local_datasource.dart';\n" : ''}import '../../domain/entities/${name}_entity.dart';
+${hasRemote ? "import '../datasources/${name}_remote_datasource.dart';\n" : ''}${hasLocal ? "import '../datasources/${name}_local_datasource.dart';\n" : ''}import '../../domain/models/${name}_model.dart';
 import '../../domain/repositories/${name}_repository.dart';
 
 class ${cls}RepositoryImpl implements ${cls}Repository {
@@ -387,7 +327,7 @@ $methods
   /// carry the `placeholder` the loading skeleton is traced from.
   static String state(String name, String cls, {bool useFirestore = false}) =>
       '''
-${useFirestore ? "import 'package:skeletonizer/skeletonizer.dart';\n\n" : ''}import '../../../../core/utils/action_notifier.dart';${useFirestore ? "\nimport '../../domain/entities/${name}_entity.dart';" : ''}
+${useFirestore ? "import 'package:skeletonizer/skeletonizer.dart';\n\n" : ''}import '../../../../core/utils/action_notifier.dart';${useFirestore ? "\nimport '../../domain/models/${name}_model.dart';" : ''}
 
 class ${cls}State implements ActionState<${cls}State> {
   const ${cls}State({${useFirestore ? '\n    this.items = const [],' : ''}
@@ -408,13 +348,13 @@ ${useFirestore ? '''
   static final placeholder = ${cls}State(
     items: List.generate(
       3,
-      (index) => ${cls}Entity(id: '\${BoneMock.name}\$index'),
+      (index) => ${cls}Model(id: '\${BoneMock.name}\$index'),
     ),
   );
 
   /// The collection as Firestore last reported it, replaced whole on every
   /// snapshot so it never drifts from the server.
-  final List<${cls}Entity> items;
+  final List<${cls}Model> items;
 ''' : '''
 
   /// The state the loading skeleton is traced from.
@@ -430,7 +370,7 @@ ${useFirestore ? '''
   final String? error;
   final String? success;
 
-  ${cls}State copyWith({${useFirestore ? '\n    List<${cls}Entity>? items,' : ''}
+  ${cls}State copyWith({${useFirestore ? '\n    List<${cls}Model>? items,' : ''}
     bool? isLoadingAction,
     String? error,
     String? success,

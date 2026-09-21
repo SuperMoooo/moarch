@@ -129,13 +129,13 @@ void main() {
       expect(output, isNot(contains('OrdersRefreshed')));
       expect(output, isNot(contains('OrdersItemsUpdated')));
       expect(output, isNot(contains('OrdersFailed')));
-      // No entity is named, so nothing has to exist for this to compile.
-      expect(output, isNot(contains('OrdersEntity')));
+      // No model is named, so nothing has to exist for this to compile.
+      expect(output, isNot(contains('OrdersModel')));
     });
 
     test('the state starts empty and says where its fields go', () {
       // What the screen shows is the screen's business — a scaffolded list of
-      // entities would be a guess, and one the user then has to delete.
+      // models would be a guess, and one the user then has to delete.
       final output = bloc.FeatureTemplates.state('orders', 'Orders');
 
       expect(output, contains('this.status = AppStatus.initial,'));
@@ -143,7 +143,7 @@ void main() {
       expect(output, isNot(contains('\n  final List<')));
       // Nothing is imported for a field that is not there, so a feature
       // scaffolded without a data layer still compiles.
-      expect(output, isNot(contains("import '../../domain/entities/")));
+      expect(output, isNot(contains("import '../../domain/models/")));
       // The four places a new field has to reach, all named in one TODO.
       expect(output, contains('OrdersState copyWith({'));
       expect(

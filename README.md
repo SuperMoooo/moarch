@@ -59,12 +59,11 @@ moarch init          # interactive scaffold
 moarch init --all    # generate the default structure without prompts
 moarch init --state bloc   # pick the stack without the checklist (riverpod | bloc)
 moarch create feature <featureName>
-moarch create model <featureName> <modelName> # generate the model and entity
+moarch create model <featureName> <modelName> # generate the model
 moarch create model <featureName> <modelName> --from-json sample.json # infer the fields from a JSON payload
-moarch create model <featureName> <modelName> --from-entity # write the model for an entity you already have, mapping nested entities both ways
-moarch create model --empty <featureName> <modelName> # Inject a .empty() factory into an existing entity.
+moarch create model --empty <featureName> <modelName> # Inject a .empty() factory into an existing model.
 moarch create flavors # dev/staging/prod via flutter_flavorizr — one main.dart, untouched
-moarch create empty-factories # generate .empty() in all entities
+moarch create empty-factories # generate .empty() in all models
 moarch create bloc <featureName> <blocName> # add a state+event+bloc trio to an existing feature
 moarch create widget <name>        # add a UI-kit widget on demand (e.g. switch, otp, list-tile)
 moarch create widget all           # generate the whole UI kit + the preview screen
@@ -145,7 +144,7 @@ class OrdersState extends Equatable {
 ```
 
 The state is generated with nothing but those three, and a TODO. What a screen
-shows is the screen's business, and a scaffolded `List<OrderEntity> items` that
+shows is the screen's business, and a scaffolded `List<OrderModel> items` that
 half the features do not want is a line to delete rather than a head start.
 
 **One class rather than a sealed state per phase, because the data outlives
@@ -344,7 +343,7 @@ names, the same `AppException` reaching the same `AppAsyncView`.
 | --- | --- | --- |
 | datasource holds | `final Dio _dio;` | `final FirebaseFirestore _firestore;` |
 | calls go through | `safeApiCall` | `safeFirebaseCall` / `safeFirebaseStream` |
-| entity `id` | `int` | `String` — a document id |
+| model `id` | `int` | `String` — a document id |
 | model shape | freezed + json_serializable | plus `fromDoc`, an id kept out of the body, and dates stored as `Timestamp` |
 | errors mapped by | `AppException.fromDioError` | `fromFirebaseError` + `fromFirebaseAuthError` |
 | auth feature | tokens in secure storage, refresh interceptor | Firebase Auth, email/password + Google |
@@ -528,7 +527,7 @@ arriving rather than a spinner interrupting:
 
 ```dart
 static final placeholder = OrdersState(
-  orders: List.filled(3, OrderEntity(id: BoneMock.name)),
+  orders: List.filled(3, OrderModel(id: BoneMock.name)),
 );
 ```
 
@@ -868,7 +867,7 @@ same callback, a list you can type into. It counts its own options and decides;
 `AppInputConfig.searchableThreshold` moves the line for the whole app.
 
 ```dart
-AppDropdownInput<CategoryEntity>(
+AppDropdownInput<CategoryModel>(
   label: 'Category',
   items: categories,
   idOf: (c) => c.id,
@@ -884,12 +883,12 @@ AppDropdownInput<CategoryEntity>(
 Either form is a real form field: `required: true` is rejected by
 `Form.validate()`, and `validator` replaces the rule.
 
-`AppMultiSelectInput` is the same field in the plural — the same entity list,
+`AppMultiSelectInput` is the same field in the plural — the same item list,
 the same sheet with a checkbox on every row, and a `maxSelected` the sheet
 enforces as you tick rather than leaving to the form to refuse afterwards:
 
 ```dart
-AppMultiSelectInput<TagEntity>(
+AppMultiSelectInput<TagModel>(
   label: 'Tags',
   items: tags,
   idOf: (t) => t.id,
@@ -1073,20 +1072,23 @@ switch is all of those files at once. Files moarch wrote and nobody edited are
 rewritten silently; if you have edited one, nothing is written and the diffs are
 yours to apply (or `--force`).
 
-## Entities and models
+## Models
 
-Both layers are **freezed** classes, and both are generated: run
-`fvm dart run build_runner build` after editing either.
+A feature has one data type, and it is a **freezed** class: the model. There is
+no separate entity — `domain/models/<x>_model.dart` is freezed + json_serializable,
+the repository hands it to the state layer as it is, and the screens draw it.
+Every field is declared once. Run `fvm dart run build_runner build` after
+editing one.
 
-- `domain/entities/<x>_entity.dart` — freezed only. No JSON ever reaches
-  `domain/`.
-- `data/models/<x>_model.dart` — freezed + json_serializable, plus
-  `fromEntity()` / `toEntity()`.
+The model lives in `domain/` because it is what the domain speaks: the
+repository interfaces return it, so the dependencies keep pointing inward
+(`presentation → domain ← data`). The trade is that `domain/` imports the
+`freezed` and `json_serializable` annotations, and that a change to a payload's
+shape reaches the screens that read it, where an entity layer would have
+absorbed it in a mapping.
 
-The model does **not** extend its entity: freezed generates the concrete class,
-so there is no constructor left to inherit. The fields are declared in both and
-mapped explicitly — the cost of keeping a change to the payload out of the
-domain.
+A model shared by several features — an address, a money amount — belongs in
+`lib/core/`, not in whichever feature happened to need it first.
 
 Equality is freezed's, which covers every field. The hand-written `==` this
 replaced was keyed on `id` alone, and a multi-step create form builds drafts
@@ -1134,26 +1136,7 @@ have**, since a document's id is its name rather than a field of its data. An
 `doc.id` always is one. Without `--doc` you get the nested-value shape, for a
 map that lives inside someone else's document.
 
-### From an entity you wrote by hand
-
-An aggregate with nested parts is written entity-first. `--from-entity` reads
-the entity off disk and writes the model against it:
-
-```bash
-moarch create model works datas --from-entity        # the nested value objects
-moarch create model works work  --from-entity --doc  # the document root
-```
-
-A field holding another entity is **converted, not assigned** — the model holds
-a `DatasModel` where the entity holds a `DatasEntity`:
-
-```dart
-datas:        DatasModel.fromEntity(entity.datas),          // datas.toEntity()
-morada:       entity.morada == null ? null : MoradaModel.fromEntity(entity.morada!),
-utilizadores: entity.utilizadores.map(UtilizadorModel.fromEntity).toList(),
-```
-
-`--doc` marks a Firestore document root — it works on `--from-json` too. It
+`--doc` marks a Firestore document root on a `--from-json` model. It
 adds `fromDoc` and keeps the id out of the body, since `add()` assigns it after
 the write. Leave it off for a value object nested inside a document: one can
 carry an `id` of its own and still be a plain map. Either way, on a Firestore

@@ -237,9 +237,8 @@ class CreateFeatureCommand extends Command<int> {
     _logger.info('🧱 Creating feature: $className');
     _logger.info('');
 
-    // The model is only used by the datasources, and the entity only by the
-    // repository layer (and the model) — skip both when no data layer was
-    // selected.
+    // The model is what the datasources, the repository and the state share, so
+    // it is skipped when no data layer was selected.
     final needsDataLayer = selected.contains(_kRemoteDatasource) ||
         selected.contains(_kLocalDatasource) ||
         selected.contains(_kRepository);
@@ -284,8 +283,6 @@ class CreateFeatureCommand extends Command<int> {
       }
       if (needsDataLayer) {
         await _writeModel(featurePath, featureName, className, templates,
-            useFirestore: useFirestore);
-        await _writeEntity(featurePath, featureName, className, templates,
             useFirestore: useFirestore);
       }
       if (selected.contains(holderItem)) {
@@ -551,21 +548,8 @@ class CreateFeatureCommand extends Command<int> {
     bool useFirestore = false,
   }) async {
     await FileUtils.writeFile(
-      p.join(fp, 'data', 'models', '${name}_model.dart'),
+      p.join(fp, 'domain', 'models', '${name}_model.dart'),
       templates.featureModel(name, cls, useFirestore: useFirestore),
-    );
-  }
-
-  Future<void> _writeEntity(
-    String fp,
-    String name,
-    String cls,
-    StackTemplates templates, {
-    bool useFirestore = false,
-  }) async {
-    await FileUtils.writeFile(
-      p.join(fp, 'domain', 'entities', '${name}_entity.dart'),
-      templates.featureEntity(name, cls, useFirestore: useFirestore),
     );
   }
 
@@ -657,12 +641,9 @@ class CreateFeatureCommand extends Command<int> {
         selected.contains(_kRepository);
 
     if (!testsOnly) {
-      if (hasDataLayer) {
+      if (selected.contains(_kRepository)) {
         line('domain/');
-        line('├── entities/${name}_entity.dart');
-        if (selected.contains(_kRepository)) {
-          line('└── repositories/${name}_repository.dart');
-        }
+        line('└── repositories/${name}_repository.dart');
       }
 
       if (hasDataLayer) {

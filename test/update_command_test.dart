@@ -410,4 +410,53 @@ void main() {
       expect(File(newPath()).existsSync(), isTrue);
     });
   });
+
+  group('the auth models that moved under domain/', () {
+    // 8.0.0 moved both auth models from `data/models/` to `domain/models/`,
+    // since a model is the domain's own type once there is no entity. A project
+    // scaffolded earlier still holds them at the old path.
+    const legacy = 'lib/features/auth/data/models/auth_user_model.dart';
+    const moved = 'lib/features/auth/domain/models/auth_user_model.dart';
+
+    String at(String relative) => p.joinAll([root, ...p.posix.split(relative)]);
+    String current() => currentSource('auth-user-model');
+
+    test('the catalog says where each one used to be', () {
+      for (final slug in ['auth-model', 'auth-user-model']) {
+        final entry = ScaffoldCatalog.byName(slug)!;
+        expect(entry.path, contains('/domain/models/'), reason: slug);
+        expect(entry.movedFrom, entry.path.replaceFirst('/domain/', '/data/'),
+            reason: slug);
+      }
+    });
+
+    test('a project holding the old path still reads as the Firebase variant',
+        () async {
+      await place(at(legacy), current(), record: false);
+
+      expect(ScaffoldContext.detect(root).hasFirebaseAuthFeature, isTrue);
+    });
+
+    test('refreshing it moves it instead of copying it', () async {
+      await place(at(legacy), '// written by an older moarch\n${current()}',
+          record: true);
+
+      expect(await runUpdate(['--yes', 'auth-user-model']), 0);
+
+      expect(File(at(legacy)).existsSync(), isFalse);
+      expect(await File(at(moved)).readAsString(), current());
+      final files = ProjectManifest.load(root)!.files;
+      expect(files, isNot(contains(legacy)));
+      expect(files, contains(moved));
+    });
+
+    test('a model the user edited is left where it is', () async {
+      await place(at(legacy), '// mine\n${current()}', record: false);
+
+      expect(await runUpdate(['--yes', 'auth-user-model']), 0);
+
+      expect(File(at(legacy)).existsSync(), isTrue);
+      expect(File(at(moved)).existsSync(), isFalse);
+    });
+  });
 }

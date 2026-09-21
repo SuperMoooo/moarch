@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:moarch/src/utils/json_model_builder.dart';
-import 'package:moarch/src/utils/model_field_parser.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -78,29 +77,13 @@ void main() {
        "created_at": "2026-08-01T10:30:00Z", "tags": ["vip"]}
     '''))!;
 
-    test('the entity is a freezed class with no JSON on it', () {
-      final source = JsonModelBuilder.entitySource('order', 'Order', fields);
-
-      expect(source, contains('@freezed'));
-      expect(source, contains("part 'order_entity.freezed.dart';"));
-      expect(
-          source, contains('abstract class OrderEntity with _\$OrderEntity'));
-      expect(source, contains('required DateTime createdAt,'));
-      expect(source, contains('required List<String> tags,'));
-      // domain/ never learns that JSON exists.
-      expect(source, isNot(contains('json_annotation')));
-      expect(source, isNot(contains('.g.dart')));
-      expect(source, isNot(contains('fromJson')));
-    });
-
     test('no hand-rolled equality survives, keyed on id or otherwise', () {
       // Freezed derives `==` from the whole field list. The old `id`-keyed
       // equality made every draft of a create form compare equal, and a state
       // holder that drops an equal state dropped every edit after the first.
       for (final source in [
-        JsonModelBuilder.entitySource('order', 'Order', fields),
         JsonModelBuilder.modelSource('order', 'Order', fields),
-        JsonModelBuilder.entitySource(
+        JsonModelBuilder.modelSource(
           'thing',
           'Thing',
           JsonModelBuilder.fieldsFrom(jsonDecode('{"a": 1, "b": "x"}'))!,
@@ -112,10 +95,10 @@ void main() {
       }
     });
 
-    test('the entity keeps its .empty() — freezed writes no such thing', () {
-      final source = JsonModelBuilder.entitySource('order', 'Order', fields);
+    test('the model keeps its .empty() — freezed writes no such thing', () {
+      final source = JsonModelBuilder.modelSource('order', 'Order', fields);
 
-      expect(source, contains('factory OrderEntity.empty()'));
+      expect(source, contains('factory OrderModel.empty()'));
       expect(source, contains('id: 0,'));
       expect(source, contains("customerName: '',"));
       expect(source, contains('tags: const [],'));
@@ -187,11 +170,8 @@ void main() {
             contains('@JsonKey(includeToJson: false) required String id,'));
         expect(source, contains("{...?doc.data(), 'id': doc.id}"));
         expect(source, contains('@TimestampConverter()'));
-        // The entity carries the id too, or the mapping would not compile.
-        expect(
-          JsonModelBuilder.entitySource('fatura', 'Fatura', fields),
-          contains('required String id,'),
-        );
+        // The blank model needs it too, or `.empty()` would not compile.
+        expect(source, contains("id: '',"));
       });
 
       test('without --doc it is a nested value that still stores Timestamps',
@@ -222,17 +202,12 @@ void main() {
     });
 
     test('a Firestore model keeps its dates queryable', () {
-      final source = JsonModelBuilder.modelSourceFor(
+      final source = JsonModelBuilder.modelSource(
         'order',
         'Order',
         const [
-          ModelField(name: 'id', type: 'String'),
-          ModelField(name: 'placedAt', type: 'DateTime'),
-          ModelField(
-            name: 'shippedAt',
-            type: 'DateTime?',
-            isRequired: false,
-          ),
+          JsonField(jsonKey: 'id', name: 'id', type: 'String'),
+          JsonField(jsonKey: 'placedAt', name: 'placedAt', type: 'DateTime'),
         ],
         useFirestore: true,
         isDocumentRoot: true,
@@ -240,8 +215,6 @@ void main() {
 
       expect(source,
           contains('@TimestampConverter() required DateTime placedAt,'));
-      expect(source,
-          contains('@NullableTimestampConverter() DateTime? shippedAt,'));
       expect(
           source,
           contains(
@@ -257,12 +230,12 @@ void main() {
       // object nested in a document can carry one and still be a plain map.
       // Guessing wrong writes a model whose `fromJson` demands a key its own
       // `toJson` never wrote.
-      final source = JsonModelBuilder.modelSourceFor(
+      final source = JsonModelBuilder.modelSource(
         'utilizador',
         'Utilizador',
         const [
-          ModelField(name: 'id', type: 'String'),
-          ModelField(name: 'inicio', type: 'DateTime'),
+          JsonField(jsonKey: 'id', name: 'id', type: 'String'),
+          JsonField(jsonKey: 'inicio', name: 'inicio', type: 'DateTime'),
         ],
         useFirestore: true,
       );
@@ -275,20 +248,18 @@ void main() {
           source, contains('@TimestampConverter() required DateTime inicio,'));
     });
 
-    test('the model is freezed + json_serializable, and maps to the entity',
+    test('the model is freezed + json_serializable, with nothing to map to',
         () {
       final source = JsonModelBuilder.modelSource('order', 'Order', fields);
 
       expect(source, contains("part 'order_model.freezed.dart';"));
       expect(source, contains("part 'order_model.g.dart';"));
-      // Required before a freezed class may declare toEntity().
+      // Lets the class declare a getter or method of its own.
       expect(source, contains('const OrderModel._();'));
       expect(source, contains('_\$OrderModelFromJson(json)'));
-      expect(source, isNot(contains('extends OrderEntity')));
-      expect(source,
-          contains('factory OrderModel.fromEntity(OrderEntity entity)'));
-      expect(source, contains('customerName: entity.customerName,'));
-      expect(source, contains('OrderEntity toEntity()'));
+      expect(source, contains('required DateTime createdAt,'));
+      expect(source, contains('required List<String> tags,'));
+      expect(source, isNot(contains('Entity')));
       // json_serializable writes both directions; nothing is hand-parsed.
       expect(source, isNot(contains('as num).toDouble()')));
       expect(source, isNot(contains('.cast<String>()')));

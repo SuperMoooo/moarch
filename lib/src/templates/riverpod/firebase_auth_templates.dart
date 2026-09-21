@@ -10,34 +10,6 @@
 class FirebaseAuthTemplates {
   FirebaseAuthTemplates._();
 
-  // ── Domain — Entity ─────────────────────────────────────────────────────────
-
-  /// Returns the generated auth user entity template.
-  static String entity() => r'''
-import 'package:freezed_annotation/freezed_annotation.dart';
-
-part 'auth_user_entity.freezed.dart';
-
-/// The signed-in user as the app sees them.
-///
-/// Equality comes from freezed and covers every field. It used to be keyed on
-/// `id` alone, which meant a session whose display name or photo had changed
-/// compared equal to the one before it — and a state holder that drops an
-/// equal state dropped the change with it.
-@freezed
-abstract class AuthUserEntity with _$AuthUserEntity {
-  const factory AuthUserEntity({
-    /// The Firebase Auth uid. Also the document id of the user's profile when
-    /// the project stores one in Firestore.
-    required String id,
-    String? email,
-    String? displayName,
-    String? photoUrl,
-    @Default(false) bool emailVerified,
-  }) = _AuthUserEntity;
-}
-''';
-
   // ── Domain — Repository interface ───────────────────────────────────────────
 
   /// Returns the generated auth repository interface template.
@@ -56,7 +28,7 @@ abstract class AuthUserEntity with _$AuthUserEntity {
         : '';
 
     return '''
-import '../entities/auth_user_entity.dart';
+import '../models/auth_user_model.dart';
 
 abstract interface class AuthRepository {
   /// Emits the signed-in user, or null once they sign out.
@@ -64,22 +36,22 @@ abstract interface class AuthRepository {
   /// Firebase restores the persisted session asynchronously at start-up, so
   /// this is what says whether the app opened signed in — `currentUser` can
   /// still be null for a moment after launch.
-  Stream<AuthUserEntity?> authStateChanges();
+  Stream<AuthUserModel?> authStateChanges();
 
   /// True when a session was restored for this device.
   Future<bool> isLoggedIn();
 
   /// The signed-in user, or null.
-  Future<AuthUserEntity?> currentUser();
+  Future<AuthUserModel?> currentUser();
 
   /// Signs in with email and password.
-  Future<AuthUserEntity> login({
+  Future<AuthUserModel> login({
     required String email,
     required String password,
   });
 
   /// Creates the account, optionally setting a display name on it.
-  Future<AuthUserEntity> register({
+  Future<AuthUserModel> register({
     required String email,
     required String password,
     String? displayName,
@@ -89,7 +61,7 @@ abstract interface class AuthRepository {
   ///
   /// Throws an [AppException] of type `cancelled` when the user dismisses the
   /// Google sheet — nothing failed, so there is nothing to report.
-  Future<AuthUserEntity> signInWithGoogle();
+  Future<AuthUserModel> signInWithGoogle();
 
   /// Sends the password reset email Firebase hosts.
   Future<void> sendPasswordResetEmail({required String email});
@@ -144,21 +116,15 @@ $syncDeviceToken  /// The signed-in user's uid.
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
-import '../../domain/entities/auth_user_entity.dart';
-
 part 'auth_user_model.freezed.dart';
 $jsonPart
-/// The wire shape of a signed-in user.
+/// The signed-in user, as the app sees them and as Firestore holds them.
 ///
-/// It does not extend the entity — freezed generates the concrete class, so
-/// there is no constructor to inherit. [toEntity] is what crosses the line
-/// instead, and the repository calls it on the way out of `data/`.
+/// Equality comes from freezed and covers every field, so a session whose
+/// display name or photo has changed does not compare equal to the one before
+/// it — a state holder that drops an equal state would drop the change with it.
 @freezed
 abstract class AuthUserModel with _\$AuthUserModel {
-  /// Freezed needs a private constructor before a class may declare members
-  /// of its own — [toEntity] below is one.
-  const AuthUserModel._();
-
   const factory AuthUserModel({
 $idParam
     String? email,
@@ -174,22 +140,6 @@ $idParam
         displayName: user.displayName,
         photoUrl: user.photoURL,
         emailVerified: user.emailVerified,
-      );
-
-  factory AuthUserModel.fromEntity(AuthUserEntity entity) => AuthUserModel(
-        id: entity.id,
-        email: entity.email,
-        displayName: entity.displayName,
-        photoUrl: entity.photoUrl,
-        emailVerified: entity.emailVerified,
-      );
-
-  AuthUserEntity toEntity() => AuthUserEntity(
-        id: id,
-        email: email,
-        displayName: displayName,
-        photoUrl: photoUrl,
-        emailVerified: emailVerified,
       );
 $firestoreMapping}
 ''';
@@ -313,7 +263,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/network/safe_firebase_call.dart';
-import '../models/auth_user_model.dart';
+import '../../domain/models/auth_user_model.dart';
 
 /// The **web** client id from Firebase console → Authentication → Sign-in
 /// method → Google → Web SDK configuration.
@@ -528,40 +478,34 @@ $firestoreMethods$deviceTokenMethod}
         : '';
 
     return '''
-${pushImports}import '../../domain/entities/auth_user_entity.dart';
-import '../../domain/repositories/auth_repository.dart';
+${pushImports}import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_datasource.dart';
+import '../../domain/models/auth_user_model.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   const AuthRepositoryImpl(this._remote$pushCtorParam);
 
   final AuthRemoteDataSource _remote;$pushField
 
-  // Every method below crosses out of `data/`: the datasource answers with
-  // models, and a model is no longer an entity — freezed generates the
-  // concrete class, so the `extends` that used to make this implicit is gone.
   @override
-  Stream<AuthUserEntity?> authStateChanges() =>
-      _remote.authStateChanges().map((user) => user?.toEntity());
+  Stream<AuthUserModel?> authStateChanges() => _remote.authStateChanges();
 
   @override
   Future<bool> isLoggedIn() async => _remote.currentUser != null;
 
   @override
-  Future<AuthUserEntity?> currentUser() async =>
-      _remote.currentUser?.toEntity();
+  Future<AuthUserModel?> currentUser() async => _remote.currentUser;
 
   @override
-  Future<AuthUserEntity> login({
+  Future<AuthUserModel> login({
     required String email,
     required String password,
   }) async {
-    final user = await _remote.login(email: email, password: password);
-    return user.toEntity();
+    return _remote.login(email: email, password: password);
   }
 
   @override
-  Future<AuthUserEntity> register({
+  Future<AuthUserModel> register({
     required String email,
     required String password,
     String? displayName,
@@ -571,13 +515,13 @@ class AuthRepositoryImpl implements AuthRepository {
       password: password,
       displayName: displayName,
     );$saveProfileOnRegister
-    return user.toEntity();
+    return user;
   }
 
   @override
-  Future<AuthUserEntity> signInWithGoogle() async {
+  Future<AuthUserModel> signInWithGoogle() async {
     final user = await _remote.signInWithGoogle();$saveProfileOnGoogle
-    return user.toEntity();
+    return user;
   }
 
   @override
@@ -693,7 +637,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../config/di/injector.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/utils/action_notifier.dart';
-import '../../domain/entities/auth_user_entity.dart';
+import '../../domain/models/auth_user_model.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../states/auth_state.dart';
 
@@ -782,7 +726,7 @@ $syncOnRestore
     });
   }
 
-  AuthState _stateFrom(AuthUserEntity? user) {
+  AuthState _stateFrom(AuthUserModel? user) {
     if (user == null) return const AuthState();
     return AuthState(
       authenticated: true,

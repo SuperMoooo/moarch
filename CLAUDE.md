@@ -157,10 +157,16 @@ lib/config/di/{injector,external_module,core_module,data_module,
 lib/config/{env,theme,router,firebase}
 lib/core/{constants,errors,network,security,services,utils}
 lib/features/<feature>/{data/{datasources,models,repositories},
-                        domain/{entities,repositories},
+                        domain/{models,repositories},
                         presentation/{notifiers|blocs,states,views,pages}}
 lib/shared/{widgets,views}/      README.md   docs/*.md   .moarch.yaml   .fvmrc
 ```
+
+There is no entity layer: a feature's one data type is the freezed model in
+`domain/models/`, which the repository interfaces, the state and the screens all
+use directly. (Before 8.0.0 it lived in `data/models/`; the two auth model
+specs carry `movedFrom` so `update` relocates them.) Do not reintroduce a `domain/entities/` or `toEntity`/`fromEntity`
+mapping.
 
 Generated projects are FVM-pinned, so their commands run as `fvm flutter …` /
 `fvm dart …`, and model/env codegen is `build_runner`.

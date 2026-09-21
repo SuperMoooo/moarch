@@ -10,25 +10,6 @@
 class AuthTemplates {
   AuthTemplates._();
 
-  // ── Domain — Entity ─────────────────────────────────────────────────────────
-
-  /// Returns the generated auth tokens entity template.
-  static String entity() => r'''
-import 'package:freezed_annotation/freezed_annotation.dart';
-
-part 'auth_tokens_entity.freezed.dart';
-
-/// The session, as the domain sees it. Freezed writes the constructor,
-/// `copyWith` and an equality covering both tokens.
-@freezed
-abstract class AuthTokensEntity with _$AuthTokensEntity {
-  const factory AuthTokensEntity({
-    required String accessToken,
-    required String refreshToken,
-  }) = _AuthTokensEntity;
-}
-''';
-
   // ── Domain — Repository interface ───────────────────────────────────────────
 
   /// Returns the generated auth repository interface template.
@@ -82,24 +63,16 @@ $syncDeviceToken  /// User id extracted from the access token when the session w
   static String model() => r'''
 import 'package:freezed_annotation/freezed_annotation.dart';
 
-import '../../domain/entities/auth_tokens_entity.dart';
-
 part 'auth_tokens_model.freezed.dart';
 part 'auth_tokens_model.g.dart';
 
-/// The token pair as the API sends it.
-///
-/// It does not extend the entity — freezed generates the concrete class, so
-/// there is no constructor to inherit. [toEntity] crosses the line instead.
+/// The token pair as the API sends it. Freezed writes the constructor,
+/// `copyWith` and an equality covering both tokens.
 ///
 /// Adjust the keys to your API contract with `@JsonKey(name: 'access_token')`
 /// on the field, rather than by hand-writing the parse.
 @freezed
 abstract class AuthTokensModel with _$AuthTokensModel {
-  /// Freezed needs a private constructor before a class may declare members
-  /// of its own — [toEntity] below is one.
-  const AuthTokensModel._();
-
   const factory AuthTokensModel({
     required String accessToken,
     required String refreshToken,
@@ -107,17 +80,6 @@ abstract class AuthTokensModel with _$AuthTokensModel {
 
   factory AuthTokensModel.fromJson(Map<String, dynamic> json) =>
       _$AuthTokensModelFromJson(json);
-
-  factory AuthTokensModel.fromEntity(AuthTokensEntity entity) =>
-      AuthTokensModel(
-        accessToken: entity.accessToken,
-        refreshToken: entity.refreshToken,
-      );
-
-  AuthTokensEntity toEntity() => AuthTokensEntity(
-        accessToken: accessToken,
-        refreshToken: refreshToken,
-      );
 }
 ''';
 
@@ -153,7 +115,7 @@ import 'package:dio/dio.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/network/safe_api_call.dart';
-import '../models/auth_tokens_model.dart';
+import '../../domain/models/auth_tokens_model.dart';
 
 class AuthRemoteDataSource {
   const AuthRemoteDataSource(this._dio);

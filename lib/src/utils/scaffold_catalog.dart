@@ -149,11 +149,13 @@ class ScaffoldContext {
   /// The auth feature was generated against Firebase Auth rather than the
   /// REST client.
   ///
-  /// Read off the entity, the one file whose name differs between the two
+  /// Read off the model, the one file whose name differs between the two
   /// variants — a project can have `firebase_auth` in its pubspec and still
-  /// have taken the REST auth feature.
+  /// have taken the REST auth feature. A project scaffolded before 8.0.0 keeps
+  /// the model under `data/`, which is looked at too.
   bool get hasFirebaseAuthFeature =>
-      hasFile('lib/features/auth/domain/entities/auth_user_entity.dart');
+      hasFile('lib/features/auth/domain/models/auth_user_model.dart') ||
+      hasFile('lib/features/auth/data/models/auth_user_model.dart');
 
   /// The auth feature was generated against the REST client — the variant
   /// that owns a refresh token, and so the only one whose `/auth/*` paths and
@@ -211,6 +213,7 @@ class ScaffoldSpec {
     required this.category,
     required this.description,
     this.blocPath,
+    this.movedFrom,
   });
 
   /// CLI slug, e.g. `validation` → `moarch update validation`.
@@ -232,6 +235,14 @@ class ScaffoldSpec {
   /// `presentation/states/`. Everything else is either at the same path in
   /// both or has a spec of its own.
   final String? blocPath;
+
+  /// Where moarch used to write this file, project-relative with forward
+  /// slashes, for an entry that has since moved.
+  ///
+  /// `update` reads it to recognise a project still holding the file at the old
+  /// path, so the refresh relocates it instead of writing a second copy and
+  /// leaving the first behind.
+  final String? movedFrom;
 
   /// This file's path in [context]'s project.
   String pathIn(ScaffoldContext context) =>
@@ -668,26 +679,10 @@ abstract final class ScaffoldCatalog {
     ),
 
     // ── Auth feature ────────────────────────────────────────────────────────
-    // The files below the entity are shared by both backends: same path, same
-    // class names, a template chosen by which entity the project has. The
+    // The files below are shared by both backends: same path, same class
+    // names, a template chosen by which model the project has. The
     // state holder is the one that differs by *stack* as well as by backend —
     // hence the separate notifier / bloc / event entries at the end.
-    ScaffoldSpec(
-      name: 'auth-entity',
-      title: 'AuthTokensEntity',
-      path: 'lib/features/auth/domain/entities/auth_tokens_entity.dart',
-      category: 'Auth feature',
-      template: (c) => c.stack.authEntity(),
-      description: 'The domain view of an access/refresh token pair.',
-    ),
-    ScaffoldSpec(
-      name: 'auth-user-entity',
-      title: 'AuthUserEntity',
-      path: 'lib/features/auth/domain/entities/auth_user_entity.dart',
-      category: 'Auth feature',
-      template: (c) => c.stack.firebaseAuthEntity(),
-      description: 'The domain view of a signed-in Firebase user.',
-    ),
     ScaffoldSpec(
       name: 'auth-repository',
       title: 'AuthRepository',
@@ -705,21 +700,23 @@ abstract final class ScaffoldCatalog {
     ScaffoldSpec(
       name: 'auth-model',
       title: 'AuthTokensModel',
-      path: 'lib/features/auth/data/models/auth_tokens_model.dart',
+      path: 'lib/features/auth/domain/models/auth_tokens_model.dart',
+      movedFrom: 'lib/features/auth/data/models/auth_tokens_model.dart',
       category: 'Auth feature',
       template: (c) => c.stack.authModel(),
-      description: 'JSON ↔ entity mapping for the token pair.',
+      description: 'The access/refresh token pair, as the API sends it.',
     ),
     ScaffoldSpec(
       name: 'auth-user-model',
       title: 'AuthUserModel',
-      path: 'lib/features/auth/data/models/auth_user_model.dart',
+      path: 'lib/features/auth/domain/models/auth_user_model.dart',
+      movedFrom: 'lib/features/auth/data/models/auth_user_model.dart',
       category: 'Auth feature',
       template: (c) => c.stack.firebaseAuthModel(
         withFirestore: c.hasFirestore,
       ),
       description:
-          'FirebaseAuth user ↔ entity, plus the Firestore profile document.',
+          'The signed-in Firebase user, plus the Firestore profile document.',
     ),
     ScaffoldSpec(
       name: 'auth-datasource',
@@ -984,8 +981,7 @@ abstract final class ScaffoldCatalog {
       path: 'build.yaml',
       category: 'Project',
       template: (_) => DevTemplates.buildYaml(),
-      description:
-          'How build_runner writes the entities and models — one option, and '
+      description: 'How build_runner writes the models — one option, and '
           'it is load-bearing.',
     ),
     ScaffoldSpec(
@@ -1088,8 +1084,10 @@ abstract final class ScaffoldCatalog {
   static List<ScaffoldSpec> generated(String projectRoot) {
     final context = ScaffoldContext.detect(projectRoot);
     return all
-        .where(
-            (spec) => File(context.resolve(spec.pathIn(context))).existsSync())
+        .where((spec) =>
+            File(context.resolve(spec.pathIn(context))).existsSync() ||
+            (spec.movedFrom != null &&
+                File(context.resolve(spec.movedFrom!)).existsSync()))
         .toList();
   }
 }

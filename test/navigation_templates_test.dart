@@ -81,7 +81,7 @@ void main() {
   });
 
   group('appBottomNav', () {
-    final output = SharedTemplates.appBottomNav();
+    final output = NavigationTemplates.appBottomNav();
 
     test('offers four looks, and floating as a separate question', () {
       expect(
