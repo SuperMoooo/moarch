@@ -434,14 +434,49 @@ jobs:
   /// BUILD ANDROID APK
   static String buildANDROID() => r'''
 
+# Secret
+# ANDROID_KEYSTORE_BASE64   - base64 of your .jks keystore
+# KEYSTORE_STORE_PASSWORD   - the keystore's store password
+# KEYSTORE_KEY_PASSWORD     - the key's password
+# KEYSTORE_KEY_ALIAS        - the key alias, e.g. my-key-alias
+#
+
 name: Build ANDROID APK
 
 on:
     workflow_dispatch: {}
 
 jobs:
+    # ── 1. Check for the signing keystore ───────────────────────────────────────
+    # Determines whether the keystore secrets are present so the build job can
+    # skip cleanly instead of failing when they're not configured.
+    check-android-secrets:
+        runs-on: ubuntu-latest
+        outputs:
+            has_secrets: ${{ steps.check.outputs.has_secrets }}
+        steps:
+            - name: Check required secrets
+              id: check
+              env:
+                  KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+                  STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
+                  KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD }}
+                  KEY_ALIAS: ${{ secrets.KEYSTORE_KEY_ALIAS }}
+              run: |
+                  if [ -n "$KEYSTORE_BASE64" ] && [ -n "$STORE_PASSWORD" ] && \
+                     [ -n "$KEY_PASSWORD" ] && [ -n "$KEY_ALIAS" ]; then
+                    echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+                    echo "⚠️ Android signing secrets not fully configured — Android build will be skipped."
+                  fi
+
+    # ── 2. Build Android ─────────────────────────────────────────────────────────
+    # Only runs if every keystore secret exists.
     build-android:
         runs-on: ubuntu-latest
+        needs: [check-android-secrets]
+        if: needs.check-android-secrets.outputs.has_secrets == 'true'
 
         env:
             GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -Dorg.gradle.daemon=false"
@@ -593,158 +628,4 @@ jobs:
                   find reports -type f >> $GITHUB_STEP_SUMMARY
 
 ''';
-
-  /// FASTLANE DEPLOY WORKFLOW
-  static String deployWorkflow() => r'''
-name: Fastlane Deploy
-
-# Fastlane deployment workflow for Android and iOS.
-# gem install fastlane or brew install fastlane
-# Setup instructions (copy these into your repo or use them as a checklist):
-# 1. Initialize Fastlane in each platform folder:
-#    - cd android && bundle init && bundle add fastlane
-#    - cd ios && bundle init && bundle add fastlane
-# 2. Run the Fastlane setup wizard for each platform:
-#    - cd android && bundle exec fastlane init
-#    - cd ios && bundle exec fastlane init
-# 3. Define your deployment lanes in each Fastfile, for example:
-#    - android: lane :beta do ... end
-#    - ios: lane :beta do ... end
-# 4. For iOS signing, set up Match (recommended):
-#    - fastlane match appstore --readonly
-#    - fastlane match init
-#    - store the Match repo URL in MATCH_GIT_URL
-# 5. Add the required secrets in GitHub:
-#    Settings → Secrets and variables → Actions
-#
-# Required GitHub secrets:
-# - BASE_URL                        # used by the app at runtime (optional if not needed in deployment)
-# - FASTLANE_USER                   # Apple ID used by Fastlane for App Store Connect
-# - FASTLANE_PASSWORD               # App-specific password or app-specific password for Apple ID
-# - FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD  # if needed by your lane
-# - APP_STORE_CONNECT_API_KEY_ID   # App Store Connect API key ID
-# - APP_STORE_CONNECT_ISSUER_ID    # App Store Connect issuer ID
-# - APP_STORE_CONNECT_API_KEY_CONTENT  # base64-encoded App Store Connect API key (.p8)
-# - MATCH_PASSWORD                 # password for the Match repository certificates
-# - MATCH_GIT_URL                  # HTTPS URL to your Match repository
-# - MATCH_GIT_BASIC_AUTHORIZATION  # Basic auth token for the Match repository (optional if using SSH/other auth)
-# - PLAY_STORE_JSON_KEY_BASE64     # base64 of the Google Play service account JSON
-# - GOOGLE_PLAY_JSON_KEY           # optional if your lane expects a plain JSON path instead of base64
-#
-# Optional secrets depending on your lane implementation:
-# - SENTRY_AUTH_TOKEN
-# - SLACK_WEBHOOK_URL
-#
-# Typical manual usage:
-# - Go to Actions → Fastlane Deploy → Run workflow
-# - Choose the platform and lane you want to deploy
-#
-# Typical tag-based deployment:
-# - Create a tag like v1.2.3 and push it to trigger deployment for Android and iOS.
-
-on:
-    workflow_dispatch:
-        inputs:
-            platform:
-                description: Platform to deploy
-                required: true
-                default: all
-                type: choice
-                options:
-                    - all
-                    - android
-                    - ios
-            lane:
-                description: Fastlane lane to execute
-                required: true
-                default: beta
-                type: string
-    push:
-        tags:
-            - 'v*'
-
-jobs:
-    prepare:
-        runs-on: ubuntu-latest
-        outputs:
-            matrix: ${{ steps.set-matrix.outputs.matrix }}
-        steps:
-            - name: Determine platforms to deploy
-              id: set-matrix
-              shell: bash
-              run: |
-                  android='{"platform":"android","os":"ubuntu-latest","working_directory":"android"}'
-                  ios='{"platform":"ios","os":"macos-latest","working_directory":"ios"}'
-                  platform="${{ github.event.inputs.platform }}"
-
-                  if [ "${{ github.event_name }}" = "push" ] || [ "$platform" = "all" ] || [ -z "$platform" ]; then
-                    matrix="[$android,$ios]"
-                  elif [ "$platform" = "android" ]; then
-                    matrix="[$android]"
-                  else
-                    matrix="[$ios]"
-                  fi
-
-                  echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-
-    deploy:
-        needs: prepare
-        runs-on: ${{ matrix.os }}
-        strategy:
-            fail-fast: false
-            matrix:
-                include: ${{ fromJson(needs.prepare.outputs.matrix) }}
-
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
-
-            - name: Set up Flutter
-              uses: subosito/flutter-action@v2
-              with:
-                  flutter-version-file: .fvmrc
-                  cache: true
-
-            - name: Set up Ruby
-              uses: ruby/setup-ruby@v1
-              with:
-                  ruby-version: '3.2'
-                  bundler-cache: true
-                  working-directory: ${{ matrix.working_directory }}
-
-            - name: Install Flutter dependencies
-              run: flutter pub get
-
-            - name: Create runtime env file
-              run: |
-                  if [ -f .env ]; then
-                    echo ".env already exists, using the existing file."
-                  else
-                    echo "BASE_URL=${{ secrets.BASE_URL }}" > .env
-                  fi
-
-            - name: Install Fastlane dependencies
-              working-directory: ${{ matrix.working_directory }}
-              run: bundle install
-
-            - name: Deploy with Fastlane
-              working-directory: ${{ matrix.working_directory }}
-              env:
-                  FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
-                  FASTLANE_PASSWORD: ${{ secrets.FASTLANE_PASSWORD }}
-                  FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD }}
-                  APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-                  APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-                  APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
-                  MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-                  MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
-                  MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
-                  PLAY_STORE_JSON_KEY_BASE64: ${{ secrets.PLAY_STORE_JSON_KEY_BASE64 }}
-                  GOOGLE_PLAY_JSON_KEY: ${{ secrets.GOOGLE_PLAY_JSON_KEY }}
-                  BASE_URL: ${{ secrets.BASE_URL }}
-              run: |
-                  echo "Deploying ${{ matrix.platform }} with lane ${{ github.event.inputs.lane || 'beta' }}"
-                  bundle exec fastlane ${{ github.event.inputs.lane || 'beta' }}
-
-  ''';
 }

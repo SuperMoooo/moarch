@@ -946,14 +946,6 @@ abstract final class ScaffoldCatalog {
       template: (_) => WorkflowTemplates.buildANDROID(),
       description: 'Signs and builds the APK/AAB.',
     ),
-    ScaffoldSpec(
-      name: 'workflow-deploy',
-      title: 'Store deploy workflow',
-      path: '.github/workflows/deploy_stores.yml',
-      category: 'Workflows',
-      template: (_) => WorkflowTemplates.deployWorkflow(),
-      description: 'Uploads a build to App Store Connect / Play Console.',
-    ),
 
     // ── Project ─────────────────────────────────────────────────────────────
     ScaffoldSpec(

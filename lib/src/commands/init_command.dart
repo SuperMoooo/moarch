@@ -727,11 +727,6 @@ class InitCommand extends Command<int> {
               p.absolute(targetPath), '.github', 'workflows', 'build_apk.yml'),
           WorkflowTemplates.buildANDROID(),
         );
-        await FileUtils.writeFile(
-          p.join(p.absolute(targetPath), '.github', 'workflows',
-              'deploy_stores.yml'),
-          WorkflowTemplates.deployWorkflow(),
-        );
       }
 
       // Secrets and generated files that must never be committed.

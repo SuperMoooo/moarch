@@ -1256,7 +1256,7 @@ encoding) and `docs/GENERATE_JKS_FILE.md` (the Android keystore).
     return '''
 ## 10. CI/CD & GitHub secrets
 
-Five workflows live in `.github/workflows/`:
+Four workflows live in `.github/workflows/`:
 
 | Workflow | File | Runs on | What it does |
 |---|---|---|---|
@@ -1264,7 +1264,6 @@ Five workflows live in `.github/workflows/`:
 | CSA | `csa.yml` | push and manual | code scanning: SAST, secret scan, SBOM, licence report |
 | Build IOS IPA | `build_ipa.yml` | manual | signs and builds the IPA, uploaded as the `release-ipa` artifact |
 | Build ANDROID APK | `build_apk.yml` | manual | signs and builds the APK, uploaded as the `release-apk` artifact |
-| Fastlane Deploy | `deploy_stores.yml` | manual | uploads a build to App Store Connect / Play Console |
 
 "Manual" means **Actions → the workflow → Run workflow**. Both build workflows
 check for their secrets first and **skip cleanly** when they are missing, rather

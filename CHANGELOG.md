@@ -2,6 +2,20 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 8.1.0
+
+- **`build_apk.yml` skips cleanly when the keystore is not set up.** A new
+  `check-android-secrets` job looks for `ANDROID_KEYSTORE_BASE64`,
+  `KEYSTORE_STORE_PASSWORD`, `KEYSTORE_KEY_PASSWORD` and `KEYSTORE_KEY_ALIAS`,
+  and the build runs only when all four exist — the same as `build_ipa.yml`, so
+  a fresh clone or a fork stays green. `moarch update workflow-android` picks
+  it up.
+- **The Fastlane deploy workflow is gone.** `init` no longer writes
+  `.github/workflows/deploy_stores.yml`, and `workflow-deploy` is no longer a
+  scaffold slug. It ran lanes moarch never generated, so on a new project it
+  could only fail. A project that already has the file keeps it — `update`
+  leaves it alone, and it can be deleted by hand.
+
 ## 8.0.0
 
 **Breaking: the scaffold is model-only.** A feature no longer has an entity. Its

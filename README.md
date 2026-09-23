@@ -1209,7 +1209,7 @@ its own:
 | `config` | `theme`, `env`, `router`, `routes`, `firebase-providers`, `injector` |
 | `auth` | the generated auth feature, REST or Firebase, notifier or bloc |
 | `docs` | `ui-kit`, `deploy-checklist`, `security-checklist`, `jks-doc`, `workflow-doc`, `firebase-doc` |
-| `workflows` | the five GitHub Actions workflows |
+| `workflows` | the four GitHub Actions workflows |
 | `project` | `analysis-options`, `splash`, `fvmrc`, `widget-test`, `vscode-settings`, `vscode-launch` |
 | `ios` | `ios-entitlements`, `ios-profile-entitlements`, `xcode-script` |
 | `android` | `proguard` |
