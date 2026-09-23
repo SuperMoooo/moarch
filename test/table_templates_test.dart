@@ -12,7 +12,8 @@ void main() {
       expect(
         output,
         contains(
-            'final share = flexTotal == 0 ? 0.0 : remaining * flex / flexTotal;'),
+          'final share = flexTotal == 0 ? 0.0 : remaining * flex / flexTotal;',
+        ),
       );
     });
 
@@ -20,7 +21,8 @@ void main() {
       expect(
         output,
         contains(
-            'widths[i] = share < columns[i].minWidth ? columns[i].minWidth : share;'),
+          'widths[i] = share < columns[i].minWidth ? columns[i].minWidth : share;',
+        ),
       );
       expect(output, contains('this.minWidth = 72,'));
     });
@@ -29,23 +31,29 @@ void main() {
       // A row whose gaps are not counted overflows by exactly one gap per
       // column boundary.
       expect(
-          output, contains('final gaps = _columnGap * (columns.length - 1);'));
+        output,
+        contains('final gaps = _columnGap * (columns.length - 1);'),
+      );
       expect(
         output,
         contains('? constraints.maxWidth - horizontalPadding * 2 - gaps'),
       );
       expect(
-          output,
-          contains(
-              'width: overflows ? total + gaps + horizontalPadding * 2 : null,'));
+        output,
+        contains(
+          'width: overflows ? total + gaps + horizontalPadding * 2 : null,',
+        ),
+      );
     });
 
     test('a column divider is wider than a plain gap, and says so', () {
       expect(
         output,
-        contains('double get _columnGap => showColumnDividers\n'
-            '      ? AppConstants.space8 * 2 + 1\n'
-            '      : AppConstants.space8;'),
+        contains(
+          'double get _columnGap => showColumnDividers\n'
+          '      ? AppConstants.space8 * 2 + 1\n'
+          '      : AppConstants.space8;',
+        ),
       );
     });
 
@@ -68,13 +76,17 @@ void main() {
 
     test('a ragged row is drawn, not thrown', () {
       expect(
-          output,
-          contains(
-              'if (index >= row.cells.length) return const SizedBox.shrink();'));
+        output,
+        contains(
+          'if (index >= row.cells.length) return const SizedBox.shrink();',
+        ),
+      );
       expect(
-          output,
-          contains(
-              'if (index >= widgets.length) return const SizedBox.shrink();'));
+        output,
+        contains(
+          'if (index >= widgets.length) return const SizedBox.shrink();',
+        ),
+      );
     });
 
     test('widget cells win over string cells', () {
@@ -118,11 +130,17 @@ void main() {
 
     test('density moves the row padding', () {
       expect(
-          output, contains('AppTableDensity.compact => AppConstants.space8,'));
-      expect(output,
-          contains('AppTableDensity.standard => AppConstants.space12,'));
-      expect(output,
-          contains('AppTableDensity.comfortable => AppConstants.space16,'));
+        output,
+        contains('AppTableDensity.compact => AppConstants.space8,'),
+      );
+      expect(
+        output,
+        contains('AppTableDensity.standard => AppConstants.space12,'),
+      );
+      expect(
+        output,
+        contains('AppTableDensity.comfortable => AppConstants.space16,'),
+      );
     });
 
     test('a table with no columns fails loudly rather than blankly', () {

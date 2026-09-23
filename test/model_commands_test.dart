@@ -13,19 +13,15 @@ void main() {
   late CommandRunner<int> runner;
 
   String modelPath(String feature, String model) => p.join(
-        libPath,
-        'features',
-        feature,
-        'domain',
-        'models',
-        '${model}_model.dart',
-      );
+    libPath,
+    'features',
+    feature,
+    'domain',
+    'models',
+    '${model}_model.dart',
+  );
 
-  Future<void> placeModel(
-    String feature,
-    String model,
-    String source,
-  ) async {
+  Future<void> placeModel(String feature, String model, String source) async {
     final path = modelPath(feature, model);
     await Directory(p.dirname(path)).create(recursive: true);
     await File(path).writeAsString(source);
@@ -46,38 +42,54 @@ void main() {
 
   group('create model', () {
     setUp(() async {
-      await Directory(p.join(libPath, 'features', 'auth'))
-          .create(recursive: true);
+      await Directory(
+        p.join(libPath, 'features', 'auth'),
+      ).create(recursive: true);
     });
 
     test('writes the model into the named feature, and nothing else', () async {
-      final code = await runner
-          .run(['model', '--path', libPath, 'auth', 'login_response']);
+      final code = await runner.run([
+        'model',
+        '--path',
+        libPath,
+        'auth',
+        'login_response',
+      ]);
 
       expect(code, 0);
       expect(File(modelPath('auth', 'login_response')).existsSync(), isTrue);
       // A model is the only type a feature has — there is no domain/entities,
       // and nothing is written under data/.
       final feature = p.join(libPath, 'features', 'auth');
-      expect(Directory(p.join(feature, 'domain', 'entities')).existsSync(),
-          isFalse);
+      expect(
+        Directory(p.join(feature, 'domain', 'entities')).existsSync(),
+        isFalse,
+      );
       expect(Directory(p.join(feature, 'data')).existsSync(), isFalse);
     });
 
     test('refuses a feature that does not exist', () async {
-      final code =
-          await runner.run(['model', '--path', libPath, 'billing', 'invoice']);
+      final code = await runner.run([
+        'model',
+        '--path',
+        libPath,
+        'billing',
+        'invoice',
+      ]);
 
       expect(code, 1);
-      expect(Directory(p.join(libPath, 'features', 'billing')).existsSync(),
-          isFalse);
+      expect(
+        Directory(p.join(libPath, 'features', 'billing')).existsSync(),
+        isFalse,
+      );
     });
 
     test('the scaffolded model is freezed and carries its own JSON', () async {
       await runner.run(['model', '--path', libPath, 'auth', 'login_response']);
 
-      final model =
-          await File(modelPath('auth', 'login_response')).readAsString();
+      final model = await File(
+        modelPath('auth', 'login_response'),
+      ).readAsString();
 
       expect(model, contains('@freezed'));
       expect(model, contains("part 'login_response_model.freezed.dart';"));
@@ -107,12 +119,19 @@ abstract class LoginResponseModel with _\$LoginResponseModel {
 }
 ''');
 
-      final code = await runner.run(
-          ['model', '--path', libPath, '--empty', 'auth', 'login_response']);
+      final code = await runner.run([
+        'model',
+        '--path',
+        libPath,
+        '--empty',
+        'auth',
+        'login_response',
+      ]);
 
       expect(code, 0);
-      final source =
-          await File(modelPath('auth', 'login_response')).readAsString();
+      final source = await File(
+        modelPath('auth', 'login_response'),
+      ).readAsString();
       expect(source, contains('factory LoginResponseModel.empty()'));
       // Read off the freezed factory's parameters — a freezed class declares
       // no fields for the old parser to find.
@@ -125,20 +144,30 @@ abstract class LoginResponseModel with _\$LoginResponseModel {
 
     test('--empty is a no-op once the model has one', () async {
       await runner.run(['model', '--path', libPath, 'auth', 'login_response']);
-      final scaffolded =
-          await File(modelPath('auth', 'login_response')).readAsString();
+      final scaffolded = await File(
+        modelPath('auth', 'login_response'),
+      ).readAsString();
 
-      final code = await runner.run(
-          ['model', '--path', libPath, '--empty', 'auth', 'login_response']);
+      final code = await runner.run([
+        'model',
+        '--path',
+        libPath,
+        '--empty',
+        'auth',
+        'login_response',
+      ]);
 
       expect(code, 0);
-      expect(await File(modelPath('auth', 'login_response')).readAsString(),
-          scaffolded);
+      expect(
+        await File(modelPath('auth', 'login_response')).readAsString(),
+        scaffolded,
+      );
     });
 
-    test('--empty injects into the model, not a second class below it',
-        () async {
-      await placeModel('auth', 'session', '''
+    test(
+      '--empty injects into the model, not a second class below it',
+      () async {
+        await placeModel('auth', 'session', '''
 class SessionModel {
   const SessionModel({required this.id});
 
@@ -152,17 +181,24 @@ class DeviceModel {
 }
 ''');
 
-      final code = await runner
-          .run(['model', '--path', libPath, '--empty', 'auth', 'session']);
+        final code = await runner.run([
+          'model',
+          '--path',
+          libPath,
+          '--empty',
+          'auth',
+          'session',
+        ]);
 
-      expect(code, 0);
-      final source = await File(modelPath('auth', 'session')).readAsString();
-      final factoryAt = source.indexOf('factory SessionModel.empty()');
-      expect(factoryAt, greaterThan(-1));
-      expect(factoryAt, lessThan(source.indexOf('class DeviceModel')));
-      // Fields belong to the model being patched, not to its neighbour.
-      expect(source, isNot(contains("name: ''")));
-    });
+        expect(code, 0);
+        final source = await File(modelPath('auth', 'session')).readAsString();
+        final factoryAt = source.indexOf('factory SessionModel.empty()');
+        expect(factoryAt, greaterThan(-1));
+        expect(factoryAt, lessThan(source.indexOf('class DeviceModel')));
+        // Fields belong to the model being patched, not to its neighbour.
+        expect(source, isNot(contains("name: ''")));
+      },
+    );
   });
 
   group('create empty-factories', () {
@@ -219,7 +255,9 @@ class OrderModel {
 
       expect(code, 0);
       expect(
-          await File(modelPath('orders', 'order')).readAsString(), handWritten);
+        await File(modelPath('orders', 'order')).readAsString(),
+        handWritten,
+      );
     });
 
     test('--dry-run writes nothing', () async {
@@ -232,8 +270,12 @@ class OrderModel {
 ''';
       await placeModel('orders', 'order', original);
 
-      final code =
-          await runner.run(['empty-factories', '--path', libPath, '--dry-run']);
+      final code = await runner.run([
+        'empty-factories',
+        '--path',
+        libPath,
+        '--dry-run',
+      ]);
 
       expect(code, 0);
       expect(await File(modelPath('orders', 'order')).readAsString(), original);
@@ -244,8 +286,9 @@ class OrderModel {
     late String samplePath;
 
     setUp(() async {
-      await Directory(p.join(libPath, 'features', 'works'))
-          .create(recursive: true);
+      await Directory(
+        p.join(libPath, 'features', 'works'),
+      ).create(recursive: true);
       // The shape is read off the project, so it has to look like one that
       // stores its data in Firestore.
       await File(p.join(tempDir.path, 'pubspec.yaml')).writeAsString(
@@ -275,8 +318,10 @@ class OrderModel {
       expect(code, 0);
       final model = await File(modelPath('works', 'fatura')).readAsString();
 
-      expect(model,
-          contains('@JsonKey(includeToJson: false) required String id,'));
+      expect(
+        model,
+        contains('@JsonKey(includeToJson: false) required String id,'),
+      );
       expect(model, contains("{...?doc.data(), 'id': doc.id}"));
     });
 

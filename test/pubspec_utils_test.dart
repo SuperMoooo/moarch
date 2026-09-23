@@ -15,8 +15,9 @@ void main() {
   }
 
   Future<YamlMap> readPubspec() async {
-    final content =
-        await File(p.join(tempDir.path, 'pubspec.yaml')).readAsString();
+    final content = await File(
+      p.join(tempDir.path, 'pubspec.yaml'),
+    ).readAsString();
     return loadYaml(content) as YamlMap;
   }
 
@@ -55,9 +56,10 @@ flutter:
     );
   });
 
-  test('ensureDependencies adds missing entries and keeps existing pins',
-      () async {
-    await writePubspec('''
+  test(
+    'ensureDependencies adds missing entries and keeps existing pins',
+    () async {
+      await writePubspec('''
 name: testing
 
 dependencies:
@@ -66,38 +68,41 @@ dependencies:
   dio: ^5.0.0
 ''');
 
-    await PubspecUtils.ensureDependencies(
-      tempDir.path,
-      dependencies: ['dio: ^5.10.0', 'logger: ^2.7.0'],
-      devDependencies: ['build_runner: ^2.15.1'],
-    );
+      await PubspecUtils.ensureDependencies(
+        tempDir.path,
+        dependencies: ['dio: ^5.10.0', 'logger: ^2.7.0'],
+        devDependencies: ['build_runner: ^2.15.1'],
+      );
 
-    final doc = await readPubspec();
-    final deps = doc['dependencies'] as YamlMap;
-    expect(deps['dio'], '^5.0.0', reason: 'existing pin must be untouched');
-    expect(deps['logger'], '^2.7.0');
-    expect((doc['dev_dependencies'] as YamlMap)['build_runner'], '^2.15.1');
-  });
+      final doc = await readPubspec();
+      final deps = doc['dependencies'] as YamlMap;
+      expect(deps['dio'], '^5.0.0', reason: 'existing pin must be untouched');
+      expect(deps['logger'], '^2.7.0');
+      expect((doc['dev_dependencies'] as YamlMap)['build_runner'], '^2.15.1');
+    },
+  );
 
-  test('ensureFlutterFlags adds missing keys under the flutter section',
-      () async {
-    await writePubspec('''
+  test(
+    'ensureFlutterFlags adds missing keys under the flutter section',
+    () async {
+      await writePubspec('''
 name: testing
 
 flutter:
   uses-material-design: true
 ''');
 
-    await PubspecUtils.ensureFlutterFlags(
-      tempDir.path,
-      flags: ['generate: true', 'uses-material-design: true'],
-    );
+      await PubspecUtils.ensureFlutterFlags(
+        tempDir.path,
+        flags: ['generate: true', 'uses-material-design: true'],
+      );
 
-    final doc = await readPubspec();
-    final flutterSection = doc['flutter'] as YamlMap;
-    expect(flutterSection['generate'], isTrue);
-    expect(flutterSection['uses-material-design'], isTrue);
-  });
+      final doc = await readPubspec();
+      final flutterSection = doc['flutter'] as YamlMap;
+      expect(flutterSection['generate'], isTrue);
+      expect(flutterSection['uses-material-design'], isTrue);
+    },
+  );
 
   test('ensureDependencies creates a valid pubspec when none exists', () async {
     await PubspecUtils.ensureDependencies(

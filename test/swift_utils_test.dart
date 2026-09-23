@@ -30,10 +30,7 @@ void main() {
     );
     expect(output, contains('    if #available(iOS 10.0, *) {'));
     // Warning against re-adding a tap-blocking override travels with the code.
-    expect(
-      output,
-      contains('userNotificationCenter(_:didReceive:) override'),
-    );
+    expect(output, contains('userNotificationCenter(_:didReceive:) override'));
   });
 
   test('ensureNotificationDelegate is idempotent', () {

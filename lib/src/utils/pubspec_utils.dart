@@ -23,10 +23,12 @@ class PubspecUtils {
     final pubspecFile = File(p.join(projectPath, 'pubspec.yaml'));
 
     if (!await pubspecFile.exists()) {
-      await pubspecFile.writeAsString(_defaultPubspec(
-        dependencies: dependencies,
-        devDependencies: devDependencies,
-      ));
+      await pubspecFile.writeAsString(
+        _defaultPubspec(
+          dependencies: dependencies,
+          devDependencies: devDependencies,
+        ),
+      );
       return;
     }
 
@@ -41,18 +43,22 @@ class PubspecUtils {
   }
 
   /// Ensures asset entries are present under the Flutter section of a target pubspec file.
-  static Future<void> ensureAssets(String projectPath,
-      {required List<String> assets}) async {
+  static Future<void> ensureAssets(
+    String projectPath, {
+    required List<String> assets,
+  }) async {
     if (assets.isEmpty) return;
 
     final pubspecFile = File(p.join(projectPath, 'pubspec.yaml'));
 
     if (!await pubspecFile.exists()) {
-      await pubspecFile.writeAsString(_defaultPubspec(
-        dependencies: const <String>[],
-        devDependencies: const <String>[],
-        assets: assets,
-      ));
+      await pubspecFile.writeAsString(
+        _defaultPubspec(
+          dependencies: const <String>[],
+          devDependencies: const <String>[],
+          assets: assets,
+        ),
+      );
       return;
     }
 
@@ -60,8 +66,9 @@ class PubspecUtils {
     final editor = YamlEditor(content);
     final root = loadYaml(content);
     final flutterSection = root is Map ? root['flutter'] : null;
-    final existingAssets =
-        flutterSection is Map ? flutterSection['assets'] : null;
+    final existingAssets = flutterSection is Map
+        ? flutterSection['assets']
+        : null;
 
     if (flutterSection is! Map) {
       editor.update(['flutter'], {'assets': assets});
@@ -154,9 +161,7 @@ class PubspecUtils {
   /// constraint) so pub fetches the most recent compatible release.
   static Map<String, Object?> _parseDependencies(List<String> entries) {
     final parsed = _parseEntries(entries);
-    return {
-      for (final e in parsed.entries) e.key: e.value ?? 'any',
-    };
+    return {for (final e in parsed.entries) e.key: e.value ?? 'any'};
   }
 
   static Object? _toPlain(Object? node) {
@@ -180,9 +185,7 @@ class PubspecUtils {
       'environment': {'sdk': '>=3.0.0 <4.0.0'},
       'dependencies': _parseDependencies(dependencies),
       'dev_dependencies': _parseDependencies(devDependencies),
-      'flutter': {
-        if (assets.isNotEmpty) 'assets': assets,
-      },
+      'flutter': {if (assets.isNotEmpty) 'assets': assets},
     });
     return editor.toString();
   }

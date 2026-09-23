@@ -238,26 +238,25 @@ class AppImage extends StatelessWidget {
   ///
   /// The service comes out of the locator in both stacks, so there is one
   /// button rather than two.
-  static String appButton({
-    bool hasBiometricAuth = false,
-  }) {
+  static String appButton({bool hasBiometricAuth = false}) {
     final biometricImports = !hasBiometricAuth
         ? ''
         : "\nimport '../../../config/di/injector.dart';"
-            "\nimport '../../../core/security/biometric_service.dart';";
+              "\nimport '../../../core/security/biometric_service.dart';";
 
     // The locator needs no element of its own, so the button stays a
     // StatelessWidget.
     const classDeclaration = 'class AppButton extends StatelessWidget {';
 
-    final requireAuthParam =
-        hasBiometricAuth ? '\n    this.requireAuth = false,' : '';
+    final requireAuthParam = hasBiometricAuth
+        ? '\n    this.requireAuth = false,'
+        : '';
 
     final requireAuthField = !hasBiometricAuth
         ? ''
         : '\n\n  /// Runs biometric verification before [onPressed]; the press\n'
-            '  /// is cancelled when it fails.\n'
-            '  final bool requireAuth;';
+              '  /// is cancelled when it fails.\n'
+              '  final bool requireAuth;';
 
     const buildSignature = 'Widget build(BuildContext context) {';
 
@@ -271,22 +270,22 @@ class AppImage extends StatelessWidget {
 
     final onPressedWiring = !hasBiometricAuth
         ? '$guard\n'
-            '            ? null\n'
-            '            : () {\n'
-            '                HapticFeedback.selectionClick();\n'
-            '                onPressed!();\n'
-            '              }'
+              '            ? null\n'
+              '            : () {\n'
+              '                HapticFeedback.selectionClick();\n'
+              '                onPressed!();\n'
+              '              }'
         : '$guard\n'
-            '            ? null\n'
-            '            : () async {\n'
-            '                HapticFeedback.selectionClick();\n'
-            '                if (!requireAuth) {\n'
-            '                  onPressed!();\n'
-            '                  return;\n'
-            '                }\n'
-            '$verifyCall'
-            '                if (verified) onPressed!();\n'
-            '              }';
+              '            ? null\n'
+              '            : () async {\n'
+              '                HapticFeedback.selectionClick();\n'
+              '                if (!requireAuth) {\n'
+              '                  onPressed!();\n'
+              '                  return;\n'
+              '                }\n'
+              '$verifyCall'
+              '                if (verified) onPressed!();\n'
+              '              }';
 
     return '''
 import 'package:flutter/material.dart';
@@ -5050,8 +5049,35 @@ class AppBadge extends StatelessWidget {
 }
 ''';
 
+  /// Rewrites a widget's success / warning / info lookups from the fixed
+  /// `AppConstants` values to the theme's `AppStatusColors`, when the project
+  /// has it — which is what makes them follow a dark theme.
+  ///
+  /// Expects a `theme` (`ThemeData`) in scope wherever the colors are read.
+  static String _withStatusColors(String source, bool withStatusColors) {
+    if (!withStatusColors) return source;
+    const constants = "import '../../../core/constants/app_constants.dart';\n";
+    var out = source.replaceFirst(
+      constants,
+      "import '../../../config/theme/app_status_colors.dart';\n$constants",
+    );
+    for (final name in const ['success', 'warning', 'info']) {
+      out = out.replaceAll(
+        'AppConstants.$name,',
+        'AppStatusColors.of(theme).$name,',
+      );
+    }
+    return out;
+  }
+
   /// Returns the generated appTag template.
-  static String appTag() => r'''
+  ///
+  /// [withStatusColors] reads the status colors off the theme's
+  /// `AppStatusColors` — see [_withStatusColors].
+  static String appTag({bool withStatusColors = false}) =>
+      _withStatusColors(_appTag, withStatusColors);
+
+  static const _appTag = r'''
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
@@ -5163,25 +5189,50 @@ class AppSkeletonList extends StatelessWidget {
   /// [withDark] picks the status color per brightness; with a single brand
   /// theme there is only ever one, so the lookup drops the flag rather than
   /// reading `*Dark` constants the project does not have.
-  static String appToast({bool withDark = false}) {
-    final resolveSignature = withDark
+  ///
+  /// [withStatusColors] reads the colors off the theme's `AppStatusColors`
+  /// instead, which already answers per brightness — so it overrides
+  /// [withDark], and the error color comes from `colorScheme.error`.
+  static String appToast({
+    bool withDark = false,
+    bool withStatusColors = false,
+  }) {
+    final resolveSignature = withStatusColors
+        ? 'static (Color, IconData) _resolve(\n'
+              '    AppToastType type,\n'
+              '    AppStatusColors status,\n'
+              '    Color error,\n'
+              '  ) =>'
+        : withDark
         ? 'static (Color, IconData) _resolve(AppToastType type, bool isDark) =>'
         : 'static (Color, IconData) _resolve(AppToastType type) =>';
 
-    final resolveCall = withDark
+    final resolveCall = withStatusColors
+        ? 'AppToast._resolve(\n'
+              '      type,\n'
+              '      context.statusColors,\n'
+              '      colorScheme.error,\n'
+              '    )'
+        : withDark
         ? 'AppToast._resolve(type, isDark)'
         : 'AppToast._resolve(type)';
 
-    String status(String name) => withDark
+    String status(String name) => withStatusColors
+        ? (name == 'error' ? 'error' : 'status.$name')
+        : withDark
         ? 'isDark ? AppConstants.${name}Dark : AppConstants.$name'
         : 'AppConstants.$name';
+
+    final statusImport = withStatusColors
+        ? "\nimport '../../../config/theme/app_status_colors.dart';"
+        : '';
 
     return '''
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/app_constants.dart';$statusImport
 
 /// Feedback status for [AppToast].
 enum AppToastType { success, error, warning, info }
@@ -5423,8 +5474,8 @@ class _ToastOverlayState extends State<_ToastOverlay>
     // away. Reversing easeOutCubic instead would have it crawl off the screen.
     _curve = CurvedAnimation(
       parent: _controller,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
+      curve: AppConstants.curveEnter,
+      reverseCurve: AppConstants.curveExit,
     );
     widget.spec.addListener(_handleSpecChanged);
     AppToast._hideCurrent = _hide;
@@ -6951,7 +7002,13 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
 ''';
 
   /// Returns the generated appBanner template.
-  static String appBanner() => r'''
+  ///
+  /// [withStatusColors] reads the status colors off the theme's
+  /// `AppStatusColors` — see [_withStatusColors].
+  static String appBanner({bool withStatusColors = false}) =>
+      _withStatusColors(_appBanner, withStatusColors);
+
+  static const _appBanner = r'''
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -8117,15 +8174,15 @@ class _NumberedStep extends StatelessWidget {
     final asyncPackageImports = isBloc
         ? "import 'package:skeletonizer/skeletonizer.dart';\n"
         : "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
-            "import 'package:skeletonizer/skeletonizer.dart';\n";
+              "import 'package:skeletonizer/skeletonizer.dart';\n";
 
     // Read only by the section below: `BoneMock` (skeletonizer) by its
     // skeleton, and on Riverpod `AppException` by its error case.
     final asyncLocalImports = isBloc
         ? "import '../../core/utils/app_status.dart';\n"
-            "import '../widgets/app_status_view.dart';\n"
+              "import '../widgets/app_status_view.dart';\n"
         : "import '../../core/errors/app_exception.dart';\n"
-            "import '../widgets/app_async_view.dart';\n";
+              "import '../widgets/app_async_view.dart';\n";
 
     const asyncStateField = '\n  int _asyncState = 0;';
 

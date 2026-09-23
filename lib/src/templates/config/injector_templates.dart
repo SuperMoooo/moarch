@@ -35,7 +35,14 @@ abstract final class InjectorTemplates {
   /// Takes no options — which layer holds what varies, but that the layers
   /// exist does not. The one thing [stateManagement] decides is whether there
   /// is a presentation module to call.
-  static String injector({required StateManagement stateManagement}) {
+  ///
+  /// [withFeatureModule] calls `registerFeatureServices()` from
+  /// `feature_module.dart`. Read off disk: a project from before 9.0.0 has no
+  /// such file, and refreshing its root must not start calling one.
+  static String injector({
+    required StateManagement stateManagement,
+    bool withFeatureModule = false,
+  }) {
     final isBloc = stateManagement.isBloc;
 
     final imports = <String>[
@@ -44,6 +51,7 @@ abstract final class InjectorTemplates {
       "import 'core_module.dart';",
       "import 'data_module.dart';",
       "import 'external_module.dart';",
+      if (withFeatureModule) "import 'feature_module.dart';",
       if (isBloc) "import 'presentation_module.dart';",
     ].join('\n');
 
@@ -51,6 +59,8 @@ abstract final class InjectorTemplates {
       '/// - `external_module.dart` — Dio, Firebase, secure storage.',
       '/// - `core_module.dart` — the services under `lib/core`.',
       '/// - `data_module.dart` — datasources and repositories.',
+      if (withFeatureModule)
+        '/// - `feature_module.dart` — long-lived services a feature owns.',
       if (isBloc) '/// - `presentation_module.dart` — blocs.',
     ].join('\n');
 
@@ -97,7 +107,7 @@ Future<void> setupInjector() async {
   // is lazy, so a layer may depend on one registered after it.
   registerExternals();
   registerCoreServices();
-  registerDataLayer();${isBloc ? '\n  registerBlocs();' : ''}
+  registerDataLayer();${withFeatureModule ? '\n  registerFeatureServices();' : ''}${isBloc ? '\n  registerBlocs();' : ''}
 
   // Everything above is lazy, so nothing has been constructed yet. Await this
   // if you later register an async singleton (registerSingletonAsync).
@@ -190,9 +200,12 @@ ${entries.join('\n')};
     bool withDebouncer = false,
     bool withBiometric = false,
     bool withConnectivity = false,
+    bool withAppLifecycle = false,
   }) {
     final imports = <String>[
       if (withBiometric) "import '../../core/security/biometric_service.dart';",
+      if (withAppLifecycle)
+        "import '../../core/services/app_lifecycle_service.dart';",
       if (withConnectivity)
         "import '../../core/services/connectivity_service.dart';",
       if (withDebouncer) "import '../../core/services/debouncer_service.dart';",
@@ -225,6 +238,12 @@ ${entries.join('\n')};
         '    ..registerLazySingleton<BiometricService>(BiometricService.new)',
       if (withConnectivity)
         '    ..registerLazySingleton<ConnectivityService>(ConnectivityService.new)',
+      if (withAppLifecycle)
+        // Disposed with the locator, so a `getIt.reset()` in a test does not
+        // leave its binding observer behind.
+        '    ..registerLazySingleton<AppLifecycleService>(\n'
+            '        AppLifecycleService.new,\n'
+            '        dispose: (service) => service.dispose())',
     ];
 
     return '''
@@ -242,6 +261,73 @@ ${entries.join('\n')};
 }
 ''';
   }
+
+  /// `lib/config/di/feature_module.dart` — the long-lived services a feature
+  /// owns, and the scope helpers for what only one flow owns.
+  ///
+  /// Generated empty of registrations: which features hold a socket or an
+  /// engine is the app's business. It exists so that there is a place for them
+  /// that is not `core_module.dart` — a chat socket is not cross-cutting, it
+  /// belongs to chat — and not `data_module.dart`, which is repositories.
+  static String featureModule() => r'''
+import 'package:get_it/get_it.dart';
+
+import 'injector.dart';
+
+/// The long-lived services that belong to one feature rather than to
+/// `lib/core`: a socket the chat feature keeps open, a call engine, a sync
+/// worker. They live under `lib/features/<feature>/data/services/` and are
+/// registered here — not in `core_module.dart`, since no other feature uses
+/// them, and not in `data_module.dart`, which is datasources and
+/// repositories.
+///
+/// Give anything that holds a connection a `dispose`, so `getIt.reset()`
+/// closes it:
+///
+/// ```dart
+/// getIt.registerLazySingleton<ChatSocket>(
+///   () => ChatSocket(getIt<TokenStorage>()),
+///   dispose: (socket) => socket.close(),
+/// );
+/// ```
+void registerFeatureServices() {
+  // Nothing yet — register a feature's long-lived services here.
+}
+
+// ── Scopes ────────────────────────────────────────────────────────────────────
+// For what one flow owns rather than the whole app: a call's audio engine, a
+// checkout's cart. A singleton would outlive the flow and hold the resource
+// for the rest of the session; a factory would build a second one for every
+// screen of the same flow. A scope is opened when the flow starts, shared by
+// every screen inside it, and disposed when it ends:
+//
+//   // The first screen of the flow (a bloc's constructor, a page's initState):
+//   openScope('call', (scope) {
+//     scope.registerSingleton<CallEngine>(
+//       CallEngine(),
+//       dispose: (engine) => engine.release(),
+//     );
+//   });
+//
+//   // When the flow ends (the bloc's close(), the page's dispose):
+//   await closeScope('call');
+
+/// Opens the get_it scope [name] and registers what the flow owns in [init].
+///
+/// A no-op when the scope is already open, so a screen rebuilt or re-entered
+/// mid-flow does not stack a second one on top.
+void openScope(String name, void Function(GetIt scope) init) {
+  if (getIt.hasScope(name)) return;
+  getIt.pushNewScope(scopeName: name, init: init);
+}
+
+/// Drops the scope [name], disposing everything registered in it. A no-op
+/// when it is not open.
+Future<void> closeScope(String name) async {
+  if (!getIt.hasScope(name)) return;
+  await getIt.dropScope(name);
+}
+''';
 
   /// `lib/config/di/data_module.dart` — datasources and repositories.
   ///
@@ -367,8 +453,9 @@ ${_body(entries, _holderAnchor)}}
   /// feature has no data layer yet — and a `getIt` with no cascade after it
   /// would not compile, so the cascade is dropped rather than left empty.
   static String _body(List<String> entries, String anchor) {
-    final cascade =
-        entries.isEmpty ? '' : '  getIt\n${entries.join('\n')};\n\n';
+    final cascade = entries.isEmpty
+        ? ''
+        : '  getIt\n${entries.join('\n')};\n\n';
     return '$cascade$anchor\n';
   }
 

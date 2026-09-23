@@ -30,15 +30,17 @@ void main() {
       expect(File(path('a.dart')).readAsStringSync(), 'mine');
     });
 
-    test('refreshes analysis_options.yaml, which is the scaffold\'s own',
-        () async {
-      File(path('analysis_options.yaml')).writeAsStringSync('old');
-      expect(
-        await FileUtils.writeFile(path('analysis_options.yaml'), 'new'),
-        isTrue,
-      );
-      expect(File(path('analysis_options.yaml')).readAsStringSync(), 'new');
-    });
+    test(
+      'refreshes analysis_options.yaml, which is the scaffold\'s own',
+      () async {
+        File(path('analysis_options.yaml')).writeAsStringSync('old');
+        expect(
+          await FileUtils.writeFile(path('analysis_options.yaml'), 'new'),
+          isTrue,
+        );
+        expect(File(path('analysis_options.yaml')).readAsStringSync(), 'new');
+      },
+    );
 
     test('overwriteWhen decides on the content, not the name', () async {
       File(path('main.dart')).writeAsStringSync('_incrementCounter');

@@ -18,8 +18,11 @@ class FeatureTemplates {
   /// built on when the data is in Firestore, with `fetchAll` left for the
   /// one-off cases (an export, a background job) that do not want a
   /// subscription.
-  static String repositoryInterface(String name, String cls,
-          {bool useFirestore = false}) =>
+  static String repositoryInterface(
+    String name,
+    String cls, {
+    bool useFirestore = false,
+  }) =>
       '''
 import '../models/${name}_model.dart';
 
@@ -46,7 +49,8 @@ ${useFirestore ? '''
 
   /// The Firestore document's shape: the id is the document's own name, and
   /// `fromDoc` puts it back into the payload rather than reading it out of it.
-  static String _firestoreModel(String name, String cls) => '''
+  static String _firestoreModel(String name, String cls) =>
+      '''
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
@@ -89,7 +93,8 @@ abstract class ${cls}Model with _\$${cls}Model {
 ''';
 
   /// The REST payload's shape.
-  static String _restModel(String name, String cls) => '''
+  static String _restModel(String name, String cls) =>
+      '''
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part '${name}_model.freezed.dart';
@@ -144,8 +149,12 @@ abstract class ${cls}Model with _\$${cls}Model {
   ///
   /// [useFirestore] swaps the Dio client for `FirebaseFirestore` — the same
   /// layer, the same constructor shape, a different backend behind it.
-  static String remoteDatasource(String name, String cls, String varName,
-      {bool useFirestore = false}) {
+  static String remoteDatasource(
+    String name,
+    String cls,
+    String varName, {
+    bool useFirestore = false,
+  }) {
     if (useFirestore) return _firestoreDatasource(name, cls, varName);
 
     return '''
@@ -250,7 +259,8 @@ class ${cls}RemoteDataSource {
   // ── Data — Local/cache datasource ───────────────────────────────────────────
 
   /// Returns the generated localDatasource template.
-  static String localDatasource(String name, String cls, String varName) => '''
+  static String localDatasource(String name, String cls, String varName) =>
+      '''
 class ${cls}LocalDataSource {
   // TODO: inject SharedPreferences / Hive / Isar / etc. and register the
   // dependency in config/di/injector.dart.
@@ -341,7 +351,8 @@ $methods
   /// scaffold does not guess at a list of models the feature may never show
   /// — so it starts empty, with a TODO saying where a field goes and the four
   /// places it has to reach.
-  static String state(String name, String cls) => '''
+  static String state(String name, String cls) =>
+      '''
 import 'package:equatable/equatable.dart';
 
 import '../../../../core/utils/app_status.dart';
@@ -420,7 +431,8 @@ class ${cls}State extends Equatable implements StatusState<${cls}State> {
   ///
   /// Just `Started`. A refresh and a retry are the same load, so they dispatch
   /// it again rather than each getting an event of their own.
-  static String event(String name, String cls) => '''
+  static String event(String name, String cls) =>
+      '''
 import 'package:equatable/equatable.dart';
 
 /// Everything that can happen to $cls, as values. Sealed, so the `on<...>`
@@ -463,7 +475,8 @@ final class ${cls}Started extends ${cls}Event {
     final repoName = repositoryName ?? name;
     final repoCls = repositoryClass ?? cls;
 
-    final handlerTodo = '''
+    final handlerTodo =
+        '''
     // TODO: one handler per action, e.g.
     // on<${cls}Deleted>(_onDeleted, transformer: droppable());
     // `transformer:` is how events queue before the handler sees them —
@@ -480,7 +493,8 @@ final class ${cls}Started extends ${cls}Event {
     // The first load returns its state with `status: AppStatus.success` —
     // runAction takes the status from what the action returns, and `current`
     // is still on initial here.
-    final header = '''
+    final header =
+        '''
 import 'package:bloc/bloc.dart';
 
 import '../../../../core/utils/app_status.dart';
@@ -543,7 +557,8 @@ $handlerTodo
   /// points at and the only thing that knows the bloc is built from the
   /// locator, so the view under it stays a plain widget a test can pump with
   /// a bloc of its own.
-  static String page(String name, String cls) => '''
+  static String page(String name, String cls) =>
+      '''
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -583,8 +598,12 @@ class ${cls}Page extends StatelessWidget {
   /// hands it the same thing and a phase drawn over already-loaded data needs
   /// no second body. The bloc is provided above this by [page], so the view
   /// reads it off the context and never builds one.
-  static String view(String name, String cls, String varName,
-      {required bool hasBloc}) {
+  static String view(
+    String name,
+    String cls,
+    String varName, {
+    required bool hasBloc,
+  }) {
     if (!hasBloc) {
       return '''
 import 'package:flutter/material.dart';

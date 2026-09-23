@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../templates/core/core_templates.dart';
 import '../templates/ui/adapt_templates.dart';
 import '../templates/bloc/async_templates.dart' as bloc_async;
 import '../templates/riverpod/async_templates.dart';
@@ -13,6 +14,9 @@ import '../templates/ui/dialogs_templates.dart';
 import '../templates/ui/drag_templates.dart';
 import '../templates/ui/inputs_templates.dart';
 import '../templates/riverpod/maintenance_templates.dart';
+import '../templates/riverpod/update_gate_templates.dart'
+    as riverpod_update
+    show UpdateGateTemplates;
 import '../templates/ui/modals_templates.dart';
 import '../templates/ui/navigation_templates.dart';
 import '../templates/ui/phone_templates.dart';
@@ -35,21 +39,47 @@ class WidgetVariants {
     this.hasFirestore = false,
     this.hasDio = false,
     this.hasDarkTheme = false,
+    this.hasStatusColors = false,
+    this.hasMotionTokens = false,
     this.stateManagement = StateManagement.riverpod,
   });
 
   /// Reads the options back off a project's `lib/`, for the callers working
   /// from a directory rather than from a checklist.
   factory WidgetVariants.detect(String libPath) => WidgetVariants(
-        hasBiometric: File(
-          p.join(libPath, 'core', 'security', 'biometric_service.dart'),
-        ).existsSync(),
-        hasFirestore: _hasFirestoreSource(libPath),
-        hasDio: File(p.join(libPath, 'core', 'network', 'dio_client.dart'))
-            .existsSync(),
-        hasDarkTheme: hasDarkThemeIn(libPath),
-        stateManagement: StateManagement.detect(libPath),
-      );
+    hasBiometric: File(
+      p.join(libPath, 'core', 'security', 'biometric_service.dart'),
+    ).existsSync(),
+    hasFirestore: _hasFirestoreSource(libPath),
+    hasDio: File(
+      p.join(libPath, 'core', 'network', 'dio_client.dart'),
+    ).existsSync(),
+    hasDarkTheme: hasDarkThemeIn(libPath),
+    hasStatusColors: hasStatusColorsIn(libPath),
+    hasMotionTokens: hasMotionTokensIn(libPath),
+    stateManagement: StateManagement.detect(libPath),
+  );
+
+  /// Whether `lib/core/constants/app_constants.dart` declares the motion
+  /// curves — see [CoreTemplates.tokenLiterals] for why a widget has to ask.
+  static bool hasMotionTokensIn(String libPath) {
+    final file = File(
+      p.join(libPath, 'core', 'constants', 'app_constants.dart'),
+    );
+    return file.existsSync() &&
+        file.readAsStringSync().contains('curveStandard');
+  }
+
+  /// Whether `lib/config/theme/app_status_colors.dart` exists — the theme
+  /// extension a widget reads success / warning / info from.
+  ///
+  /// A file of its own rather than a class inside `app_theme.dart`, so its
+  /// presence is the whole answer: a project scaffolded before it keeps the
+  /// `AppConstants` lookups until it has one, and never refreshes into an
+  /// import of a file it lacks.
+  static bool hasStatusColorsIn(String libPath) => File(
+    p.join(libPath, 'config', 'theme', 'app_status_colors.dart'),
+  ).existsSync();
 
   /// Whether `lib/config/theme/app_theme.dart` declares a `dark` theme.
   ///
@@ -70,8 +100,9 @@ class WidgetVariants {
   /// pubspec is the fallback, and the only record for a project whose signpost
   /// was deleted.
   static bool _hasFirestoreSource(String libPath) {
-    final file =
-        File(p.join(libPath, 'config', 'firebase', 'firebase_providers.dart'));
+    final file = File(
+      p.join(libPath, 'config', 'firebase', 'firebase_providers.dart'),
+    );
     if (file.existsSync()) {
       final source = file.readAsStringSync();
       if (source.contains('firebaseDbProvider') ||
@@ -79,11 +110,14 @@ class WidgetVariants {
         return true;
       }
     }
-    final pubspecFile =
-        File(p.join(p.dirname(p.absolute(libPath)), 'pubspec.yaml'));
+    final pubspecFile = File(
+      p.join(p.dirname(p.absolute(libPath)), 'pubspec.yaml'),
+    );
     return pubspecFile.existsSync() &&
-        RegExp(r'^\s+cloud_firestore:', multiLine: true)
-            .hasMatch(pubspecFile.readAsStringSync());
+        RegExp(
+          r'^\s+cloud_firestore:',
+          multiLine: true,
+        ).hasMatch(pubspecFile.readAsStringSync());
   }
 
   /// `core/security/biometric_service.dart` was generated — `AppButton` can
@@ -99,6 +133,14 @@ class WidgetVariants {
   /// `AppTheme.dark` was generated, so the `*Dark` half of `AppConstants`
   /// exists and a widget may pick its colors per brightness.
   final bool hasDarkTheme;
+
+  /// `AppStatusColors` was generated, so a widget reads the status colors off
+  /// the theme rather than off `AppConstants`.
+  final bool hasStatusColors;
+
+  /// `AppConstants` declares the motion curves. Without them every widget is
+  /// written with the literal curve instead of the token.
+  final bool hasMotionTokens;
 
   /// The stack the project's state-bearing widgets are generated against —
   /// AppAsyncView, the action listener, the maintenance gate and AppButton
@@ -679,6 +721,8 @@ abstract final class WidgetCatalog {
       title: 'AppTag',
       file: 'indicators/app_tag.dart',
       template: SharedTemplates.appTag,
+      variantTemplate: (v) =>
+          SharedTemplates.appTag(withStatusColors: v.hasStatusColors),
       category: 'Layout & content',
       description: 'Small status pill — Active / Pending / Failed.',
     ),
@@ -817,6 +861,8 @@ abstract final class WidgetCatalog {
       title: 'AppBanner',
       file: 'feedback/app_banner.dart',
       template: SharedTemplates.appBanner,
+      variantTemplate: (v) =>
+          SharedTemplates.appBanner(withStatusColors: v.hasStatusColors),
       category: 'Feedback & loading',
       deps: ['tag', 'icon-button'],
       description:
@@ -872,6 +918,20 @@ abstract final class WidgetCatalog {
           'Empties the app while a backend flag says maintenance — mounted in MaterialApp.builder, fails open.',
     ),
     WidgetSpec(
+      name: 'update-gate',
+      title: 'UpdateGate',
+      file: 'update_gate.dart',
+      template: riverpod_update.UpdateGateTemplates.updateGate,
+      variantTemplate: (v) => v.stateManagement.templates.updateGate(
+        withFirestore: v.hasFirestore,
+        withDio: v.hasDio && !v.hasFirestore,
+      ),
+      category: 'Overlays',
+      packages: ['package_info_plus: ', 'url_launcher: '],
+      description:
+          'Replaces the app with an "update required" screen while the installed version is below the backend\'s minimum — mounted in MaterialApp.builder, fails open.',
+    ),
+    WidgetSpec(
       name: 'confirm-dialog',
       title: 'AppConfirmDialog',
       file: 'overlays/app_confirm_dialog.dart',
@@ -898,11 +958,14 @@ abstract final class WidgetCatalog {
       title: 'AppToast',
       file: 'overlays/app_toast.dart',
       template: SharedTemplates.appToast,
-      variantTemplate: (v) =>
-          SharedTemplates.appToast(withDark: v.hasDarkTheme),
+      variantTemplate: (v) => SharedTemplates.appToast(
+        withDark: v.hasDarkTheme,
+        withStatusColors: v.hasStatusColors,
+      ),
       category: 'Overlays',
       common: true,
-      description: 'Themed success/error/warning/info toast on the root '
+      description:
+          'Themed success/error/warning/info toast on the root '
           'Overlay, with its own entrance and exit curves.',
     ),
     WidgetSpec(
@@ -1058,8 +1121,12 @@ abstract final class WidgetCatalog {
   /// The one place that knows a widget can vary, so `init`, `create widget`
   /// and `update` cannot each answer it differently — the bug that shows up as
   /// `update` reporting a file as edited the moment it was generated.
-  static String sourceFor(WidgetSpec spec, WidgetVariants variants) =>
-      spec.variantTemplate?.call(variants) ?? spec.template();
+  static String sourceFor(WidgetSpec spec, WidgetVariants variants) {
+    final source = spec.variantTemplate?.call(variants) ?? spec.template();
+    return variants.hasMotionTokens
+        ? source
+        : CoreTemplates.inlineMissingTokens(source);
+  }
 
   /// Looks up a spec by its CLI slug, or null if unknown.
   static WidgetSpec? byName(String name) {
@@ -1103,33 +1170,43 @@ abstract final class WidgetCatalog {
       ..writeln('# UI Kit — shared widgets')
       ..writeln()
       ..writeln(
-          'Generated by **moarch**. These widgets live under `lib/shared/widgets/`')
+        'Generated by **moarch**. These widgets live under `lib/shared/widgets/`',
+      )
       ..writeln(
-          'and share one vocabulary: `variant` (primary/secondary/tertiary/danger),')
+        'and share one vocabulary: `variant` (primary/secondary/tertiary/danger),',
+      )
       ..writeln('`type`, `shape` and `size`.')
       ..writeln()
       ..writeln(
-          'The one exception is the preview screen: it owns a whole route rather')
+        'The one exception is the preview screen: it owns a whole route rather',
+      )
       ..writeln(
-          'than composing into one, so it lives with the other screens that')
+        'than composing into one, so it lives with the other screens that',
+      )
       ..writeln('belong to no feature, in `lib/shared/views/`.')
       ..writeln()
       ..writeln(
-          'Rows marked ✅ are generated by `moarch init`. Add any other with:')
+        'Rows marked ✅ are generated by `moarch init`. Add any other with:',
+      )
       ..writeln()
       ..writeln('```bash')
       ..writeln(
-          'moarch create widget <name>     # e.g. moarch create widget switch')
+        'moarch create widget <name>     # e.g. moarch create widget switch',
+      )
       ..writeln(
-          'moarch create widget all        # the whole kit + the preview screen')
+        'moarch create widget all        # the whole kit + the preview screen',
+      )
       ..writeln(
-          'moarch create widget --list     # print this catalog in the terminal')
+        'moarch create widget --list     # print this catalog in the terminal',
+      )
       ..writeln('```')
       ..writeln()
       ..writeln(
-          'Widget dependencies are pulled in automatically, and any pub packages a')
+        'Widget dependencies are pulled in automatically, and any pub packages a',
+      )
       ..writeln(
-          'widget needs are added to `pubspec.yaml` (run `flutter pub get` after).')
+        'widget needs are added to `pubspec.yaml` (run `flutter pub get` after).',
+      )
       ..writeln();
 
     for (final category in categories) {
@@ -1143,8 +1220,9 @@ abstract final class WidgetCatalog {
       for (final w in items) {
         final notes = <String>[w.description];
         if (w.packages.isNotEmpty) {
-          final pkgs =
-              w.packages.map((p) => p.replaceAll(':', '').trim()).join(', ');
+          final pkgs = w.packages
+              .map((p) => p.replaceAll(':', '').trim())
+              .join(', ');
           notes.add('_pkg: ${pkgs}_');
         }
         if (w.needsRouter) notes.add('_needs GoRouter_');

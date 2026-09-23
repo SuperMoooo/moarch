@@ -9,13 +9,20 @@ void main() {
   group('the locator is one file per layer', () {
     test('injector.dart holds getIt and the calls, and nothing else', () {
       for (final stateManagement in StateManagement.values) {
-        final output =
-            InjectorTemplates.injector(stateManagement: stateManagement);
+        final output = InjectorTemplates.injector(
+          stateManagement: stateManagement,
+        );
 
-        expect(output, contains('final getIt = GetIt.instance;'),
-            reason: '$stateManagement');
-        expect(output, contains('Future<void> setupInjector() async {'),
-            reason: '$stateManagement');
+        expect(
+          output,
+          contains('final getIt = GetIt.instance;'),
+          reason: '$stateManagement',
+        );
+        expect(
+          output,
+          contains('Future<void> setupInjector() async {'),
+          reason: '$stateManagement',
+        );
         for (final call in [
           'registerExternals();',
           'registerCoreServices();',
@@ -25,18 +32,26 @@ void main() {
         }
 
         // Nothing is registered here — that is the whole point of the split.
-        expect(output, isNot(contains('registerLazySingleton')),
-            reason: '$stateManagement');
-        expect(output, isNot(contains(InjectorUtils.anchor)),
-            reason: '$stateManagement');
+        expect(
+          output,
+          isNot(contains('registerLazySingleton')),
+          reason: '$stateManagement',
+        );
+        expect(
+          output,
+          isNot(contains(InjectorUtils.anchor)),
+          reason: '$stateManagement',
+        );
       }
     });
 
     test('the presentation module is bloc\'s alone', () {
-      final bloc =
-          InjectorTemplates.injector(stateManagement: StateManagement.bloc);
-      final riverpodRoot =
-          InjectorTemplates.injector(stateManagement: StateManagement.riverpod);
+      final bloc = InjectorTemplates.injector(
+        stateManagement: StateManagement.bloc,
+      );
+      final riverpodRoot = InjectorTemplates.injector(
+        stateManagement: StateManagement.riverpod,
+      );
 
       expect(bloc, contains('registerBlocs();'));
       expect(bloc, contains("import 'presentation_module.dart';"));
@@ -77,7 +92,8 @@ void main() {
       expect(
         output,
         contains(
-            '..registerLazySingleton<Dio>(() => buildDioClient(getIt<TokenStorage>()))'),
+          '..registerLazySingleton<Dio>(() => buildDioClient(getIt<TokenStorage>()))',
+        ),
       );
       expect(output, contains('..registerLazySingleton<FirebaseAuth>('));
       expect(output, contains('..registerLazySingleton<FirebaseFirestore>('));
@@ -95,7 +111,8 @@ void main() {
       expect(
         output,
         contains(
-            "import '../../features/auth/domain/repositories/auth_repository.dart';"),
+          "import '../../features/auth/domain/repositories/auth_repository.dart';",
+        ),
       );
     });
   });
@@ -129,7 +146,9 @@ void main() {
 
       expect(output, contains('void registerDataLayer() {'));
       expect(
-          output, contains('..registerLazySingleton<AuthRemoteDataSource>('));
+        output,
+        contains('..registerLazySingleton<AuthRemoteDataSource>('),
+      );
       expect(output, contains('..registerLazySingleton<AuthRepository>('));
       // `moarch create feature` writes here, so the anchor is what makes the
       // module usable at all.
@@ -159,8 +178,10 @@ void main() {
       expect(output, contains('getIt<FirebaseAuth>(),'));
       expect(output, contains('getIt<GoogleSignIn>(),'));
       expect(output, contains('getIt<FirebaseFirestore>(),'));
-      expect(output,
-          contains("import 'package:google_sign_in/google_sign_in.dart';"));
+      expect(
+        output,
+        contains("import 'package:google_sign_in/google_sign_in.dart';"),
+      );
       // The REST pair has no place here.
       expect(output, isNot(contains('getIt<Dio>()')));
       expect(output, isNot(contains('TokenStorage')));
@@ -189,8 +210,7 @@ void main() {
     });
   });
 
-  group('the pre-split layout is still generated for projects that have it',
-      () {
+  group('the pre-split layout is still generated for projects that have it', () {
     test('everything lands in the one file, anchor included', () {
       for (final stateManagement in StateManagement.values) {
         final output = InjectorTemplates.singleFileInjector(
@@ -200,25 +220,44 @@ void main() {
           withBiometric: true,
         );
 
-        expect(output, contains('final getIt = GetIt.instance;'),
-            reason: '$stateManagement');
-        expect(output, contains('Future<void> setupInjector() async {'),
-            reason: '$stateManagement');
+        expect(
+          output,
+          contains('final getIt = GetIt.instance;'),
+          reason: '$stateManagement',
+        );
+        expect(
+          output,
+          contains('Future<void> setupInjector() async {'),
+          reason: '$stateManagement',
+        );
         expect(
           output,
           contains(
-              '..registerLazySingleton<Dio>(() => buildDioClient(getIt<TokenStorage>()))'),
+            '..registerLazySingleton<Dio>(() => buildDioClient(getIt<TokenStorage>()))',
+          ),
           reason: '$stateManagement',
         );
-        expect(output, contains('..registerLazySingleton<MediaService>('),
-            reason: '$stateManagement');
-        expect(output, contains('..registerLazySingleton<BiometricService>('),
-            reason: '$stateManagement');
-        expect(output, contains(InjectorUtils.anchor),
-            reason: '$stateManagement');
+        expect(
+          output,
+          contains('..registerLazySingleton<MediaService>('),
+          reason: '$stateManagement',
+        );
+        expect(
+          output,
+          contains('..registerLazySingleton<BiometricService>('),
+          reason: '$stateManagement',
+        );
+        expect(
+          output,
+          contains(InjectorUtils.anchor),
+          reason: '$stateManagement',
+        );
         // One file means no modules to call.
-        expect(output, isNot(contains('registerExternals')),
-            reason: '$stateManagement');
+        expect(
+          output,
+          isNot(contains('registerExternals')),
+          reason: '$stateManagement',
+        );
       }
     });
 
@@ -237,7 +276,9 @@ void main() {
       // The data layer under auth is registered in both.
       for (final output in [bloc, riverpodOutput]) {
         expect(
-            output, contains('..registerLazySingleton<AuthRemoteDataSource>('));
+          output,
+          contains('..registerLazySingleton<AuthRemoteDataSource>('),
+        );
         expect(output, contains('..registerLazySingleton<AuthRepository>('));
       }
 
@@ -246,9 +287,11 @@ void main() {
       expect(bloc, contains('..registerLazySingleton<AuthBloc>('));
       expect(bloc, contains('..registerLazySingleton<LanguageCubit>('));
       expect(
-          bloc,
-          contains(
-              "import '../../features/auth/presentation/blocs/auth_bloc.dart';"));
+        bloc,
+        contains(
+          "import '../../features/auth/presentation/blocs/auth_bloc.dart';",
+        ),
+      );
 
       expect(riverpodOutput, isNot(contains('AuthBloc')));
       expect(riverpodOutput, isNot(contains('LanguageCubit')));
@@ -261,12 +304,24 @@ void main() {
     test('the data layer declares no providers of its own', () {
       final outputs = [
         riverpod.FeatureTemplates.remoteDatasource(
-            'orders', 'Orders', 'orders'),
-        riverpod.FeatureTemplates.remoteDatasource('orders', 'Orders', 'orders',
-            useFirestore: true),
+          'orders',
+          'Orders',
+          'orders',
+        ),
+        riverpod.FeatureTemplates.remoteDatasource(
+          'orders',
+          'Orders',
+          'orders',
+          useFirestore: true,
+        ),
         riverpod.FeatureTemplates.localDatasource('orders', 'Orders', 'orders'),
-        riverpod.FeatureTemplates.repositoryImpl('orders', 'Orders', 'orders',
-            hasRemote: true, hasLocal: false),
+        riverpod.FeatureTemplates.repositoryImpl(
+          'orders',
+          'Orders',
+          'orders',
+          hasRemote: true,
+          hasLocal: false,
+        ),
       ];
 
       for (final output in outputs) {
@@ -277,22 +332,32 @@ void main() {
 
       // Constructor injection all the way down — the data module resolves it.
       expect(
-          outputs.first, contains('const OrdersRemoteDataSource(this._dio);'));
+        outputs.first,
+        contains('const OrdersRemoteDataSource(this._dio);'),
+      );
       expect(
-          outputs.last, contains('const OrdersRepositoryImpl(this._remote);'));
+        outputs.last,
+        contains('const OrdersRepositoryImpl(this._remote);'),
+      );
     });
 
     test('the notifier is the seam: a provider that reads getIt', () {
-      final output =
-          riverpod.FeatureTemplates.notifier('orders', 'Orders', 'orders');
+      final output = riverpod.FeatureTemplates.notifier(
+        'orders',
+        'Orders',
+        'orders',
+      );
 
       expect(
         output,
         contains(
-            'AsyncNotifierProvider<OrdersNotifier, OrdersState>(OrdersNotifier.new)'),
+          'AsyncNotifierProvider<OrdersNotifier, OrdersState>(OrdersNotifier.new)',
+        ),
       );
-      expect(output,
-          contains('OrdersRepository get _repo => getIt<OrdersRepository>();'));
+      expect(
+        output,
+        contains('OrdersRepository get _repo => getIt<OrdersRepository>();'),
+      );
       // `getIt` is declared in the project's locator, not exported by the
       // package — importing get_it here would not compile.
       expect(output, contains("import '../../../../config/di/injector.dart';"));
@@ -307,8 +372,10 @@ void main() {
         useFirestore: true,
       );
 
-      expect(output,
-          contains('OrdersRepository get _repo => getIt<OrdersRepository>();'));
+      expect(
+        output,
+        contains('OrdersRepository get _repo => getIt<OrdersRepository>();'),
+      );
       expect(output, contains('_repo.watchAll()'));
       expect(output, isNot(contains('GetOrders')));
     });

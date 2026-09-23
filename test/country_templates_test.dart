@@ -20,7 +20,8 @@ void main() {
       expect(
         output,
         contains(
-            'filter: (countries, query) => AppCountries.search(query, within: countries),'),
+          'filter: (countries, query) => AppCountries.search(query, within: countries),',
+        ),
       );
     });
 
@@ -35,24 +36,32 @@ void main() {
       expect(output, contains('onChanged?.call(picked);'));
     });
 
-    test('validates on the caller\'s selection, not on its own lagging copy',
-        () {
-      expect(output, contains('validator: (_) {'));
-      expect(output, contains('? rule(selectedIso)'));
-      expect(output, contains(': validate(selectedIso, required: required);'));
-    });
+    test(
+      'validates on the caller\'s selection, not on its own lagging copy',
+      () {
+        expect(output, contains('validator: (_) {'));
+        expect(output, contains('? rule(selectedIso)'));
+        expect(
+          output,
+          contains(': validate(selectedIso, required: required);'),
+        );
+      },
+    );
 
     test('its rule is exposed so a custom one can add to it', () {
       expect(
         output,
         contains(
-            'static String? validate(String? iso, {bool required = false})'),
+          'static String? validate(String? iso, {bool required = false})',
+        ),
       );
     });
 
     test('an unknown ISO reads as nothing selected rather than crashing', () {
-      expect(output,
-          contains('return iso == null ? null : AppCountries.byIso(iso);'));
+      expect(
+        output,
+        contains('return iso == null ? null : AppCountries.byIso(iso);'),
+      );
       expect(output, contains('isEmpty: country == null,'));
     });
 
@@ -68,8 +77,10 @@ void main() {
     });
 
     test('the clear button appears only when a clear can be reported', () {
-      expect(output,
-          contains('if (clear == null || country == null || !enabled)'));
+      expect(
+        output,
+        contains('if (clear == null || country == null || !enabled)'),
+      );
       expect(output, contains('return const Icon(Icons.keyboard_arrow_down);'));
     });
 
@@ -85,24 +96,27 @@ void main() {
     });
 
     test('is in the catalog, and the phone field now leans on it', () {
-      final picker =
-          WidgetCatalog.all.firstWhere((s) => s.name == 'country-picker');
+      final picker = WidgetCatalog.all.firstWhere(
+        (s) => s.name == 'country-picker',
+      );
       expect(picker.file, 'inputs/app_country_picker.dart');
       expect(picker.category, 'Inputs');
       expect(picker.packages, isEmpty);
       expect(picker.deps, contains('country'));
       expect(picker.deps, contains('search-sheet'));
 
-      final phone =
-          WidgetCatalog.all.firstWhere((s) => s.name == 'phone-input');
+      final phone = WidgetCatalog.all.firstWhere(
+        (s) => s.name == 'phone-input',
+      );
       expect(phone.deps, contains('country-picker'));
     });
 
     test('generating the phone field still brings the sheet along', () {
       // It reaches the search sheet through the picker now rather than
       // directly, so the closure has to still contain it.
-      final resolved =
-          WidgetCatalog.resolve(['phone-input']).map((s) => s.name).toSet();
+      final resolved = WidgetCatalog.resolve([
+        'phone-input',
+      ]).map((s) => s.name).toSet();
       expect(resolved, contains('search-sheet'));
       expect(resolved, contains('country-picker'));
       expect(resolved, contains('country'));

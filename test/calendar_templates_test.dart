@@ -7,8 +7,10 @@ void main() {
 
   group('appCalendar', () {
     test('wraps table_calendar rather than re-implementing a month grid', () {
-      expect(output,
-          contains("import 'package:table_calendar/table_calendar.dart';"));
+      expect(
+        output,
+        contains("import 'package:table_calendar/table_calendar.dart';"),
+      );
       expect(output, contains('TableCalendar<_Marker>('));
     });
 
@@ -16,27 +18,35 @@ void main() {
       // The point of the wrapper: a screen configures it in the kit's own
       // vocabulary, so swapping the package out later is one file's problem.
       expect(
-          output, contains('enum AppCalendarFormat { month, twoWeeks, week }'));
+        output,
+        contains('enum AppCalendarFormat { month, twoWeeks, week }'),
+      );
       expect(output, contains('enum AppCalendarWeekStart'));
       expect(output, contains('AppInputVariant? variant'));
       expect(
-          output, contains('AppInputStyle.accentOf(context, widget.variant)'));
+        output,
+        contains('AppInputStyle.accentOf(context, widget.variant)'),
+      );
     });
 
     test('re-keys events to the day, which is the whole gotcha', () {
       // A DateTime carries a time, and two instants in one day are not equal,
       // so a map keyed on what the data holds never matches the grid's lookup.
-      expect(output,
-          contains('final key = DateTime.utc(day.year, day.month, day.day);'));
       expect(
         output,
-        contains(
-            '(byDay[key] ??= <Color?>[]).addAll(List<Color?>.filled(count, null));'),
+        contains('final key = DateTime.utc(day.year, day.month, day.day);'),
       );
       expect(
         output,
         contains(
-            'final colors = markers[DateTime.utc(day.year, day.month, day.day)];'),
+          '(byDay[key] ??= <Color?>[]).addAll(List<Color?>.filled(count, null));',
+        ),
+      );
+      expect(
+        output,
+        contains(
+          'final colors = markers[DateTime.utc(day.year, day.month, day.day)];',
+        ),
       );
     });
 
@@ -48,8 +58,10 @@ void main() {
     test('a fourth event does not look like a third', () {
       // Stopping at three dots makes a busy day under-report itself, which is
       // the one thing worse than a missing dot.
-      expect(output,
-          contains('typedef _Marker = ({Color? color, int overflow});'));
+      expect(
+        output,
+        contains('typedef _Marker = ({Color? color, int overflow});'),
+      );
       expect(
         output,
         contains('(color: null, overflow: colors.length - _maxDots + 1),'),
@@ -72,8 +84,10 @@ void main() {
       // eventColors is the count too, so the day is dropped from the count
       // map rather than drawing both rows.
       expect(output, contains('final Map<DateTime, List<Color>> eventColors;'));
-      expect(output,
-          contains('this.eventColors = const <DateTime, List<Color>>{},'));
+      expect(
+        output,
+        contains('this.eventColors = const <DateTime, List<Color>>{},'),
+      );
       expect(output, contains('(colored[key] ??= <Color?>[]).addAll(colors);'));
       expect(output, contains('if (colored.containsKey(key)) return;'));
       expect(output, contains('return byDay..addAll(colored);'));
@@ -110,8 +124,10 @@ void main() {
       // builder; a restyle that only found one of them would split the kit.
       expect(
         output,
-        contains('static BoxDecoration _dotDecoration(Color color) =>\n'
-            '      BoxDecoration(color: color, shape: BoxShape.circle);'),
+        contains(
+          'static BoxDecoration _dotDecoration(Color color) =>\n'
+          '      BoxDecoration(color: color, shape: BoxShape.circle);',
+        ),
       );
       expect(output, contains('decoration: _dotDecoration(color),'));
     });
@@ -121,39 +137,55 @@ void main() {
       expect(output, contains('DateTime(focused.year, focused.month, 1),'));
       expect(output, contains('DateTime(focused.year, focused.month + 1, 0),'));
       expect(
-          output, contains('final (first, last) = _visibleRange(_focused);'));
+        output,
+        contains('final (first, last) = _visibleRange(_focused);'),
+      );
     });
 
     test('the two short formats report their own span', () {
-      expect(output,
-          contains('DateTime(start.year, start.month, start.day + 13)'));
       expect(
-          output, contains('DateTime(start.year, start.month, start.day + 6)'));
+        output,
+        contains('DateTime(start.year, start.month, start.day + 13)'),
+      );
+      expect(
+        output,
+        contains('DateTime(start.year, start.month, start.day + 6)'),
+      );
     });
 
     test('the week starts where the caller says, in range maths too', () {
-      expect(output,
-          contains('final offset = (day.weekday - _weekStartIndex + 7) % 7;'));
       expect(
-          output, contains('AppCalendarWeekStart.monday => DateTime.monday,'));
-      expect(output,
-          contains('AppCalendarWeekStart.monday => StartingDayOfWeek.monday,'));
+        output,
+        contains('final offset = (day.weekday - _weekStartIndex + 7) % 7;'),
+      );
+      expect(
+        output,
+        contains('AppCalendarWeekStart.monday => DateTime.monday,'),
+      );
+      expect(
+        output,
+        contains('AppCalendarWeekStart.monday => StartingDayOfWeek.monday,'),
+      );
     });
 
     test('follows a selection made from outside onto its page', () {
       expect(
-          output,
-          contains(
-              'if (selected != null && !isSameDay(selected, oldWidget.selected))'));
+        output,
+        contains(
+          'if (selected != null && !isSameDay(selected, oldWidget.selected))',
+        ),
+      );
       expect(output, contains('_focused = selected;'));
     });
 
     test('a vertical swipe is only offered when the format can change', () {
       expect(
         output,
-        contains('availableGestures: widget.canChangeFormat\n'
-            '          ? AvailableGestures.all\n'
-            '          : AvailableGestures.horizontalSwipe,'),
+        contains(
+          'availableGestures: widget.canChangeFormat\n'
+          '          ? AvailableGestures.all\n'
+          '          : AvailableGestures.horizontalSwipe,',
+        ),
       );
       expect(output, contains('formatButtonVisible: widget.canChangeFormat,'));
     });
@@ -173,7 +205,9 @@ void main() {
       // TableCalendar has already moved by the time onPageChanged fires;
       // setState here rebuilds it mid-animation.
       expect(
-          output, contains('_focused = focusedDay;\n        _reportRange();'));
+        output,
+        contains('_focused = focusedDay;\n        _reportRange();'),
+      );
     });
 
     test('is in the catalog with the package it needs', () {
@@ -194,8 +228,10 @@ void main() {
       // It lives in calendar/, so the style it shares with the input family
       // is a directory across rather than a sibling.
       expect(output, contains("import '../inputs/app_input_style.dart';"));
-      expect(output,
-          contains("import '../../../core/constants/app_constants.dart';"));
+      expect(
+        output,
+        contains("import '../../../core/constants/app_constants.dart';"),
+      );
     });
   });
 }

@@ -436,7 +436,7 @@ class RegisterView extends StatelessWidget {
 
     final syncAfterAuth = withPushNotifications
         ? '\n      // Not awaited: registering the device must not hold up the UI.'
-            '\n      unawaited(_repo.syncDeviceToken());'
+              '\n      unawaited(_repo.syncDeviceToken());'
         : '';
 
     return '''

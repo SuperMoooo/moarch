@@ -72,8 +72,10 @@ class ProjectManifest {
   /// Normalizes [path] to the project-relative, forward-slash form used as a
   /// key in [files].
   static String relativeKey(String projectRoot, String path) {
-    final relative =
-        p.relative(p.absolute(path), from: p.absolute(projectRoot));
+    final relative = p.relative(
+      p.absolute(path),
+      from: p.absolute(projectRoot),
+    );
     return relative.replaceAll(r'\', '/');
   }
 
@@ -139,19 +141,18 @@ class ProjectManifest {
   /// Loads the existing manifest for [projectRoot] or creates an empty one.
   static ProjectManifest loadOrCreate(String projectRoot) =>
       load(projectRoot) ??
-      ProjectManifest(
-        version: packageVersion,
-        generatedAt: DateTime.now(),
-      );
+      ProjectManifest(version: packageVersion, generatedAt: DateTime.now());
 
   String _render() {
     final sortedKeys = files.keys.toList()..sort();
     final buffer = StringBuffer()
       ..writeln('# Written by moarch — it records what the CLI generated so')
       ..writeln(
-          '# `moarch update` can tell an untouched file from one you edited.')
+        '# `moarch update` can tell an untouched file from one you edited.',
+      )
       ..writeln(
-          '# Safe to commit. Deleting it only makes `moarch update` more cautious.')
+        '# Safe to commit. Deleting it only makes `moarch update` more cautious.',
+      )
       ..writeln("version: '$packageVersion'")
       ..writeln("generated_at: '${DateTime.now().toIso8601String()}'");
 

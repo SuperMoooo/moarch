@@ -18,16 +18,24 @@ void main() {
     Future<void> write(String name, String source) =>
         File(p.join(di.path, name)).writeAsString(source);
 
-    await write('injector.dart',
-        InjectorTemplates.injector(stateManagement: stateManagement));
-    await write('external_module.dart',
-        InjectorTemplates.externalModule(withDio: true));
+    await write(
+      'injector.dart',
+      InjectorTemplates.injector(stateManagement: stateManagement),
+    );
+    await write(
+      'external_module.dart',
+      InjectorTemplates.externalModule(withDio: true),
+    );
     await write('core_module.dart', InjectorTemplates.coreModule());
     await write(
-        'data_module.dart', InjectorTemplates.dataModule(withDio: true));
+      'data_module.dart',
+      InjectorTemplates.dataModule(withDio: true),
+    );
     if (stateManagement.isBloc) {
       await write(
-          'presentation_module.dart', InjectorTemplates.presentationModule());
+        'presentation_module.dart',
+        InjectorTemplates.presentationModule(),
+      );
     }
   }
 
@@ -86,10 +94,10 @@ void main() {
       );
 
       expect(result.complete, isTrue);
-      expect(
-        result.written,
-        [InjectorUtils.dataPath, InjectorUtils.presentationPath],
-      );
+      expect(result.written, [
+        InjectorUtils.dataPath,
+        InjectorUtils.presentationPath,
+      ]);
 
       final data = read('data_module.dart');
       expect(data, contains('registerLazySingleton<OrdersRemoteDataSource>'));
@@ -118,7 +126,8 @@ void main() {
       expect(
         data,
         contains(
-            "import '../../features/orders/data/repositories/orders_repository_impl.dart';"),
+          "import '../../features/orders/data/repositories/orders_repository_impl.dart';",
+        ),
       );
       expect(data, isNot(contains('orders_bloc.dart')));
 
@@ -126,14 +135,16 @@ void main() {
       expect(
         presentation,
         contains(
-            "import '../../features/orders/presentation/blocs/orders_bloc.dart';"),
+          "import '../../features/orders/presentation/blocs/orders_bloc.dart';",
+        ),
       );
       // The bloc's constructor names it, so the interface has to be in scope
       // here too — but the implementation does not.
       expect(
         presentation,
         contains(
-            "import '../../features/orders/domain/repositories/orders_repository.dart';"),
+          "import '../../features/orders/domain/repositories/orders_repository.dart';",
+        ),
       );
       expect(presentation, isNot(contains('orders_repository_impl.dart')));
     });
@@ -152,8 +163,9 @@ void main() {
       expect(result.written, [InjectorUtils.dataPath]);
       expect(read('data_module.dart'), contains('OrdersRepository'));
       expect(
-        File(p.join(libPath, 'config', 'di', 'presentation_module.dart'))
-            .existsSync(),
+        File(
+          p.join(libPath, 'config', 'di', 'presentation_module.dart'),
+        ).existsSync(),
         isFalse,
       );
     });

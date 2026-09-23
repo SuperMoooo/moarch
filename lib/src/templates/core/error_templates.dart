@@ -41,7 +41,8 @@ class ErrorTemplates {
         ? '\n    FirebaseCrashlytics.instance.recordError(error, error.stackTrace, reason: message);'
         : '';
 
-    final dioFactory = '''
+    final dioFactory =
+        '''
   factory AppException.fromDioError(DioException dioError) {
     try {
       final message = dioError.response?.data?['message'] as String? ??
@@ -61,7 +62,8 @@ class ErrorTemplates {
 
     // Firestore/Storage codes. Auth codes are in the factory below — catching
     // FirebaseException first would swallow them.
-    final firebaseFactory = '''
+    final firebaseFactory =
+        '''
   factory AppException.fromFirebaseError(FirebaseException error) {
     final message = error.message ?? 'Unknown error';
 
@@ -100,7 +102,8 @@ class ErrorTemplates {
   }
 ''';
 
-    final firebaseAuthFactory = '''
+    final firebaseAuthFactory =
+        '''
   /// FirebaseAuth failures mapped to messages you can show as-is. Must be
   /// caught *before* [AppException.fromFirebaseError].
   factory AppException.fromFirebaseAuthError(FirebaseAuthException error) {

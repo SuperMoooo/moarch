@@ -16,24 +16,32 @@ void main() {
         hasFirebaseAuth: true,
       );
 
-      expect(output,
-          contains("import 'package:firebase_auth/firebase_auth.dart';"));
       expect(
-          output,
-          contains(
-              'factory AppException.fromFirebaseAuthError(FirebaseAuthException error)'));
+        output,
+        contains("import 'package:firebase_auth/firebase_auth.dart';"),
+      );
+      expect(
+        output,
+        contains(
+          'factory AppException.fromFirebaseAuthError(FirebaseAuthException error)',
+        ),
+      );
       // Recent Firebase collapses user-not-found/wrong-password into this one.
       expect(output, contains("case 'invalid-credential':"));
       expect(output, contains("case 'email-already-in-use':"));
       expect(output, contains("case 'weak-password':"));
       expect(output, contains("case 'requires-recent-login':"));
       expect(
-          output, contains("case 'account-exists-with-different-credential':"));
+        output,
+        contains("case 'account-exists-with-different-credential':"),
+      );
       // A dropped connection is a network problem, not a credentials problem.
       expect(
-          output,
-          contains(
-              "case 'network-request-failed':\n        return AppException.noInternet();"));
+        output,
+        contains(
+          "case 'network-request-failed':\n        return AppException.noInternet();",
+        ),
+      );
     });
 
     test('keeps the Firestore codes out of the auth factory', () {
@@ -43,8 +51,9 @@ void main() {
         hasFirebaseAuth: true,
       );
 
-      final authFactory =
-          output.substring(output.indexOf('fromFirebaseAuthError'));
+      final authFactory = output.substring(
+        output.indexOf('fromFirebaseAuthError'),
+      );
       final firebaseFactory = output.substring(
         output.indexOf('fromFirebaseError'),
         output.indexOf('fromFirebaseAuthError'),
@@ -92,8 +101,10 @@ void main() {
 
       expect(output, isNot(contains('firebase_auth')));
       expect(output, contains('on FirebaseException catch (e)'));
-      expect(output,
-          contains("import 'package:firebase_core/firebase_core.dart';"));
+      expect(
+        output,
+        contains("import 'package:firebase_core/firebase_core.dart';"),
+      );
     });
 
     test('maps stream errors the same way', () {
@@ -109,8 +120,10 @@ void main() {
     test('initializes Firebase for Firestore/Auth, not only Crashlytics', () {
       final output = riverpod.AppTemplates.mainDart(withFirebase: true);
 
-      expect(output,
-          contains("import 'package:firebase_core/firebase_core.dart';"));
+      expect(
+        output,
+        contains("import 'package:firebase_core/firebase_core.dart';"),
+      );
       expect(output, contains('await Firebase.initializeApp();'));
       // No Crashlytics selected — no Crashlytics calls.
       expect(output, isNot(contains('FirebaseCrashlytics')));
@@ -168,8 +181,11 @@ void main() {
     });
 
     test('the Dio datasource is unchanged', () {
-      final output =
-          FeatureTemplates.remoteDatasource('order', 'Order', 'order');
+      final output = FeatureTemplates.remoteDatasource(
+        'order',
+        'Order',
+        'order',
+      );
 
       expect(output, contains('final Dio _dio;'));
       expect(output, contains('safeApiCall<OrderModel>'));
@@ -177,20 +193,28 @@ void main() {
     });
 
     test('the id is the document id, not a numeric column', () {
-      final model =
-          FeatureTemplates.model('order', 'Order', useFirestore: true);
+      final model = FeatureTemplates.model(
+        'order',
+        'Order',
+        useFirestore: true,
+      );
 
       expect(model, contains('factory OrderModel.fromDoc(DocumentSnapshot'));
       expect(model, contains("{...?doc.data(), 'id': doc.id}"));
       // `add()` assigns the id only once the write lands, so a copy kept in
       // the body is stale from the moment it is written.
-      expect(model,
-          contains('@JsonKey(includeToJson: false) required String id,'));
+      expect(
+        model,
+        contains('@JsonKey(includeToJson: false) required String id,'),
+      );
     });
 
     test('the repository exposes the live query, the Dio one does not', () {
-      final firestore = FeatureTemplates.repositoryInterface('order', 'Order',
-          useFirestore: true);
+      final firestore = FeatureTemplates.repositoryInterface(
+        'order',
+        'Order',
+        useFirestore: true,
+      );
 
       expect(firestore, contains('Stream<List<OrderModel>> watchAll();'));
       expect(firestore, contains('Future<List<OrderModel>> fetchAll();'));
@@ -201,29 +225,36 @@ void main() {
       );
     });
 
-    test('the repository impl passes the datasource through, TODO left to Dio',
-        () {
-      final output = FeatureTemplates.repositoryImpl(
-        'order',
-        'Order',
-        'order',
-        hasRemote: true,
-        hasLocal: false,
-        useFirestore: true,
-      );
+    test(
+      'the repository impl passes the datasource through, TODO left to Dio',
+      () {
+        final output = FeatureTemplates.repositoryImpl(
+          'order',
+          'Order',
+          'order',
+          hasRemote: true,
+          hasLocal: false,
+          useFirestore: true,
+        );
 
-      expect(output, contains('return _remote.fetchAll();'));
-      expect(output, contains('return _remote.watchAll();'));
-      // The datasource already speaks models, so there is nothing to map.
-      expect(output, isNot(contains('toEntity')));
-      expect(output, isNot(contains('UnimplementedError')));
+        expect(output, contains('return _remote.fetchAll();'));
+        expect(output, contains('return _remote.watchAll();'));
+        // The datasource already speaks models, so there is nothing to map.
+        expect(output, isNot(contains('toEntity')));
+        expect(output, isNot(contains('UnimplementedError')));
 
-      expect(
-        FeatureTemplates.repositoryImpl('order', 'Order', 'order',
-            hasRemote: true, hasLocal: false),
-        contains('throw UnimplementedError()'),
-      );
-    });
+        expect(
+          FeatureTemplates.repositoryImpl(
+            'order',
+            'Order',
+            'order',
+            hasRemote: true,
+            hasLocal: false,
+          ),
+          contains('throw UnimplementedError()'),
+        );
+      },
+    );
 
     test('the layer the user declined is not invented for them', () {
       // No remote datasource selected — there is nothing to return, so both
@@ -243,22 +274,32 @@ void main() {
     });
 
     test('the state holds what the query emits', () {
-      final output =
-          FeatureTemplates.state('order', 'Order', useFirestore: true);
+      final output = FeatureTemplates.state(
+        'order',
+        'Order',
+        useFirestore: true,
+      );
 
       expect(
-          output, contains("import '../../domain/models/order_model.dart';"));
+        output,
+        contains("import '../../domain/models/order_model.dart';"),
+      );
       expect(output, contains('final List<OrderModel> items;'));
       expect(output, contains('this.items = const [],'));
       expect(output, contains('items: items ?? this.items,'));
 
       expect(
-          FeatureTemplates.state('order', 'Order'), isNot(contains('items')));
+        FeatureTemplates.state('order', 'Order'),
+        isNot(contains('items')),
+      );
     });
 
     test('the state carries the fake data its skeleton is traced from', () {
-      final output =
-          FeatureTemplates.state('order', 'Order', useFirestore: true);
+      final output = FeatureTemplates.state(
+        'order',
+        'Order',
+        useFirestore: true,
+      );
 
       // Rows that exist only to be the right size — an empty list traces to a
       // blank screen. BoneMock sets that size, so the package comes along.
@@ -283,31 +324,36 @@ void main() {
       expect(rest, isNot(contains('package:skeletonizer/skeletonizer.dart')));
     });
 
-    test('the notifier subscribes once and hands the subscription to Riverpod',
-        () {
-      final output = FeatureTemplates.notifier(
-        'order',
-        'Order',
-        'order',
-        useFirestore: true,
-      );
+    test(
+      'the notifier subscribes once and hands the subscription to Riverpod',
+      () {
+        final output = FeatureTemplates.notifier(
+          'order',
+          'Order',
+          'order',
+          useFirestore: true,
+        );
 
-      expect(output, contains('_repo.watchAll().listen('));
-      expect(output, contains('final firstSnapshot = Completer<OrderState>()'));
-      expect(output, contains('ref.onDispose(subscription.cancel)'));
-      expect(output, contains('return firstSnapshot.future;'));
-      // The query is opened exactly once: awaiting `.first` for the initial
-      // load on top of this would register it a second time.
-      expect('watchAll()'.allMatches(output), hasLength(1));
-      // Errors reach AppAsyncView as the AsyncValue it already renders.
-      expect(output, contains('state = AsyncError(error, stackTrace)'));
+        expect(output, contains('_repo.watchAll().listen('));
+        expect(
+          output,
+          contains('final firstSnapshot = Completer<OrderState>()'),
+        );
+        expect(output, contains('ref.onDispose(subscription.cancel)'));
+        expect(output, contains('return firstSnapshot.future;'));
+        // The query is opened exactly once: awaiting `.first` for the initial
+        // load on top of this would register it a second time.
+        expect('watchAll()'.allMatches(output), hasLength(1));
+        // Errors reach AppAsyncView as the AsyncValue it already renders.
+        expect(output, contains('state = AsyncError(error, stackTrace)'));
 
-      // The REST notifier still starts from nothing.
-      expect(
-        FeatureTemplates.notifier('order', 'Order', 'order'),
-        contains('return const OrderState();'),
-      );
-    });
+        // The REST notifier still starts from nothing.
+        expect(
+          FeatureTemplates.notifier('order', 'Order', 'order'),
+          contains('return const OrderState();'),
+        );
+      },
+    );
 
     test('the view renders the live items', () {
       final output = FeatureTemplates.view(
@@ -326,7 +372,8 @@ void main() {
       expect(
         output,
         contains(
-            'skeleton: (context) => _body(context, OrderState.placeholder),'),
+          'skeleton: (context) => _body(context, OrderState.placeholder),',
+        ),
       );
       // Which is why the view no longer names the model at all.
       expect(output, isNot(contains('OrderModel')));
@@ -350,16 +397,22 @@ void main() {
     test('signs in with Google through the current google_sign_in API', () {
       final output = FirebaseAuthTemplates.remoteDatasource();
 
-      expect(output,
-          contains("import 'package:google_sign_in/google_sign_in.dart';"));
+      expect(
+        output,
+        contains("import 'package:google_sign_in/google_sign_in.dart';"),
+      );
       // The client is handed in — injector.dart registers GoogleSignIn.
-      expect(output,
-          contains('AuthRemoteDataSource(this._auth, this._googleSignIn)'));
+      expect(
+        output,
+        contains('AuthRemoteDataSource(this._auth, this._googleSignIn)'),
+      );
       expect(output, contains('_googleSignIn.initialize(serverClientId:'));
       expect(output, contains('await _googleSignIn.authenticate()'));
       expect(output, contains('account.authentication.idToken'));
       expect(
-          output, contains('GoogleAuthProvider.credential(idToken: idToken)'));
+        output,
+        contains('GoogleAuthProvider.credential(idToken: idToken)'),
+      );
       expect(output, contains('_auth.signInWithCredential(credential)'));
       // A dismissed sheet is a cancellation, not a failure.
       expect(output, contains('GoogleSignInExceptionCode.canceled'));
@@ -380,13 +433,16 @@ void main() {
     });
 
     test('keeps a Firestore profile document only when Firestore is on', () {
-      final withDb =
-          FirebaseAuthTemplates.remoteDatasource(withFirestore: true);
+      final withDb = FirebaseAuthTemplates.remoteDatasource(
+        withFirestore: true,
+      );
       final withoutDb = FirebaseAuthTemplates.remoteDatasource();
 
       expect(withDb, contains('final FirebaseFirestore _firestore;'));
       expect(
-          withDb, contains("static const String usersCollection = 'users';"));
+        withDb,
+        contains("static const String usersCollection = 'users';"),
+      );
       expect(withDb, contains('Future<void> saveProfile(AuthUserModel user)'));
       expect(withDb, contains('SetOptions(merge: true)'));
 
@@ -395,28 +451,36 @@ void main() {
       expect(withoutDb, isNot(contains('saveProfile')));
     });
 
-    test('the repository writes the profile on register and Google sign-in',
-        () {
-      final withDb = FirebaseAuthTemplates.repositoryImpl(withFirestore: true);
-      final withoutDb = FirebaseAuthTemplates.repositoryImpl();
+    test(
+      'the repository writes the profile on register and Google sign-in',
+      () {
+        final withDb = FirebaseAuthTemplates.repositoryImpl(
+          withFirestore: true,
+        );
+        final withoutDb = FirebaseAuthTemplates.repositoryImpl();
 
-      expect(withDb, contains('await _remote.saveProfile(user);'));
-      expect(withDb, contains('await _remote.deleteProfile(id);'));
-      expect(withoutDb, isNot(contains('saveProfile')));
-      // Both variants satisfy the same contract.
-      for (final output in [withDb, withoutDb]) {
-        expect(output,
-            contains('class AuthRepositoryImpl implements AuthRepository'));
-        expect(output, contains('Future<AuthUserModel> signInWithGoogle()'));
-        expect(output, isNot(contains('Provider<')));
-      }
-    });
+        expect(withDb, contains('await _remote.saveProfile(user);'));
+        expect(withDb, contains('await _remote.deleteProfile(id);'));
+        expect(withoutDb, isNot(contains('saveProfile')));
+        // Both variants satisfy the same contract.
+        for (final output in [withDb, withoutDb]) {
+          expect(
+            output,
+            contains('class AuthRepositoryImpl implements AuthRepository'),
+          );
+          expect(output, contains('Future<AuthUserModel> signInWithGoogle()'));
+          expect(output, isNot(contains('Provider<')));
+        }
+      },
+    );
 
     test('the model maps a FirebaseAuth user, no tokens involved', () {
       final output = FirebaseAuthTemplates.model();
 
-      expect(output,
-          contains('factory AuthUserModel.fromFirebaseUser(User user)'));
+      expect(
+        output,
+        contains('factory AuthUserModel.fromFirebaseUser(User user)'),
+      );
       expect(output, contains('id: user.uid'));
       expect(output, isNot(contains('accessToken')));
       // The profile JSON only comes with Firestore: freezed writes `toJson`
@@ -453,16 +517,26 @@ void main() {
     test('exposes the same names as the REST auth feature', () {
       // The notifier is the only provider either variant declares — the data
       // layer below it is registered in the locator.
-      expect(FirebaseAuthTemplates.notifier(),
-          contains('final authNotifierProvider ='));
-      expect(FirebaseAuthTemplates.notifier(),
-          contains('AuthRepository get _repo => getIt<AuthRepository>();'));
       expect(
-          FirebaseAuthTemplates.repositoryImpl(), isNot(contains('Provider<')));
-      expect(FirebaseAuthTemplates.remoteDatasource(),
-          isNot(contains('Provider<')));
-      expect(FirebaseAuthTemplates.state(),
-          contains('implements ActionState<AuthState>'));
+        FirebaseAuthTemplates.notifier(),
+        contains('final authNotifierProvider ='),
+      );
+      expect(
+        FirebaseAuthTemplates.notifier(),
+        contains('AuthRepository get _repo => getIt<AuthRepository>();'),
+      );
+      expect(
+        FirebaseAuthTemplates.repositoryImpl(),
+        isNot(contains('Provider<')),
+      );
+      expect(
+        FirebaseAuthTemplates.remoteDatasource(),
+        isNot(contains('Provider<')),
+      );
+      expect(
+        FirebaseAuthTemplates.state(),
+        contains('implements ActionState<AuthState>'),
+      );
     });
   });
 
@@ -516,13 +590,15 @@ void main() {
     });
 
     test('the auth feature registers the device on sign-in and on restore', () {
-      final notifier =
-          FirebaseAuthTemplates.notifier(withPushNotifications: true);
+      final notifier = FirebaseAuthTemplates.notifier(
+        withPushNotifications: true,
+      );
       final interface = FirebaseAuthTemplates.repositoryInterface(
         withPushNotifications: true,
       );
-      final impl =
-          FirebaseAuthTemplates.repositoryImpl(withPushNotifications: true);
+      final impl = FirebaseAuthTemplates.repositoryImpl(
+        withPushNotifications: true,
+      );
 
       // Login, register, Google, and the session Firebase restored at start-up.
       expect(
@@ -531,13 +607,15 @@ void main() {
       );
       // Nothing to register when the app opened signed out.
       expect(
-          notifier,
-          contains(
-              'if (restored != null) unawaited(_repo.syncDeviceToken());'));
+        notifier,
+        contains('if (restored != null) unawaited(_repo.syncDeviceToken());'),
+      );
 
       expect(interface, contains('Future<void> syncDeviceToken();'));
       expect(
-          impl, contains('const AuthRepositoryImpl(this._remote, this._push)'));
+        impl,
+        contains('const AuthRepositoryImpl(this._remote, this._push)'),
+      );
       expect(impl, contains('final id = await currentUserId();'));
       expect(impl, contains('await _push.getDeviceToken();'));
       expect(
@@ -551,8 +629,9 @@ void main() {
         withFirestore: true,
         withPushNotifications: true,
       );
-      final withoutDb =
-          FirebaseAuthTemplates.remoteDatasource(withPushNotifications: true);
+      final withoutDb = FirebaseAuthTemplates.remoteDatasource(
+        withPushNotifications: true,
+      );
 
       expect(withDb, contains('Future<void> saveDeviceToken({'));
       // arrayUnion, so signing in twice on one device stores one token.

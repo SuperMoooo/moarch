@@ -39,10 +39,7 @@ void main() {
 
     test('keeps a nullable field as nullable', () {
       final fields = ModelFieldParser.parse(_userModel, 'UserModel');
-      expect(
-        fields.firstWhere((f) => f.name == 'nickname').type,
-        'String?',
-      );
+      expect(fields.firstWhere((f) => f.name == 'nickname').type, 'String?');
     });
 
     test('skips a static member', () {
@@ -52,10 +49,7 @@ void main() {
 
     test('reads every field of the class exactly once', () {
       final fields = ModelFieldParser.parse(_userModel, 'UserModel');
-      expect(
-        fields.map((f) => f.name),
-        ['id', 'meta', 'tags', 'nickname'],
-      );
+      expect(fields.map((f) => f.name), ['id', 'meta', 'tags', 'nickname']);
     });
 
     test('handles generics nested two deep', () {
@@ -126,10 +120,9 @@ class AddressModel {
   final String street;
 }
 ''';
-      expect(
-        ModelFieldParser.parse(source, 'UserModel').map((f) => f.name),
-        ['id'],
-      );
+      expect(ModelFieldParser.parse(source, 'UserModel').map((f) => f.name), [
+        'id',
+      ]);
       expect(
         ModelFieldParser.parse(source, 'AddressModel').map((f) => f.name),
         ['street'],
@@ -158,10 +151,9 @@ class UserModel {
   final int id;
 }
 ''';
-      expect(
-        ModelFieldParser.parse(source, 'UserModel').map((f) => f.name),
-        ['id'],
-      );
+      expect(ModelFieldParser.parse(source, 'UserModel').map((f) => f.name), [
+        'id',
+      ]);
     });
 
     test('a brace inside a string does not end the class body', () {
@@ -191,10 +183,10 @@ class NoteModel {
   final int order;
 }
 ''';
-      expect(
-        ModelFieldParser.parse(source, 'NoteModel').map((f) => f.name),
-        ['body', 'order'],
-      );
+      expect(ModelFieldParser.parse(source, 'NoteModel').map((f) => f.name), [
+        'body',
+        'order',
+      ]);
     });
 
     test('reads a class that extends another', () {
@@ -203,10 +195,9 @@ class UserModel extends BaseModel {
   final String token;
 }
 ''';
-      expect(
-        ModelFieldParser.parse(source, 'UserModel').map((f) => f.name),
-        ['token'],
-      );
+      expect(ModelFieldParser.parse(source, 'UserModel').map((f) => f.name), [
+        'token',
+      ]);
     });
   });
 
@@ -223,7 +214,9 @@ class B {
 ''';
       final range = ModelFieldParser.classBody(source, 'A')!;
       expect(
-          source.substring(range.start, range.end), contains('final int a;'));
+        source.substring(range.start, range.end),
+        contains('final int a;'),
+      );
       expect(
         source.substring(range.start, range.end),
         isNot(contains('final int b;')),
@@ -289,18 +282,15 @@ abstract class WorkModel with _\$WorkModel {
       // A freezed class declares no fields at all — the parameters are the
       // field list, and the `= _WorkModel;` redirect is what tells that
       // factory from `empty`.
-      expect(
-        fields.map((f) => f.name),
-        [
-          'id',
-          'datas',
-          'morada',
-          'utilizadores',
-          'anexos',
-          'arquivado',
-          'extras'
-        ],
-      );
+      expect(fields.map((f) => f.name), [
+        'id',
+        'datas',
+        'morada',
+        'utilizadores',
+        'anexos',
+        'arquivado',
+        'extras',
+      ]);
       expect(field('extras').type, 'Map<String, dynamic>');
     });
 

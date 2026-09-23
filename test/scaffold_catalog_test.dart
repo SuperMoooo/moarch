@@ -20,17 +20,16 @@ void main() {
       // `moarch update <name>` resolves against both catalogs, so a name that
       // means two things would silently update the wrong file.
       final widgets = WidgetCatalog.names.toSet();
-      expect(
-        ScaffoldCatalog.names.where(widgets.contains),
-        isEmpty,
-      );
+      expect(ScaffoldCatalog.names.where(widgets.contains), isEmpty);
     });
 
     test('no slug collides with a group slug or with `all`', () {
       final reserved = {...ScaffoldCatalog.groups.keys, 'widgets', 'all'};
       expect(
-        [...ScaffoldCatalog.names, ...WidgetCatalog.names]
-            .where(reserved.contains),
+        [
+          ...ScaffoldCatalog.names,
+          ...WidgetCatalog.names,
+        ].where(reserved.contains),
         isEmpty,
       );
     });
@@ -75,7 +74,8 @@ void main() {
     test('a package is matched as a whole entry, not as a substring', () {
       const context = ScaffoldContext(
         projectRoot: '.',
-        pubspec: 'dependencies:\n  dio_smart_retry: ^7.0.0\n'
+        pubspec:
+            'dependencies:\n  dio_smart_retry: ^7.0.0\n'
             '  local_auth_android: ^1.0.0\n',
       );
 
@@ -99,8 +99,9 @@ void main() {
       expect(context.hasRouter, isFalse);
       expect(context.hasBiometric, isFalse);
 
-      final router =
-          File(p.join(root, 'lib', 'config', 'router', 'app_router.dart'));
+      final router = File(
+        p.join(root, 'lib', 'config', 'router', 'app_router.dart'),
+      );
       await router.parent.create(recursive: true);
       await router.writeAsString('// router');
 
@@ -111,14 +112,14 @@ void main() {
       expect(ScaffoldCatalog.generated(root), isEmpty);
 
       final validation = File(
-          p.join(root, 'lib', 'core', 'security', 'validation_service.dart'));
+        p.join(root, 'lib', 'core', 'security', 'validation_service.dart'),
+      );
       await validation.parent.create(recursive: true);
       await validation.writeAsString('// validation');
 
-      expect(
-        ScaffoldCatalog.generated(root).map((spec) => spec.name),
-        ['validation'],
-      );
+      expect(ScaffoldCatalog.generated(root).map((spec) => spec.name), [
+        'validation',
+      ]);
     });
   });
 }

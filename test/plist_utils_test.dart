@@ -24,8 +24,10 @@ void main() {
     expect(output, contains('\t\t<string>en</string>'));
     expect(output, contains('\t\t<string>pt</string>'));
     // Inserted inside the dict, keeping the plist well-formed.
-    expect(output.indexOf('CFBundleLocalizations'),
-        lessThan(output.lastIndexOf('</dict>')));
+    expect(
+      output.indexOf('CFBundleLocalizations'),
+      lessThan(output.lastIndexOf('</dict>')),
+    );
     expect(output, contains('</dict>\n</plist>'));
   });
 
@@ -33,12 +35,16 @@ void main() {
     final withKey = PlistUtils.ensureLocalizations(_samplePlist, ['en']);
 
     expect(
-        PlistUtils.ensureLocalizations(withKey, ['en', 'pt']), equals(withKey));
+      PlistUtils.ensureLocalizations(withKey, ['en', 'pt']),
+      equals(withKey),
+    );
   });
 
   test('ensureLocalizations returns content unchanged without a dict', () {
-    expect(PlistUtils.ensureLocalizations('not a plist', ['en']),
-        equals('not a plist'));
+    expect(
+      PlistUtils.ensureLocalizations('not a plist', ['en']),
+      equals('not a plist'),
+    );
   });
 
   test('ensureArray inserts any key and skips existing ones', () {

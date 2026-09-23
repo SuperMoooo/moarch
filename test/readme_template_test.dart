@@ -10,19 +10,18 @@ String readme({
   bool withFirebase = false,
   bool withWorkflows = true,
   bool withDarkTheme = false,
-}) =>
-    ReadmeTemplates.projectReadme(
-      projectName: 'acme_app',
-      stateManagement: stack,
-      flavors: flavors,
-      withDio: withDio,
-      withRouter: withRouter,
-      withFirebase: withFirebase,
-      withFirestore: withFirebase,
-      withCrashlytics: withFirebase,
-      withWorkflows: withWorkflows,
-      withDarkTheme: withDarkTheme,
-    );
+}) => ReadmeTemplates.projectReadme(
+  projectName: 'acme_app',
+  stateManagement: stack,
+  flavors: flavors,
+  withDio: withDio,
+  withRouter: withRouter,
+  withFirebase: withFirebase,
+  withFirestore: withFirebase,
+  withCrashlytics: withFirebase,
+  withWorkflows: withWorkflows,
+  withDarkTheme: withDarkTheme,
+);
 
 /// Every `## ` heading, in order — the table of contents links to these, so a
 /// heading that changes without its anchor is a broken link in the shipped
@@ -50,11 +49,10 @@ void main() {
     test('every table-of-contents anchor points at a heading in the file', () {
       for (final stack in StateManagement.values) {
         final source = readme(stack: stack);
-        final anchors =
-            RegExp(r'^\d+\. \[[^\]]+\]\(#([^)]+)\)$', multiLine: true)
-                .allMatches(source)
-                .map((match) => match.group(1)!)
-                .toList();
+        final anchors = RegExp(
+          r'^\d+\. \[[^\]]+\]\(#([^)]+)\)$',
+          multiLine: true,
+        ).allMatches(source).map((match) => match.group(1)!).toList();
         final slugs = headings(source).map(slug).toSet();
 
         expect(anchors, isNotEmpty, reason: '$stack has no table of contents');
@@ -138,8 +136,7 @@ void main() {
       expect(source, isNot(contains('does **not** have flavors yet')));
     });
 
-    test(
-        'the single entry point is called out — flavorizr generates no '
+    test('the single entry point is called out — flavorizr generates no '
         'per-flavor main here', () {
       expect(
         readme(flavors: const ['dev', 'prod']),
@@ -167,8 +164,7 @@ void main() {
       }
     });
 
-    test(
-        'points at the documents that produce them rather than repeating the '
+    test('points at the documents that produce them rather than repeating the '
         'recipe', () {
       final source = readme();
 
@@ -188,11 +184,13 @@ void main() {
   });
 
   group('detected options', () {
-    test('the Firebase guide is referenced only when Firebase is installed',
-        () {
-      expect(readme(withFirebase: true), contains('docs/FIREBASE_SETUP.md'));
-      expect(readme(), isNot(contains('docs/FIREBASE_SETUP.md')));
-    });
+    test(
+      'the Firebase guide is referenced only when Firebase is installed',
+      () {
+        expect(readme(withFirebase: true), contains('docs/FIREBASE_SETUP.md'));
+        expect(readme(), isNot(contains('docs/FIREBASE_SETUP.md')));
+      },
+    );
 
     test('the hard-coded-colour rule appears only with a dark palette', () {
       expect(
@@ -220,8 +218,11 @@ void main() {
         final lines = readme(stack: stack).split('\n');
         for (var i = 0; i < lines.length - 1; i++) {
           if (lines[i] == '---') {
-            expect(lines[i + 1], isEmpty,
-                reason: '$stack: line ${i + 2} follows a rule directly');
+            expect(
+              lines[i + 1],
+              isEmpty,
+              reason: '$stack: line ${i + 2} follows a rule directly',
+            );
           }
         }
       }
@@ -241,8 +242,11 @@ void main() {
           if (columns == 0) {
             columns = count;
           } else {
-            expect(count, columns,
-                reason: '$stack: ragged table row at line ${i + 1}:\n$line');
+            expect(
+              count,
+              columns,
+              reason: '$stack: ragged table row at line ${i + 1}:\n$line',
+            );
           }
         }
       }
@@ -250,8 +254,11 @@ void main() {
 
     test('no conditional chunk leaked a run of blank lines', () {
       for (final stack in StateManagement.values) {
-        expect(readme(stack: stack), isNot(contains('\n\n\n')),
-            reason: '$stack has a triple newline');
+        expect(
+          readme(stack: stack),
+          isNot(contains('\n\n\n')),
+          reason: '$stack has a triple newline',
+        );
       }
     });
   });

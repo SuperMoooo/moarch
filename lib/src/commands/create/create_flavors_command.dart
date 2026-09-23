@@ -55,12 +55,15 @@ class CreateFlavorsCommand extends Command<int> {
     final rest = argResults?.rest ?? const <String>[];
     final flavors = rest.isEmpty ? defaultFlavors : rest;
 
-    final invalid =
-        flavors.where((f) => !RegExp(r'^[a-z][a-z0-9]*$').hasMatch(f)).toList();
+    final invalid = flavors
+        .where((f) => !RegExp(r'^[a-z][a-z0-9]*$').hasMatch(f))
+        .toList();
     if (invalid.isNotEmpty) {
       _logger.err('Invalid flavor name(s): ${invalid.join(', ')}');
-      _logger.info('  Flavor names must be lowercase letters/digits — they '
-          'become Gradle flavor names and bundle id suffixes.');
+      _logger.info(
+        '  Flavor names must be lowercase letters/digits — they '
+        'become Gradle flavor names and bundle id suffixes.',
+      );
       return 1;
     }
 
@@ -81,12 +84,16 @@ class CreateFlavorsCommand extends Command<int> {
     _logger.info('');
 
     if (!Directory(p.join(root, 'android')).existsSync()) {
-      _logger.warn('  android/ not found — flavorizr\'s Android processors '
-          'will have nothing to patch.');
+      _logger.warn(
+        '  android/ not found — flavorizr\'s Android processors '
+        'will have nothing to patch.',
+      );
     }
     if (!Directory(p.join(root, 'ios')).existsSync()) {
-      _logger.warn('  ios/ not found — flavorizr\'s iOS processors '
-          'will have nothing to patch.');
+      _logger.warn(
+        '  ios/ not found — flavorizr\'s iOS processors '
+        'will have nothing to patch.',
+      );
     }
 
     final configPath = p.join(root, 'flavorizr.yaml');
@@ -132,24 +139,32 @@ class CreateFlavorsCommand extends Command<int> {
     _logger.info('  Review the app names and ids in flavorizr.yaml, then:');
     _logger.info('    1. flutter pub get');
     _logger.info('    2. dart run flutter_flavorizr');
-    _logger.info('       (patches Gradle/manifest/xcconfig/plist and generates '
-        'lib/flavors.dart');
+    _logger.info(
+      '       (patches Gradle/manifest/xcconfig/plist and generates '
+      'lib/flavors.dart',
+    );
     _logger.info('        — lib/main.dart is not touched)');
     _logger.info('    3. flutter run --flavor ${flavors.first}');
     _logger.info('');
     if (flavors.toSet().containsAll(defaultFlavors)) {
-      _logger.info('  The flavored entries in .vscode/launch.json (dev, '
-          'staging, prod) now work.');
+      _logger.info(
+        '  The flavored entries in .vscode/launch.json (dev, '
+        'staging, prod) now work.',
+      );
     }
     // Each flavor is its own application id, and Firebase config is keyed by
     // application id — a suffixed flavor without its own entry fails at
     // Firebase.initializeApp.
     final pubspec = pubspecFile.readAsStringSync();
     if (pubspec.contains('firebase_core:')) {
-      _logger.warn('  Firebase: each flavor\'s id needs its own app in the '
-          'Firebase project');
-      _logger.info('    (google-services.json carries all of them; re-run '
-          '`flutterfire configure` and register the suffixed ids).');
+      _logger.warn(
+        '  Firebase: each flavor\'s id needs its own app in the '
+        'Firebase project',
+      );
+      _logger.info(
+        '    (google-services.json carries all of them; re-run '
+        '`flutterfire configure` and register the suffixed ids).',
+      );
     }
     _logger.info('');
     return 0;
@@ -179,8 +194,9 @@ class CreateFlavorsCommand extends Command<int> {
       File(p.join(root, 'android', 'app', 'build.gradle')),
     ]) {
       if (!file.existsSync()) continue;
-      final match = RegExp(r'''applicationId\s*=?\s*["']([^"']+)["']''')
-          .firstMatch(file.readAsStringSync());
+      final match = RegExp(
+        r'''applicationId\s*=?\s*["']([^"']+)["']''',
+      ).firstMatch(file.readAsStringSync());
       if (match != null) return match.group(1)!;
     }
     return 'com.example.app';
@@ -189,12 +205,14 @@ class CreateFlavorsCommand extends Command<int> {
   /// The `PRODUCT_BUNDLE_IDENTIFIER` from the Xcode project, when the iOS
   /// folder exists — usually the Android id, but not guaranteed to be.
   String? _iosBundleId(String root) {
-    final pbxproj =
-        File(p.join(root, 'ios', 'Runner.xcodeproj', 'project.pbxproj'));
+    final pbxproj = File(
+      p.join(root, 'ios', 'Runner.xcodeproj', 'project.pbxproj'),
+    );
     if (!pbxproj.existsSync()) return null;
-    final match =
-        RegExp(r'PRODUCT_BUNDLE_IDENTIFIER\s*=\s*([^;\s]+);', multiLine: true)
-            .firstMatch(pbxproj.readAsStringSync());
+    final match = RegExp(
+      r'PRODUCT_BUNDLE_IDENTIFIER\s*=\s*([^;\s]+);',
+      multiLine: true,
+    ).firstMatch(pbxproj.readAsStringSync());
     // The RunnerTests target's id ends in .RunnerTests — strip that rather
     // than hand back the test bundle when it happens to match first.
     final id = match?.group(1)?.replaceAll('"', '');

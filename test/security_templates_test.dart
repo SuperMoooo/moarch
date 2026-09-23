@@ -173,14 +173,16 @@ void main() {
       }
     });
 
-    test('adds the nullable helpers without colliding with package:collection',
-        () {
-      expect(output, contains('extension NullableStringX on String?'));
-      expect(output, contains('extension NullableListX<T> on List<T>?'));
-      // firstWhereOrNull belongs to package:collection; defining it here would
-      // make the call ambiguous in any file that imports both.
-      expect(output, isNot(contains('firstWhereOrNull')));
-    });
+    test(
+      'adds the nullable helpers without colliding with package:collection',
+      () {
+        expect(output, contains('extension NullableStringX on String?'));
+        expect(output, contains('extension NullableListX<T> on List<T>?'));
+        // firstWhereOrNull belongs to package:collection; defining it here would
+        // make the call ambiguous in any file that imports both.
+        expect(output, isNot(contains('firstWhereOrNull')));
+      },
+    );
 
     test('the diacritic tables line up', () {
       // withoutDiacritics maps index for index, so a table that drifts by one

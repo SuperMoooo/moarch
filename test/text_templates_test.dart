@@ -12,37 +12,48 @@ void main() {
       expect(
         output,
         contains(
-            'enum AppTextButtonVariant { primary, secondary, tertiary, danger, neutral }'),
+          'enum AppTextButtonVariant { primary, secondary, tertiary, danger, neutral }',
+        ),
       );
-      expect(output,
-          contains('enum AppTextButtonType { plain, underlined, tonal }'));
+      expect(
+        output,
+        contains('enum AppTextButtonType { plain, underlined, tonal }'),
+      );
       expect(output, contains('enum AppTextButtonShape { rounded, pill }'));
       expect(
-          output, contains('enum AppTextButtonSize { small, medium, large }'));
+        output,
+        contains('enum AppTextButtonSize { small, medium, large }'),
+      );
     });
 
     test('the neutral variant follows the theme rather than a fixed grey', () {
       expect(
         output,
-        contains('AppTextButtonVariant.neutral => (\n'
-            '          theme.colorScheme.onSurface,'),
+        contains(
+          'AppTextButtonVariant.neutral => (\n'
+          '          theme.colorScheme.onSurface,',
+        ),
       );
     });
 
     test('only the tonal type paints anything behind the label', () {
       expect(
         output,
-        contains('AppTextButtonType.plain || AppTextButtonType.underlined =>\n'
-            '        Colors.transparent,'),
+        contains(
+          'AppTextButtonType.plain || AppTextButtonType.underlined =>\n'
+          '        Colors.transparent,',
+        ),
       );
     });
 
     test('the underlined type is the only one that rules its label', () {
       expect(
         output,
-        contains('decoration: type == AppTextButtonType.underlined\n'
-            '              ? TextDecoration.underline\n'
-            '              : TextDecoration.none,'),
+        contains(
+          'decoration: type == AppTextButtonType.underlined\n'
+          '              ? TextDecoration.underline\n'
+          '              : TextDecoration.none,',
+        ),
       );
     });
 
@@ -51,7 +62,8 @@ void main() {
       expect(
         output,
         contains(
-            'enabled ? accent : accent.withValues(alpha: _disabledOpacity)'),
+          'enabled ? accent : accent.withValues(alpha: _disabledOpacity)',
+        ),
       );
     });
 
@@ -65,13 +77,16 @@ void main() {
     test('dense trades the touch target away, and nothing else does', () {
       expect(output, contains('padding: dense ? EdgeInsets.zero'));
       expect(
-          output,
-          contains(
-              'minimumSize: dense ? Size.zero : Size(0, sizeConfig.minHeight)'));
+        output,
+        contains(
+          'minimumSize: dense ? Size.zero : Size(0, sizeConfig.minHeight)',
+        ),
+      );
       expect(
         output,
         contains(
-            'dense ? MaterialTapTargetSize.shrinkWrap : MaterialTapTargetSize.padded'),
+          'dense ? MaterialTapTargetSize.shrinkWrap : MaterialTapTargetSize.padded',
+        ),
       );
     });
 
@@ -97,9 +112,10 @@ void main() {
       expect(
         output,
         contains(
-            'final (rowAlignment, textAlign) = switch (resolvedAlignment.x) {\n'
-            '      < 0 => (MainAxisAlignment.start, TextAlign.left),\n'
-            '      > 0 => (MainAxisAlignment.end, TextAlign.right),'),
+          'final (rowAlignment, textAlign) = switch (resolvedAlignment.x) {\n'
+          '      < 0 => (MainAxisAlignment.start, TextAlign.left),\n'
+          '      > 0 => (MainAxisAlignment.end, TextAlign.right),',
+        ),
       );
     });
 
@@ -108,9 +124,11 @@ void main() {
       // shrink-wraps where the parent is unbounded, so it costs nothing there.
       expect(
         output,
-        contains('final aligned = alignment != null && !expand\n'
-            '        ? Align(alignment: alignment!, child: sized)\n'
-            '        : sized;'),
+        contains(
+          'final aligned = alignment != null && !expand\n'
+          '        ? Align(alignment: alignment!, child: sized)\n'
+          '        : sized;',
+        ),
       );
     });
 
@@ -127,7 +145,8 @@ void main() {
       expect(
         output,
         contains(
-            'enum AppSpanVariant { primary, secondary, tertiary, danger, neutral, muted }'),
+          'enum AppSpanVariant { primary, secondary, tertiary, danger, neutral, muted }',
+        ),
       );
     });
 
@@ -150,15 +169,19 @@ void main() {
         expect(output, contains(shorthand), reason: '$shorthand is dropped');
       }
       // `scale` is the one that has to be resolved against the base size.
-      expect(output,
-          contains('final scaled = scale == null ? null : baseSize * scale!;'));
+      expect(
+        output,
+        contains('final scaled = scale == null ? null : baseSize * scale!;'),
+      );
     });
 
     test('null variant leaves the surrounding color alone', () {
       expect(
-          output,
-          contains(
-              'Color? _variantColor(ThemeData theme) => switch (variant) {\n        null => null,'));
+        output,
+        contains(
+          'Color? _variantColor(ThemeData theme) => switch (variant) {\n        null => null,',
+        ),
+      );
     });
 
     test('recognizers outlive the frame that built them', () {
@@ -167,9 +190,9 @@ void main() {
       expect(output, contains('class _SpanGesture {'));
       expect(output, contains('late final GestureRecognizer recognizer;'));
       expect(
-          output,
-          contains(
-              '_SpanGesture _gestureAt(int index, _SpanGestureKind kind)'));
+        output,
+        contains('_SpanGesture _gestureAt(int index, _SpanGestureKind kind)'),
+      );
       expect(output, contains('void bind(VoidCallback? handler,'));
       // A span that swapped which gesture it wants needs the other type.
       expect(output, contains('if (existing.kind == kind) return existing;'));
@@ -177,9 +200,11 @@ void main() {
 
     test('every recognizer it makes, it disposes', () {
       expect(
-          output,
-          contains(
-              '  void dispose() {\n    for (final gesture in _gestures) {\n      gesture.dispose();\n    }'));
+        output,
+        contains(
+          '  void dispose() {\n    for (final gesture in _gestures) {\n      gesture.dispose();\n    }',
+        ),
+      );
       // Including the ones a now-shorter span list left behind.
       expect(output, contains('void _trimGestures(int used) {'));
       expect(output, contains('_gestures.removeLast().dispose();'));
@@ -191,13 +216,17 @@ void main() {
       // would render fine and then blow up the moment a screen reader is on.
       expect(output, contains('enum _SpanGestureKind { tap, longPress }'));
       expect(
-          output,
-          contains(
-              '_SpanGestureKind.tap => TapGestureRecognizer()..onTap = _handleTap'));
+        output,
+        contains(
+          '_SpanGestureKind.tap => TapGestureRecognizer()..onTap = _handleTap',
+        ),
+      );
       expect(
         output,
-        contains('_SpanGestureKind.longPress => LongPressGestureRecognizer()\n'
-            '        ..onLongPress = _handleLongPress,'),
+        contains(
+          '_SpanGestureKind.longPress => LongPressGestureRecognizer()\n'
+          '        ..onLongPress = _handleLongPress,',
+        ),
       );
       expect(output, isNot(contains('MultiTapGestureRecognizer')));
     });
@@ -223,7 +252,8 @@ void main() {
       expect(
         output,
         contains(
-            'mouseCursor:\n          _isTappable ? SystemMouseCursors.click : MouseCursor.defer,'),
+          'mouseCursor:\n          _isTappable ? SystemMouseCursors.click : MouseCursor.defer,',
+        ),
       );
       expect(output, contains('semanticsLabel: semanticsLabel,'));
       expect(output, contains('cursor: SystemMouseCursors.click,'));
@@ -252,7 +282,8 @@ void main() {
       expect(
         output,
         contains(
-            'decoration =\n            underline ? TextDecoration.underline : TextDecoration.none,'),
+          'decoration =\n            underline ? TextDecoration.underline : TextDecoration.none,',
+        ),
       );
     });
 
@@ -260,33 +291,39 @@ void main() {
       expect(output, contains('if (replacement == null) continue;'));
       expect(output, contains(r"RegExp(r'\{(\w+)\}')"));
       expect(
-          output,
-          contains(
-              'static List<AppSpan> template(String pattern, Map<String, AppSpan> values) {'));
+        output,
+        contains(
+          'static List<AppSpan> template(String pattern, Map<String, AppSpan> values) {',
+        ),
+      );
     });
 
     test('template keeps the text between and after the placeholders', () {
       expect(
-          output,
-          contains(
-              'spans.add(AppSpan(pattern.substring(index, match.start)));'));
+        output,
+        contains('spans.add(AppSpan(pattern.substring(index, match.start)));'),
+      );
       expect(
         output,
         contains(
-            'if (index < pattern.length) spans.add(AppSpan(pattern.substring(index)));'),
+          'if (index < pattern.length) spans.add(AppSpan(pattern.substring(index)));',
+        ),
       );
     });
 
     test(
-        'highlight matches case-insensitively by default, and survives an empty query',
-        () {
-      expect(output, contains('if (query.isEmpty) return [AppSpan(text)];'));
-      expect(output, contains('bool caseSensitive = false,'));
-      expect(
+      'highlight matches case-insensitively by default, and survives an empty query',
+      () {
+        expect(output, contains('if (query.isEmpty) return [AppSpan(text)];'));
+        expect(output, contains('bool caseSensitive = false,'));
+        expect(
           output,
           contains(
-              'final haystack = caseSensitive ? text : text.toLowerCase();'));
-    });
+            'final haystack = caseSensitive ? text : text.toLowerCase();',
+          ),
+        );
+      },
+    );
   });
 
   group('appHeading', () {
@@ -296,14 +333,16 @@ void main() {
       expect(
         output,
         contains(
-            'enum AppHeadingSize { display, large, medium, small, label }'),
+          'enum AppHeadingSize { display, large, medium, small, label }',
+        ),
       );
       // The kit's four roles, plus the two a heading actually needs: neutral
       // for structure, muted for the group label that stays in the background.
       expect(
         output,
         contains(
-            'enum AppHeadingVariant { primary, secondary, tertiary, danger, neutral, muted }'),
+          'enum AppHeadingVariant { primary, secondary, tertiary, danger, neutral, muted }',
+        ),
       );
       expect(output, contains('enum AppHeadingAlign { start, center, end }'));
     });
@@ -319,9 +358,9 @@ void main() {
       // So the app's font family and any theme-level tweak survive; the size
       // metrics land on top with copyWith.
       expect(
-          output,
-          contains(
-              'TextStyle? _baseStyle(TextTheme textTheme) => switch (size)'));
+        output,
+        contains('TextStyle? _baseStyle(TextTheme textTheme) => switch (size)'),
+      );
       for (final role in [
         'AppHeadingSize.display => textTheme.headlineLarge,',
         'AppHeadingSize.large => textTheme.headlineMedium,',
@@ -333,11 +372,13 @@ void main() {
       }
     });
 
-    test('only the label size capitalizes, and caps can be forced either way',
-        () {
-      expect(output, contains('final caps = uppercase ?? config.uppercase;'));
-      expect(output, contains('caps ? title.toUpperCase() : title,'));
-    });
+    test(
+      'only the label size capitalizes, and caps can be forced either way',
+      () {
+        expect(output, contains('final caps = uppercase ?? config.uppercase;'));
+        expect(output, contains('caps ? title.toUpperCase() : title,'));
+      },
+    );
 
     test('caps always get tracking, whatever size asked for them', () {
       // Uppercase set at the display size' spacing reads cramped.
@@ -345,19 +386,24 @@ void main() {
       expect(
         output,
         contains(
-            'letterSpacing: caps && config.letterSpacing < _capsLetterSpacing\n'
-            '          ? _capsLetterSpacing\n'
-            '          : config.letterSpacing,'),
+          'letterSpacing: caps && config.letterSpacing < _capsLetterSpacing\n'
+          '          ? _capsLetterSpacing\n'
+          '          : config.letterSpacing,',
+        ),
       );
     });
 
     test('align moves the title and the subtitle together', () {
       expect(output, contains('TextAlign get _textAlign => switch (align)'));
-      expect(output,
-          contains('CrossAxisAlignment get _crossAlign => switch (align)'));
+      expect(
+        output,
+        contains('CrossAxisAlignment get _crossAlign => switch (align)'),
+      );
       // And it can only act because the heading claims the full width.
       expect(
-          output, contains('SizedBox(width: double.infinity, child: content)'));
+        output,
+        contains('SizedBox(width: double.infinity, child: content)'),
+      );
     });
 
     test('the subtitle stays quiet whatever the variant says', () {

@@ -1,3 +1,4 @@
+import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/ui/audio_templates.dart';
 import 'package:moarch/src/templates/ui/calendar_templates.dart';
 import 'package:moarch/src/templates/ui/country_templates.dart';
@@ -124,34 +125,53 @@ void main() {
       expect(output, contains('overlay.insert(entry);'));
     });
 
-    test('owns both ends of the animation, which a SnackBar does not expose',
-        () {
+    test('owns both ends of the animation, which a SnackBar does not expose', () {
       expect(
-          output,
-          contains(
-              'static const Duration _enterDuration = Duration(milliseconds: 320);'));
+        output,
+        contains(
+          'static const Duration _enterDuration = Duration(milliseconds: 320);',
+        ),
+      );
       expect(
-          output,
-          contains(
-              'static const Duration _exitDuration = Duration(milliseconds: 200);'));
+        output,
+        contains(
+          'static const Duration _exitDuration = Duration(milliseconds: 200);',
+        ),
+      );
       // Decelerating in, accelerating out — reversing easeOutCubic would have
-      // the card crawl off the screen.
-      expect(output, contains('curve: Curves.easeOutCubic,'));
-      expect(output, contains('reverseCurve: Curves.easeInCubic,'));
+      // the card crawl off the screen. The tokens are those two curves.
+      expect(output, contains('curve: AppConstants.curveEnter,'));
+      expect(output, contains('reverseCurve: AppConstants.curveExit,'));
+      expect(
+        CoreTemplates.appConstants(),
+        contains('curveEnter = Curves.easeOutCubic'),
+      );
+      expect(
+        CoreTemplates.appConstants(),
+        contains('curveExit = Curves.easeInCubic'),
+      );
       // Fade, rise and scale run off the same curve.
       expect(output, contains('FadeTransition('));
       expect(output, contains('begin: const Offset(0, AppToast._rise),'));
-      expect(output,
-          contains('Tween<double>(begin: AppToast._enterScale, end: 1)'));
+      expect(
+        output,
+        contains('Tween<double>(begin: AppToast._enterScale, end: 1)'),
+      );
     });
 
     test('honours reduce motion', () {
-      expect(output,
-          contains('final reduced = MediaQuery.disableAnimationsOf(context);'));
-      expect(output,
-          contains('reduced ? Duration.zero : AppToast._enterDuration'));
       expect(
-          output, contains('reduced ? Duration.zero : AppToast._exitDuration'));
+        output,
+        contains('final reduced = MediaQuery.disableAnimationsOf(context);'),
+      );
+      expect(
+        output,
+        contains('reduced ? Duration.zero : AppToast._enterDuration'),
+      );
+      expect(
+        output,
+        contains('reduced ? Duration.zero : AppToast._exitDuration'),
+      );
     });
 
     test('a second toast swaps the content of the card already up', () {
@@ -177,8 +197,10 @@ void main() {
       // make show() treat every later toast as a replacement for a card that is
       // not there — silently doing nothing for the rest of the session.
       expect(output, contains('AppToast._forget(widget.spec);'));
-      expect(output,
-          contains('static void _forget(ValueNotifier<_ToastSpec> spec) {'));
+      expect(
+        output,
+        contains('static void _forget(ValueNotifier<_ToastSpec> spec) {'),
+      );
       // Identity-checked: the exit path clears these a frame before dispose
       // runs, so a toast shown in that gap already owns them.
       expect(output, contains('if (!identical(_live, spec)) return;'));
@@ -186,37 +208,43 @@ void main() {
 
     test('cannot remove the same entry twice', () {
       // A swipe and the timer can land on the same frame.
-      expect(
-        output,
-        contains('final entry = _entry;\n    _entry = null;'),
-      );
+      expect(output, contains('final entry = _entry;\n    _entry = null;'));
     });
 
     test('sits above the keyboard when there is one', () {
       expect(
         output,
         contains(
-            'media.viewInsets.bottom > 0\n        ? media.viewInsets.bottom\n'
-            '        : media.viewPadding.bottom;'),
+          'media.viewInsets.bottom > 0\n        ? media.viewInsets.bottom\n'
+          '        : media.viewPadding.bottom;',
+        ),
       );
     });
 
     test('resolves its colors where it is built, not where it was shown', () {
       // The card builds a frame later; colors computed in show() would be
       // a light-palette green on a dark card if the theme changed in between.
-      expect(output,
-          contains('final isDark = theme.brightness == Brightness.dark;'));
       expect(
-          output, contains('final (accent, icon) = AppToast._resolve(type);'));
+        output,
+        contains('final isDark = theme.brightness == Brightness.dark;'),
+      );
+      expect(
+        output,
+        contains('final (accent, icon) = AppToast._resolve(type);'),
+      );
       expect(output, contains('required this.type,'));
     });
 
     test('picks the status color per brightness only with a dark theme', () {
       final dark = SharedTemplates.appToast(withDark: true);
-      expect(dark,
-          contains('final (accent, icon) = AppToast._resolve(type, isDark);'));
-      expect(dark,
-          contains('isDark ? AppConstants.successDark : AppConstants.success'));
+      expect(
+        dark,
+        contains('final (accent, icon) = AppToast._resolve(type, isDark);'),
+      );
+      expect(
+        dark,
+        contains('isDark ? AppConstants.successDark : AppConstants.success'),
+      );
 
       // With one brand theme those *Dark constants are not generated at all,
       // so reading them would not compile.
@@ -230,24 +258,30 @@ void main() {
       // page it covers, which surfaceContainerLowest is not.
       expect(
         output,
-        contains('isDark\n              ? colorScheme.surfaceContainerHighest\n'
-            '              : colorScheme.surfaceContainerLowest,'),
+        contains(
+          'isDark\n              ? colorScheme.surfaceContainerHighest\n'
+          '              : colorScheme.surfaceContainerLowest,',
+        ),
       );
     });
 
     test('tints the surface without coloring the text', () {
       expect(output, contains('color: Color.alphaBlend('));
       expect(
-          output, contains('accent.withValues(alpha: AppToast._surfaceTint)'));
+        output,
+        contains('accent.withValues(alpha: AppToast._surfaceTint)'),
+      );
       expect(output, contains('static const double _surfaceTint = 0.07;'));
     });
 
     test('stays a card rather than becoming a banner on a tablet', () {
       expect(output, contains('static const double _maxWidth = 480;'));
       expect(
-          output,
-          contains(
-              'constraints: const BoxConstraints(maxWidth: AppToast._maxWidth),'));
+        output,
+        contains(
+          'constraints: const BoxConstraints(maxWidth: AppToast._maxWidth),',
+        ),
+      );
     });
 
     test('takes a title over the detail', () {
@@ -257,9 +291,11 @@ void main() {
       // The message dims only when a title is carrying the emphasis.
       expect(
         output,
-        contains('color: heading == null\n                          '
-            '? colorScheme.onSurface\n                          '
-            ': colorScheme.onSurfaceVariant,'),
+        contains(
+          'color: heading == null\n                          '
+          '? colorScheme.onSurface\n                          '
+          ': colorScheme.onSurfaceVariant,',
+        ),
       );
     });
 
@@ -281,7 +317,9 @@ void main() {
       // No context: the overlay is reachable without one, and the caller that
       // wants a toast gone is often the one whose context is going away.
       expect(
-          output, contains('static void dismiss() => _hideCurrent?.call();'));
+        output,
+        contains('static void dismiss() => _hideCurrent?.call();'),
+      );
     });
 
     test('is flicked away sideways, and skips the exit when it is', () {
@@ -294,13 +332,20 @@ void main() {
   group('appButton disabled state', () {
     test('one guard covers all three ways a press is refused', () {
       for (final hasBiometricAuth in [false, true]) {
-        final output =
-            SharedTemplates.appButton(hasBiometricAuth: hasBiometricAuth);
+        final output = SharedTemplates.appButton(
+          hasBiometricAuth: hasBiometricAuth,
+        );
 
-        expect(output, contains('this.isDisabled = false,'),
-            reason: 'biometric: $hasBiometricAuth');
-        expect(output, contains('final bool isDisabled;'),
-            reason: 'biometric: $hasBiometricAuth');
+        expect(
+          output,
+          contains('this.isDisabled = false,'),
+          reason: 'biometric: $hasBiometricAuth',
+        );
+        expect(
+          output,
+          contains('final bool isDisabled;'),
+          reason: 'biometric: $hasBiometricAuth',
+        );
         expect(
           output,
           contains('onPressed: isDisabled || isLoading || onPressed == null'),
@@ -317,12 +362,15 @@ void main() {
       expect(
         output,
         contains(
-            'final showsBusy = isLoading && !isDisabled && onPressed != null;'),
+          'final showsBusy = isLoading && !isDisabled && onPressed != null;',
+        ),
       );
       expect(
         output,
-        contains('disabledBackgroundColor:\n'
-            '              showsBusy ? backgroundColor : disabledBackground,'),
+        contains(
+          'disabledBackgroundColor:\n'
+          '              showsBusy ? backgroundColor : disabledBackground,',
+        ),
       );
     });
 
@@ -342,7 +390,9 @@ void main() {
       expect(output, contains('if (hint == null) return button;'));
       expect(output, contains('textAlign: TextAlign.center,'));
       expect(
-          output, contains('crossAxisAlignment: CrossAxisAlignment.center,'));
+        output,
+        contains('crossAxisAlignment: CrossAxisAlignment.center,'),
+      );
       // The hint first, the whole button under it.
       expect(
         output.indexOf('hint!,'),
@@ -350,13 +400,15 @@ void main() {
       );
     });
 
-    test('is centered without stretching, which would eat an explicit width',
-        () {
-      // Stretch hands children a tight cross-axis constraint, so a
-      // `width: 220` button would go full-bleed the moment it took a hint.
-      expect(output, isNot(contains('CrossAxisAlignment.stretch')));
-      expect(output, contains('height: sizeConfig.height,'));
-    });
+    test(
+      'is centered without stretching, which would eat an explicit width',
+      () {
+        // Stretch hands children a tight cross-axis constraint, so a
+        // `width: 220` button would go full-bleed the moment it took a hint.
+        expect(output, isNot(contains('CrossAxisAlignment.stretch')));
+        expect(output, contains('height: sizeConfig.height,'));
+      },
+    );
 
     test('reads as a caption rather than as part of the fill', () {
       expect(output, contains('color: theme.colorScheme.onSurfaceVariant,'));
@@ -502,10 +554,7 @@ void main() {
     test('the play button names the action its glyph is showing', () {
       final output = AudioTemplates.appAudioPlayer();
 
-      expect(
-        output,
-        contains("label: state.playing ? 'Pause' : 'Play',"),
-      );
+      expect(output, contains("label: state.playing ? 'Pause' : 'Play',"));
     });
   });
 
@@ -551,10 +600,7 @@ void main() {
     });
 
     test('the slop appears only when the shape is under the minimum', () {
-      expect(
-        output,
-        contains('final sized = target == sizeConfig.container'),
-      );
+      expect(output, contains('final sized = target == sizeConfig.container'));
       expect(output, contains('behavior: HitTestBehavior.opaque,'));
       // The slop is a hit area, not a second thing to announce.
       expect(output, contains('excludeFromSemantics: true,'));

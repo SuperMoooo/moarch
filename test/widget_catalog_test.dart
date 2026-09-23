@@ -35,6 +35,7 @@ const _notPreviewed = {
   // Replaces the app instead of rendering into it, so there is no way to show
   // it inside the preview — and what it draws is ErrorView, already covered.
   'maintenance-gate': 'replaces the whole app; its screen is ErrorView',
+  'update-gate': 'replaces the whole app, and only below a backend minimum',
   // Wraps the whole app from main.dart; inside the preview it would only
   // rescale the widgets already on screen, showing nothing of its own.
   'mo-adapt': 'mounted above MaterialApp; draws nothing of its own',
@@ -84,17 +85,18 @@ void main() {
     test('design-system pulls in the whole kit', () {
       // Its description promises a preview of everything, so its dependency
       // closure has to stay complete as widgets are added.
-      final resolved =
-          WidgetCatalog.resolve(['design-system']).map((w) => w.name).toSet();
+      final resolved = WidgetCatalog.resolve([
+        'design-system',
+      ]).map((w) => w.name).toSet();
       expect(resolved, equals(WidgetCatalog.names.toSet()));
     });
 
     test('resolve pulls in transitive deps and de-duplicates', () {
       // confirm-dialog -> button, leading-icon, dialogs
-      final resolved =
-          WidgetCatalog.resolve(['confirm-dialog', 'confirm-dialog'])
-              .map((w) => w.name)
-              .toList();
+      final resolved = WidgetCatalog.resolve([
+        'confirm-dialog',
+        'confirm-dialog',
+      ]).map((w) => w.name).toList();
       expect(resolved.toSet(), hasLength(resolved.length));
       expect(
         resolved,
@@ -136,7 +138,8 @@ void main() {
           expect(
             preview,
             contains("/${spec.file}'"),
-            reason: '${spec.name} is in the ${stack.name} kit but its '
+            reason:
+                '${spec.name} is in the ${stack.name} kit but its '
                 'DesignSystemView never imports it. Add a preview section, or '
                 'add it to _notPreviewed with the reason.',
           );
@@ -160,14 +163,17 @@ void main() {
           );
           final dir = p.posix.dirname('lib/${spec.libFile}');
 
-          for (final match in RegExp(r"^import '([^:']+)';", multiLine: true)
-              .allMatches(source)) {
+          for (final match in RegExp(
+            r"^import '([^:']+)';",
+            multiLine: true,
+          ).allMatches(source)) {
             final import = match.group(1)!;
             final target = p.posix.normalize(p.posix.join(dir, import));
             final generated =
                 WidgetCatalog.all.any((s) => 'lib/${s.libFile}' == target) ||
-                    ScaffoldCatalog.all
-                        .any((s) => s.path == target || s.blocPath == target);
+                ScaffoldCatalog.all.any(
+                  (s) => s.path == target || s.blocPath == target,
+                );
             if (generated) continue;
 
             final key = '${stack.name} ${spec.name} $import';
@@ -180,7 +186,8 @@ void main() {
       expect(
         unresolved,
         isEmpty,
-        reason: 'These generated files import something no catalog writes, so '
+        reason:
+            'These generated files import something no catalog writes, so '
             'they will not compile. Fix the import, or record it in '
             '_unresolvedImports with the reason.',
       );
@@ -191,8 +198,9 @@ void main() {
       // covering for whatever breaks next in the same file.
       for (final key in _unresolvedImports.keys) {
         final parts = key.split(' ');
-        final stack = StateManagement.values
-            .firstWhere((value) => value.name == parts.first);
+        final stack = StateManagement.values.firstWhere(
+          (value) => value.name == parts.first,
+        );
         final spec = WidgetCatalog.byName(parts[1]);
         expect(spec, isNotNull, reason: '$key names no catalog entry');
         expect(
@@ -236,7 +244,8 @@ void main() {
         expect(
           nullAwareElement.hasMatch(spec.template()),
           isFalse,
-          reason: '${spec.name} uses a null-aware element. Write it as '
+          reason:
+              '${spec.name} uses a null-aware element. Write it as '
               '`x ?? const SizedBox.shrink()` or `if (x != null) ...[x]` so it '
               'compiles under an older language version.',
         );

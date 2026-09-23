@@ -64,7 +64,8 @@ class CreateFeatureCommand extends Command<int> {
     final rest = argResults?.rest ?? [];
     if (rest.isEmpty) {
       _logger.err(
-          'Provide a feature name.\n  Usage: moarch create feature <name>');
+        'Provide a feature name.\n  Usage: moarch create feature <name>',
+      );
       return 1;
     }
 
@@ -90,24 +91,30 @@ class CreateFeatureCommand extends Command<int> {
 
       // For existing features we need to know which layers exist
       // to generate the right tests — use the checklist for test selection
-      final hasRemote = File(p.join(
-        featurePath,
-        'data',
-        'datasources',
-        '${featureName}_remote_datasource.dart',
-      )).existsSync();
-      final hasRepo = File(p.join(
-        featurePath,
-        'data',
-        'repositories',
-        '${featureName}_repository_impl.dart',
-      )).existsSync();
-      final hasHolder = File(p.join(
-        featurePath,
-        'presentation',
-        templates.holderDir,
-        templates.holderFile(featureName),
-      )).existsSync();
+      final hasRemote = File(
+        p.join(
+          featurePath,
+          'data',
+          'datasources',
+          '${featureName}_remote_datasource.dart',
+        ),
+      ).existsSync();
+      final hasRepo = File(
+        p.join(
+          featurePath,
+          'data',
+          'repositories',
+          '${featureName}_repository_impl.dart',
+        ),
+      ).existsSync();
+      final hasHolder = File(
+        p.join(
+          featurePath,
+          'presentation',
+          templates.holderDir,
+          templates.holderFile(featureName),
+        ),
+      ).existsSync();
 
       final selected = <String>{
         if (hasRemote) _kRemoteDatasource,
@@ -125,8 +132,7 @@ class CreateFeatureCommand extends Command<int> {
         includeIntegration: false,
         testsOnly: true,
       );
-      _logger.info(
-          'If you want tests, use the mogen_unit_tests and mogen_integration_tests package on pub.dev.');
+      _logger.info('Generate its tests with: moarch create tests $featureName');
       return 0;
     }
 
@@ -239,7 +245,8 @@ class CreateFeatureCommand extends Command<int> {
 
     // The model is what the datasources, the repository and the state share, so
     // it is skipped when no data layer was selected.
-    final needsDataLayer = selected.contains(_kRemoteDatasource) ||
+    final needsDataLayer =
+        selected.contains(_kRemoteDatasource) ||
         selected.contains(_kLocalDatasource) ||
         selected.contains(_kRepository);
 
@@ -268,7 +275,13 @@ class CreateFeatureCommand extends Command<int> {
       }
       if (selected.contains(_kLocalDatasource)) {
         await _writeLocalDatasource(
-            featurePath, featureName, className, varName, libPath, templates);
+          featurePath,
+          featureName,
+          className,
+          varName,
+          libPath,
+          templates,
+        );
       }
       if (selected.contains(_kRepository)) {
         await _writeRepository(
@@ -283,12 +296,22 @@ class CreateFeatureCommand extends Command<int> {
         );
       }
       if (needsDataLayer) {
-        await _writeModel(featurePath, featureName, className, templates,
-            useFirestore: useFirestore);
+        await _writeModel(
+          featurePath,
+          featureName,
+          className,
+          templates,
+          useFirestore: useFirestore,
+        );
       }
       if (selected.contains(holderItem)) {
-        await _writeState(featurePath, featureName, className, templates,
-            useFirestore: liveQuery);
+        await _writeState(
+          featurePath,
+          featureName,
+          className,
+          templates,
+          useFirestore: liveQuery,
+        );
         await _writeHolder(
           featurePath,
           featureName,
@@ -302,11 +325,16 @@ class CreateFeatureCommand extends Command<int> {
         // write it if the project doesn't have it yet (writeFile never
         // overwrites, so an older copy is only reported, below).
         if (templates.hasActionBase) {
-          final actionBase =
-              p.join(libPath, 'core', 'utils', templates.actionBaseFile);
+          final actionBase = p.join(
+            libPath,
+            'core',
+            'utils',
+            templates.actionBaseFile,
+          );
           await FileUtils.writeFile(actionBase, templates.actionBase());
           final file = File(actionBase);
-          staleActionBase = file.existsSync() &&
+          staleActionBase =
+              file.existsSync() &&
               templates.isStaleActionBase(file.readAsStringSync());
         }
       }
@@ -364,13 +392,15 @@ class CreateFeatureCommand extends Command<int> {
     );
     if (useFirestore && selected.contains(_kRemoteDatasource)) {
       _logger.info(
-          '  Firestore-backed — point `collectionPath` in ${featureName}_remote_datasource.dart');
+        '  Firestore-backed — point `collectionPath` in ${featureName}_remote_datasource.dart',
+      );
       _logger.info('  at your collection, and check your security rules.');
       _logger.info('');
     }
     // Nothing was asked for that the locator holds, so nothing was expected
     // of it either. A bloc counts: it is registered there too.
-    final needsInjector = selected.contains(_kRemoteDatasource) ||
+    final needsInjector =
+        selected.contains(_kRemoteDatasource) ||
         selected.contains(_kLocalDatasource) ||
         selected.contains(_kRepository) ||
         (templates.isBloc && selected.contains(holderItem));
@@ -387,20 +417,25 @@ class CreateFeatureCommand extends Command<int> {
           _logger.info('  Registered in ${injectorPatch.describeWritten}.');
         }
         _logger.warn(
-            '  Nothing was registered in ${injectorPatch.describeMissing} —');
+          '  Nothing was registered in ${injectorPatch.describeMissing} —',
+        );
         _logger.info('  add what belongs there yourself, or put back the');
         _logger.info('  `${InjectorUtils.anchor}` comment.');
       }
       _logger.info('');
     }
     if (staleActionBase) {
-      _logger.warn('  core/utils/${templates.actionBaseFile} predates '
-          'ActionBlocMixin, which ${className}Bloc uses —');
+      _logger.warn(
+        '  core/utils/${templates.actionBaseFile} predates '
+        'ActionBlocMixin, which ${className}Bloc uses —',
+      );
       _logger.info('  run `moarch update app-status` before building.');
       _logger.info('');
     }
-    _logger.info(
-        'If you want tests, use the mogen_unit_tests and mogen_integration_tests package on pub.dev.');
+    // Tests are generated from the code, so they come once the TODOs above
+    // have real methods — generating them now would test the placeholders.
+    _logger.info('Once it has real methods, generate its tests with:');
+    _logger.info('  moarch create tests $featureName');
     return 0;
   }
 
@@ -469,8 +504,12 @@ class CreateFeatureCommand extends Command<int> {
     final manifest = ProjectManifest.loadOrCreate(projectRoot);
 
     final files = <String, String>{
-      p.join(libPath, 'config', 'firebase', 'firebase_providers.dart'):
-          templates.firebaseProviders(
+      p.join(
+        libPath,
+        'config',
+        'firebase',
+        'firebase_providers.dart',
+      ): templates.firebaseProviders(
         hasAuth: context.hasFirebaseAuth,
         hasDb: true,
       ),
@@ -500,8 +539,12 @@ class CreateFeatureCommand extends Command<int> {
   }) async {
     await FileUtils.writeFile(
       p.join(fp, 'data', 'datasources', '${name}_remote_datasource.dart'),
-      templates.featureRemoteDatasource(name, cls, varName,
-          useFirestore: useFirestore),
+      templates.featureRemoteDatasource(
+        name,
+        cls,
+        varName,
+        useFirestore: useFirestore,
+      ),
     );
   }
 
@@ -539,13 +582,22 @@ class CreateFeatureCommand extends Command<int> {
   }) async {
     await FileUtils.writeFile(
       p.join(fp, 'domain', 'repositories', '${name}_repository.dart'),
-      templates.featureRepositoryInterface(name, cls,
-          useFirestore: useFirestore),
+      templates.featureRepositoryInterface(
+        name,
+        cls,
+        useFirestore: useFirestore,
+      ),
     );
     await FileUtils.writeFile(
       p.join(fp, 'data', 'repositories', '${name}_repository_impl.dart'),
-      templates.featureRepositoryImpl(name, cls, varName,
-          hasRemote: hasRemote, hasLocal: hasLocal, useFirestore: useFirestore),
+      templates.featureRepositoryImpl(
+        name,
+        cls,
+        varName,
+        hasRemote: hasRemote,
+        hasLocal: hasLocal,
+        useFirestore: useFirestore,
+      ),
     );
   }
 
@@ -594,7 +646,11 @@ class CreateFeatureCommand extends Command<int> {
     }
     await FileUtils.writeFile(
       p.join(
-          fp, 'presentation', templates.holderDir, templates.holderFile(name)),
+        fp,
+        'presentation',
+        templates.holderDir,
+        templates.holderFile(name),
+      ),
       templates.featureHolder(
         name,
         cls,
@@ -618,8 +674,13 @@ class CreateFeatureCommand extends Command<int> {
   }) async {
     await FileUtils.writeFile(
       p.join(fp, 'presentation', 'views', '${name}_view.dart'),
-      templates.featureView(name, cls, varName,
-          hasHolder: hasHolder, useFirestore: useFirestore),
+      templates.featureView(
+        name,
+        cls,
+        varName,
+        hasHolder: hasHolder,
+        useFirestore: useFirestore,
+      ),
     );
     if (hasHolder && templates.hasPage) {
       await FileUtils.writeFile(
@@ -645,7 +706,8 @@ class CreateFeatureCommand extends Command<int> {
 
     void line(String s) => _logger.info('  $s');
 
-    final hasDataLayer = selected.contains(_kRemoteDatasource) ||
+    final hasDataLayer =
+        selected.contains(_kRemoteDatasource) ||
         selected.contains(_kLocalDatasource) ||
         selected.contains(_kRepository);
 

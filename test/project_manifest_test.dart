@@ -45,7 +45,9 @@ void main() {
 
     test('produces a 16-character hex digest', () {
       expect(
-          ProjectManifest.hashContent('anything'), matches(r'^[0-9a-f]{16}$'));
+        ProjectManifest.hashContent('anything'),
+        matches(r'^[0-9a-f]{16}$'),
+      );
     });
 
     test('handles non-ASCII content', () {
@@ -58,15 +60,16 @@ void main() {
 
   group('round trip', () {
     test('saves and reloads version, stack and file hashes', () async {
-      final manifest = ProjectManifest(
-        version: '2.2.2',
-        generatedAt: DateTime(2026, 1, 1),
-        stack: ['Dio (REST API)', 'Router (GoRouter)'],
-      )..record(
-          tempDir.path,
-          p.join(tempDir.path, 'lib', 'shared', 'widgets', 'app_button.dart'),
-          'class AppButton {}',
-        );
+      final manifest =
+          ProjectManifest(
+            version: '2.2.2',
+            generatedAt: DateTime(2026, 1, 1),
+            stack: ['Dio (REST API)', 'Router (GoRouter)'],
+          )..record(
+            tempDir.path,
+            p.join(tempDir.path, 'lib', 'shared', 'widgets', 'app_button.dart'),
+            'class AppButton {}',
+          );
 
       await manifest.save(tempDir.path);
       final loaded = ProjectManifest.load(tempDir.path)!;
@@ -82,18 +85,18 @@ void main() {
     });
 
     test('keys are forward-slashed so a manifest is portable', () async {
-      final manifest = ProjectManifest(
-        version: '2.2.2',
-        generatedAt: DateTime(2026, 1, 1),
-      )..record(
-          tempDir.path,
-          p.join(tempDir.path, 'lib', 'shared', 'widgets', 'app_card.dart'),
-          'class AppCard {}',
-        );
+      final manifest =
+          ProjectManifest(version: '2.2.2', generatedAt: DateTime(2026, 1, 1))
+            ..record(
+              tempDir.path,
+              p.join(tempDir.path, 'lib', 'shared', 'widgets', 'app_card.dart'),
+              'class AppCard {}',
+            );
 
       await manifest.save(tempDir.path);
-      final raw = await File(p.join(tempDir.path, ProjectManifest.fileName))
-          .readAsString();
+      final raw = await File(
+        p.join(tempDir.path, ProjectManifest.fileName),
+      ).readAsString();
 
       expect(raw, contains('lib/shared/widgets/app_card.dart'));
       expect(raw, isNot(contains(r'lib\shared')));
@@ -104,8 +107,9 @@ void main() {
     });
 
     test('a malformed manifest is treated as absent, not fatal', () async {
-      await File(p.join(tempDir.path, ProjectManifest.fileName))
-          .writeAsString('this: is: not: valid: yaml: [');
+      await File(
+        p.join(tempDir.path, ProjectManifest.fileName),
+      ).writeAsString('this: is: not: valid: yaml: [');
 
       expect(ProjectManifest.load(tempDir.path), isNull);
     });
@@ -124,7 +128,9 @@ void main() {
       final loaded = ProjectManifest.load(tempDir.path)!;
       expect(
         loaded.recordedHash(
-            tempDir.path, p.join(tempDir.path, 'lib/mine.dart')),
+          tempDir.path,
+          p.join(tempDir.path, 'lib/mine.dart'),
+        ),
         isNull,
       );
     });
@@ -138,7 +144,9 @@ void main() {
 
       final loaded = ProjectManifest.load(tempDir.path)!;
       expect(
-          loaded.stack.single, 'Media Service (Image Picker and File Picker)');
+        loaded.stack.single,
+        'Media Service (Image Picker and File Picker)',
+      );
     });
   });
 }

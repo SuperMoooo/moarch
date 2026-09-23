@@ -31,14 +31,16 @@ class CreateModelCommand extends Command<int> {
     );
     argParser.addOption(
       'from-json',
-      help: 'Infer the fields from a sample JSON payload file — the model '
+      help:
+          'Infer the fields from a sample JSON payload file — the model '
           'comes out with real fields instead of TODOs.',
       valueHelp: 'file',
     );
     argParser.addFlag(
       'doc',
       negatable: false,
-      help: 'With --from-json on a Firestore project: this type is a document '
+      help:
+          'With --from-json on a Firestore project: this type is a document '
           'root, so it gets fromDoc and keeps its String id out of the body. '
           'Leave it off for a value object nested inside a document. The '
           'plain scaffold assumes it — a model whose only field is an id is '
@@ -84,16 +86,22 @@ class CreateModelCommand extends Command<int> {
       return 1;
     }
 
-    final modelFile =
-        p.join(featurePath, 'domain', 'models', '${modelName}_model.dart');
+    final modelFile = p.join(
+      featurePath,
+      'domain',
+      'models',
+      '${modelName}_model.dart',
+    );
 
     final addEmpty = argResults?['empty'] as bool? ?? false;
     final fromJsonPath = argResults?['from-json'] as String?;
 
     if (addEmpty && fromJsonPath != null) {
-      _logger.err('--empty and --from-json are different jobs — '
-          '--empty patches an existing model, --from-json generates a new '
-          'one. Pick one.');
+      _logger.err(
+        '--empty and --from-json are different jobs — '
+        '--empty patches an existing model, --from-json generates a new '
+        'one. Pick one.',
+      );
       return 1;
     }
 
@@ -107,16 +115,18 @@ class CreateModelCommand extends Command<int> {
 
     // Guard — avoid overwriting
     if (File(modelFile).existsSync()) {
-      _logger
-          .warn('Model "$modelName" already exists in feature "$featureName".');
+      _logger.warn(
+        'Model "$modelName" already exists in feature "$featureName".',
+      );
       return 0;
     }
 
     // Firestore is read off the project rather than asked for: a document has
     // a different shape from a REST payload, and the project already says
     // which one it is.
-    final useFirestore =
-        ScaffoldContext.detect(p.dirname(libPath)).hasFirestore;
+    final useFirestore = ScaffoldContext.detect(
+      p.dirname(libPath),
+    ).hasFirestore;
     final isDocumentRoot = argResults?['doc'] as bool? ?? false;
 
     // With a JSON sample the fields are inferred instead of left as TODOs.
@@ -171,33 +181,43 @@ class CreateModelCommand extends Command<int> {
     if (fields != null) {
       _logger.info('  Fields inferred from $fromJsonPath:');
       for (final field in fields) {
-        _logger.info('    ${field.type.padRight(24)} ${field.name}'
-            '${field.name == field.jsonKey ? '' : "  (json: '${field.jsonKey}')"}');
+        _logger.info(
+          '    ${field.type.padRight(24)} ${field.name}'
+          '${field.name == field.jsonKey ? '' : "  (json: '${field.jsonKey}')"}',
+        );
       }
       // A null in the sample types as dynamic — the sample says nothing else.
       if (fields.any((f) => f.type == 'dynamic')) {
         _logger.info('');
-        _logger.warn('  Fields typed `dynamic` were null in the sample — '
-            'tighten them by hand.');
+        _logger.warn(
+          '  Fields typed `dynamic` were null in the sample — '
+          'tighten them by hand.',
+        );
       }
       if (addedDocumentId) {
         _logger.info('');
-        _logger.info('  `String id` is the document name rather than a field '
-            'of its data, so it is read back off the snapshot by fromDoc and '
-            'left out of toJson.');
+        _logger.info(
+          '  `String id` is the document name rather than a field '
+          'of its data, so it is read back off the snapshot by fromDoc and '
+          'left out of toJson.',
+        );
       }
       _logger.info('');
       // Said rather than guessed: only --doc makes a document root, so a
       // sample from a Firestore collection would otherwise come out shaped
       // like a REST payload.
       if (useFirestore && !isDocumentRoot) {
-        _logger.info('  Written as a nested value. If this is a document of '
-            'its own, delete the file and rerun with --doc.');
+        _logger.info(
+          '  Written as a nested value. If this is a document of '
+          'its own, delete the file and rerun with --doc.',
+        );
         _logger.info('');
       }
     }
-    _logger.info('  Then: fvm dart run build_runner build '
-        '--delete-conflicting-outputs');
+    _logger.info(
+      '  Then: fvm dart run build_runner build '
+      '--delete-conflicting-outputs',
+    );
     _logger.info('');
     return 0;
   }
@@ -221,9 +241,11 @@ class CreateModelCommand extends Command<int> {
 
     final fields = JsonModelBuilder.fieldsFrom(decoded);
     if (fields == null) {
-      _logger.err('$path holds no JSON object to read fields from — '
-          'pass a sample payload like {"id": 1, "name": "..."} '
-          '(a list of them works too).');
+      _logger.err(
+        '$path holds no JSON object to read fields from — '
+        'pass a sample payload like {"id": 1, "name": "..."} '
+        '(a list of them works too).',
+      );
       return null;
     }
     return fields;
@@ -273,7 +295,8 @@ class CreateModelCommand extends Command<int> {
 
     // Inject at the end of the model's own body — the file's last brace may
     // belong to a second class declared below it.
-    final closing = ModelFieldParser.classBody(source, modelClass)?.end ??
+    final closing =
+        ModelFieldParser.classBody(source, modelClass)?.end ??
         source.lastIndexOf('}');
     if (closing == -1) {
       _logger.err('Could not locate closing brace in $modelFile.');
@@ -299,7 +322,8 @@ class CreateModelCommand extends Command<int> {
     _logger.success('');
     _logger.info('  ✓ $modelClass.empty() added to');
     _logger.info(
-        '    ${modelFile.replaceAll(RegExp(r'^.*[/\\]lib[/\\]'), 'lib/')}');
+      '    ${modelFile.replaceAll(RegExp(r'^.*[/\\]lib[/\\]'), 'lib/')}',
+    );
     _logger.info('');
     return 0;
   }

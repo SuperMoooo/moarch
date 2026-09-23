@@ -1,3 +1,5 @@
+import 'auth_templates.dart' as auth;
+
 /// Generates the auth feature scaffold backed by Firebase Auth — email /
 /// password plus Google sign-in — for the flutter_bloc stack.
 ///
@@ -217,7 +219,7 @@ $firestoreMapping}
     final deviceTokenMethod = !withPushNotifications
         ? ''
         : withFirestore
-            ? '''
+        ? '''
 
   // ── Push notifications ────────────────────────────────────────────────────
 
@@ -241,7 +243,7 @@ $firestoreMapping}
     );
   }
 '''
-            : '''
+        : '''
 
   // ── Push notifications ────────────────────────────────────────────────────
 
@@ -430,8 +432,8 @@ $firestoreMethods$deviceTokenMethod}
   }) {
     final pushImports = withPushNotifications
         ? "import '../../../../core/errors/app_exception.dart';\n"
-            "import '../../../../core/services/firebase_notifications_service.dart';\n"
-            "import '../../../../core/utils/app_logger.dart';\n"
+              "import '../../../../core/services/firebase_notifications_service.dart';\n"
+              "import '../../../../core/utils/app_logger.dart';\n"
         : '';
 
     final pushCtorParam = withPushNotifications ? ', this._push' : '';
@@ -462,8 +464,9 @@ $firestoreMethods$deviceTokenMethod}
 '''
         : '';
 
-    final saveProfileOnRegister =
-        withFirestore ? '\n    await _remote.saveProfile(user);' : '';
+    final saveProfileOnRegister = withFirestore
+        ? '\n    await _remote.saveProfile(user);'
+        : '';
 
     final saveProfileOnGoogle = withFirestore
         ? '\n    // First Google sign-in — create the profile document.\n    await _remote.saveProfile(user);'
@@ -715,7 +718,26 @@ final class AuthAccountDeleted extends AuthEvent {
   /// [withPushNotifications] registers this device with the backend at the
   /// moments a session starts: the restored session at start-up, and every
   /// sign-in or sign-up.
-  static String bloc({bool withPushNotifications = false}) {
+  /// The auth bloc. [withConcurrency] drops a repeated submit while the
+  /// first is in flight — see [auth.AuthTemplates.withDroppable].
+  static String bloc({
+    bool withPushNotifications = false,
+    bool withConcurrency = false,
+  }) {
+    final source = _bloc(withPushNotifications: withPushNotifications);
+    return withConcurrency
+        ? auth.AuthTemplates.withDroppable(source, const [
+            'AuthLoginRequested',
+            'AuthRegisterRequested',
+            'AuthGoogleSignInRequested',
+            'AuthPasswordResetRequested',
+            'AuthLogoutRequested',
+            'AuthAccountDeleted',
+          ])
+        : source;
+  }
+
+  static String _bloc({bool withPushNotifications = false}) {
     final syncOnRestore = withPushNotifications
         ? '''
 
@@ -727,7 +749,7 @@ final class AuthAccountDeleted extends AuthEvent {
 
     final syncAfterAuth = withPushNotifications
         ? '\n      // Not awaited: registering the device must not hold up the UI.'
-            '\n      unawaited(_repo.syncDeviceToken());'
+              '\n      unawaited(_repo.syncDeviceToken());'
         : '';
 
     // Same call one level deeper, inside the try of the Google flow.

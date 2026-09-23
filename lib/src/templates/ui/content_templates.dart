@@ -426,13 +426,13 @@ class _AppCarouselState extends State<AppCarousel> {
       _controller.animateToPage(
         0,
         duration: AppConstants.duration500,
-        curve: Curves.easeInOut,
+        curve: AppConstants.curveStandard,
       );
       return;
     }
     _controller.nextPage(
       duration: AppConstants.duration300,
-      curve: Curves.easeInOut,
+      curve: AppConstants.curveStandard,
     );
   }
 

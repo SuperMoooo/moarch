@@ -68,7 +68,8 @@ class CreateThemeCommand extends Command<int> {
       ..addFlag(
         'dark',
         defaultsTo: true,
-        help: 'Add the dark palette and AppTheme.dark. '
+        help:
+            'Add the dark palette and AppTheme.dark. '
             '--no-dark strips them back to one brand theme.',
       )
       ..addFlag(
@@ -124,23 +125,29 @@ class CreateThemeCommand extends Command<int> {
 
     final themePath = p.join(libPath, 'config', 'theme', 'app_theme.dart');
     if (!File(themePath).existsSync()) {
-      _logger.err('No lib/config/theme/app_theme.dart — run `moarch init` '
-          'first.');
+      _logger.err(
+        'No lib/config/theme/app_theme.dart — run `moarch init` '
+        'first.',
+      );
       return 1;
     }
 
     final current = WidgetVariants.hasDarkThemeIn(libPath);
 
     _logger.info('');
-    _logger.info(target
-        ? '🎨 moarch — adding the dark theme'
-        : '🎨 moarch — dropping back to one brand theme');
+    _logger.info(
+      target
+          ? '🎨 moarch — adding the dark theme'
+          : '🎨 moarch — dropping back to one brand theme',
+    );
     _logger.info('');
 
     if (current == target) {
-      _logger.info(target
-          ? '  This project already has AppTheme.dark — nothing to do.'
-          : '  This project already has a single brand theme — nothing to do.');
+      _logger.info(
+        target
+            ? '  This project already has AppTheme.dark — nothing to do.'
+            : '  This project already has a single brand theme — nothing to do.',
+      );
       _logger.info('');
       return 0;
     }
@@ -148,10 +155,14 @@ class CreateThemeCommand extends Command<int> {
     final manifest = ProjectManifest.load(root);
     if (manifest == null) {
       _logger.warn('  No ${ProjectManifest.fileName} in this project.');
-      _logger.info('  Without it moarch cannot tell an untouched generated '
-          'file from one');
-      _logger.info('  you edited, so every file is reported for review rather '
-          'than rewritten.');
+      _logger.info(
+        '  Without it moarch cannot tell an untouched generated '
+        'file from one',
+      );
+      _logger.info(
+        '  you edited, so every file is reported for review rather '
+        'than rewritten.',
+      );
       _logger.info('');
     }
 
@@ -173,8 +184,10 @@ class CreateThemeCommand extends Command<int> {
       _logger.info('');
     }
     if (review.isNotEmpty) {
-      _logger.info('  Changed by you since generation — not touched by '
-          'default:');
+      _logger.info(
+        '  Changed by you since generation — not touched by '
+        'default:',
+      );
       _describe(review, showDiff: showDiff);
       _logger.info('');
     }
@@ -191,20 +204,26 @@ class CreateThemeCommand extends Command<int> {
     // reads constants AppConstants would no longer declare. Better to write
     // nothing and hand over the diffs.
     if (review.isNotEmpty && !force) {
-      _logger.warn('  Not writing anything: these files are generated against '
-          'each other,');
+      _logger.warn(
+        '  Not writing anything: these files are generated against '
+        'each other,',
+      );
       _logger.warn('  and rewriting only some of them would not compile.');
       _logger.info('');
-      _logger.info('  Review the changes with `--diff`, then either apply them '
-          'by hand');
+      _logger.info(
+        '  Review the changes with `--diff`, then either apply them '
+        'by hand',
+      );
       _logger.info('  or re-run with `--force` to overwrite your edits.');
       _logger.info('');
       return 1;
     }
 
     if (force && review.isNotEmpty) {
-      _logger.warn('  --force will discard your edits to ${review.length} '
-          'file(s).');
+      _logger.warn(
+        '  --force will discard your edits to ${review.length} '
+        'file(s).',
+      );
     }
 
     if (!assumeYes) {
@@ -253,10 +272,14 @@ class CreateThemeCommand extends Command<int> {
     }
     _logger.info('');
     if (target) {
-      _logger.info('  The palette is placeholder black/white — set the *Dark '
-          'colors in');
-      _logger.info('  lib/core/constants/app_constants.dart to your brand\'s '
-          'dark values.');
+      _logger.info(
+        '  The palette is placeholder black/white — set the *Dark '
+        'colors in',
+      );
+      _logger.info(
+        '  lib/core/constants/app_constants.dart to your brand\'s '
+        'dark values.',
+      );
     }
     _logger.info('  Review the changes with `git diff` before committing.');
     _logger.info('');
@@ -286,10 +309,17 @@ class CreateThemeCommand extends Command<int> {
     );
 
     final candidates = <String, String>{
-      'lib/core/constants/app_constants.dart':
-          CoreTemplates.appConstants(withDark: target),
-      'lib/config/theme/app_theme.dart':
-          ConfigTemplates.appTheme(withDark: target),
+      'lib/core/constants/app_constants.dart': CoreTemplates.appConstants(
+        withDark: target,
+      ),
+      'lib/config/theme/app_theme.dart': ConfigTemplates.appTheme(
+        withDark: target,
+        withStatusColors: context.hasStatusColors,
+      ),
+      // Holds a `dark` set only while AppConstants has the `*Dark` colors it
+      // reads, so it switches with them.
+      'lib/config/theme/app_status_colors.dart':
+          ConfigTemplates.appStatusColors(withDark: target),
       'lib/main.dart': context.stack.mainDart(
         withRouter: context.hasRouter,
         withLocalization: context.hasLocalization,
@@ -299,12 +329,15 @@ class CreateThemeCommand extends Command<int> {
         withCrashlytics: context.hasCrashlytics,
         withFirebase: context.hasFirebase || context.hasCrashlytics,
         withMaintenanceGate: context.hasMaintenanceGate,
+        withUpdateGate: context.hasUpdateGate,
         withMoAdapt: context.hasMoAdapt,
         withDarkTheme: target,
         withAuthFeature: context.hasAuthFeature,
       ),
-      'lib/shared/widgets/overlays/app_toast.dart':
-          SharedTemplates.appToast(withDark: target),
+      'lib/shared/widgets/overlays/app_toast.dart': SharedTemplates.appToast(
+        withDark: target,
+        withStatusColors: context.hasStatusColors,
+      ),
       'lib/${designSystem.libFile}': designSystemSource,
       if (designSystem.movedFrom != null)
         'lib/${designSystem.movedFrom}': designSystemSource,
@@ -318,13 +351,15 @@ class CreateThemeCommand extends Command<int> {
 
       final content = file.readAsStringSync();
       final recorded = manifest?.recordedHash(root, path);
-      files.add(_ThemeFile(
-        displayPath: relative,
-        path: path,
-        current: content,
-        generated: generated,
-        edited: recorded != ProjectManifest.hashContent(content),
-      ));
+      files.add(
+        _ThemeFile(
+          displayPath: relative,
+          path: path,
+          current: content,
+          generated: generated,
+          edited: recorded != ProjectManifest.hashContent(content),
+        ),
+      );
     });
     return files;
   }

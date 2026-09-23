@@ -22,6 +22,7 @@ class AppTemplates {
     bool withCrashlytics = false,
     bool withFirebase = false,
     bool withMaintenanceGate = false,
+    bool withUpdateGate = false,
     bool withMoAdapt = false,
     bool withDarkTheme = false,
     bool withAuthFeature = false,
@@ -36,8 +37,8 @@ class AppTemplates {
     final localizationImports = withEasyLocalization
         ? "\nimport 'package:easy_localization/easy_localization.dart';\n"
         : withLocalization
-            ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\nimport 'core/services/language_service.dart';\nimport 'package:flutter_localizations/flutter_localizations.dart';\n"
-            : '';
+        ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\nimport 'core/services/language_service.dart';\nimport 'package:flutter_localizations/flutter_localizations.dart';\n"
+        : '';
 
     final easyLocalizationInit = withEasyLocalization
         ? '\n  await EasyLocalization.ensureInitialized();\n'
@@ -48,8 +49,9 @@ class AppTemplates {
 
     // Called after the Firebase block so the FCM service finds an app already
     // there; it only initializes Firebase itself when no one else has.
-    final notificationInit =
-        withAnyNotifications ? '\n  await _initNotifications();\n' : '';
+    final notificationInit = withAnyNotifications
+        ? '\n  await _initNotifications();\n'
+        : '';
 
     final notificationsBootstrap = withAnyNotifications
         ? '''
@@ -61,12 +63,7 @@ class AppTemplates {
 /// only be undone in Settings, so call `requestPermissions()` once onboarding
 /// has explained what the notifications are for.${withFirebaseNotifications ? '\n/// On iOS FCM has no device token to hand out until that ask is accepted.' : ''}
 Future<void> _initNotifications() async {
-${[
-            if (withNotificationsService)
-              _guardedInit('NotificationService', 'Notifications'),
-            if (withFirebaseNotifications)
-              _guardedInit('FirebaseNotificationsService', 'FCM'),
-          ].join('\n\n')}
+${[if (withNotificationsService) _guardedInit('NotificationService', 'Notifications'), if (withFirebaseNotifications) _guardedInit('FirebaseNotificationsService', 'FCM')].join('\n\n')}
 }
 
 '''
@@ -116,7 +113,7 @@ ${[
       localizationsDelegates: context.localizationDelegates,
 '''
         : withLocalization
-            ? '''
+        ? '''
       locale: locale,
       supportedLocales: L10n.all,
       localizationsDelegates: const [
@@ -126,19 +123,22 @@ ${[
         GlobalCupertinoLocalizations.delegate
       ],
 '''
-            : '';
-
-    final maintenanceImport = withMaintenanceGate
-        ? "\nimport 'shared/widgets/maintenance_gate.dart';"
         : '';
 
-    final moAdaptImport =
-        withMoAdapt ? "\nimport 'shared/widgets/mo_adapt.dart';" : '';
+    final maintenanceImport = [
+      if (withMaintenanceGate)
+        "\nimport 'shared/widgets/maintenance_gate.dart';",
+      if (withUpdateGate) "\nimport 'shared/widgets/update_gate.dart';",
+    ].join();
+
+    final moAdaptImport = withMoAdapt
+        ? "\nimport 'shared/widgets/mo_adapt.dart';"
+        : '';
 
     // Both halves: the bloc to create, and the event to open it with.
     final authImport = withAuthFeature
         ? "\nimport 'features/auth/presentation/blocs/auth_bloc.dart';"
-            "\nimport 'features/auth/presentation/blocs/auth_event.dart';"
+              "\nimport 'features/auth/presentation/blocs/auth_event.dart';"
         : '';
 
     // With one palette there is no second ThemeData to hand MaterialApp, and
@@ -154,9 +154,14 @@ ${[
 
     // Inside `builder`, so it wraps the Navigator rather than sitting in a
     // route: a gate below the Navigator could be pushed on top of.
-    final maintenanceOpen =
-        withMaintenanceGate ? 'MaintenanceGate(child: ' : '';
-    final maintenanceClose = withMaintenanceGate ? ')' : '';
+    // Maintenance outermost: while the backend is down there is no point
+    // telling anyone to update first.
+    final maintenanceOpen = [
+      if (withMaintenanceGate) 'MaintenanceGate(child: ',
+      if (withUpdateGate) 'UpdateGate(child: ',
+    ].join();
+    final maintenanceClose =
+        ')' * ((withMaintenanceGate ? 1 : 0) + (withUpdateGate ? 1 : 0));
 
     // The blocs that outlive any one screen. The auth bloc is the reason this
     // exists: the router's redirect reads it, so it has to be above the
@@ -182,18 +187,19 @@ ${[
     //final l10n = AppLocalizations.of(context);
 '''
         : withEasyLocalization
-            ? '''
+        ? '''
     // Translate with 'welcome'.tr()
     // Switch language with context.setLocale(const Locale('pt'));
 '''
-            : '';
+        : '';
 
     // MoAdapt is the outermost widget so the entire app — EasyLocalization,
     // the bloc providers, MaterialApp — renders in design-space coordinates.
     const rootWidget = 'const App()';
     final String runAppCall;
     if (withEasyLocalization && withMoAdapt) {
-      runAppCall = '''runApp(
+      runAppCall =
+          '''runApp(
     MoAdapt(
       // The frame the UI is designed against; every fixed dimension scales
       // proportionally from it. Tune with scaleMode / minScale / maxScale.
@@ -207,7 +213,8 @@ ${[
     ),
   );''';
     } else if (withEasyLocalization) {
-      runAppCall = '''runApp(
+      runAppCall =
+          '''runApp(
     EasyLocalization(
       supportedLocales: const [Locale('en'), Locale('pt')],
       path: 'assets/translations',
@@ -232,25 +239,19 @@ ${[
     // nothing — the app widget is the MaterialApp itself.
     final String appBody;
     if (appBlocs.isEmpty) {
-      appBody = '''
+      appBody =
+          '''
 class App extends StatelessWidget {
   const App({super.key});
 
   @override
   Widget build(BuildContext context) {
-${_materialApp(
-        withRouter: withRouter,
-        themeConfig: themeConfig,
-        localizationConfig: localizationConfig,
-        languageWatch: languageWatch,
-        maintenanceOpen: maintenanceOpen,
-        maintenanceClose: maintenanceClose,
-        indent: '    ',
-      )}  }
+${_materialApp(withRouter: withRouter, themeConfig: themeConfig, localizationConfig: localizationConfig, languageWatch: languageWatch, maintenanceOpen: maintenanceOpen, maintenanceClose: maintenanceClose, indent: '    ')}  }
 }
 ''';
     } else {
-      appBody = '''
+      appBody =
+          '''
 class App extends StatelessWidget {
   const App({super.key});
 
@@ -272,21 +273,14 @@ class _AppView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-${_materialApp(
-        withRouter: withRouter,
-        themeConfig: themeConfig,
-        localizationConfig: localizationConfig,
-        languageWatch: languageWatch,
-        maintenanceOpen: maintenanceOpen,
-        maintenanceClose: maintenanceClose,
-        indent: '    ',
-      )}  }
+${_materialApp(withRouter: withRouter, themeConfig: themeConfig, localizationConfig: localizationConfig, languageWatch: languageWatch, maintenanceOpen: maintenanceOpen, maintenanceClose: maintenanceClose, indent: '    ')}  }
 }
 ''';
     }
 
-    final routerImport =
-        withRouter ? "\nimport 'config/router/app_router.dart';" : '';
+    final routerImport = withRouter
+        ? "\nimport 'config/router/app_router.dart';"
+        : '';
 
     return '''
 import 'package:flutter/foundation.dart';
@@ -341,7 +335,8 @@ $notificationsBootstrap$appBody''';
 
   /// One `init()` call wrapped in its own guard, so a plugin that throws only
   /// costs its own service rather than every one after it.
-  static String _guardedInit(String type, String scope) => '''  try {
+  static String _guardedInit(String type, String scope) =>
+      '''  try {
     await getIt<$type>().init();
   } catch (error, stackTrace) {
     appLogger.e(
@@ -398,21 +393,21 @@ $localizationConfig$routerConfig      debugShowCheckedModeBanner: false,
   static String appRouter({bool withAuth = false}) {
     final imports = withAuth
         ? "import 'package:flutter/foundation.dart';\n"
-            "import 'package:flutter/material.dart';\n"
-            "import 'package:go_router/go_router.dart';\n"
-            '\n'
-            "import '../../features/auth/presentation/blocs/auth_bloc.dart';\n"
-            "import '../../features/auth/presentation/blocs/auth_state.dart';\n"
-            "import '../../features/auth/presentation/views/login_view.dart';\n"
-            "import '../../features/auth/presentation/views/register_view.dart';\n"
-            "import '../../shared/widgets/loadings/app_loading_data.dart';\n"
-            "import '../di/injector.dart';\n"
-            "import './app_routes.dart';"
+              "import 'package:flutter/material.dart';\n"
+              "import 'package:go_router/go_router.dart';\n"
+              '\n'
+              "import '../../features/auth/presentation/blocs/auth_bloc.dart';\n"
+              "import '../../features/auth/presentation/blocs/auth_state.dart';\n"
+              "import '../../features/auth/presentation/views/login_view.dart';\n"
+              "import '../../features/auth/presentation/views/register_view.dart';\n"
+              "import '../../shared/widgets/loadings/app_loading_data.dart';\n"
+              "import '../di/injector.dart';\n"
+              "import './app_routes.dart';"
         : "import 'package:flutter/foundation.dart';\n"
-            "import 'package:flutter/material.dart';\n"
-            "import 'package:go_router/go_router.dart';\n"
-            '\n'
-            "import './app_routes.dart';";
+              "import 'package:flutter/material.dart';\n"
+              "import 'package:go_router/go_router.dart';\n"
+              '\n'
+              "import './app_routes.dart';";
 
     final options = withAuth
         ? '''  initialLocation: AppRoutes.splash,

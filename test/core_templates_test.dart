@@ -15,7 +15,9 @@ void main() {
     );
 
     expect(
-        output, contains("import 'core/services/notifications_service.dart';"));
+      output,
+      contains("import 'core/services/notifications_service.dart';"),
+    );
     // Out of the locator, so main() needs no container of its own — one
     // ProviderScope over the app is all Riverpod is here for.
     expect(output, contains('await getIt<NotificationService>().init();'));
@@ -55,8 +57,10 @@ void main() {
   test('mainDart omits notification initialization by default', () {
     final output = riverpod.AppTemplates.mainDart(withRouter: false);
 
-    expect(output,
-        isNot(contains("import 'core/services/notifications_service.dart';")));
+    expect(
+      output,
+      isNot(contains("import 'core/services/notifications_service.dart';")),
+    );
     expect(output, isNot(contains('getIt<NotificationService>()')));
     expect(output, isNot(contains('ProviderContainer')));
   });
@@ -67,31 +71,37 @@ void main() {
       withEasyLocalization: true,
     );
 
-    expect(output,
-        contains("import 'package:easy_localization/easy_localization.dart';"));
+    expect(
+      output,
+      contains("import 'package:easy_localization/easy_localization.dart';"),
+    );
     expect(output, contains('await EasyLocalization.ensureInitialized();'));
     expect(output, contains('EasyLocalization('));
     expect(output, contains("path: 'assets/translations'"));
     expect(output, contains('locale: context.locale'));
-    expect(output,
-        contains('localizationsDelegates: context.localizationDelegates'));
+    expect(
+      output,
+      contains('localizationsDelegates: context.localizationDelegates'),
+    );
     // Must not pull in the flutter_localizations wiring.
     expect(output, isNot(contains('flutter_localizations')));
     expect(output, isNot(contains('AppLocalizations.delegate')));
   });
 
-  test('mainDart prefers easy_localization when both localizations are set',
-      () {
-    final output = riverpod.AppTemplates.mainDart(
-      withRouter: true,
-      withLocalization: true,
-      withEasyLocalization: true,
-    );
+  test(
+    'mainDart prefers easy_localization when both localizations are set',
+    () {
+      final output = riverpod.AppTemplates.mainDart(
+        withRouter: true,
+        withLocalization: true,
+        withEasyLocalization: true,
+      );
 
-    expect(output, contains('EasyLocalization('));
-    expect(output, isNot(contains('flutter_localizations')));
-    expect(output, isNot(contains('languageProvider')));
-  });
+      expect(output, contains('EasyLocalization('));
+      expect(output, isNot(contains('flutter_localizations')));
+      expect(output, isNot(contains('languageProvider')));
+    },
+  );
 
   test('mainDart omits easy_localization by default', () {
     final output = riverpod.AppTemplates.mainDart(withRouter: false);
@@ -107,11 +117,13 @@ void main() {
     );
 
     expect(
-        output,
-        contains(
-            "import 'core/services/firebase_notifications_service.dart';"));
-    expect(output,
-        contains('await getIt<FirebaseNotificationsService>().init();'));
+      output,
+      contains("import 'core/services/firebase_notifications_service.dart';"),
+    );
+    expect(
+      output,
+      contains('await getIt<FirebaseNotificationsService>().init();'),
+    );
     expect(output, isNot(contains('ProviderContainer')));
     expect(output, contains('const ProviderScope(child: App())'));
   });
@@ -120,9 +132,11 @@ void main() {
     final output = riverpod.AppTemplates.mainDart(withRouter: false);
 
     expect(
-        output,
-        isNot(contains(
-            "import 'core/services/firebase_notifications_service.dart';")));
+      output,
+      isNot(
+        contains("import 'core/services/firebase_notifications_service.dart';"),
+      ),
+    );
     expect(output, isNot(contains('getIt<FirebaseNotificationsService>()')));
   });
 
@@ -133,22 +147,30 @@ void main() {
     );
 
     expect(
-        output,
-        contains(
-            "import 'package:firebase_crashlytics/firebase_crashlytics.dart';"));
+      output,
+      contains(
+        "import 'package:firebase_crashlytics/firebase_crashlytics.dart';",
+      ),
+    );
     expect(output, contains('await Firebase.initializeApp();'));
     expect(
-        output,
-        contains(
-            'FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);'));
+      output,
+      contains(
+        'FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);',
+      ),
+    );
     expect(
-        output,
-        contains(
-            'FirebaseCrashlytics.instance.recordError(error, st, fatal: true);'));
+      output,
+      contains(
+        'FirebaseCrashlytics.instance.recordError(error, st, fatal: true);',
+      ),
+    );
     expect(
-        output,
-        contains(
-            'FirebaseCrashlytics.instance.recordFlutterFatalError(details);'));
+      output,
+      contains(
+        'FirebaseCrashlytics.instance.recordFlutterFatalError(details);',
+      ),
+    );
   });
 
   test('mainDart omits Crashlytics by default', () {
@@ -164,7 +186,9 @@ void main() {
     // Sealed is what makes a switch over a failure exhaustive: nothing outside
     // the generated file can add a kind the branches have not already seen.
     expect(
-        output, contains('sealed class AppException implements Exception {'));
+      output,
+      contains('sealed class AppException implements Exception {'),
+    );
     for (final kind in [
       'NetworkException',
       'ServerException',
@@ -180,33 +204,41 @@ void main() {
     }
   });
 
-  test('appException keeps the type enum for branches written before it sealed',
-      () {
-    final output = ErrorTemplates.appException(hasDio: true);
+  test(
+    'appException keeps the type enum for branches written before it sealed',
+    () {
+      final output = ErrorTemplates.appException(hasDio: true);
 
-    expect(
+      expect(
         output,
         contains(
-            'enum AppExceptionType { network, server, notFound, auth, cancelled, unknown }'));
-    expect(output, contains('AppExceptionType get type => switch (this) {'));
-  });
+          'enum AppExceptionType { network, server, notFound, auth, cancelled, unknown }',
+        ),
+      );
+      expect(output, contains('AppExceptionType get type => switch (this) {'));
+    },
+  );
 
   test('appException factories hand back the kind they name', () {
     final output = ErrorTemplates.appException(hasDio: true);
 
-    expect(output,
-        contains("const NetworkException(message: 'No internet connection')"));
+    expect(
+      output,
+      contains("const NetworkException(message: 'No internet connection')"),
+    );
     expect(output, contains("const CancelledException(message: 'Cancelled')"));
     expect(
-        output,
-        contains(
-            "const ServerException(message: 'Session expired', statusCode: 401)"));
+      output,
+      contains(
+        "const ServerException(message: 'Session expired', statusCode: 401)",
+      ),
+    );
     expect(output, contains('return UnknownException(message: message);'));
     // A 404 is its own kind: a screen usually draws that as empty, not broken.
     expect(
-        output,
-        contains(
-            'NotFoundException(message: message, statusCode: statusCode)'));
+      output,
+      contains('NotFoundException(message: message, statusCode: statusCode)'),
+    );
   });
 
   test('appException records to Crashlytics when requested', () {
@@ -217,21 +249,29 @@ void main() {
     );
 
     expect(
-        output,
-        contains(
-            "import 'package:firebase_crashlytics/firebase_crashlytics.dart';"));
+      output,
+      contains(
+        "import 'package:firebase_crashlytics/firebase_crashlytics.dart';",
+      ),
+    );
     expect(
-        output,
-        contains(
-            'FirebaseCrashlytics.instance.recordError(error, stackTrace, reason: message);'));
+      output,
+      contains(
+        'FirebaseCrashlytics.instance.recordError(error, stackTrace, reason: message);',
+      ),
+    );
     expect(
-        output,
-        contains(
-            'FirebaseCrashlytics.instance.recordError(dioError, dioError.stackTrace, reason: message);'));
+      output,
+      contains(
+        'FirebaseCrashlytics.instance.recordError(dioError, dioError.stackTrace, reason: message);',
+      ),
+    );
     expect(
-        output,
-        contains(
-            'FirebaseCrashlytics.instance.recordError(error, error.stackTrace, reason: message);'));
+      output,
+      contains(
+        'FirebaseCrashlytics.instance.recordError(error, error.stackTrace, reason: message);',
+      ),
+    );
   });
 
   test('appException omits Crashlytics by default', () {
@@ -245,13 +285,16 @@ void main() {
 
     // Call sites bind to AppLogger, so the backend stays swappable.
     expect(output, contains('final appLogger = AppLogger._();'));
-    expect(output,
-        contains('AppLogger scoped(String name) => AppLogger._(name);'));
+    expect(
+      output,
+      contains('AppLogger scoped(String name) => AppLogger._(name);'),
+    );
     for (final method in ['t', 'd', 'i', 'w', 'e']) {
       expect(
         output,
         contains(
-            'void $method(String message, {Object? error, StackTrace? stackTrace})'),
+          'void $method(String message, {Object? error, StackTrace? stackTrace})',
+        ),
       );
     }
     // The package's own Logger is private to this file.
@@ -272,23 +315,26 @@ void main() {
     final output = CoreTemplates.appLogger();
 
     expect(
-        output, contains('level: kReleaseMode ? Level.warning : Level.trace'));
+      output,
+      contains('level: kReleaseMode ? Level.warning : Level.trace'),
+    );
   });
 
   test('appLogger mirrors into Crashlytics when requested', () {
     final output = CoreTemplates.appLogger(withCrashlytics: true);
 
     expect(
-        output,
-        contains(
-            "import 'package:firebase_crashlytics/firebase_crashlytics.dart';"));
-    expect(
-        output, contains("import 'package:firebase_core/firebase_core.dart';"));
-    expect(output, contains('_CrashlyticsOutput(),'));
+      output,
+      contains(
+        "import 'package:firebase_crashlytics/firebase_crashlytics.dart';",
+      ),
+    );
     expect(
       output,
-      contains('FirebaseCrashlytics.instance.log('),
+      contains("import 'package:firebase_core/firebase_core.dart';"),
     );
+    expect(output, contains('_CrashlyticsOutput(),'));
+    expect(output, contains('FirebaseCrashlytics.instance.log('));
     // Services log during start-up, before main() initializes Firebase.
     expect(output, contains('if (Firebase.apps.isEmpty) return;'));
   });
@@ -317,8 +363,11 @@ void main() {
   });
 
   test('generated feature templates favor the safe API flow in datasource', () {
-    final output =
-        FeatureTemplates.remoteDatasource('sample', 'Sample', 'sample');
+    final output = FeatureTemplates.remoteDatasource(
+      'sample',
+      'Sample',
+      'sample',
+    );
 
     expect(output, contains('safeApiCall<'));
     expect(output, contains('apiCall: () async'));
@@ -328,26 +377,30 @@ void main() {
     expect(SharedTemplates.emptyView(), contains('class EmptyView'));
   });
 
-  test('the paginated envelope parses leniently and keeps the item key open',
-      () {
-    final output = CoreTemplates.paginated();
+  test(
+    'the paginated envelope parses leniently and keeps the item key open',
+    () {
+      final output = CoreTemplates.paginated();
 
-    // The item key is the field most likely to be wrong for any given
-    // backend — `results`, `items`, `records` — so it is an argument rather
-    // than a literal in the body.
-    expect(output, contains("String dataKey = 'data',"));
-    expect(output, contains('final raw = json[dataKey];'));
+      // The item key is the field most likely to be wrong for any given
+      // backend — `results`, `items`, `records` — so it is an argument rather
+      // than a literal in the body.
+      expect(output, contains("String dataKey = 'data',"));
+      expect(output, contains('final raw = json[dataKey];'));
 
-    // An unguarded `json['page'] as int` turns a stringified count into a
-    // TypeError that safeApiCall reports as an unknown failure. Counts are
-    // read through _asInt and fall back rather than throw.
-    expect(output, isNot(contains("as int")));
-    expect(output, contains("page: _asInt(json['page']) ?? 1,"));
-    expect(output, contains('final String v => int.tryParse(v),'));
-    // A null or absent list is an empty page, not a cast failure.
-    expect(
-        output, contains('raw is List ? raw.map(fromJsonT).toList() : <T>[]'));
-  });
+      // An unguarded `json['page'] as int` turns a stringified count into a
+      // TypeError that safeApiCall reports as an unknown failure. Counts are
+      // read through _asInt and fall back rather than throw.
+      expect(output, isNot(contains("as int")));
+      expect(output, contains("page: _asInt(json['page']) ?? 1,"));
+      expect(output, contains('final String v => int.tryParse(v),'));
+      // A null or absent list is an empty page, not a cast failure.
+      expect(
+        output,
+        contains('raw is List ? raw.map(fromJsonT).toList() : <T>[]'),
+      );
+    },
+  );
 
   test('the paginated envelope carries the members its callers need', () {
     final output = CoreTemplates.paginated();
@@ -356,9 +409,9 @@ void main() {
     expect(output, contains('T Function(Object? json) fromJsonT,'));
     // Dividing by a missing page size must not loop a load-more forever.
     expect(
-        output,
-        contains(
-            'int get pageCount => limit <= 0 ? 1 : (total / limit).ceil();'));
+      output,
+      contains('int get pageCount => limit <= 0 ? 1 : (total / limit).ceil();'),
+    );
     expect(output, contains('bool get hasMore => page < pageCount;'));
     // The two members the Clean Architecture boundary is here for.
     expect(output, contains('Paginated<R> map<R>(R Function(T item) toItem)'));

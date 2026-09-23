@@ -47,10 +47,7 @@ dependencies:
     test('reads the stack from the parent of lib/', () {
       final root = project(blocPubspec);
 
-      expect(
-        StateManagement.detect(p.join(root, 'lib')),
-        StateManagement.bloc,
-      );
+      expect(StateManagement.detect(p.join(root, 'lib')), StateManagement.bloc);
     });
 
     test('reads it from the project root too', () {
@@ -74,10 +71,7 @@ dependencies:
       final orphan = Directory(p.join(temp.path, 'orphan'))
         ..createSync(recursive: true);
 
-      expect(
-        StateManagement.detect(orphan.path),
-        StateManagement.riverpod,
-      );
+      expect(StateManagement.detect(orphan.path), StateManagement.riverpod);
     });
   });
 }

@@ -117,7 +117,8 @@ class FileUtils {
   }) async {
     final file = File(filePath);
     final exists = file.existsSync();
-    final wouldWrite = !exists ||
+    final wouldWrite =
+        !exists ||
         p.basename(filePath) == 'analysis_options.yaml' ||
         (overwriteWhen != null && overwriteWhen(await file.readAsString()));
     if (!wouldWrite) return false;

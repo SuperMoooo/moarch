@@ -22,8 +22,7 @@ void main() {
       expect(StateManagement.fromPubspec(pubspec), StateManagement.bloc);
     });
 
-    test(
-        'a project with neither is riverpod, which is what predates the '
+    test('a project with neither is riverpod, which is what predates the '
         'choice', () {
       expect(StateManagement.fromPubspec(''), StateManagement.riverpod);
     });
@@ -85,7 +84,9 @@ void main() {
       final output = bloc.FeatureTemplates.state('orders', 'Orders');
 
       expect(
-          output, contains("import '../../../../core/utils/app_status.dart';"));
+        output,
+        contains("import '../../../../core/utils/app_status.dart';"),
+      );
       expect(output, contains('final AppStatus status;'));
       expect(output, contains('this.status = AppStatus.initial,'));
       // Not declared per feature any more.
@@ -93,9 +94,12 @@ void main() {
       expect(output, isNot(contains('isLoadingAction')));
       // Still one class, so the view's `_body` takes the same thing always.
       expect(
-          output,
-          contains('class OrdersState extends Equatable '
-              'implements StatusState<OrdersState> {'));
+        output,
+        contains(
+          'class OrdersState extends Equatable '
+          'implements StatusState<OrdersState> {',
+        ),
+      );
       expect(output, isNot(contains('extends OrdersState')));
     });
 
@@ -104,8 +108,11 @@ void main() {
 
       expect(output, contains('enum AppStatus {'));
       for (final value in ['initial', 'loading', 'success']) {
-        expect(output, contains('  $value,'),
-            reason: '$value should be one of the four');
+        expect(
+          output,
+          contains('  $value,'),
+          reason: '$value should be one of the four',
+        );
       }
       // Last, and followed by the getters rather than another value.
       expect(output, contains('  failure;'));
@@ -125,21 +132,24 @@ void main() {
       expect(output, contains('abstract interface class StatusState<S> {'));
       expect(
         output,
-        contains('mixin ActionBlocMixin<E, S extends StatusState<S>> '
-            'on Bloc<E, S> {'),
+        contains(
+          'mixin ActionBlocMixin<E, S extends StatusState<S>> '
+          'on Bloc<E, S> {',
+        ),
       );
       expect(output, contains("import '../errors/app_exception.dart';"));
       // Over data already on screen: no loading, and a failure keeps the
       // body — a toast rather than the error screen.
       expect(output, contains('final loaded = current.status.isSuccess;'));
       expect(
-          output,
-          contains(
-              'if (!loaded) emit(current.withStatus(AppStatus.loading));'));
+        output,
+        contains('if (!loaded) emit(current.withStatus(AppStatus.loading));'),
+      );
       expect(
         output,
         contains(
-            'final failed = loaded ? AppStatus.success : AppStatus.failure;'),
+          'final failed = loaded ? AppStatus.success : AppStatus.failure;',
+        ),
       );
       expect(output, contains('} on AppException catch (e) {'));
       // The unexpected still reaches onError and the BlocObserver.
@@ -162,7 +172,9 @@ void main() {
 
       expect(output, contains('sealed class OrdersEvent extends Equatable {'));
       expect(
-          output, contains('final class OrdersStarted extends OrdersEvent {'));
+        output,
+        contains('final class OrdersStarted extends OrdersEvent {'),
+      );
       // A refresh and a retry are the same load, so they re-dispatch Started
       // rather than each getting an event of their own.
       expect(output, isNot(contains('OrdersRefreshed')));
@@ -187,8 +199,10 @@ void main() {
       expect(output, contains('OrdersState copyWith({'));
       expect(
         output,
-        contains('List<Object?> get props => '
-            '[status, errorMessage, successMessage];'),
+        contains(
+          'List<Object?> get props => '
+          '[status, errorMessage, successMessage];',
+        ),
       );
       expect(output, contains('static const placeholder ='));
       expect(output, contains('A field has to reach four places'));
@@ -216,9 +230,11 @@ void main() {
       expect(output, contains('  @override\n  final AppStatus status;'));
       expect(
         output,
-        contains('OrdersState withStatus(AppStatus status, '
-            '{String? errorMessage}) =>\n'
-            '      copyWith(status: status, errorMessage: errorMessage);'),
+        contains(
+          'OrdersState withStatus(AppStatus status, '
+          '{String? errorMessage}) =>\n'
+          '      copyWith(status: status, errorMessage: errorMessage);',
+        ),
       );
     });
 
@@ -239,10 +255,14 @@ void main() {
       expect(output, contains('await _repo.fetchAll();'));
       // Loading and AppException are runAction's, not the handler's.
       expect(
-          output, contains('with ActionBlocMixin<OrdersEvent, OrdersState> {'));
+        output,
+        contains('with ActionBlocMixin<OrdersEvent, OrdersState> {'),
+      );
       expect(output, contains('runAction(emit, (current) async {'));
-      expect(output,
-          contains('return current.copyWith(status: AppStatus.success);'));
+      expect(
+        output,
+        contains('return current.copyWith(status: AppStatus.success);'),
+      );
       expect(output, isNot(contains('try {')));
       expect(output, isNot(contains('app_exception.dart')));
       // The subscription variant is gone — a live query is the project's to
@@ -288,25 +308,33 @@ void main() {
       );
 
       expect(
-          output,
-          contains(
-              'skeleton: (context) => _body(context, OrdersState.placeholder)'));
+        output,
+        contains(
+          'skeleton: (context) => _body(context, OrdersState.placeholder)',
+        ),
+      );
       // The package moved into the widget with the Skeletonizer itself.
-      expect(output,
-          isNot(contains("import 'package:skeletonizer/skeletonizer.dart';")));
+      expect(
+        output,
+        isNot(contains("import 'package:skeletonizer/skeletonizer.dart';")),
+      );
       expect(output, isNot(contains('Skeletonizer(')));
       expect(output, contains('BoneMock'));
       // One body for every status, so a phase drawn over loaded data needs no
       // second one.
-      expect(output,
-          contains('Widget _body(BuildContext context, OrdersState state)'));
+      expect(
+        output,
+        contains('Widget _body(BuildContext context, OrdersState state)'),
+      );
     });
 
     test('the bloc takes the repository', () {
       final output = bloc.FeatureTemplates.bloc('orders', 'Orders', 'orders');
 
-      expect(output,
-          contains('OrdersBloc(this._repo) : super(const OrdersState())'));
+      expect(
+        output,
+        contains('OrdersBloc(this._repo) : super(const OrdersState())'),
+      );
       expect(output, contains('final OrdersRepository _repo;'));
       expect(output, contains('await _repo.fetchAll();'));
     });
@@ -325,14 +353,20 @@ void main() {
       expect(output, isNot(contains('_repo')));
       expect(output, isNot(contains('OrdersRepository')));
       expect(
-          output,
-          isNot(contains(
-              "import '../../domain/repositories/orders_repository.dart';")));
+        output,
+        isNot(
+          contains(
+            "import '../../domain/repositories/orders_repository.dart';",
+          ),
+        ),
+      );
       // Still a working bloc: it just has nothing to load yet.
       expect(output, contains('on<OrdersStarted>(_onStarted);'));
       expect(output, contains('runAction(emit, (current) async {'));
-      expect(output,
-          contains('return current.copyWith(status: AppStatus.success);'));
+      expect(
+        output,
+        contains('return current.copyWith(status: AppStatus.success);'),
+      );
     });
 
     test('the bloc points at a transformer rather than a debouncer', () {
@@ -356,14 +390,15 @@ void main() {
       );
 
       expect(
-          output,
-          contains(
-              "import '../../domain/repositories/orders_repository.dart';"));
+        output,
+        contains("import '../../domain/repositories/orders_repository.dart';"),
+      );
       expect(output, contains('final OrdersRepository _repo;'));
       expect(
         output,
         contains(
-            'class OrderFeedBloc extends Bloc<OrderFeedEvent, OrderFeedState>'),
+          'class OrderFeedBloc extends Bloc<OrderFeedEvent, OrderFeedState>',
+        ),
       );
     });
 
@@ -372,9 +407,11 @@ void main() {
 
       expect(output, contains('class OrdersPage extends StatelessWidget'));
       expect(
-          output,
-          contains(
-              'create: (_) => getIt<OrdersBloc>()..add(const OrdersStarted())'));
+        output,
+        contains(
+          'create: (_) => getIt<OrdersBloc>()..add(const OrdersStarted())',
+        ),
+      );
       expect(output, contains('child: const OrdersView(),'));
       // It is a file of its own, so it imports the view it wraps.
       expect(output, contains("import '../views/orders_view.dart';"));
@@ -392,8 +429,10 @@ void main() {
       // The provider and the locator belong to the page now.
       expect(output, isNot(contains('class OrdersPage')));
       expect(output, isNot(contains('BlocProvider(')));
-      expect(output,
-          isNot(contains("import '../../../../config/di/injector.dart';")));
+      expect(
+        output,
+        isNot(contains("import '../../../../config/di/injector.dart';")),
+      );
       // A plain BlocConsumer whose builder is one AppStatusView call — the
       // three shells live in the widget, not repeated in every feature.
       expect(output, contains('BlocConsumer<OrdersBloc, OrdersState>'));
@@ -403,9 +442,9 @@ void main() {
       expect(output, isNot(contains('switch (state.status)')));
       expect(output, isNot(contains('ErrorView(')));
       expect(
-          output,
-          contains(
-              "import '../../../../shared/widgets/app_status_view.dart';"));
+        output,
+        contains("import '../../../../shared/widgets/app_status_view.dart';"),
+      );
       // Retry re-dispatches the one event there is.
       expect(output, contains('add(const OrdersStarted())'));
       expect(output, isNot(contains('OrdersRefreshed')));
@@ -427,16 +466,21 @@ void main() {
       // load as well.
       expect(output, contains('listenWhen: (previous, current) =>'));
       expect(
-          output, contains('previous.errorMessage != current.errorMessage ||'));
-      expect(output,
-          contains('previous.successMessage != current.successMessage,'));
+        output,
+        contains('previous.errorMessage != current.errorMessage ||'),
+      );
+      expect(
+        output,
+        contains('previous.successMessage != current.successMessage,'),
+      );
       expect(output, contains('listener: (context, state) {'));
       expect(output, contains('AppToast.error(context, error);'));
       expect(output, contains('AppToast.success(context, success);'));
       expect(
         output,
         contains(
-            "import '../../../../shared/widgets/overlays/app_toast.dart';"),
+          "import '../../../../shared/widgets/overlays/app_toast.dart';",
+        ),
       );
     });
 
@@ -463,8 +507,11 @@ void main() {
     });
 
     test('the datasource takes its client rather than reading a provider', () {
-      final output =
-          bloc.FeatureTemplates.remoteDatasource('orders', 'Orders', 'orders');
+      final output = bloc.FeatureTemplates.remoteDatasource(
+        'orders',
+        'Orders',
+        'orders',
+      );
 
       expect(output, contains('const OrdersRemoteDataSource(this._dio);'));
       expect(output, isNot(contains('riverpod')));
@@ -483,8 +530,10 @@ void main() {
 
       expect(output, isNot(contains('OrdersRepository')));
       expect(output, isNot(contains('getIt')));
-      expect(output,
-          isNot(contains("import '../../../../config/di/injector.dart';")));
+      expect(
+        output,
+        isNot(contains("import '../../../../config/di/injector.dart';")),
+      );
       expect(output, contains('FutureOr<OrdersState> build() async {'));
       expect(output, contains('return const OrdersState();'));
     });
@@ -502,8 +551,10 @@ void main() {
 
       // A bloc is a state holder, so it goes in the presentation module and
       // the data module is left with nothing to add.
-      expect(output.holders,
-          contains('getIt.registerFactory<OrdersBloc>(OrdersBloc.new);'));
+      expect(
+        output.holders,
+        contains('getIt.registerFactory<OrdersBloc>(OrdersBloc.new);'),
+      );
       expect(output.holders, isNot(contains('OrdersRepository')));
       expect(output.data, isEmpty);
     });
@@ -524,18 +575,22 @@ void main() {
       );
 
       expect(output.holders, contains('getIt.registerFactory<OrderFeedBloc>('));
-      expect(output.holders,
-          contains('() => OrderFeedBloc(getIt<OrdersRepository>()),'));
+      expect(
+        output.holders,
+        contains('() => OrderFeedBloc(getIt<OrdersRepository>()),'),
+      );
       // Its own file, under the feature it belongs to.
       expect(
         output.holderImports,
         contains(
-            "import '../../features/orders/presentation/blocs/order_feed_bloc.dart';"),
+          "import '../../features/orders/presentation/blocs/order_feed_bloc.dart';",
+        ),
       );
       expect(
         output.holderImports,
         contains(
-            "import '../../features/orders/domain/repositories/orders_repository.dart';"),
+          "import '../../features/orders/domain/repositories/orders_repository.dart';",
+        ),
       );
     });
   });
@@ -547,8 +602,10 @@ void main() {
       expect(output, contains('on<AuthStarted>(_onStarted);'));
       expect(output, contains('on<AuthLoginRequested>(_onLogin);'));
       expect(output, contains('await _repo.isLoggedIn()'));
-      expect(output,
-          contains('class AuthBloc extends Bloc<AuthEvent, AuthState>'));
+      expect(
+        output,
+        contains('class AuthBloc extends Bloc<AuthEvent, AuthState>'),
+      );
       // A failed restore is a signed-out app, not an error screen.
       expect(output, contains('emit(const AuthUnauthenticated());'));
     });
@@ -557,10 +614,14 @@ void main() {
       final output = bloc.AuthTemplates.event();
 
       expect(output, contains('sealed class AuthEvent extends Equatable {'));
-      expect(output,
-          contains('final class AuthLoginRequested extends AuthEvent {'));
-      expect(output,
-          contains('final class AuthAccountDeleted extends AuthEvent {'));
+      expect(
+        output,
+        contains('final class AuthLoginRequested extends AuthEvent {'),
+      );
+      expect(
+        output,
+        contains('final class AuthAccountDeleted extends AuthEvent {'),
+      );
     });
   });
 
@@ -578,13 +639,19 @@ void main() {
 
       // The two halves land in different files: the repository in the data
       // module, the bloc in the presentation module.
-      expect(output.dataBlock,
-          contains('getIt.registerLazySingleton<OrdersRepository>('));
+      expect(
+        output.dataBlock,
+        contains('getIt.registerLazySingleton<OrdersRepository>('),
+      );
       expect(output.dataBlock, isNot(contains('OrdersBloc')));
       expect(
-          output.holderBlock, contains('getIt.registerFactory<OrdersBloc>('));
-      expect(output.holderBlock,
-          contains('OrdersBloc(getIt<OrdersRepository>())'));
+        output.holderBlock,
+        contains('getIt.registerFactory<OrdersBloc>('),
+      );
+      expect(
+        output.holderBlock,
+        contains('OrdersBloc(getIt<OrdersRepository>())'),
+      );
       // Each block carries the heading that makes re-registering a no-op —
       // and the single-file layout takes both under one.
       expect(output.dataBlock, contains('// ── Orders '));
@@ -618,11 +685,14 @@ Future<void> setupInjector() async {
       expect(
         patched,
         contains(
-            "import '../../features/orders/presentation/blocs/orders_bloc.dart';"),
+          "import '../../features/orders/presentation/blocs/orders_bloc.dart';",
+        ),
       );
       // Already there — adding it twice would not compile.
       expect(
-          "import 'package:get_it/get_it.dart';".allMatches(patched).length, 1);
+        "import 'package:get_it/get_it.dart';".allMatches(patched).length,
+        1,
+      );
       expect(
         patched.indexOf('registerFactory'),
         lessThan(patched.indexOf('// moarch:registrations')),
@@ -674,13 +744,15 @@ Future<void> setupInjector() async {
         withFirestore: true,
       );
 
-      expect(output,
-          contains('class MaintenanceCubit extends Cubit<MaintenanceStatus>'));
+      expect(
+        output,
+        contains('class MaintenanceCubit extends Cubit<MaintenanceStatus>'),
+      );
       expect(output, contains('super(const MaintenanceStatus.up())'));
       expect(
-          output,
-          contains(
-              'onError: (Object _) => emit(const MaintenanceStatus.up())'));
+        output,
+        contains('onError: (Object _) => emit(const MaintenanceStatus.up())'),
+      );
       // The gate creates and closes its own cubit.
       expect(output, contains('create: (_) => _createMaintenanceCubit()'));
       expect(output, contains('class MaintenanceGate extends StatelessWidget'));
@@ -690,9 +762,9 @@ Future<void> setupInjector() async {
       final output = bloc.MaintenanceTemplates.maintenanceGate();
 
       expect(
-          output,
-          contains(
-              'MaintenanceCubit() : super(const MaintenanceStatus.up());'));
+        output,
+        contains('MaintenanceCubit() : super(const MaintenanceStatus.up());'),
+      );
       expect(output, isNot(contains('injector.dart')));
     });
   });
@@ -720,8 +792,9 @@ Future<void> setupInjector() async {
       // The catalog spec used to call analysisOptions() with no arguments, so
       // it defaulted to Riverpod: `moarch update` rewrote a bloc project's
       // analysis_options.yaml without the `bloc:` block it came with.
-      final spec = ScaffoldCatalog.all
-          .firstWhere((spec) => spec.name == 'analysis-options');
+      final spec = ScaffoldCatalog.all.firstWhere(
+        (spec) => spec.name == 'analysis-options',
+      );
       const context = ScaffoldContext(
         projectRoot: 'unused',
         pubspec: 'dependencies:\n  flutter_bloc: ^9.1.1\n',
@@ -741,9 +814,9 @@ Future<void> setupInjector() async {
       expect(output, contains('getIt<AuthBloc>()..add(const AuthStarted())'));
       // Both halves: the bloc to create and the event to open it with.
       expect(
-          output,
-          contains(
-              "import 'features/auth/presentation/blocs/auth_event.dart';"));
+        output,
+        contains("import 'features/auth/presentation/blocs/auth_event.dart';"),
+      );
       expect(output, isNot(contains('ProviderScope')));
     });
 
@@ -849,8 +922,11 @@ Future<void> setupInjector() async {
       for (final name in ['async-view', 'action-listener']) {
         final spec = WidgetCatalog.byName(name)!;
         expect(spec.supports(StateManagement.riverpod), isTrue);
-        expect(spec.supports(StateManagement.bloc), isFalse,
-            reason: '$name should not be generated into a bloc project');
+        expect(
+          spec.supports(StateManagement.bloc),
+          isFalse,
+          reason: '$name should not be generated into a bloc project',
+        );
       }
     });
 
@@ -867,9 +943,13 @@ Future<void> setupInjector() async {
 
       expect(blocPreview, contains('AppStatusView('));
       expect(
-          blocPreview, contains("import '../widgets/app_status_view.dart';"));
+        blocPreview,
+        contains("import '../widgets/app_status_view.dart';"),
+      );
       expect(
-          blocPreview, contains("import '../../core/utils/app_status.dart';"));
+        blocPreview,
+        contains("import '../../core/utils/app_status.dart';"),
+      );
       // Riverpod's half, and the file moarch never wrote for it.
       expect(blocPreview, isNot(contains('AppAsyncView')));
       expect(blocPreview, isNot(contains('action_bloc.dart')));
@@ -877,8 +957,10 @@ Future<void> setupInjector() async {
       expect(blocPreview, isNot(contains('flutter_riverpod')));
 
       expect(riverpodPreview, contains('AppAsyncView<List<String>>'));
-      expect(riverpodPreview,
-          contains("import '../widgets/app_async_view.dart';"));
+      expect(
+        riverpodPreview,
+        contains("import '../widgets/app_async_view.dart';"),
+      );
       expect(riverpodPreview, isNot(contains('AppStatusView')));
       expect(riverpodPreview, isNot(contains('app_status.dart')));
     });
@@ -904,10 +986,7 @@ Future<void> setupInjector() async {
         spec,
         const WidgetVariants(stateManagement: StateManagement.bloc),
       );
-      final forRiverpod = WidgetCatalog.sourceFor(
-        spec,
-        const WidgetVariants(),
-      );
+      final forRiverpod = WidgetCatalog.sourceFor(spec, const WidgetVariants());
 
       expect(forBloc, contains('`EventTransformer`'));
       // The service stays available for widget-level timers, but it is off by
@@ -921,10 +1000,12 @@ Future<void> setupInjector() async {
     });
 
     test('init generates the common set minus what the stack lacks', () {
-      final blocCommon =
-          WidgetCatalog.commonFor(StateManagement.bloc).map((s) => s.name);
-      final riverpodCommon =
-          WidgetCatalog.commonFor(StateManagement.riverpod).map((s) => s.name);
+      final blocCommon = WidgetCatalog.commonFor(
+        StateManagement.bloc,
+      ).map((s) => s.name);
+      final riverpodCommon = WidgetCatalog.commonFor(
+        StateManagement.riverpod,
+      ).map((s) => s.name);
 
       expect(riverpodCommon, contains('async-view'));
       expect(blocCommon, isNot(contains('async-view')));
@@ -936,11 +1017,15 @@ Future<void> setupInjector() async {
     test('the state records the user it failed for', () {
       final output = bloc.AuthTemplates.state();
 
-      expect(output,
-          contains('AuthFailure(this.message, {this.userId}) : id = ++_seq;'));
+      expect(
+        output,
+        contains('AuthFailure(this.message, {this.userId}) : id = ++_seq;'),
+      );
       expect(output, contains('bool get authenticated => userId != null;'));
-      expect(output,
-          contains('List<Object?> get props => [message, userId, id];'));
+      expect(
+        output,
+        contains('List<Object?> get props => [message, userId, id];'),
+      );
       // Same reason as a feature's Failure: a second wrong password must not
       // compare equal to the first and be dropped.
       expect(output, isNot(contains('const AuthFailure(')));
@@ -966,8 +1051,10 @@ Future<void> setupInjector() async {
 
       expect(
         output,
-        contains('auth is AuthAuthenticated || '
-            '(auth is AuthFailure && auth.authenticated)'),
+        contains(
+          'auth is AuthAuthenticated || '
+          '(auth is AuthFailure && auth.authenticated)',
+        ),
       );
     });
   });

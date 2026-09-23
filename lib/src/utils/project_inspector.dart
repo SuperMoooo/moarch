@@ -1,12 +1,16 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'package:yaml_edit/yaml_edit.dart';
 
+import '../templates/config/config_templates.dart';
 import 'file_utils.dart';
+import 'package_versions.dart';
 import 'injector_utils.dart';
 import 'plist_utils.dart';
 import 'project_manifest.dart';
 import 'pubspec_utils.dart';
+import 'scaffold_catalog.dart';
 import 'state_management.dart';
 import 'widget_catalog.dart';
 
@@ -37,16 +41,16 @@ class Diagnostic {
 
   /// An error-level finding.
   const Diagnostic.error(this.message, {this.hint, this.fix})
-      : severity = DiagnosticSeverity.error;
+    : severity = DiagnosticSeverity.error;
 
   /// A warning-level finding.
   const Diagnostic.warning(this.message, {this.hint, this.fix})
-      : severity = DiagnosticSeverity.warning;
+    : severity = DiagnosticSeverity.warning;
 
   /// An informational finding. Nothing is wrong, so `doctor` prints it and
   /// still exits 0.
   const Diagnostic.info(this.message, {this.hint, this.fix})
-      : severity = DiagnosticSeverity.info;
+    : severity = DiagnosticSeverity.info;
 
   /// How much this finding matters.
   final DiagnosticSeverity severity;
@@ -75,8 +79,9 @@ abstract final class ProjectInspector {
     final root = p.absolute(projectRoot);
     final libPath = p.join(root, 'lib');
     final pubspecFile = File(p.join(root, 'pubspec.yaml'));
-    final pubspec =
-        pubspecFile.existsSync() ? pubspecFile.readAsStringSync() : null;
+    final pubspec = pubspecFile.existsSync()
+        ? pubspecFile.readAsStringSync()
+        : null;
 
     return [
       ..._structure(root, libPath),
@@ -85,7 +90,111 @@ abstract final class ProjectInspector {
       if (pubspec != null) ..._firebase(root, libPath, pubspec),
       if (pubspec != null) ..._localization(libPath, pubspec),
       ..._codegen(libPath),
+      ..._theme(root, libPath),
+      ..._agents(root),
       ..._widgets(root, libPath, pubspec),
+    ];
+  }
+
+  // ── Agent guide ─────────────────────────────────────────────────────────────
+
+  /// The release `init` started offering `AGENTS.md`.
+  static const _agentsSince = [9, 0, 0];
+
+  /// A project scaffolded before `init` wrote `AGENTS.md` and `CLAUDE.md`.
+  ///
+  /// Offered only to those: a project from 9.0.0 on that has no `AGENTS.md`
+  /// unticked it in the checklist, and being asked again on every `doctor`
+  /// would be nagging. A project with no manifest cannot say, so it is asked.
+  static List<Diagnostic> _agents(String root) {
+    if (File(p.join(root, 'AGENTS.md')).existsSync()) return const [];
+    final manifest = ProjectManifest.load(root);
+    if (manifest != null && !_predates(manifest.version, _agentsSince)) {
+      return const [];
+    }
+
+    return [
+      Diagnostic.info(
+        'No AGENTS.md — coding agents get none of the project\'s rules',
+        hint: 'Generate AGENTS.md and CLAUDE.md with `moarch doctor --fix`.',
+        fix: () async {
+          final context = ScaffoldContext.detect(root);
+          final written = <String>[];
+          final updated = ProjectManifest.loadOrCreate(root);
+          for (final name in const ['agents', 'claude-md']) {
+            final spec = ScaffoldCatalog.byName(name)!;
+            final path = context.resolve(spec.path);
+            final content = spec.template(context);
+            // Never clobbers: a CLAUDE.md the team wrote is left alone.
+            if (await FileUtils.writeFile(path, content)) {
+              updated.record(root, path, content);
+              written.add(spec.path);
+            }
+          }
+          if (written.isNotEmpty) await updated.save(root);
+          return written.isEmpty
+              ? 'nothing written — the files already exist'
+              : 'generated ${written.join(', ')}';
+        },
+      ),
+    ];
+  }
+
+  /// Whether [version] (`major.minor.patch`) is older than [since]. An
+  /// unparseable version counts as older, so it is offered the fix.
+  static bool _predates(String version, List<int> since) {
+    final parts = version.split('+').first.split('-').first.split('.');
+    for (var i = 0; i < since.length; i++) {
+      final part = i < parts.length ? int.tryParse(parts[i]) : 0;
+      if (part == null) return true;
+      if (part != since[i]) return part < since[i];
+    }
+    return false;
+  }
+
+  // ── Theme ───────────────────────────────────────────────────────────────────
+
+  /// A project scaffolded before `AppStatusColors` existed.
+  ///
+  /// Nothing is broken — every widget that would read it still reads
+  /// `AppConstants`, detected per project — so this is information with a fix
+  /// rather than a warning. The fix only adds the file: `AppTheme` and the
+  /// status widgets start using it on their next `moarch update`, which is
+  /// what the message says, so no edited file is rewritten behind anyone's
+  /// back.
+  static List<Diagnostic> _theme(String root, String libPath) {
+    final themeFile = File(
+      p.join(libPath, 'config', 'theme', 'app_theme.dart'),
+    );
+    if (!themeFile.existsSync() || WidgetVariants.hasStatusColorsIn(libPath)) {
+      return const [];
+    }
+
+    return [
+      Diagnostic.info(
+        'No AppStatusColors — success / warning / info ignore the dark theme',
+        hint:
+            'Generate lib/config/theme/app_status_colors.dart, then run '
+            '`moarch update theme tag banner toast agents`.',
+        fix: () async {
+          final path = p.join(
+            libPath,
+            'config',
+            'theme',
+            'app_status_colors.dart',
+          );
+          final content = ConfigTemplates.appStatusColors(
+            withDark: WidgetVariants.hasDarkThemeIn(libPath),
+          );
+          if (await FileUtils.writeFile(path, content)) {
+            final manifest = ProjectManifest.loadOrCreate(root);
+            manifest.record(root, path, content);
+            await manifest.save(root);
+          }
+          return 'generated config/theme/app_status_colors.dart — run '
+              '`moarch update theme tag banner toast agents` to use it';
+        },
+      ),
     ];
   }
 
@@ -118,8 +227,9 @@ abstract final class ProjectInspector {
   ///
   /// Parsed by hand rather than with `jsonDecode`: the generated file is JSONC
   /// — the comments explaining the setting would make decoding throw.
-  static final RegExp _sdkPathPattern =
-      RegExp(r'"dart\.flutterSdkPath"\s*:\s*"([^"]*)"');
+  static final RegExp _sdkPathPattern = RegExp(
+    r'"dart\.flutterSdkPath"\s*:\s*"([^"]*)"',
+  );
 
   /// The editor half of the FVM pin.
   ///
@@ -139,7 +249,8 @@ abstract final class ProjectInspector {
       return [
         const Diagnostic.warning(
           '.vscode/settings.json is missing, so the editor ignores .fvmrc',
-          hint: 'Run `moarch init` to scaffold it, or set '
+          hint:
+              'Run `moarch init` to scaffold it, or set '
               '"dart.flutterSdkPath": ".fvm/flutter_sdk" yourself.',
         ),
       ];
@@ -152,7 +263,8 @@ abstract final class ProjectInspector {
         const Diagnostic.warning(
           '.vscode/settings.json has no dart.flutterSdkPath, so the editor '
           'runs whatever Flutter is on PATH',
-          hint: 'Add "dart.flutterSdkPath": ".fvm/flutter_sdk" — without it '
+          hint:
+              'Add "dart.flutterSdkPath": ".fvm/flutter_sdk" — without it '
               'the .fvmrc pin only applies to `fvm flutter` on the CLI.',
         ),
       ];
@@ -166,7 +278,8 @@ abstract final class ProjectInspector {
         Diagnostic.warning(
           'dart.flutterSdkPath is "$configured", a versioned path that stops '
           'following .fvmrc',
-          hint: 'Point it at ".fvm/flutter_sdk" instead — that symlink '
+          hint:
+              'Point it at ".fvm/flutter_sdk" instead — that symlink '
               'follows the pin, so switching SDKs needs no editor change.',
           fix: () async {
             await settingsFile.writeAsString(
@@ -187,14 +300,16 @@ abstract final class ProjectInspector {
     if (p.isAbsolute(configured)) return findings;
 
     final sdkPath = p.join(root, p.normalize(configured));
-    final linked = FileSystemEntity.typeSync(sdkPath, followLinks: false) !=
+    final linked =
+        FileSystemEntity.typeSync(sdkPath, followLinks: false) !=
         FileSystemEntityType.notFound;
     if (!linked) {
       findings.add(
         Diagnostic.error(
           'dart.flutterSdkPath points at $configured, which does not exist — '
           'the editor is silently using the Flutter on your PATH',
-          hint: 'Run `fvm use` in the project root to create it, then reload '
+          hint:
+              'Run `fvm use` in the project root to create it, then reload '
               'the VS Code window. `.fvm/` is gitignored, so every fresh '
               'clone needs this once.',
         ),
@@ -205,7 +320,8 @@ abstract final class ProjectInspector {
       findings.add(
         Diagnostic.error(
           '$configured is a dangling link — the pinned SDK is not installed',
-          hint: 'Run `fvm install` to restore the version .fvmrc pins, then '
+          hint:
+              'Run `fvm install` to restore the version .fvmrc pins, then '
               'reload the VS Code window.',
         ),
       );
@@ -233,7 +349,8 @@ abstract final class ProjectInspector {
       return [
         Diagnostic.error(
           'lib/config/di/injector.dart is missing',
-          hint: 'The generated '
+          hint:
+              'The generated '
               '${stateManagement.isBloc ? 'pages resolve their blocs' : 'notifiers resolve their repositories'} '
               'with `getIt<...>()`. Run `moarch update injector`, or write '
               'it by hand.',
@@ -250,7 +367,8 @@ abstract final class ProjectInspector {
           const Diagnostic.warning(
             'lib/config/di/injector.dart has no `${InjectorUtils.anchor}` '
             'comment',
-            hint: 'That line is where `moarch create feature` inserts new '
+            hint:
+                'That line is where `moarch create feature` inserts new '
                 'registrations. Without it a generated feature is written but '
                 'never wired up. Put it back anywhere inside setupInjector().',
           ),
@@ -259,7 +377,8 @@ abstract final class ProjectInspector {
       findings.add(
         const Diagnostic.info(
           'lib/config/di/injector.dart holds every registration in one file',
-          hint: 'Newer projects split them one file per layer — '
+          hint:
+              'Newer projects split them one file per layer — '
               'external_module, core_module, data_module and (on bloc) '
               'presentation_module — so no single file grows with the app. '
               'Nothing is wrong with the single file and moarch keeps '
@@ -282,7 +401,8 @@ abstract final class ProjectInspector {
         findings.add(
           Diagnostic.error(
             'lib/config/di/${entry.key} is missing',
-            hint: 'setupInjector() calls ${entry.value} from it, so the '
+            hint:
+                'setupInjector() calls ${entry.value} from it, so the '
                 'project does not compile without it. Run '
                 '`moarch update injector` to see the current shape, or write '
                 'the file by hand.',
@@ -295,7 +415,8 @@ abstract final class ProjectInspector {
       findings.add(
         const Diagnostic.error(
           'lib/config/di/presentation_module.dart is missing',
-          hint: 'On bloc the state holders are registered like any other '
+          hint:
+              'On bloc the state holders are registered like any other '
               'dependency, and setupInjector() calls registerBlocs() from '
               'this file.',
         ),
@@ -307,8 +428,9 @@ abstract final class ProjectInspector {
     final anchored = <String, String>{
       InjectorUtils.dataPath: InjectorUtils.dataFileFor(libPath),
       if (stateManagement.isBloc)
-        InjectorUtils.presentationPath:
-            InjectorUtils.presentationFileFor(libPath),
+        InjectorUtils.presentationPath: InjectorUtils.presentationFileFor(
+          libPath,
+        ),
     };
     for (final entry in anchored.entries) {
       final file = File(entry.value);
@@ -317,7 +439,8 @@ abstract final class ProjectInspector {
       findings.add(
         Diagnostic.warning(
           '${entry.key} has no `${InjectorUtils.anchor}` comment',
-          hint: 'That line is where `moarch create feature` inserts new '
+          hint:
+              'That line is where `moarch create feature` inserts new '
               'registrations. Without it a generated feature is written but '
               'never wired up. Put it back anywhere inside the registrar '
               'function.',
@@ -330,6 +453,64 @@ abstract final class ProjectInspector {
 
   // ── Dependencies ────────────────────────────────────────────────────────────
 
+  /// The standalone test generators `moarch create tests` replaced.
+  static const _mogenPackages = ['mogen_unit_tests', 'mogen_integration_tests'];
+
+  /// A project still carrying the mogen dev dependencies.
+  ///
+  /// They pinned `analyzer` inside the app, which is where they collided with
+  /// freezed and riverpod; the generator now runs inside moarch instead. The
+  /// fix swaps them for what the generated tests import. Tests mogen already
+  /// wrote keep working, and `moarch create tests` refreshes them.
+  static List<Diagnostic> _mogen(
+    String root,
+    String pubspec,
+    StateManagement stateManagement,
+  ) {
+    final present = _mogenPackages
+        .where(
+          (name) => RegExp('^\\s+$name:', multiLine: true).hasMatch(pubspec),
+        )
+        .toList();
+    if (present.isEmpty) return const [];
+
+    return [
+      Diagnostic.info(
+        '${present.join(' and ')} in pubspec.yaml — replaced by '
+        '`moarch create tests`',
+        hint:
+            'Remove them from dev_dependencies, add mocktail'
+            '${stateManagement.isBloc ? ' and bloc_test' : ''}, then run '
+            '`moarch create tests`.',
+        fix: () async {
+          final file = File(p.join(root, 'pubspec.yaml'));
+          final editor = YamlEditor(file.readAsStringSync());
+          for (final name in present) {
+            for (final section in const ['dev_dependencies', 'dependencies']) {
+              try {
+                editor.remove([section, name]);
+              } catch (_) {
+                // Not in this section — it is in the other one.
+              }
+            }
+          }
+          file.writeAsStringSync(editor.toString());
+          await PubspecUtils.ensureDependencies(
+            root,
+            dependencies: const [],
+            devDependencies: [
+              PackageVersions.entry('mocktail'),
+              if (stateManagement.isBloc) PackageVersions.entry('bloc_test'),
+            ],
+          );
+          return 'removed ${present.join(', ')}; added mocktail'
+              '${stateManagement.isBloc ? ' and bloc_test' : ''} — run '
+              '`fvm flutter pub get`, then `moarch create tests`';
+        },
+      ),
+    ];
+  }
+
   static List<Diagnostic> _dependencies(String libPath, String pubspec) {
     final stateManagement = StateManagement.fromPubspec(pubspec);
 
@@ -339,7 +520,8 @@ abstract final class ProjectInspector {
       if (!pubspec.contains('get_it:'))
         const Diagnostic.error(
           'get_it is missing from pubspec.yaml',
-          hint: 'config/di/injector.dart registers every dependency in it, '
+          hint:
+              'config/di/injector.dart registers every dependency in it, '
               'and the generated code resolves them through it.',
         ),
       if (!stateManagement.isBloc && !pubspec.contains('flutter_riverpod:'))
@@ -355,13 +537,14 @@ abstract final class ProjectInspector {
     ];
 
     findings.addAll(_locator(libPath, stateManagement));
+    findings.addAll(_mogen(p.dirname(libPath), pubspec, stateManagement));
 
     // go_router and config/router/ are generated together — one without the
     // other means an edit went half-applied.
     final hasRouterDep = pubspec.contains('go_router:');
-    final hasRouterFiles =
-        File(p.join(libPath, 'config', 'router', 'app_router.dart'))
-            .existsSync();
+    final hasRouterFiles = File(
+      p.join(libPath, 'config', 'router', 'app_router.dart'),
+    ).existsSync();
     if (hasRouterDep != hasRouterFiles) {
       findings.add(
         Diagnostic.warning(
@@ -414,16 +597,38 @@ abstract final class ProjectInspector {
 
     // The Firebase auth feature's datasource is the only generated file that
     // imports google_sign_in.
-    final usesGoogleSignIn = File(p.join(libPath, 'features', 'auth', 'data',
-                'datasources', 'auth_remote_datasource.dart'))
-            .existsSync() &&
-        (File(p.join(libPath, 'features', 'auth', 'domain', 'models',
-                    'auth_user_model.dart'))
-                .existsSync() ||
+    final usesGoogleSignIn =
+        File(
+          p.join(
+            libPath,
+            'features',
+            'auth',
+            'data',
+            'datasources',
+            'auth_remote_datasource.dart',
+          ),
+        ).existsSync() &&
+        (File(
+              p.join(
+                libPath,
+                'features',
+                'auth',
+                'domain',
+                'models',
+                'auth_user_model.dart',
+              ),
+            ).existsSync() ||
             // Where a project scaffolded before 8.0.0 keeps it.
-            File(p.join(libPath, 'features', 'auth', 'data', 'models',
-                    'auth_user_model.dart'))
-                .existsSync());
+            File(
+              p.join(
+                libPath,
+                'features',
+                'auth',
+                'data',
+                'models',
+                'auth_user_model.dart',
+              ),
+            ).existsSync());
 
     if (usesGoogleSignIn && !pubspec.contains('google_sign_in:')) {
       findings.add(
@@ -451,7 +656,8 @@ abstract final class ProjectInspector {
       findings.add(
         const Diagnostic.warning(
           'lib/main.dart never calls Firebase.initializeApp()',
-          hint: 'Add `await Firebase.initializeApp();` before runApp — every '
+          hint:
+              'Add `await Firebase.initializeApp();` before runApp — every '
               'Firestore/Auth call throws without it. Run `flutterfire '
               'configure` first and pass DefaultFirebaseOptions.currentPlatform.',
         ),
@@ -460,10 +666,12 @@ abstract final class ProjectInspector {
 
     // The per-platform config `flutterfire configure` writes. Without them
     // Firebase.initializeApp() fails on that platform at launch.
-    final androidConfig =
-        File(p.join(root, 'android', 'app', 'google-services.json'));
-    final iosConfig =
-        File(p.join(root, 'ios', 'Runner', 'GoogleService-Info.plist'));
+    final androidConfig = File(
+      p.join(root, 'android', 'app', 'google-services.json'),
+    );
+    final iosConfig = File(
+      p.join(root, 'ios', 'Runner', 'GoogleService-Info.plist'),
+    );
     final missingConfigs = [
       if (Directory(p.join(root, 'android')).existsSync() &&
           !androidConfig.existsSync())
@@ -476,7 +684,8 @@ abstract final class ProjectInspector {
       findings.add(
         Diagnostic.warning(
           '${missingConfigs.join(' and ')} missing',
-          hint: 'Run `flutterfire configure` to generate the platform config. '
+          hint:
+              'Run `flutterfire configure` to generate the platform config. '
               'Keep these files out of version control if the project is public.',
         ),
       );
@@ -506,7 +715,7 @@ abstract final class ProjectInspector {
     final hasScheme = content.contains('com.googleusercontent.apps.');
     final hasPlaceholder =
         content.contains(PlistUtils.googleClientIdPlaceholder) ||
-            content.contains(PlistUtils.googleReversedClientIdPlaceholder);
+        content.contains(PlistUtils.googleReversedClientIdPlaceholder);
 
     if (hasClientId && hasScheme && !hasPlaceholder) return const [];
 
@@ -517,7 +726,8 @@ abstract final class ProjectInspector {
           hasPlaceholder
               ? 'ios/Runner/Info.plist still has placeholder Google client ids'
               : 'ios/Runner/Info.plist is missing the Google sign-in keys',
-          hint: 'Run `flutterfire configure` to get GoogleService-Info.plist, '
+          hint:
+              'Run `flutterfire configure` to get GoogleService-Info.plist, '
               'then `moarch doctor --fix` to copy CLIENT_ID and '
               'REVERSED_CLIENT_ID into Info.plist.',
         ),
@@ -532,7 +742,8 @@ abstract final class ProjectInspector {
         const Diagnostic.warning(
           'GoogleService-Info.plist has no CLIENT_ID — Google sign-in is not '
           'enabled for this Firebase app',
-          hint: 'Firebase console → Authentication → Sign-in method → Google, '
+          hint:
+              'Firebase console → Authentication → Sign-in method → Google, '
               'then re-download GoogleService-Info.plist.',
         ),
       ];
@@ -543,13 +754,16 @@ abstract final class ProjectInspector {
         hasPlaceholder
             ? 'ios/Runner/Info.plist still has placeholder Google client ids'
             : 'ios/Runner/Info.plist is missing the Google sign-in keys',
-        hint: 'Copy CLIENT_ID into GIDClientID and REVERSED_CLIENT_ID into '
+        hint:
+            'Copy CLIENT_ID into GIDClientID and REVERSED_CLIENT_ID into '
             'CFBundleURLSchemes.',
         fix: () async {
           var patched = content
               .replaceAll(PlistUtils.googleClientIdPlaceholder, clientId)
               .replaceAll(
-                  PlistUtils.googleReversedClientIdPlaceholder, reversed);
+                PlistUtils.googleReversedClientIdPlaceholder,
+                reversed,
+              );
           patched = PlistUtils.ensureEntries(patched, {
             'GIDClientID': clientId,
           });
@@ -578,7 +792,8 @@ abstract final class ProjectInspector {
       return [
         const Diagnostic.warning(
           'both flutter_localizations and easy_localization are installed',
-          hint: 'moarch generates one or the other. Pick one and remove the '
+          hint:
+              'moarch generates one or the other. Pick one and remove the '
               'other from pubspec.yaml — two sets of localization delegates '
               'will fight over MaterialApp.',
         ),
@@ -592,7 +807,8 @@ abstract final class ProjectInspector {
       return [
         const Diagnostic.warning(
           'flutter_localizations is installed but lib/l10n/ is missing',
-          hint: 'Run `flutter gen-l10n`, or re-run `moarch init` to scaffold '
+          hint:
+              'Run `flutter gen-l10n`, or re-run `moarch init` to scaffold '
               'the .arb files.',
         ),
       ];
@@ -608,8 +824,9 @@ abstract final class ProjectInspector {
   /// does not compile — the single most common first-run failure.
   static List<Diagnostic> _codegen(String libPath) {
     final envDart = File(p.join(libPath, 'config', 'env', 'app_env.dart'));
-    final envGenerated =
-        File(p.join(libPath, 'config', 'env', 'app_env.g.dart'));
+    final envGenerated = File(
+      p.join(libPath, 'config', 'env', 'app_env.g.dart'),
+    );
 
     if (envDart.existsSync() && !envGenerated.existsSync()) {
       return [
@@ -745,15 +962,16 @@ abstract final class ProjectInspector {
     // Router-dependent widgets need config/router/app_router.dart for the
     // rootNavigatorKey they import.
     final needsRouter = present.where((spec) => spec.needsRouter).toList();
-    final hasRouter =
-        File(p.join(libPath, 'config', 'router', 'app_router.dart'))
-            .existsSync();
+    final hasRouter = File(
+      p.join(libPath, 'config', 'router', 'app_router.dart'),
+    ).existsSync();
     if (needsRouter.isNotEmpty && !hasRouter) {
       final names = needsRouter.map((spec) => spec.title).toList()..sort();
       findings.add(
         Diagnostic.error(
           '${names.join(', ')} import config/router/app_router.dart, which is missing',
-          hint: 'Generate the GoRouter setup, or point them at your own '
+          hint:
+              'Generate the GoRouter setup, or point them at your own '
               'navigator key.',
         ),
       );

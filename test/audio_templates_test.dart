@@ -15,7 +15,9 @@ void main() {
     test('loads whichever of the three source kinds it was given', () {
       expect(output, contains('_AppAudioKind.url => await _player.setUrl('));
       expect(
-          output, contains('_AppAudioKind.asset => await _player.setAsset('));
+        output,
+        contains('_AppAudioKind.asset => await _player.setAsset('),
+      );
       expect(
         output,
         contains('_AppAudioKind.file => await _player.setFilePath('),
@@ -61,8 +63,10 @@ void main() {
 
     test('seeking is clamped to the clip', () {
       expect(output, contains('if (target < Duration.zero)'));
-      expect(output,
-          contains('_player.seek(target > _duration ? _duration : target);'));
+      expect(
+        output,
+        contains('_player.seek(target > _duration ? _duration : target);'),
+      );
     });
 
     test('the bar sits at zero until a duration is known', () {
@@ -93,9 +97,13 @@ void main() {
 
     test('the skip amounts are durations, not a fixed 15/30', () {
       expect(
-          output, contains('this.skipBackward = const Duration(seconds: 15),'));
+        output,
+        contains('this.skipBackward = const Duration(seconds: 15),'),
+      );
       expect(
-          output, contains('this.skipForward = const Duration(seconds: 30),'));
+        output,
+        contains('this.skipForward = const Duration(seconds: 30),'),
+      );
       expect(output, contains('onTap: () => _skip(-widget.skipBackward),'));
       expect(output, contains('onTap: () => _skip(widget.skipForward),'));
       // The number is drawn inside the arrow, so any interval works without
@@ -125,12 +133,15 @@ void main() {
       expect(output, contains('if (hours > 0) {'));
       expect(output, contains("return '\$minutes:\$paddedSeconds';"));
       expect(
-          output, contains('duration.isNegative ? Duration.zero : duration'));
+        output,
+        contains('duration.isNegative ? Duration.zero : duration'),
+      );
     });
 
     test('is in the catalog with just_audio', () {
-      final spec =
-          WidgetCatalog.all.firstWhere((s) => s.name == 'audio-player');
+      final spec = WidgetCatalog.all.firstWhere(
+        (s) => s.name == 'audio-player',
+      );
       expect(spec.file, 'audio/app_audio_player.dart');
       expect(spec.category, 'Media');
       expect(spec.packages, ['just_audio: ']);

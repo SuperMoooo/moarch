@@ -506,7 +506,52 @@ class RegisterView extends StatelessWidget {
   /// [withPushNotifications] registers this device with the backend at the two
   /// moments a session starts: opening the app on a restored session, and
   /// signing in or up.
-  static String bloc({bool withPushNotifications = false}) {
+  /// Rewrites [source]'s `on<Event>(_handler);` registrations for [events] to
+  /// drop a repeat while the first is still running, and adds the import.
+  ///
+  /// A double-tapped "Log in" otherwise sends two requests, and the second
+  /// one's failure can land after the first one's success. `droppable()` is
+  /// the answer for anything the user submits: the tap that arrives mid-flight
+  /// is ignored, not queued. Session restore and the auth stream keep the
+  /// default, since every one of those events has to be seen.
+  static String withDroppable(String source, List<String> events) {
+    var out = source.replaceFirst(
+      "import 'package:bloc/bloc.dart';",
+      "import 'package:bloc/bloc.dart';\n"
+          "import 'package:bloc_concurrency/bloc_concurrency.dart';",
+    );
+    for (final event in events) {
+      out = out.replaceFirstMapped(
+        RegExp(
+          'on<$event>'
+          r'\((_\w+)\);',
+        ),
+        (m) => 'on<$event>(${m[1]}, transformer: droppable());',
+      );
+    }
+    return out;
+  }
+
+  /// The auth bloc. [withConcurrency] drops a repeated submit while the
+  /// first is in flight — see [withDroppable]. It is read off the pubspec
+  /// (`bloc_concurrency`), so a project without the package refreshes into a
+  /// bloc that still compiles.
+  static String bloc({
+    bool withPushNotifications = false,
+    bool withConcurrency = false,
+  }) {
+    final source = _bloc(withPushNotifications: withPushNotifications);
+    return withConcurrency
+        ? withDroppable(source, const [
+            'AuthLoginRequested',
+            'AuthRegisterRequested',
+            'AuthLogoutRequested',
+            'AuthAccountDeleted',
+          ])
+        : source;
+  }
+
+  static String _bloc({bool withPushNotifications = false}) {
     final syncOnRestore = withPushNotifications
         ? '''
 
@@ -518,7 +563,7 @@ class RegisterView extends StatelessWidget {
 
     final syncAfterAuth = withPushNotifications
         ? '\n      // Not awaited: registering the device must not hold up the UI.'
-            '\n      unawaited(_repo.syncDeviceToken());'
+              '\n      unawaited(_repo.syncDeviceToken());'
         : '';
 
     return '''

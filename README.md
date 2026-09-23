@@ -18,6 +18,7 @@ dart pub global activate moarch
 ```
 
 If `moarch` is not found, make sure your Pub bin folder is on your `PATH`.
+It needs Dart 3.9 or later (Flutter 3.35+).
 
 ## Quick start
 
@@ -70,6 +71,8 @@ moarch create widget all           # generate the whole UI kit + the preview scr
 moarch create widget --list        # list every available widget
 moarch create theme --dark         # add the dark palette + AppTheme.dark to a one-theme project
 moarch create theme --no-dark      # ...and drop back to the single brand theme
+moarch create tests [feature]      # unit tests for every notifier/bloc, integration tests for every GET endpoint
+moarch create scope <feature> <name> [--blocs A,B] [--parent XScope]  # carry a screen's blocs to what it opens (bloc)
 
 moarch update        # refresh every generated file against the current templates
 moarch update <name> # ...or just one (e.g. validation, extensions, theme)
@@ -90,6 +93,7 @@ moarch doctor --fix  # ...and apply the ones that don't need a decision
 - an optional maintenance gate — a backend flag that empties the app (see below)
 - optional localization: flutter_localizations (`lib/l10n/` + `.arb` files) or easy_localization (`assets/translations/` JSON files) — pick one, the checklist keeps them mutually exclusive
 - a backend: Dio against a REST API, Firebase (Firestore / Auth), or both (see below)
+- `AGENTS.md` + `CLAUDE.md` — the project's rules for coding agents (Codex, Cursor, Copilot, Claude Code): the layout, no entity layer, the state stack's patterns, the UI kit and tokens, and the commands that prove a change is done. `CLAUDE.md` is only `@AGENTS.md`, so there is one set of instructions. Both are catalog entries, so `moarch update agents claude-md` keeps them in step with the templates; a project from before 9.0.0 gets them from `moarch doctor --fix`
 - `.vscode/` — `settings.json` pointing the Dart extension at the fvm SDK `.fvmrc` pins, and `launch.json` with debug/profile/release entries plus a flavored pair for `dev`, `staging` and `prod` (ready for when the native side declares them)
 - `android/app/proguard-rules.pro` — the R8 keep rules for the Flutter engine, Firebase, OkHttp and coroutines. Inert until you enable minification for the release build type, so it costs the debug build nothing; the gradle block that turns it on is in `docs/SECURITY_BEFORE_DEPLOYMENT.md`
 
@@ -312,7 +316,16 @@ generates the feature but says it could not register it; `moarch doctor`
 flags it too.
 
 `AuthBloc` is the one bloc registered as a **singleton**: the router's redirect
-and every screen have to read the same session.
+and every screen have to read the same session. Its submit events (login,
+register, logout, delete) are registered with `droppable()` from
+`bloc_concurrency`, so a double tap sends one request.
+
+`feature_module.dart` is where a feature's long-lived services go: a socket
+the chat feature keeps open, a call engine. They are not cross-cutting enough
+for `core_module.dart`, and they are not repositories. It also carries
+`openScope` / `closeScope` for what one *flow* owns. A scope is opened when
+the flow starts, shared by its screens, and disposed when it ends, which a
+singleton (outlives the flow) or a factory (one per screen) cannot do.
 
 ### bloc_lint
 
@@ -444,6 +457,39 @@ Either way it is one provider, and the gate above it is identical:
 
 ```bash
 moarch create widget maintenance-gate   # or take it in the init checklist
+```
+
+### Update gate
+
+The maintenance gate's sibling for a minimum version. `UpdateGate` compares the
+installed version (`package_info_plus`) with the minimum your backend sends and,
+while the app is older, replaces it with an "update required" screen whose
+button opens the store. Mounted in `MaterialApp.builder` too, inside the
+maintenance gate, so an outage is announced before an update is asked for:
+
+```dart
+builder: (context, child) => MaintenanceGate(child: UpdateGate(child: child!)),
+```
+
+Shared keys apply everywhere and a platform object overrides them, since store
+review can leave one platform a release behind:
+
+```json
+{
+  "min_version": "2.4.0",
+  "android": { "store_url": "https://play.google.com/store/apps/details?id=com.example.app" },
+  "ios": { "min_version": "2.3.0", "store_url": "https://apps.apple.com/app/id0000000000" }
+}
+```
+
+It fails open the same way. Until both the installed version and the policy are
+known, or if either cannot be read or parsed, the app runs. The source follows
+the backend: a live `config/app_version` document on Firestore, or
+`GET /config/app-version` on Dio at launch and on every resume (no timer, since a
+minimum changes with a release, not by the minute).
+
+```bash
+moarch create widget update-gate   # or take it in the init checklist
 ```
 
 ### Extensions
@@ -1053,9 +1099,23 @@ edit — the palette — half the size.
 
 Tick **Dark theme** in the `init` checklist to get the other half: a `*Dark`
 counterpart for every color token, an `AppTheme.dark` built from them, and
-`darkTheme` + `themeMode: ThemeMode.system` wired into `main.dart`. `AppToast`
-then picks its status color per brightness, and the design-system preview gets
-its toggle.
+`darkTheme` + `themeMode: ThemeMode.system` wired into `main.dart`. The
+design-system preview gets its toggle.
+
+Success, warning and info have no slot in `ColorScheme`, so they live in
+`AppStatusColors` (`config/theme/app_status_colors.dart`), a `ThemeExtension`
+that each `ThemeData` registers. A widget reads `context.statusColors.success`
+and gets the right value for the current brightness. `AppToast`, `AppTag` and
+`AppBanner` read it, which is what makes them follow a dark theme. A project from
+before 9.0.0 keeps the `AppConstants` lookups until `moarch doctor --fix` adds the
+file; then `moarch update theme tag banner toast` moves them onto it.
+
+`AppConstants` also carries the motion curves: `curveStandard` for movement on
+screen, and `curveEnter` / `curveExit` for things arriving and leaving. An older
+`app_constants.dart` you have edited, which therefore never refreshes, does not
+declare them. Widgets refreshed into such a project get the literal curves
+instead, so they still compile. Shadows are not tokens: `AppCard` takes its
+shadow color from `cardTheme`, so elevation stays a theme setting.
 
 Either way it is reversible, and moarch reads the scope off `app_theme.dart`
 rather than remembering it, so `moarch update` keeps regenerating what the
@@ -1262,6 +1322,98 @@ mechanical ones — generating a missing widget dependency, adding a missing
 package, copying `CLIENT_ID` and `REVERSED_CLIENT_ID` out of
 `GoogleService-Info.plist` into `Info.plist`. Anything that's a genuine choice
 (which localization package to drop) is reported and left to you.
+
+## Scopes (bloc)
+
+A route you push, a bottom sheet and a dialog are *siblings* of the screen that
+opened them in the Navigator, not children, so `context.read<MatterBloc>()`
+from inside them finds nothing. A scope carries the screen's blocs across:
+
+```bash
+moarch create scope matter matter                         # every bloc the feature declares
+moarch create scope matter matter --parent LawfirmScope   # nested: the lawfirm's blocs travel too
+moarch create scope orders orders --blocs OrdersBloc,OrderFiltersCubit
+```
+
+That writes `features/<feature>/presentation/scopes/<name>_scope.dart`:
+
+```dart
+context.showMatterSheet((_) => const NewTodoSheet());   // a sheet that reads the matter's blocs
+context.showMatterDialog((_) => const ConfirmDialog());
+
+context.push(AppRoutes.newDocument, extra: MatterScope.of(context));
+GoRoute(
+  path: AppRoutes.newDocument,
+  builder: (context, state) =>
+      (state.extra! as MatterScope).provide(child: const NewDocumentPage()),
+)
+```
+
+`MatterScope.of(context)` collects the blocs, and `provide(child:)` provides the
+*same instances* again with `BlocProvider.value`. Every screen shares one state,
+and the screen that created the blocs still closes them. With `--parent`, the
+outer scope's blocs are provided around this one's.
+
+For **routes** nested under a screen, the command also prints a `ShellRoute`
+that provides the blocs above every child route. Prefer it where it fits:
+`extra` is not part of the URL, so a deep link or a web refresh opens a route
+with no scope, while a shell's providers are always there. Scopes remain the
+tool for sheets and dialogs.
+
+Riverpod has no equivalent to generate: providers live above the Navigator, so
+a pushed route already reads the same notifier.
+
+## Tests
+
+Tests are generated from the code the project already has, so they come once a
+feature has real methods:
+
+```bash
+moarch create tests            # every feature
+moarch create tests orders     # one feature
+moarch create tests --dry-run  # list what would be written
+```
+
+**Unit tests.** One file per notifier, bloc or cubit, under
+`test/unit/features/<feature>/`, with mocktail mocks for every dependency and a
+success and an error test per action:
+
+- A Riverpod notifier that reads its repository out of the locator
+  (`OrdersRepository get _repo => getIt<OrdersRepository>();`) gets the mock
+  registered in `getIt` in `setUp`, and `getIt.reset()` in `tearDown`.
+  Dependencies read through `ref.read(provider)` are overridden on the
+  `ProviderContainer` instead.
+- A bloc gets `bloc_test`: its constructor takes the mocks, and each
+  `on<Event>` becomes a group that adds a real event. A handler going through
+  `runAction` has its failure asserted on `state.errorMessage`, which is where
+  `runAction` puts it. A handler that only acts from one state
+  (`if (current is! OrdersLoaded) return;`) gets that state as its `seed:`.
+- Calls `build()` or the constructor makes are stubbed once in `setUp`. The
+  error path throws `const ServerException(message: 'test')`, a real
+  `AppException`, so no test-only factory lives in production code. Stubbed
+  models are `Model.empty()`; the command says so when one lacks the factory,
+  and `moarch create empty-factories` adds it.
+
+**Integration tests.** One file per GET endpoint a remote datasource calls,
+under `test/integration/features/<feature>/`, against the real API. The path
+may be a literal or an `ApiConstants` field. They check the wiring, not the
+data: the test fails only when the server cannot be reached (`NetworkException`
+from `safeApiCall`), since an error status still proves the endpoint answers.
+`test/integration/dio_helper.dart` builds the client from `AppEnv.baseUrl`. It
+is written once and never overwritten, which makes it the place for a test
+login.
+
+**Re-running** is how the tests follow the code. Every generated file starts
+with a `GENERATED BY moarch` line, and a re-run refreshes those. Delete that
+line once you edit a file, and it is left alone (`--force` overwrites anyway).
+The first run adds `mocktail` (and `bloc_test`) to `dev_dependencies` if they
+are missing.
+
+This replaced the `mogen_unit_tests` and `mogen_integration_tests` packages.
+Their output is recognised and refreshed, and `moarch doctor --fix` swaps the
+two dev dependencies for mocktail. Running inside moarch rather than as a dev
+dependency also means the generator no longer puts `analyzer` in your app,
+where it used to collide with freezed and riverpod.
 
 ## Make it your own
 

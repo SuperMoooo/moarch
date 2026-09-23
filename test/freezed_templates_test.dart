@@ -10,16 +10,16 @@ import 'package:test/test.dart';
 /// an auth feature side by side, and two conventions in one `data/` folder is
 /// how one of them ends up missing what the other has.
 Map<String, String> _models(StackTemplates stack) => {
-      'feature': stack.featureModel('order', 'Order'),
-      'feature (firestore)': stack.featureModel(
-        'order',
-        'Order',
-        useFirestore: true,
-      ),
-      'auth tokens': stack.authModel(),
-      'auth user': stack.firebaseAuthModel(),
-      'auth user (firestore)': stack.firebaseAuthModel(withFirestore: true),
-    };
+  'feature': stack.featureModel('order', 'Order'),
+  'feature (firestore)': stack.featureModel(
+    'order',
+    'Order',
+    useFirestore: true,
+  ),
+  'auth tokens': stack.authModel(),
+  'auth user': stack.firebaseAuthModel(),
+  'auth user (firestore)': stack.firebaseAuthModel(withFirestore: true),
+};
 
 void main() {
   const bloc = StackTemplates(StateManagement.bloc);
@@ -168,18 +168,20 @@ void main() {
   });
 
   group('.empty() survives', () {
-    test('every feature model still offers the blank freezed will not write',
-        () {
-      for (final entry in _models(bloc).entries) {
-        // Only the feature model is a form's starting point; the auth pair is
-        // never built empty, and inventing one would be a guess.
-        if (!entry.key.startsWith('feature')) continue;
-        expect(
-          entry.value,
-          contains(RegExp(r'factory \w+Model\.empty\(\)')),
-          reason: entry.key,
-        );
-      }
-    });
+    test(
+      'every feature model still offers the blank freezed will not write',
+      () {
+        for (final entry in _models(bloc).entries) {
+          // Only the feature model is a form's starting point; the auth pair is
+          // never built empty, and inventing one would be a guess.
+          if (!entry.key.startsWith('feature')) continue;
+          expect(
+            entry.value,
+            contains(RegExp(r'factory \w+Model\.empty\(\)')),
+            reason: entry.key,
+          );
+        }
+      },
+    );
   });
 }

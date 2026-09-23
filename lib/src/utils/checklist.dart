@@ -79,7 +79,8 @@ class Checklist {
     }
     stdout.writeln('');
     stdout.writeln(
-        '  Type a number to toggle. Press enter to confirm, q to quit.');
+      '  Type a number to toggle. Press enter to confirm, q to quit.',
+    );
   }
 }
 

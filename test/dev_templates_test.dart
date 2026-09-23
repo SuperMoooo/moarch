@@ -35,8 +35,7 @@ void main() {
         (_decodeJsonc(DevTemplates.vscodeLaunch())['configurations'] as List)
             .cast<Map<String, dynamic>>();
 
-    test(
-        'every configuration is a dart launch — the extension defaults to '
+    test('every configuration is a dart launch — the extension defaults to '
         'the scaffold entry point', () {
       for (final config in configurations()) {
         expect(config['type'], 'dart', reason: '${config['name']}');
@@ -66,17 +65,17 @@ void main() {
     test('each flavor is passed to the tool', () {
       for (final flavor in ['dev', 'staging', 'prod']) {
         final flavored = configurations()
-            .where((config) =>
-                (config['args'] as List?)?.contains(flavor) ?? false)
+            .where(
+              (config) => (config['args'] as List?)?.contains(flavor) ?? false,
+            )
             .toList();
 
         expect(flavored, isNotEmpty, reason: flavor);
         for (final config in flavored) {
-          expect(
-            config['args'],
-            ['--flavor', flavor],
-            reason: '${config['name']}',
-          );
+          expect(config['args'], [
+            '--flavor',
+            flavor,
+          ], reason: '${config['name']}');
         }
       }
     });
@@ -84,8 +83,9 @@ void main() {
     test('every flavor can be run in debug and in release', () {
       for (final flavor in ['dev', 'staging', 'prod']) {
         final modes = configurations()
-            .where((config) =>
-                (config['args'] as List?)?.contains(flavor) ?? false)
+            .where(
+              (config) => (config['args'] as List?)?.contains(flavor) ?? false,
+            )
             .map((config) => config['flutterMode'])
             .toSet();
 

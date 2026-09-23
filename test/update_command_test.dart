@@ -108,8 +108,9 @@ void main() {
 
   test('--force overwrites a file the user edited', () async {
     await placeWidget(spec.template(), record: true);
-    await File(widgetPath())
-        .writeAsString('// my own tweak\n${spec.template()}');
+    await File(
+      widgetPath(),
+    ).writeAsString('// my own tweak\n${spec.template()}');
 
     final code = await runUpdate(['--yes', '--force']);
 
@@ -138,8 +139,7 @@ void main() {
     );
   });
 
-  test('an up-to-date file is recorded so it stops reading as unknown',
-      () async {
+  test('an up-to-date file is recorded so it stops reading as unknown', () async {
     // A pre-manifest project: file matches the template but was never recorded.
     await placeWidget(spec.template(), record: false);
     // Something else stale gives the run a reason to write.
@@ -207,7 +207,9 @@ void main() {
 
       expect(code, 0);
       expect(
-          await File(validation).readAsString(), currentSource('validation'));
+        await File(validation).readAsString(),
+        currentSource('validation'),
+      );
       // Everything not named keeps the older content it was placed with.
       expect(await File(extensions).readAsString(), startsWith('// written'));
       expect(await File(widgetPath()).readAsString(), staleContent());
@@ -221,7 +223,9 @@ void main() {
 
       expect(code, 0);
       expect(
-          await File(validation).readAsString(), currentSource('validation'));
+        await File(validation).readAsString(),
+        currentSource('validation'),
+      );
       expect(await File(extensions).readAsString(), startsWith('// written'));
     });
 
@@ -245,9 +249,13 @@ void main() {
 
       expect(code, 0);
       expect(
-          await File(validation).readAsString(), currentSource('validation'));
+        await File(validation).readAsString(),
+        currentSource('validation'),
+      );
       expect(
-          await File(extensions).readAsString(), currentSource('extensions'));
+        await File(extensions).readAsString(),
+        currentSource('extensions'),
+      );
       expect(await File(theme).readAsString(), startsWith('// written'));
     });
 
@@ -259,8 +267,10 @@ void main() {
       final code = await runUpdate(['--yes', 'biometric']);
 
       expect(code, 0);
-      expect(File(p.joinAll([root, ...p.posix.split(path)])).existsSync(),
-          isFalse);
+      expect(
+        File(p.joinAll([root, ...p.posix.split(path)])).existsSync(),
+        isFalse,
+      );
     });
 
     test('leaves an edited non-widget file alone', () async {
@@ -274,23 +284,25 @@ void main() {
       expect(await File(path).readAsString(), edited);
     });
 
-    test('a conditional template follows the project it is refreshed into',
-        () async {
-      // app_logger.dart has a Crashlytics-aware variant. Which one is current
-      // depends on the project, not on how `update` was invoked.
-      await File(p.join(root, 'pubspec.yaml')).writeAsString(
-        'name: demo\ndependencies:\n  firebase_crashlytics: ^4.0.0\n',
-      );
-      final path = await placeStaleScaffold('logger');
+    test(
+      'a conditional template follows the project it is refreshed into',
+      () async {
+        // app_logger.dart has a Crashlytics-aware variant. Which one is current
+        // depends on the project, not on how `update` was invoked.
+        await File(p.join(root, 'pubspec.yaml')).writeAsString(
+          'name: demo\ndependencies:\n  firebase_crashlytics: ^4.0.0\n',
+        );
+        final path = await placeStaleScaffold('logger');
 
-      final code = await runUpdate(['--yes', 'logger']);
+        final code = await runUpdate(['--yes', 'logger']);
 
-      expect(code, 0);
-      expect(
-        await File(path).readAsString(),
-        CoreTemplates.appLogger(withCrashlytics: true),
-      );
-    });
+        expect(code, 0);
+        expect(
+          await File(path).readAsString(),
+          CoreTemplates.appLogger(withCrashlytics: true),
+        );
+      },
+    );
 
     test('--list exits without touching anything', () async {
       final path = await placeStaleScaffold('validation');
@@ -425,21 +437,29 @@ void main() {
       for (final slug in ['auth-model', 'auth-user-model']) {
         final entry = ScaffoldCatalog.byName(slug)!;
         expect(entry.path, contains('/domain/models/'), reason: slug);
-        expect(entry.movedFrom, entry.path.replaceFirst('/domain/', '/data/'),
-            reason: slug);
+        expect(
+          entry.movedFrom,
+          entry.path.replaceFirst('/domain/', '/data/'),
+          reason: slug,
+        );
       }
     });
 
-    test('a project holding the old path still reads as the Firebase variant',
-        () async {
-      await place(at(legacy), current(), record: false);
+    test(
+      'a project holding the old path still reads as the Firebase variant',
+      () async {
+        await place(at(legacy), current(), record: false);
 
-      expect(ScaffoldContext.detect(root).hasFirebaseAuthFeature, isTrue);
-    });
+        expect(ScaffoldContext.detect(root).hasFirebaseAuthFeature, isTrue);
+      },
+    );
 
     test('refreshing it moves it instead of copying it', () async {
-      await place(at(legacy), '// written by an older moarch\n${current()}',
-          record: true);
+      await place(
+        at(legacy),
+        '// written by an older moarch\n${current()}',
+        record: true,
+      );
 
       expect(await runUpdate(['--yes', 'auth-user-model']), 0);
 

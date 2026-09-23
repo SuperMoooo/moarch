@@ -20,21 +20,25 @@ class GradleUtils {
 
     var lines = content.split('\n');
 
-    final compileOptionsAnchor =
-        lines.indexWhere((line) => line.contains('compileOptions {'));
+    final compileOptionsAnchor = lines.indexWhere(
+      (line) => line.contains('compileOptions {'),
+    );
     if (compileOptionsAnchor != -1) {
-      final indent =
-          RegExp(r'^\s*').firstMatch(lines[compileOptionsAnchor])!.group(0)!;
+      final indent = RegExp(
+        r'^\s*',
+      ).firstMatch(lines[compileOptionsAnchor])!.group(0)!;
       lines.insert(
         compileOptionsAnchor + 1,
         '$indent    isCoreLibraryDesugaringEnabled = true',
       );
     } else {
-      final androidAnchor =
-          lines.indexWhere((line) => line.trim() == 'android {');
+      final androidAnchor = lines.indexWhere(
+        (line) => line.trim() == 'android {',
+      );
       if (androidAnchor == -1) return content;
-      final indent =
-          RegExp(r'^\s*').firstMatch(lines[androidAnchor])!.group(0)!;
+      final indent = RegExp(
+        r'^\s*',
+      ).firstMatch(lines[androidAnchor])!.group(0)!;
       lines.insertAll(androidAnchor + 1, [
         '$indent    compileOptions {',
         '$indent        isCoreLibraryDesugaringEnabled = true',

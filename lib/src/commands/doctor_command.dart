@@ -52,8 +52,9 @@ class DoctorCommand extends Command<int> {
     // Informational findings are printed but do not count: `info` means
     // nothing is wrong, and a doctor that exits 1 over a note is one people
     // learn to stop reading.
-    final findings =
-        reported.where((f) => f.severity != DiagnosticSeverity.info).toList();
+    final findings = reported
+        .where((f) => f.severity != DiagnosticSeverity.info)
+        .toList();
 
     for (final finding in reported) {
       _report(finding);
@@ -70,8 +71,10 @@ class DoctorCommand extends Command<int> {
     if (!shouldFix) {
       _logger.info('');
       if (fixable.isNotEmpty) {
-        _logger.info('  ${fixable.length} of ${findings.length} can be fixed '
-            'automatically — run: moarch doctor --fix');
+        _logger.info(
+          '  ${fixable.length} of ${findings.length} can be fixed '
+          'automatically — run: moarch doctor --fix',
+        );
       }
       _logger.err('${findings.length} issue(s) found.');
       _logger.info('');
@@ -110,9 +113,9 @@ class DoctorCommand extends Command<int> {
 
     // Re-inspect rather than assume: a fix reports what it did, not whether
     // the project as a whole came out clean.
-    final remaining = (await ProjectInspector.inspect(targetPath))
-        .where((f) => f.severity != DiagnosticSeverity.info)
-        .toList();
+    final remaining = (await ProjectInspector.inspect(
+      targetPath,
+    )).where((f) => f.severity != DiagnosticSeverity.info).toList();
     _logger.info('');
     if (remaining.isEmpty) {
       _logger.success('  ✓  No issues remaining.');

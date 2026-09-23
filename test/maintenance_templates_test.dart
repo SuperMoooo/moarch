@@ -40,8 +40,9 @@ void main() {
     });
 
     test('the Firestore variant watches, the Dio variant polls', () {
-      final firestore =
-          MaintenanceTemplates.maintenanceGate(withFirestore: true);
+      final firestore = MaintenanceTemplates.maintenanceGate(
+        withFirestore: true,
+      );
       final dio = MaintenanceTemplates.maintenanceGate(withDio: true);
 
       // The status is state, so it stays a Riverpod provider; what it reads
@@ -71,8 +72,9 @@ void main() {
 
     test('each variant imports only what it uses', () {
       final stub = MaintenanceTemplates.maintenanceGate();
-      final firestore =
-          MaintenanceTemplates.maintenanceGate(withFirestore: true);
+      final firestore = MaintenanceTemplates.maintenanceGate(
+        withFirestore: true,
+      );
       final dio = MaintenanceTemplates.maintenanceGate(withDio: true);
 
       // The stub reads nothing, so it needs neither the locator nor a client.
@@ -81,8 +83,10 @@ void main() {
       expect(stub, isNot(contains('cloud_firestore')));
       expect(stub, isNot(contains("import 'dart:async'")));
 
-      expect(firestore,
-          contains("import 'package:cloud_firestore/cloud_firestore.dart';"));
+      expect(
+        firestore,
+        contains("import 'package:cloud_firestore/cloud_firestore.dart';"),
+      );
       expect(firestore, contains("import '../../config/di/injector.dart';"));
       expect(firestore, isNot(contains('package:dio/dio.dart')));
 

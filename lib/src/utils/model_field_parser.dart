@@ -77,8 +77,9 @@ class ModelFieldParser {
   ///   });
   static List<ModelField> parse(String source, String className) {
     final range = classBody(source, className);
-    final scope =
-        range == null ? source : source.substring(range.start, range.end);
+    final scope = range == null
+        ? source
+        : source.substring(range.start, range.end);
 
     final freezed = _freezedFields(scope, className);
     if (freezed != null) return freezed;
@@ -105,9 +106,7 @@ class ModelFieldParser {
   /// a freezed class carries — `fromJson` and `empty` have the same
   /// header and none of them describes the fields.
   static List<ModelField>? _freezedFields(String scope, String className) {
-    final header = RegExp(
-      r'factory\s+' + RegExp.escape(className) + r'\s*\(',
-    );
+    final header = RegExp(r'factory\s+' + RegExp.escape(className) + r'\s*\(');
 
     for (final match in header.allMatches(scope)) {
       final open = match.end - 1;
@@ -125,10 +124,9 @@ class ModelFieldParser {
       final braceEnd = _matchingBracket(params, braceStart);
       if (braceEnd == null) return const [];
 
-      return _splitParams(params.substring(braceStart + 1, braceEnd))
-          .map(_parseParam)
-          .nonNulls
-          .toList(growable: false);
+      return _splitParams(
+        params.substring(braceStart + 1, braceEnd),
+      ).map(_parseParam).nonNulls.toList(growable: false);
     }
     return null;
   }
@@ -242,8 +240,9 @@ class ModelFieldParser {
     final equals = text.indexOf('=');
     if (equals != -1) text = text.substring(0, equals).trim();
 
-    final split = RegExp(r'^(?<type>.+[>?\s])\s*(?<name>[a-zA-Z_$][\w$]*)$')
-        .firstMatch(text);
+    final split = RegExp(
+      r'^(?<type>.+[>?\s])\s*(?<name>[a-zA-Z_$][\w$]*)$',
+    ).firstMatch(text);
     if (split == null) return null;
 
     final name = split.namedGroup('name')!;
@@ -345,8 +344,9 @@ class ModelFieldParser {
       return '\n  factory $className.empty() => $className();\n';
     }
 
-    final args =
-        fields.map((f) => '    ${f.name}: ${_defaultFor(f)},').join('\n');
+    final args = fields
+        .map((f) => '    ${f.name}: ${_defaultFor(f)},')
+        .join('\n');
     return '''
 
   factory $className.empty() => $className(

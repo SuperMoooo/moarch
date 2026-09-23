@@ -15,30 +15,30 @@ class MaintenanceTemplates {
   }) {
     final imports = withFirestore
         ? "import 'package:cloud_firestore/cloud_firestore.dart';\n"
-            "import 'package:flutter/material.dart';\n"
-            "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
-            '\n'
-            "import '../../config/di/injector.dart';\n"
-            "import 'error_view.dart';\n"
+              "import 'package:flutter/material.dart';\n"
+              "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
+              '\n'
+              "import '../../config/di/injector.dart';\n"
+              "import 'error_view.dart';\n"
         : withDio
-            ? "import 'dart:async';\n"
-                '\n'
-                "import 'package:dio/dio.dart';\n"
-                "import 'package:flutter/material.dart';\n"
-                "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
-                '\n'
-                "import '../../config/di/injector.dart';\n"
-                "import 'error_view.dart';\n"
-            : "import 'package:flutter/material.dart';\n"
-                "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
-                '\n'
-                "import 'error_view.dart';\n";
+        ? "import 'dart:async';\n"
+              '\n'
+              "import 'package:dio/dio.dart';\n"
+              "import 'package:flutter/material.dart';\n"
+              "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
+              '\n'
+              "import '../../config/di/injector.dart';\n"
+              "import 'error_view.dart';\n"
+        : "import 'package:flutter/material.dart';\n"
+              "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
+              '\n'
+              "import 'error_view.dart';\n";
 
     final provider = withFirestore
         ? _firestoreProvider
         : withDio
-            ? _dioProvider
-            : _stubProvider;
+        ? _dioProvider
+        : _stubProvider;
 
     return '$imports$_status\n$provider\n$_gate';
   }

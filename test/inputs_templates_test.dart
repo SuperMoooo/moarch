@@ -27,8 +27,10 @@ void main() {
     });
 
     test('an untouched optional field is not "fewer than min"', () {
-      expect(output,
-          contains('if (min != null && ids.isNotEmpty && ids.length < min)'));
+      expect(
+        output,
+        contains('if (min != null && ids.isNotEmpty && ids.length < min)'),
+      );
     });
 
     test('judges the caller\'s selection, not the FormField\'s own copy', () {
@@ -41,12 +43,16 @@ void main() {
     });
 
     test('shows its picks three ways', () {
-      expect(output,
-          contains('enum AppMultiSelectDisplay { chips, labels, count }'));
+      expect(
+        output,
+        contains('enum AppMultiSelectDisplay { chips, labels, count }'),
+      );
       expect(output, contains("'\${selected.length} selected'"));
       expect(output, contains('AppMultiSelectDisplay.chips => _chips('));
-      expect(output,
-          contains('final overflow = selected.length - maxVisibleChips;'));
+      expect(
+        output,
+        contains('final overflow = selected.length - maxVisibleChips;'),
+      );
     });
 
     test('a chip can drop its own pick', () {
@@ -63,7 +69,9 @@ void main() {
 
     test('trips on duplicate ids rather than selecting the wrong row', () {
       expect(
-          output, contains('items.map(idOf).toSet().length == items.length,'));
+        output,
+        contains('items.map(idOf).toSet().length == items.length,'),
+      );
     });
   });
 
@@ -73,40 +81,47 @@ void main() {
     test('opens with checkboxes and a Done button', () {
       expect(output, contains('static Future<List<T>?> showMulti<T>('));
       expect(output, contains('multiSelect: true,'));
-      expect(output,
-          contains('if (widget.multiSelect) _confirmBar(theme, accent),'));
+      expect(
+        output,
+        contains('if (widget.multiSelect) _confirmBar(theme, accent),'),
+      );
       expect(output, contains('final checkbox = Checkbox('));
     });
 
     test('works on its own copy, so backing out changes nothing', () {
       expect(
-          output,
-          contains(
-              'late final Set<String> _picked = {...widget.selectedIds};'));
+        output,
+        contains('late final Set<String> _picked = {...widget.selectedIds};'),
+      );
       expect(output, contains('Navigator.pop(context, _pickedItems);'));
     });
 
     test('hands back the picks in items order', () {
       expect(output, contains('List<T> get _pickedItems => ['));
       expect(
-          output, contains('if (_picked.contains(widget.idOf(item))) item,'));
+        output,
+        contains('if (_picked.contains(widget.idOf(item))) item,'),
+      );
     });
 
-    test('stops at the ceiling instead of letting the form refuse it later',
-        () {
-      expect(output, contains('bool get _atLimit =>'));
-      expect(
-        output,
-        contains('!widget.multiSelect || selected || !_atLimit;'),
-      );
-      expect(output, contains('onTap: enabled'));
-    });
+    test(
+      'stops at the ceiling instead of letting the form refuse it later',
+      () {
+        expect(output, contains('bool get _atLimit =>'));
+        expect(
+          output,
+          contains('!widget.multiSelect || selected || !_atLimit;'),
+        );
+        expect(output, contains('onTap: enabled'));
+      },
+    );
 
     test('opens at the first tick in multi-select', () {
       expect(
         output,
         contains(
-            '(widget.selectedIds.isEmpty ? null : widget.selectedIds.first)'),
+          '(widget.selectedIds.isEmpty ? null : widget.selectedIds.first)',
+        ),
       );
     });
 
@@ -117,7 +132,9 @@ void main() {
 
     test('the row is the target, so the box does not double the haptics', () {
       expect(
-          output, contains('onChanged: enabled ? (_) => _toggle(id) : null,'));
+        output,
+        contains('onChanged: enabled ? (_) => _toggle(id) : null,'),
+      );
       // One place buzzes for a toggle, whichever half of the row was tapped.
       expect('HapticFeedback.'.allMatches(output).length, 3);
     });
@@ -133,18 +150,24 @@ void main() {
 
     test('enforces maxDays inclusively, which a picker cannot express', () {
       expect(
-          output,
-          contains(
-              'if (maxDays != null && range.duration.inDays + 1 > maxDays)'));
-      expect(output,
-          contains("return 'Pick a range of \$maxDays days or fewer';"));
+        output,
+        contains('if (maxDays != null && range.duration.inDays + 1 > maxDays)'),
+      );
+      expect(
+        output,
+        contains("return 'Pick a range of \$maxDays days or fewer';"),
+      );
     });
 
     test('follows a value the caller changes from outside', () {
-      expect(output,
-          contains('void didUpdateWidget(AppDateRangeInput oldWidget)'));
-      expect(output,
-          contains('if (widget.initialValue != oldWidget.initialValue)'));
+      expect(
+        output,
+        contains('void didUpdateWidget(AppDateRangeInput oldWidget)'),
+      );
+      expect(
+        output,
+        contains('if (widget.initialValue != oldWidget.initialValue)'),
+      );
     });
 
     test('is the Material picker on every platform, deliberately', () {
@@ -171,8 +194,10 @@ void main() {
       // The doc comment names both packages to say it is not one of them.
       expect(output, isNot(contains("import 'package:file_picker")));
       expect(output, isNot(contains("import 'package:image_picker")));
-      expect(output,
-          contains('final Future<List<AppPickedFile>?> Function()? onPick;'));
+      expect(
+        output,
+        contains('final Future<List<AppPickedFile>?> Function()? onPick;'),
+      );
     });
 
     test('a cancelled pick costs nothing', () {
@@ -181,9 +206,11 @@ void main() {
 
     test('trims at the ceiling rather than refusing the whole pick', () {
       expect(
-          output,
-          contains(
-              'final limited = maxFiles == null ? next : next.take(maxFiles!).toList();'));
+        output,
+        contains(
+          'final limited = maxFiles == null ? next : next.take(maxFiles!).toList();',
+        ),
+      );
       expect(output, contains('if (enabled && !readOnly && !_atLimit)'));
     });
 
@@ -234,38 +261,52 @@ void main() {
 
     test('the left half of a star is the half score', () {
       expect(output, contains('double _scoreFor(int index, double dx) {'));
-      expect(output,
-          contains('return dx < _starSize / 2 ? index + 0.5 : index + 1;'));
       expect(
-          output,
-          contains(
-              'onTapDown: (details) => _report(_scoreFor(index, details.localPosition.dx)),'));
+        output,
+        contains('return dx < _starSize / 2 ? index + 0.5 : index + 1;'),
+      );
+      expect(
+        output,
+        contains(
+          'onTapDown: (details) => _report(_scoreFor(index, details.localPosition.dx)),',
+        ),
+      );
     });
 
     test('tapping the score again takes it back, when allowed', () {
-      expect(output,
-          contains('onChanged?.call(allowClear && next == value ? 0 : next);'));
+      expect(
+        output,
+        contains('onChanged?.call(allowClear && next == value ? 0 : next);'),
+      );
     });
 
     test('pairs the outline star with the filled one it was given', () {
       expect(
-          output,
-          contains(
-              'static IconData _outlineOf(IconData icon) => switch (icon) {'));
-      expect(output,
-          contains('Icons.star_rounded => Icons.star_outline_rounded,'));
+        output,
+        contains(
+          'static IconData _outlineOf(IconData icon) => switch (icon) {',
+        ),
+      );
+      expect(
+        output,
+        contains('Icons.star_rounded => Icons.star_outline_rounded,'),
+      );
     });
 
     test('meets the tap target without growing the star', () {
-      expect(output,
-          contains('(AppConstants.touchTarget - _starSize).clamp(0, 24) / 2,'));
+      expect(
+        output,
+        contains('(AppConstants.touchTarget - _starSize).clamp(0, 24) / 2,'),
+      );
     });
 
     test('says its score to a screen reader', () {
       expect(
-          output,
-          contains(
-              "value: '\${value.toStringAsFixed(allowHalf ? 1 : 0)} of \$count',"));
+        output,
+        contains(
+          "value: '\${value.toStringAsFixed(allowHalf ? 1 : 0)} of \$count',",
+        ),
+      );
     });
   });
 
@@ -288,7 +329,9 @@ void main() {
 
     test('multi-select opens the sheet it depends on', () {
       expect(
-          WidgetCatalog.byName('multi-select')!.deps, contains('search-sheet'));
+        WidgetCatalog.byName('multi-select')!.deps,
+        contains('search-sheet'),
+      );
     });
 
     test('none of them are generated on init', () {

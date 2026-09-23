@@ -34,6 +34,7 @@ abstract final class PackageVersions {
     'flutter_bloc': '^9.1.1',
     'bloc': '^9.2.1',
     'equatable': '^2.1.0',
+    'bloc_concurrency': '^0.3.0',
 
     // ── Core ────────────────────────────────────────────────────────────────
     'get_it': '^9.2.1',
@@ -93,6 +94,9 @@ abstract final class PackageVersions {
     // `flutter create` still scaffolds. The API is unchanged across the two.
     'permission_handler': '^12.0.3',
     'url_launcher': '^6.3.2',
+    // The installed version the update gate compares against the backend's
+    // minimum.
+    'package_info_plus': '^10.2.1',
     'flutter_local_notifications': '^22.3.0',
     'timezone': '^0.11.1',
     'local_auth': '^3.0.2',
@@ -118,13 +122,10 @@ abstract final class PackageVersions {
     // analyzer 10 ships. A bloc project takes 0.4.1; raise this the release
     // freezed's floor moves to analyzer 13.
     'bloc_lint': '^0.4.1',
-    'mogen_unit_tests': '^1.4.2',
-    // Floored at 1.1.1 rather than 1.1.2 so pub has somewhere to back off to.
-    // 1.1.2 needs `analyzer >=13`, and a Riverpod project cannot reach it:
-    // riverpod 3.4.2 declares `test` as a *regular* dependency, and `test`
-    // resolved against flutter_test's pinned matcher/test_api caps analyzer
-    // below 13. A bloc project has no such chain and still takes 1.1.2 — this
-    // range only gives the Riverpod side 1.1.1 to fall back on.
-    'mogen_integration_tests': '^1.1.1',
+    // What the tests `moarch create tests` writes import. The generator runs
+    // inside moarch, so unlike the mogen packages it replaced it adds no
+    // analyzer to the app's dependency graph.
+    'mocktail': '^1.0.5',
+    'bloc_test': '^10.0.0',
   };
 }

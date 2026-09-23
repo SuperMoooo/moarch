@@ -102,7 +102,8 @@ class ReadmeTemplates {
   }
 
   /// The title block and table of contents.
-  static String _header(String projectName, {required bool bloc}) => '''
+  static String _header(String projectName, {required bool bloc}) =>
+      '''
 # 📱 $projectName
 
 > **Last updated:** `[month year]`
@@ -347,47 +348,70 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
     required bool withFlavors,
   }) {
     final packages = StringBuffer();
-    void row(String name, String what) => packages
-        .writeln('| [`$name`](https://pub.dev/packages/$name) | $what |');
+    void row(String name, String what) => packages.writeln(
+      '| [`$name`](https://pub.dev/packages/$name) | $what |',
+    );
 
     if (bloc) {
       row('flutter_bloc', 'State management — see section 6.');
       row('bloc', 'The pure-Dart half, so blocs import no Flutter.');
-      row('equatable',
-          'Value equality on states and events. Without it every emit repaints.');
+      row(
+        'equatable',
+        'Value equality on states and events. Without it every emit repaints.',
+      );
     } else {
       row('flutter_riverpod', 'State management — see section 6.');
     }
-    row('get_it',
-        'The service locator. Repositories and services are registered in `lib/config/di/`, one file per layer, and read back with `getIt<T>()`.');
-    row('envied',
-        'Compiles `.env` values into `app_env.dart` instead of shipping the file.');
-    row('freezed_annotation',
-        'Marks the models. `freezed` (dev) writes the constructor, `copyWith` and an equality covering every field.');
-    row('json_annotation',
-        'Marks the models\' JSON. `json_serializable` (dev) writes `fromJson` and `toJson` from the field list.');
+    row(
+      'get_it',
+      'The service locator. Repositories and services are registered in `lib/config/di/`, one file per layer, and read back with `getIt<T>()`.',
+    );
+    row(
+      'envied',
+      'Compiles `.env` values into `app_env.dart` instead of shipping the file.',
+    );
+    row(
+      'freezed_annotation',
+      'Marks the models. `freezed` (dev) writes the constructor, `copyWith` and an equality covering every field.',
+    );
+    row(
+      'json_annotation',
+      'Marks the models\' JSON. `json_serializable` (dev) writes `fromJson` and `toJson` from the field list.',
+    );
     if (withDio) {
-      row('dio',
-          'The HTTP client. Configured in `lib/core/network/dio_client.dart`.');
+      row(
+        'dio',
+        'The HTTP client. Configured in `lib/core/network/dio_client.dart`.',
+      );
       row('dio_smart_retry', 'Retries failed requests on transient errors.');
     }
-    row('flutter_secure_storage',
-        'Keychain / Keystore-backed storage — where tokens go, never `SharedPreferences`.');
+    row(
+      'flutter_secure_storage',
+      'Keychain / Keystore-backed storage — where tokens go, never `SharedPreferences`.',
+    );
     if (withRouter) {
-      row('go_router',
-          'Declarative routing with an auth-aware redirect — `lib/config/router/`.');
+      row(
+        'go_router',
+        'Declarative routing with an auth-aware redirect — `lib/config/router/`.',
+      );
     }
     row('connectivity_plus', 'Detects the device being offline.');
-    row('logger',
-        'Structured logging — wrapped by `lib/core/utils/app_logger.dart`.');
-    row('skeletonizer',
-        'Turns a laid-out screen into its own loading skeleton.');
+    row(
+      'logger',
+      'Structured logging — wrapped by `lib/core/utils/app_logger.dart`.',
+    );
+    row(
+      'skeletonizer',
+      'Turns a laid-out screen into its own loading skeleton.',
+    );
     row('intl', 'Date, number and currency formatting.');
     row('permission_handler', 'Runtime permission requests.');
     row('flutter_native_splash', 'Generates the native splash screen.');
     if (withFirebase) {
-      row('firebase_core',
-          'Firebase initialisation — see `docs/FIREBASE_SETUP.md`.');
+      row(
+        'firebase_core',
+        'Firebase initialisation — see `docs/FIREBASE_SETUP.md`.',
+      );
     }
     if (withFirebaseAuthFeature) {
       row('firebase_auth', 'Email/password and Google sign-in.');
@@ -395,8 +419,10 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
     }
     if (withFirestore) row('cloud_firestore', 'The document database.');
     if (withCrashlytics) {
-      row('firebase_crashlytics',
-          'Crash reporting, wired into the app-wide error handlers.');
+      row(
+        'firebase_crashlytics',
+        'Crash reporting, wired into the app-wide error handlers.',
+      );
     }
     if (withFirebaseNotifications) {
       row('firebase_messaging', 'Push notifications (FCM).');
@@ -406,21 +432,37 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
     }
     if (withBiometric) row('local_auth', 'Face ID / fingerprint unlock.');
     if (withEasyLocalization) {
-      row('easy_localization',
-          'Translations from JSON in `assets/translations/`.');
+      row(
+        'easy_localization',
+        'Translations from JSON in `assets/translations/`.',
+      );
     }
     if (withFlavors) {
-      row('flutter_flavorizr',
-          'Dev dependency. Generates the native flavor configuration — see section 8.');
+      row(
+        'flutter_flavorizr',
+        'Dev dependency. Generates the native flavor configuration — see section 8.',
+      );
     }
     row('build_runner', 'Dev dependency. Runs the code generators.');
-    row('mogen_unit_tests',
-        'Dev dependency. Generates unit tests from the code you have written.');
-    row('flutter_lints',
-        'Dev dependency. The lint set `analysis_options.yaml` builds on.');
+    row(
+      'mocktail',
+      'Dev dependency. The mocks in the tests `moarch create tests` writes.',
+    );
     if (bloc) {
-      row('bloc_lint',
-          "Dev dependency. The bloc team's own rules — run with `bloc lint .`.");
+      row(
+        'bloc_test',
+        "Dev dependency. `blocTest` for a bloc's generated tests.",
+      );
+    }
+    row(
+      'flutter_lints',
+      'Dev dependency. The lint set `analysis_options.yaml` builds on.',
+    );
+    if (bloc) {
+      row(
+        'bloc_lint',
+        "Dev dependency. The bloc team's own rules — run with `bloc lint .`.",
+      );
     }
 
     return '''
@@ -1089,9 +1131,10 @@ ${withRouter ? '5. **Route to it.** Add the path to `lib/config/router/app_route
 | Command | What it does |
 |---|---|
 | `moarch create feature <name>` | A whole feature, layers selectable |
-| `moarch create model <feature> <name>` | A model inside an existing feature (`--from-json` infers its fields from a sample) |${bloc ? '\n| `moarch create bloc <feature> <name>` | Another state + event + bloc trio |' : ''}
+| `moarch create model <feature> <name>` | A model inside an existing feature (`--from-json` infers its fields from a sample) |${bloc ? '\n| `moarch create bloc <feature> <name>` | Another state + event + bloc trio |\n| `moarch create scope <feature> <name>` | Carries a screen\'s blocs to the routes, sheets and dialogs it opens |' : ''}
 | `moarch create widget <name>` | A widget from the kit (`docs/UI_KIT.md`) |
 | `moarch create empty-factories [feature]` | Injects `.empty()` factories into every model |
+| `moarch create tests [feature]` | Unit tests for every state holder, integration tests for every GET endpoint |
 | `moarch create theme` | Switches the project between one theme and light + dark |
 | `moarch create flavors [names…]` | See section 8 |
 | `moarch update --list` | Which generated files are out of date, and which you have edited |
@@ -1105,9 +1148,20 @@ Tests live in `test/unit/` and `test/integration/`:
 fvm flutter test
 ```
 
-The scaffold ships no tests of its own beyond the smoke test —
-`mogen_unit_tests` and `mogen_integration_tests` are installed as dev
-dependencies to generate them from the code you write.
+The scaffold ships no tests of its own beyond the smoke test. Once a
+feature has real methods, generate them from the code:
+
+```bash
+moarch create tests            # every feature
+moarch create tests profile    # one feature
+```
+
+That writes a unit test per ${bloc ? 'bloc' : 'notifier'} under `test/unit/features/` — every
+dependency mocked, a success and an error test per ${bloc ? 'event' : 'method'} — and an
+integration test per GET endpoint a remote datasource calls, under
+`test/integration/features/`, against the real API (`BASE_URL` in `.env`).
+Re-run it as the code grows. A generated file you edit keeps your edits once
+you delete its first line, the `GENERATED BY moarch` marker.
 
 ---
 ''';
@@ -1325,10 +1379,7 @@ keychain, and that keychain dies with the job.
   }
 
   /// Section 11 — the conventions the analyzer cannot check for you.
-  static String _standards({
-    required bool bloc,
-    required bool withDarkTheme,
-  }) =>
+  static String _standards({required bool bloc, required bool withDarkTheme}) =>
       '''
 ## 11. Code standards
 
@@ -1386,7 +1437,8 @@ round trip. The rules themselves are in `analysis_options.yaml`.${bloc ? "\n\n`b
   /// Section 12 — the part no detection can fill in. Deliberately shipped as
   /// `[bracketed]` prompts: a blank table gets skipped, a bracketed one gets
   /// noticed.
-  static String _contacts({required bool withFirebase}) => '''
+  static String _contacts({required bool withFirebase}) =>
+      '''
 ## 12. Contacts & access
 
 > 🔐 **Passwords and tokens must never be stored in this file.** It is in the

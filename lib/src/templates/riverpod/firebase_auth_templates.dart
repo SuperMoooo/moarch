@@ -216,7 +216,7 @@ $firestoreMapping}
     final deviceTokenMethod = !withPushNotifications
         ? ''
         : withFirestore
-            ? '''
+        ? '''
 
   // ── Push notifications ────────────────────────────────────────────────────
 
@@ -240,7 +240,7 @@ $firestoreMapping}
     );
   }
 '''
-            : '''
+        : '''
 
   // ── Push notifications ────────────────────────────────────────────────────
 
@@ -429,8 +429,8 @@ $firestoreMethods$deviceTokenMethod}
   }) {
     final pushImports = withPushNotifications
         ? "import '../../../../core/errors/app_exception.dart';\n"
-            "import '../../../../core/services/firebase_notifications_service.dart';\n"
-            "import '../../../../core/utils/app_logger.dart';\n"
+              "import '../../../../core/services/firebase_notifications_service.dart';\n"
+              "import '../../../../core/utils/app_logger.dart';\n"
         : '';
 
     final pushCtorParam = withPushNotifications ? ', this._push' : '';
@@ -461,8 +461,9 @@ $firestoreMethods$deviceTokenMethod}
 '''
         : '';
 
-    final saveProfileOnRegister =
-        withFirestore ? '\n    await _remote.saveProfile(user);' : '';
+    final saveProfileOnRegister = withFirestore
+        ? '\n    await _remote.saveProfile(user);'
+        : '';
 
     final saveProfileOnGoogle = withFirestore
         ? '\n    // First Google sign-in — create the profile document.\n    await _remote.saveProfile(user);'
@@ -621,7 +622,7 @@ class AuthState implements ActionState<AuthState> {
 
     final syncAfterAuth = withPushNotifications
         ? '\n      // Not awaited: registering the device must not hold up the UI.'
-            '\n      unawaited(_repo.syncDeviceToken());'
+              '\n      unawaited(_repo.syncDeviceToken());'
         : '';
 
     // Same call one level deeper, inside the try of the Google flow.

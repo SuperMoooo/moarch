@@ -11,12 +11,12 @@ import 'version.dart';
 class MoarchRunner {
   /// Creates the CLI runner used to parse and execute subcommands.
   MoarchRunner()
-      : _logger = Logger(),
-        _runner = CommandRunner<int>(
-          'moarch',
-          '🧱 moarch — Flutter scaffold CLI with Clean Architecture, '
-              'Riverpod or flutter_bloc',
-        ) {
+    : _logger = Logger(),
+      _runner = CommandRunner<int>(
+        'moarch',
+        '🧱 moarch — Flutter scaffold CLI with Clean Architecture, '
+            'Riverpod or flutter_bloc',
+      ) {
     _runner
       ..addCommand(InitCommand(logger: _logger))
       ..addCommand(CreateCommand(logger: _logger))

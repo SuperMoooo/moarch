@@ -36,35 +36,43 @@ void main() {
     expect(output, isNot(contains('CODE_SIGN_ENTITLEMENTS')));
   });
 
-  test('buildANDROID skips the build when the keystore secrets are missing',
-      () {
-    final output = WorkflowTemplates.buildANDROID();
+  test(
+    'buildANDROID skips the build when the keystore secrets are missing',
+    () {
+      final output = WorkflowTemplates.buildANDROID();
 
-    for (final secret in [
-      'ANDROID_KEYSTORE_BASE64',
-      'KEYSTORE_STORE_PASSWORD',
-      'KEYSTORE_KEY_PASSWORD',
-      'KEYSTORE_KEY_ALIAS',
-    ]) {
-      expect(output, contains('\${{ secrets.$secret }}'));
-    }
-    expect(
-      output,
-      contains("if: needs.check-android-secrets.outputs.has_secrets == 'true'"),
-    );
-    // The check must gate the job that decodes the keystore.
-    expect(
-      output.indexOf('check-android-secrets:'),
-      lessThan(output.indexOf('name: Decode Keystore')),
-    );
-  });
+      for (final secret in [
+        'ANDROID_KEYSTORE_BASE64',
+        'KEYSTORE_STORE_PASSWORD',
+        'KEYSTORE_KEY_PASSWORD',
+        'KEYSTORE_KEY_ALIAS',
+      ]) {
+        expect(output, contains('\${{ secrets.$secret }}'));
+      }
+      expect(
+        output,
+        contains(
+          "if: needs.check-android-secrets.outputs.has_secrets == 'true'",
+        ),
+      );
+      // The check must gate the job that decodes the keystore.
+      expect(
+        output.indexOf('check-android-secrets:'),
+        lessThan(output.indexOf('name: Decode Keystore')),
+      );
+    },
+  );
 
   test('entitlements templates declare the APNs environment', () {
-    expect(IosTemplates.runnerEntitlements(),
-        contains('<key>aps-environment</key>'));
+    expect(
+      IosTemplates.runnerEntitlements(),
+      contains('<key>aps-environment</key>'),
+    );
     expect(IosTemplates.runnerEntitlements(), contains('</plist>'));
-    expect(IosTemplates.runnerProfileEntitlements(),
-        contains('<key>aps-environment</key>'));
+    expect(
+      IosTemplates.runnerProfileEntitlements(),
+      contains('<key>aps-environment</key>'),
+    );
   });
 
   test('xcode ruby script targets the Runner project and plist', () {

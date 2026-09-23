@@ -7,6 +7,7 @@ import '../templates/core/core_templates.dart';
 import '../templates/core/error_templates.dart';
 import '../templates/core/security_templates.dart';
 import '../templates/core/services_templates.dart';
+import '../templates/misc/agents_templates.dart';
 import '../templates/misc/android_templates.dart';
 import '../templates/misc/dev_templates.dart';
 import '../templates/misc/docs_templates.dart';
@@ -25,10 +26,7 @@ import 'widget_catalog.dart';
 /// edited.
 class ScaffoldContext {
   /// Creates a context. Prefer [detect] — this exists for tests.
-  const ScaffoldContext({
-    required this.projectRoot,
-    required this.pubspec,
-  });
+  const ScaffoldContext({required this.projectRoot, required this.pubspec});
 
   /// Reads [projectRoot] and works out which options it was generated with.
   factory ScaffoldContext.detect(String projectRoot) {
@@ -57,9 +55,10 @@ class ScaffoldContext {
   ///
   /// Matched as a whole entry rather than a substring, so `dio` is not
   /// reported by `dio_smart_retry` and `local_auth` not by `local_auth_android`.
-  bool hasPackage(String package) =>
-      RegExp('^\\s+${RegExp.escape(package)}:', multiLine: true)
-          .hasMatch(pubspec);
+  bool hasPackage(String package) => RegExp(
+    '^\\s+${RegExp.escape(package)}:',
+    multiLine: true,
+  ).hasMatch(pubspec);
 
   /// The project talks to a REST API through Dio.
   bool get hasDio =>
@@ -75,6 +74,10 @@ class ScaffoldContext {
 
   /// The project uses flutter_bloc rather than Riverpod.
   bool get hasBloc => stateManagement.isBloc;
+
+  /// `bloc_concurrency` is installed, so a bloc may use `droppable()`. Read
+  /// off the pubspec: a bloc project from before 9.0.0 does not have it.
+  bool get hasBlocConcurrency => hasPackage('bloc_concurrency');
 
   /// Firestore or Firebase Auth is installed — either brings in
   /// `firebase_core`, and with it `FirebaseException`.
@@ -121,6 +124,14 @@ class ScaffoldContext {
   bool get hasMaintenanceGate =>
       hasFile('lib/shared/widgets/maintenance_gate.dart');
 
+  /// The update gate was generated — mounted in `MaterialApp.builder` beside
+  /// the maintenance gate, for the same reason that has to be checked.
+  bool get hasUpdateGate => hasFile('lib/shared/widgets/update_gate.dart');
+
+  /// `AppStatusColors` was generated, so `AppTheme` registers it and the
+  /// status widgets read it — see [WidgetVariants.hasStatusColorsIn].
+  bool get hasStatusColors => WidgetVariants.hasStatusColorsIn(resolve('lib'));
+
   /// MoAdapt was generated. `main.dart` mounts it above the whole app, so
   /// refreshing main without checking would silently drop the proportional
   /// scaling every screen was built against.
@@ -139,6 +150,14 @@ class ScaffoldContext {
   /// split still have the single file, and `update` has to refresh each as
   /// the shape it actually is.
   bool get hasSplitDi => hasFile('lib/config/di/data_module.dart');
+
+  /// `feature_module.dart` was generated — 9.0.0 on. `injector.dart` calls it
+  /// only when it is there.
+  bool get hasFeatureModule => hasFile('lib/config/di/feature_module.dart');
+
+  /// The lifecycle service was generated, so the core module registers it.
+  bool get hasAppLifecycle =>
+      hasFile('lib/core/services/app_lifecycle_service.dart');
 
   /// The auth feature was generated, in either variant — the router's redirect
   /// reads its notifier (riverpod) or its bloc.
@@ -167,9 +186,10 @@ class ScaffoldContext {
   /// Falls back to `app` for a project with no pubspec, which is the same
   /// case every `hasPackage` above answers false for.
   String get projectName =>
-      RegExp(r'^name:\s*(\S+)', multiLine: true)
-          .firstMatch(pubspec)
-          ?.group(1) ??
+      RegExp(
+        r'^name:\s*(\S+)',
+        multiLine: true,
+      ).firstMatch(pubspec)?.group(1) ??
       'app';
 
   /// The flavors declared in `flavorizr.yaml`, or empty when the project has
@@ -390,6 +410,7 @@ abstract final class ScaffoldCatalog {
         withCrashlytics: c.hasCrashlytics,
         withFirebase: c.hasFirebase || c.hasCrashlytics,
         withMaintenanceGate: c.hasMaintenanceGate,
+        withUpdateGate: c.hasUpdateGate,
         withMoAdapt: c.hasMoAdapt,
         withDarkTheme: c.hasDarkTheme,
         withAuthFeature: c.hasAuthFeature,
@@ -431,9 +452,8 @@ abstract final class ScaffoldCatalog {
       title: 'safeFirebaseCall',
       path: 'lib/core/network/safe_firebase_call.dart',
       category: 'Network',
-      template: (c) => CoreTemplates.safeFirebaseCall(
-        withAuth: c.hasFirebaseAuth,
-      ),
+      template: (c) =>
+          CoreTemplates.safeFirebaseCall(withAuth: c.hasFirebaseAuth),
       description:
           'The same contract for Firestore and Firebase Auth calls and streams.',
     ),
@@ -505,7 +525,9 @@ abstract final class ScaffoldCatalog {
       title: 'FirebaseNotificationsService',
       path: 'lib/core/services/firebase_notifications_service.dart',
       category: 'Services',
-      template: (c) => ServicesTemplates.firebaseNotificationsService(),
+      template: (c) => ServicesTemplates.firebaseNotificationsService(
+        withLocalNotifications: c.hasNotifications,
+      ),
       description:
           'FCM tokens, foreground/background handlers and topic subscriptions.',
     ),
@@ -516,6 +538,16 @@ abstract final class ScaffoldCatalog {
       category: 'Services',
       template: (c) => ServicesTemplates.debouncerService(),
       description: 'Debounces rapid actions, e.g. a search field.',
+    ),
+    ScaffoldSpec(
+      name: 'app-lifecycle',
+      title: 'AppLifecycleService',
+      path: 'lib/core/services/app_lifecycle_service.dart',
+      category: 'Services',
+      template: (_) => ServicesTemplates.appLifecycleService(),
+      description:
+          'Foreground/background as streams — `resumed` says how '
+          'long the app was away, for revalidating on return.',
     ),
     ScaffoldSpec(
       name: 'permission-service',
@@ -532,7 +564,8 @@ abstract final class ScaffoldCatalog {
       path: 'lib/core/services/language_service.dart',
       category: 'Services',
       template: (c) => c.stack.languageService(),
-      description: 'Holds the selected locale — a Notifier on Riverpod, a '
+      description:
+          'Holds the selected locale — a Notifier on Riverpod, a '
           'Cubit on bloc (flutter_localizations).',
     ),
 
@@ -550,9 +583,24 @@ abstract final class ScaffoldCatalog {
       title: 'AppTheme',
       path: 'lib/config/theme/app_theme.dart',
       category: 'Config',
-      template: (c) => ConfigTemplates.appTheme(withDark: c.hasDarkTheme),
-      description: 'The ThemeData built from AppConstants — light, plus dark '
+      template: (c) => ConfigTemplates.appTheme(
+        withDark: c.hasDarkTheme,
+        withStatusColors: c.hasStatusColors,
+      ),
+      description:
+          'The ThemeData built from AppConstants — light, plus dark '
           'when the project took it.',
+    ),
+    ScaffoldSpec(
+      name: 'status-colors',
+      title: 'AppStatusColors',
+      path: 'lib/config/theme/app_status_colors.dart',
+      category: 'Config',
+      template: (c) =>
+          ConfigTemplates.appStatusColors(withDark: c.hasDarkTheme),
+      description:
+          'Success / warning / info as a ThemeExtension, so they '
+          'follow the theme — read with context.statusColors.',
     ),
     ScaffoldSpec(
       name: 'router',
@@ -595,7 +643,7 @@ abstract final class ScaffoldCatalog {
       path: 'lib/config/di/injector.dart',
       category: 'Config',
       template: (c) => c.hasSplitDi
-          ? c.stack.injector()
+          ? c.stack.injector(withFeatureModule: c.hasFeatureModule)
           : c.stack.singleFileInjector(
               withDio: c.hasDio,
               withFirestore: c.hasFirestore,
@@ -603,16 +651,19 @@ abstract final class ScaffoldCatalog {
               withAuthFeature: c.hasAuthFeature,
               withFirebaseAuthFeature: c.hasFirebaseAuthFeature,
               withMedia: c.hasFile('lib/core/services/media_service.dart'),
-              withUrlLauncher:
-                  c.hasFile('lib/core/services/url_launcher_service.dart'),
+              withUrlLauncher: c.hasFile(
+                'lib/core/services/url_launcher_service.dart',
+              ),
               withNotifications: c.hasNotifications,
               withFirebaseNotifications: c.hasFirebaseNotifications,
-              withDebouncer:
-                  c.hasFile('lib/core/services/debouncer_service.dart'),
+              withDebouncer: c.hasFile(
+                'lib/core/services/debouncer_service.dart',
+              ),
               withBiometric: c.hasBiometric,
               withLocalization: c.hasLocalization,
-              withConnectivity:
-                  c.hasFile('lib/core/services/connectivity_service.dart'),
+              withConnectivity: c.hasFile(
+                'lib/core/services/connectivity_service.dart',
+              ),
             ),
       description:
           'The get_it service locator: getIt, and setupInjector() calling one registrar per layer.',
@@ -639,16 +690,29 @@ abstract final class ScaffoldCatalog {
       category: 'Config',
       template: (c) => c.stack.coreModule(
         withMedia: c.hasFile('lib/core/services/media_service.dart'),
-        withUrlLauncher:
-            c.hasFile('lib/core/services/url_launcher_service.dart'),
+        withUrlLauncher: c.hasFile(
+          'lib/core/services/url_launcher_service.dart',
+        ),
         withNotifications: c.hasNotifications,
         withFirebaseNotifications: c.hasFirebaseNotifications,
         withDebouncer: c.hasFile('lib/core/services/debouncer_service.dart'),
         withBiometric: c.hasBiometric,
-        withConnectivity:
-            c.hasFile('lib/core/services/connectivity_service.dart'),
+        withConnectivity: c.hasFile(
+          'lib/core/services/connectivity_service.dart',
+        ),
+        withAppLifecycle: c.hasAppLifecycle,
       ),
       description: 'Core layer of the locator: the services under lib/core.',
+    ),
+    ScaffoldSpec(
+      name: 'di-feature',
+      title: 'Feature module',
+      path: 'lib/config/di/feature_module.dart',
+      category: 'Config',
+      template: (c) => c.stack.featureModule(),
+      description:
+          'Feature layer of the locator: long-lived services a '
+          'feature owns (sockets, engines), and scopes for one flow.',
     ),
     ScaffoldSpec(
       name: 'di-data',
@@ -712,9 +776,7 @@ abstract final class ScaffoldCatalog {
       path: 'lib/features/auth/domain/models/auth_user_model.dart',
       movedFrom: 'lib/features/auth/data/models/auth_user_model.dart',
       category: 'Auth feature',
-      template: (c) => c.stack.firebaseAuthModel(
-        withFirestore: c.hasFirestore,
-      ),
+      template: (c) => c.stack.firebaseAuthModel(withFirestore: c.hasFirestore),
       description:
           'The signed-in Firebase user, plus the Firestore profile document.',
     ),
@@ -769,11 +831,14 @@ abstract final class ScaffoldCatalog {
       template: (c) => c.hasFirebaseAuthFeature
           ? c.stack.firebaseAuthHolder(
               withPushNotifications: c.hasFirebaseNotifications,
+              withConcurrency: c.hasBlocConcurrency,
             )
           : c.stack.authHolder(
               withPushNotifications: c.hasFirebaseNotifications,
+              withConcurrency: c.hasBlocConcurrency,
             ),
-      description: 'Login, register, refresh, logout, delete and session '
+      description:
+          'Login, register, refresh, logout, delete and session '
           'restore (Riverpod).',
     ),
     ScaffoldSpec(
@@ -784,11 +849,14 @@ abstract final class ScaffoldCatalog {
       template: (c) => c.hasFirebaseAuthFeature
           ? c.stack.firebaseAuthHolder(
               withPushNotifications: c.hasFirebaseNotifications,
+              withConcurrency: c.hasBlocConcurrency,
             )
           : c.stack.authHolder(
               withPushNotifications: c.hasFirebaseNotifications,
+              withConcurrency: c.hasBlocConcurrency,
             ),
-      description: 'Login, register, refresh, logout, delete and session '
+      description:
+          'Login, register, refresh, logout, delete and session '
           'restore (flutter_bloc).',
     ),
     ScaffoldSpec(
@@ -850,6 +918,38 @@ abstract final class ScaffoldCatalog {
       description:
           'The onboarding guide: how to run the project, how it is laid out, '
           'how it ships.',
+    ),
+    ScaffoldSpec(
+      name: 'agents',
+      title: 'AGENTS.md',
+      path: 'AGENTS.md',
+      category: 'Docs',
+      template: (c) => AgentsTemplates.agentsMd(
+        projectName: c.projectName,
+        stateManagement: c.stateManagement,
+        withDio: c.hasDio,
+        withFirebase: c.hasFirebase,
+        withRouter: c.hasRouter,
+        withAuthFeature: c.hasAuthFeature,
+        withDarkTheme: c.hasDarkTheme,
+        withStatusColors: c.hasStatusColors,
+        withLocalization: c.hasLocalization,
+        withEasyLocalization: c.hasEasyLocalization,
+        withFeatureModule: c.hasFeatureModule,
+      ),
+      description:
+          'The rules coding agents (Codex, Cursor, Copilot, Claude) '
+          'read before touching the project.',
+    ),
+    ScaffoldSpec(
+      name: 'claude-md',
+      title: 'CLAUDE.md',
+      path: 'CLAUDE.md',
+      category: 'Docs',
+      template: (_) => AgentsTemplates.claudeMd(),
+      description:
+          "Claude Code's import of AGENTS.md, so there is one set of "
+          'instructions.',
     ),
     ScaffoldSpec(
       name: 'ui-kit',
@@ -914,9 +1014,8 @@ abstract final class ScaffoldCatalog {
       title: 'CI workflow',
       path: '.github/workflows/unified_workflow.yml',
       category: 'Workflows',
-      template: (c) => WorkflowTemplates.unifiedWorkflow(
-        stateManagement: c.stateManagement,
-      ),
+      template: (c) =>
+          WorkflowTemplates.unifiedWorkflow(stateManagement: c.stateManagement),
       description: 'Analyze, test and build on every push.',
     ),
     ScaffoldSpec(
@@ -973,7 +1072,8 @@ abstract final class ScaffoldCatalog {
       path: 'build.yaml',
       category: 'Project',
       template: (_) => DevTemplates.buildYaml(),
-      description: 'How build_runner writes the models — one option, and '
+      description:
+          'How build_runner writes the models — one option, and '
           'it is load-bearing.',
     ),
     ScaffoldSpec(
@@ -1076,10 +1176,12 @@ abstract final class ScaffoldCatalog {
   static List<ScaffoldSpec> generated(String projectRoot) {
     final context = ScaffoldContext.detect(projectRoot);
     return all
-        .where((spec) =>
-            File(context.resolve(spec.pathIn(context))).existsSync() ||
-            (spec.movedFrom != null &&
-                File(context.resolve(spec.movedFrom!)).existsSync()))
+        .where(
+          (spec) =>
+              File(context.resolve(spec.pathIn(context))).existsSync() ||
+              (spec.movedFrom != null &&
+                  File(context.resolve(spec.movedFrom!)).existsSync()),
+        )
         .toList();
   }
 }

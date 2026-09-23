@@ -161,9 +161,9 @@ class UpdateCommand extends Command<int> {
 
   /// Every group slug, in listing order.
   static List<String> get _groups => [
-        _kWidgetGroup,
-        ...ScaffoldCatalog.groups.keys,
-      ];
+    _kWidgetGroup,
+    ...ScaffoldCatalog.groups.keys,
+  ];
 
   @override
   Future<int> run() async {
@@ -181,8 +181,9 @@ class UpdateCommand extends Command<int> {
     final requested = argResults?.rest ?? const <String>[];
 
     if (!Directory(libPath).existsSync()) {
-      _logger
-          .err('No lib/ directory at $targetPath — is this a Flutter project?');
+      _logger.err(
+        'No lib/ directory at $targetPath — is this a Flutter project?',
+      );
       return 1;
     }
 
@@ -202,8 +203,9 @@ class UpdateCommand extends Command<int> {
     if (manifest == null) {
       _logger.info('');
       _logger.warn('  No ${ProjectManifest.fileName} in this project.');
-      _logger
-          .info('  Without it moarch cannot tell an untouched generated file');
+      _logger.info(
+        '  Without it moarch cannot tell an untouched generated file',
+      );
       _logger.info('  from one you edited, so every changed file is listed as');
       _logger.info('  needing review rather than refreshed automatically.');
     } else {
@@ -214,20 +216,24 @@ class UpdateCommand extends Command<int> {
     final candidates = _collect(targetPath, libPath, manifest, only);
 
     if (candidates.isEmpty) {
-      _logger.info(only == null
-          ? '  Nothing moarch generated was found in this project.'
-          : '  None of the selected files are present in this project.');
+      _logger.info(
+        only == null
+            ? '  Nothing moarch generated was found in this project.'
+            : '  None of the selected files are present in this project.',
+      );
       _logger.info('');
       return 0;
     }
 
-    final changed =
-        candidates.where((c) => c.status != UpdateStatus.upToDate).toList();
+    final changed = candidates
+        .where((c) => c.status != UpdateStatus.upToDate)
+        .toList();
     final upToDate = candidates.length - changed.length;
 
     if (changed.isEmpty) {
       _logger.success(
-          '  ✓  All ${candidates.length} generated file(s) are up to date.');
+        '  ✓  All ${candidates.length} generated file(s) are up to date.',
+      );
       _logger.info('');
       return 0;
     }
@@ -235,8 +241,10 @@ class UpdateCommand extends Command<int> {
     final safe = changed.where((c) => c.isSafe).toList();
     final needsDecision = changed.where((c) => c.needsDecision).toList();
 
-    _logger.info('  $upToDate up to date · ${safe.length} can be refreshed · '
-        '${needsDecision.length} need review');
+    _logger.info(
+      '  $upToDate up to date · ${safe.length} can be refreshed · '
+      '${needsDecision.length} need review',
+    );
     _logger.info('');
 
     if (safe.isNotEmpty) {
@@ -246,8 +254,9 @@ class UpdateCommand extends Command<int> {
     }
 
     if (needsDecision.isNotEmpty) {
-      _logger
-          .info('  Changed by you since generation — not touched by default:');
+      _logger.info(
+        '  Changed by you since generation — not touched by default:',
+      );
       _describeAll(needsDecision, showDiff: showDiff);
       _logger.info('');
     }
@@ -258,10 +267,7 @@ class UpdateCommand extends Command<int> {
       return 0;
     }
 
-    final toWrite = <UpdateCandidate>[
-      ...safe,
-      if (force) ...needsDecision,
-    ];
+    final toWrite = <UpdateCandidate>[...safe, if (force) ...needsDecision];
 
     if (toWrite.isEmpty) {
       _logger.info('  Nothing to refresh automatically.');
@@ -274,8 +280,10 @@ class UpdateCommand extends Command<int> {
     }
 
     if (force && needsDecision.isNotEmpty) {
-      _logger.warn('  --force will discard your edits to '
-          '${needsDecision.length} file(s).');
+      _logger.warn(
+        '  --force will discard your edits to '
+        '${needsDecision.length} file(s).',
+      );
     }
 
     if (!assumeYes) {
@@ -353,16 +361,21 @@ class UpdateCommand extends Command<int> {
 
     _logger.info('');
     for (final candidate in toWrite) {
-      _logger
-          .info('  ${candidate.isMove ? '→' : '↻'} ${candidate.displayPath}');
+      _logger.info(
+        '  ${candidate.isMove ? '→' : '↻'} ${candidate.displayPath}',
+      );
     }
     if (moved.isNotEmpty) {
       _logger.info('');
-      _logger.info('  ${moved.length} file(s) moved. Update any import of the '
-          'old path:');
+      _logger.info(
+        '  ${moved.length} file(s) moved. Update any import of the '
+        'old path:',
+      );
       for (final candidate in moved) {
-        _logger.info('    ${candidate.movedFromDisplay}'
-            '  →  ${candidate.displayPath}');
+        _logger.info(
+          '    ${candidate.movedFromDisplay}'
+          '  →  ${candidate.displayPath}',
+        );
       }
     }
     _logger.info('');
@@ -429,7 +442,8 @@ class UpdateCommand extends Command<int> {
       // A file the project still holds where moarch used to write it is read
       // and judged there. Nothing is at the new path yet, so writing one
       // without removing the other would leave two copies of the same screen.
-      final relocating = legacyPath != null &&
+      final relocating =
+          legacyPath != null &&
           !File(path).existsSync() &&
           File(legacyPath).existsSync();
       final source = File(relocating ? legacyPath : path);
@@ -477,8 +491,9 @@ class UpdateCommand extends Command<int> {
         displayPath: 'lib/${spec.libFile}',
         path: spec.pathIn(libPath),
         legacyPath: spec.legacyPathIn(libPath),
-        legacyDisplayPath:
-            spec.movedFrom == null ? null : 'lib/${spec.movedFrom}',
+        legacyDisplayPath: spec.movedFrom == null
+            ? null
+            : 'lib/${spec.movedFrom}',
         generate: () => ProjectInspector.widgetSource(libPath, spec),
       );
       if (candidate != null) candidates.add(candidate);
@@ -493,8 +508,9 @@ class UpdateCommand extends Command<int> {
         category: spec.category,
         displayPath: spec.pathIn(context),
         path: context.resolve(spec.pathIn(context)),
-        legacyPath:
-            spec.movedFrom == null ? null : context.resolve(spec.movedFrom!),
+        legacyPath: spec.movedFrom == null
+            ? null
+            : context.resolve(spec.movedFrom!),
         legacyDisplayPath: spec.movedFrom,
         generate: () => spec.template(context),
       );
@@ -503,8 +519,9 @@ class UpdateCommand extends Command<int> {
 
     final order = [_kWidgetCategory, ...ScaffoldCatalog.categories];
     candidates.sort((a, b) {
-      final byCategory =
-          order.indexOf(a.category).compareTo(order.indexOf(b.category));
+      final byCategory = order
+          .indexOf(a.category)
+          .compareTo(order.indexOf(b.category));
       return byCategory != 0 ? byCategory : a.name.compareTo(b.name);
     });
     return candidates;
@@ -541,16 +558,21 @@ class UpdateCommand extends Command<int> {
       UpdateStatus.conflicted => ' (edited)',
       _ => '',
     };
-    final move =
-        candidate.isMove ? ' (moves from ${candidate.movedFromDisplay})' : '';
+    final move = candidate.isMove
+        ? ' (moves from ${candidate.movedFromDisplay})'
+        : '';
     final pad = indent ? '      ' : '    ';
-    _logger.info('$pad${candidate.name.padRight(24)} '
-        '${candidate.displayPath}  '
-        '+${stat.added} -${stat.removed}$label$move');
+    _logger.info(
+      '$pad${candidate.name.padRight(24)} '
+      '${candidate.displayPath}  '
+      '+${stat.added} -${stat.removed}$label$move',
+    );
 
     if (!showDiff) return;
-    for (final line
-        in TextDiff.unified(candidate.current, candidate.generated)) {
+    for (final line in TextDiff.unified(
+      candidate.current,
+      candidate.generated,
+    )) {
       switch (line.kind) {
         case '+':
           _logger.info('$pad  ${green.wrap('+${line.text}')}');
@@ -574,12 +596,14 @@ class UpdateCommand extends Command<int> {
     _logger.info('');
     _logger.info('  $_kWidgetCategory');
     _logger.info(
-        '    ${WidgetCatalog.names.length} widgets — see `moarch create widget --list`');
+      '    ${WidgetCatalog.names.length} widgets — see `moarch create widget --list`',
+    );
     _logger.info('');
 
     for (final category in ScaffoldCatalog.categories) {
-      final items =
-          ScaffoldCatalog.all.where((spec) => spec.category == category);
+      final items = ScaffoldCatalog.all.where(
+        (spec) => spec.category == category,
+      );
       if (items.isEmpty) continue;
       _logger.info('  $category');
       for (final spec in items) {

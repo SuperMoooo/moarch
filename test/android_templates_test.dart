@@ -4,8 +4,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('proguardRules', () {
-    test(
-        'keeps the classes R8 would otherwise strip out from under the '
+    test('keeps the classes R8 would otherwise strip out from under the '
         'engine and the plugins', () {
       final rules = AndroidTemplates.proguardRules();
 
@@ -37,7 +36,9 @@ void main() {
 
     expect(doc, contains(AndroidTemplates.proguardRules()));
     expect(
-        doc, contains('### ProGuard Rules — `android/app/proguard-rules.pro`'));
+      doc,
+      contains('### ProGuard Rules — `android/app/proguard-rules.pro`'),
+    );
     // The fenced block is still closed after the substitution.
     expect('```proguard'.allMatches(doc).length, 1);
     expect('```'.allMatches(doc).length.isEven, isTrue);

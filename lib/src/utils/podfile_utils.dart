@@ -48,8 +48,11 @@ class PodfileUtils {
   /// produce, with the permission_handler block pre-wired the same way
   /// [ensurePermissionHandlerDefinitions] would patch it.
   static String defaultPodfile({required bool camera, required bool photos}) {
-    final definitions =
-        _definitionLines('        ', camera: camera, photos: photos).join('\n');
+    final definitions = _definitionLines(
+      '        ',
+      camera: camera,
+      photos: photos,
+    ).join('\n');
 
     return '''
 # Uncomment this line to define a global platform for your project
@@ -141,8 +144,11 @@ end
         false,
       ),
       entry('PermissionGroup.notification', 'NOTIFICATIONS', false),
-      entry('PermissionGroup.appTrackingTransparency',
-          'APP_TRACKING_TRANSPARENCY', false),
+      entry(
+        'PermissionGroup.appTrackingTransparency',
+        'APP_TRACKING_TRANSPARENCY',
+        false,
+      ),
       entry('PermissionGroup.mediaLibrary', 'MEDIA_LIBRARY', false),
       entry('PermissionGroup.sensors', 'SENSORS', false),
     ].join('\n').split('\n');

@@ -3,6 +3,12 @@
 class AsyncTemplates {
   /// Returns the generated appAsyncView template.
   static String appAsyncView() => r'''
+// The three constructors take public `value` / `stream` / `future` and store
+// them in private fields. The initializing formal the lint suggests
+// (`required this._value`) is a private named parameter, which needs a newer
+// Dart than every SDK this project may run on accepts.
+// ignore_for_file: prefer_initializing_formals
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';

@@ -45,7 +45,9 @@ void main() {
     );
     await place('lib/config/theme/app_theme.dart', ConfigTemplates.appTheme());
     await place(
-        'lib/main.dart', riverpod.AppTemplates.mainDart(withRouter: false));
+      'lib/main.dart',
+      riverpod.AppTemplates.mainDart(withRouter: false),
+    );
     await place(
       'lib/shared/widgets/overlays/app_toast.dart',
       SharedTemplates.appToast(),
@@ -72,14 +74,20 @@ void main() {
 
     expect(await run(['--yes']), 0);
 
-    expect(read('lib/core/constants/app_constants.dart'),
-        contains('static const Color primaryDark'));
-    expect(read('lib/config/theme/app_theme.dart'),
-        contains('static ThemeData get dark => ThemeData('));
+    expect(
+      read('lib/core/constants/app_constants.dart'),
+      contains('static const Color primaryDark'),
+    );
+    expect(
+      read('lib/config/theme/app_theme.dart'),
+      contains('static ThemeData get dark => ThemeData('),
+    );
     expect(read('lib/main.dart'), contains('darkTheme: AppTheme.dark,'));
     expect(read('lib/main.dart'), contains('themeMode: ThemeMode.system,'));
-    expect(read('lib/shared/widgets/overlays/app_toast.dart'),
-        contains('AppConstants.successDark'));
+    expect(
+      read('lib/shared/widgets/overlays/app_toast.dart'),
+      contains('AppConstants.successDark'),
+    );
   });
 
   test('--no-dark strips it back to one brand theme', () async {
@@ -99,46 +107,62 @@ void main() {
     expect(await run(['--no-dark', '--yes']), 0);
 
     expect(
-        read('lib/core/constants/app_constants.dart'), isNot(contains('Dark')));
+      read('lib/core/constants/app_constants.dart'),
+      isNot(contains('Dark')),
+    );
     expect(
-        read('lib/config/theme/app_theme.dart'), isNot(contains('get dark')));
+      read('lib/config/theme/app_theme.dart'),
+      isNot(contains('get dark')),
+    );
     expect(read('lib/main.dart'), isNot(contains('AppTheme.dark')));
   });
 
-  test('does nothing when the project already has what was asked for',
-      () async {
-    await placeLightProject();
-    final before = read('lib/config/theme/app_theme.dart');
+  test(
+    'does nothing when the project already has what was asked for',
+    () async {
+      await placeLightProject();
+      final before = read('lib/config/theme/app_theme.dart');
 
-    expect(await run(['--no-dark', '--yes']), 0);
-    expect(read('lib/config/theme/app_theme.dart'), before);
-  });
+      expect(await run(['--no-dark', '--yes']), 0);
+      expect(read('lib/config/theme/app_theme.dart'), before);
+    },
+  );
 
   test('leaves the project alone when one of the files was edited', () async {
     await placeLightProject();
     // The theme file is the user's now — rewriting only the others would leave
     // AppTheme reading constants that no longer exist.
-    await File(at('lib/config/theme/app_theme.dart'))
-        .writeAsString('// my own theme\n${ConfigTemplates.appTheme()}');
+    await File(
+      at('lib/config/theme/app_theme.dart'),
+    ).writeAsString('// my own theme\n${ConfigTemplates.appTheme()}');
 
     expect(await run(['--yes']), 1);
     expect(
-        read('lib/core/constants/app_constants.dart'), isNot(contains('Dark')));
+      read('lib/core/constants/app_constants.dart'),
+      isNot(contains('Dark')),
+    );
     expect(
-        read('lib/config/theme/app_theme.dart'), startsWith('// my own theme'));
+      read('lib/config/theme/app_theme.dart'),
+      startsWith('// my own theme'),
+    );
     expect(read('lib/main.dart'), isNot(contains('AppTheme.dark')));
   });
 
   test('--force overwrites the edited file too', () async {
     await placeLightProject();
-    await File(at('lib/config/theme/app_theme.dart'))
-        .writeAsString('// my own theme\n${ConfigTemplates.appTheme()}');
+    await File(
+      at('lib/config/theme/app_theme.dart'),
+    ).writeAsString('// my own theme\n${ConfigTemplates.appTheme()}');
 
     expect(await run(['--force', '--yes']), 0);
-    expect(read('lib/config/theme/app_theme.dart'),
-        contains('static ThemeData get dark => ThemeData('));
     expect(
-        read('lib/core/constants/app_constants.dart'), contains('primaryDark'));
+      read('lib/config/theme/app_theme.dart'),
+      contains('static ThemeData get dark => ThemeData('),
+    );
+    expect(
+      read('lib/core/constants/app_constants.dart'),
+      contains('primaryDark'),
+    );
   });
 
   test('--dry-run writes nothing', () async {
@@ -146,7 +170,9 @@ void main() {
 
     expect(await run(['--dry-run']), 0);
     expect(
-        read('lib/config/theme/app_theme.dart'), isNot(contains('get dark')));
+      read('lib/config/theme/app_theme.dart'),
+      isNot(contains('get dark')),
+    );
   });
 
   test('records what it wrote, so a second run is a no-op', () async {
@@ -174,7 +200,9 @@ void main() {
     expect(await run(['--yes']), 0);
 
     expect(
-        read('lib/${_preview.libFile}'), contains('darkTheme: AppTheme.dark'));
+      read('lib/${_preview.libFile}'),
+      contains('darkTheme: AppTheme.dark'),
+    );
   });
 
   test('the preview screen follows the scope from before it moved', () async {
@@ -183,7 +211,9 @@ void main() {
     // relocating it is `moarch update`'s job, not this command's.
     await placeLightProject();
     await place(
-        'lib/${_preview.movedFrom}', SharedTemplates.designSystemView());
+      'lib/${_preview.movedFrom}',
+      SharedTemplates.designSystemView(),
+    );
 
     expect(await run(['--yes']), 0);
 

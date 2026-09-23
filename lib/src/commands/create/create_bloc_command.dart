@@ -43,8 +43,10 @@ class CreateBlocCommand extends Command<int> {
   Future<int> run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.length < 2) {
-      _logger.err('Provide a feature and a name.\n'
-          '  Usage: moarch create bloc <featureName> <blocName>');
+      _logger.err(
+        'Provide a feature and a name.\n'
+        '  Usage: moarch create bloc <featureName> <blocName>',
+      );
       return 1;
     }
 
@@ -55,8 +57,10 @@ class CreateBlocCommand extends Command<int> {
     // than generating a file nothing in the project can wire up.
     if (!stateManagement.isBloc) {
       _logger.err('This project uses Riverpod, not flutter_bloc.');
-      _logger.info('  `moarch create feature <name>` generates a state + '
-          'notifier pair,');
+      _logger.info(
+        '  `moarch create feature <name>` generates a state + '
+        'notifier pair,',
+      );
       _logger.info('  and `moarch init` is where the stack is chosen.');
       return 1;
     }
@@ -81,20 +85,24 @@ class CreateBlocCommand extends Command<int> {
       templates.holderFile(blocName),
     );
     if (File(blocFile).existsSync()) {
-      _logger.err('${className}Bloc already exists at '
-          '${p.relative(blocFile, from: p.dirname(p.absolute(libPath)))}.');
+      _logger.err(
+        '${className}Bloc already exists at '
+        '${p.relative(blocFile, from: p.dirname(p.absolute(libPath)))}.',
+      );
       return 1;
     }
 
     // The bloc takes the feature's repository, which is what makes this an
     // addition to a feature rather than a feature of its own.
     final featureClass = StringUtils.toPascalCase(featureName);
-    final repositoryFile = File(p.join(
-      featurePath,
-      'domain',
-      'repositories',
-      '${featureName}_repository.dart',
-    ));
+    final repositoryFile = File(
+      p.join(
+        featurePath,
+        'domain',
+        'repositories',
+        '${featureName}_repository.dart',
+      ),
+    );
     final hasRepository = repositoryFile.existsSync();
 
     _logger.info('');
@@ -110,16 +118,25 @@ class CreateBlocCommand extends Command<int> {
     try {
       // The bloc mixes in ActionBlocMixin from here — write it if the project
       // lacks it (writeFile never overwrites, so an older copy is reported).
-      final actionBase =
-          p.join(libPath, 'core', 'utils', templates.actionBaseFile);
+      final actionBase = p.join(
+        libPath,
+        'core',
+        'utils',
+        templates.actionBaseFile,
+      );
       await FileUtils.writeFile(actionBase, templates.actionBase());
       final actionBaseFile = File(actionBase);
-      staleActionBase = actionBaseFile.existsSync() &&
+      staleActionBase =
+          actionBaseFile.existsSync() &&
           templates.isStaleActionBase(actionBaseFile.readAsStringSync());
 
       await FileUtils.writeFile(
-        p.join(featurePath, 'presentation', templates.stateDir,
-            '${blocName}_state.dart'),
+        p.join(
+          featurePath,
+          'presentation',
+          templates.stateDir,
+          '${blocName}_state.dart',
+        ),
         templates.featureState(blocName, className),
       );
       await FileUtils.writeFile(
@@ -179,19 +196,26 @@ class CreateBlocCommand extends Command<int> {
       if (!hasRepository) {
         // Nothing to take, so it was registered taking nothing. Say so — the
         // alternative is finding out from a constructor that does not match.
-        _logger.info('  $featureName has no repository, so ${className}Bloc '
-            'takes nothing yet.');
+        _logger.info(
+          '  $featureName has no repository, so ${className}Bloc '
+          'takes nothing yet.',
+        );
       }
     } else {
       _logger.warn(
-          '  Nothing was registered in ${patch.describeMissing} — register');
-      _logger.info('  ${className}Bloc there yourself, or put back the '
-          '`${InjectorUtils.anchor}`');
+        '  Nothing was registered in ${patch.describeMissing} — register',
+      );
+      _logger.info(
+        '  ${className}Bloc there yourself, or put back the '
+        '`${InjectorUtils.anchor}`',
+      );
       _logger.info('  comment.');
     }
     if (staleActionBase) {
-      _logger.warn('  core/utils/${templates.actionBaseFile} predates '
-          'ActionBlocMixin, which ${className}Bloc uses —');
+      _logger.warn(
+        '  core/utils/${templates.actionBaseFile} predates '
+        'ActionBlocMixin, which ${className}Bloc uses —',
+      );
       _logger.info('  run `moarch update app-status` before building.');
     }
     _logger.info('');

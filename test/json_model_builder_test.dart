@@ -6,10 +6,12 @@ import 'package:test/test.dart';
 void main() {
   group('fieldsFrom', () {
     test('infers every JSON scalar to its Dart type', () {
-      final fields = JsonModelBuilder.fieldsFrom(jsonDecode('''
+      final fields = JsonModelBuilder.fieldsFrom(
+        jsonDecode('''
         {"id": 7, "name": "Ana", "total": 12.5, "paid": true,
          "created_at": "2026-08-01T10:30:00Z", "coupon": null}
-      '''))!;
+      '''),
+      )!;
 
       final types = {for (final f in fields) f.name: f.type};
       expect(types, {
@@ -23,9 +25,11 @@ void main() {
     });
 
     test('a date needs the dashed ISO shape — digit runs stay strings', () {
-      final fields = JsonModelBuilder.fieldsFrom(jsonDecode('''
+      final fields = JsonModelBuilder.fieldsFrom(
+        jsonDecode('''
         {"phone": "20260801", "when": "2026-08-01"}
-      '''))!;
+      '''),
+      )!;
 
       final types = {for (final f in fields) f.name: f.type};
       expect(types['phone'], 'String');
@@ -33,10 +37,12 @@ void main() {
     });
 
     test('homogeneous lists keep their element type, mixed ones do not', () {
-      final fields = JsonModelBuilder.fieldsFrom(jsonDecode('''
+      final fields = JsonModelBuilder.fieldsFrom(
+        jsonDecode('''
         {"tags": ["a", "b"], "counts": [1, 2], "mixed": [1, "a"],
          "empty": [], "rows": [{"sku": "A1"}]}
-      '''))!;
+      '''),
+      )!;
 
       final types = {for (final f in fields) f.name: f.type};
       expect(types['tags'], 'List<String>');
@@ -47,8 +53,9 @@ void main() {
     });
 
     test('samples a top-level list at its first element', () {
-      final fields =
-          JsonModelBuilder.fieldsFrom(jsonDecode('[{"id": 1}, {"id": 2}]'));
+      final fields = JsonModelBuilder.fieldsFrom(
+        jsonDecode('[{"id": 1}, {"id": 2}]'),
+      );
 
       expect(fields, isNotNull);
       expect(fields!.single.name, 'id');
@@ -57,8 +64,7 @@ void main() {
     test('keeps the original key next to the camelCase name', () {
       final field = JsonModelBuilder.fieldsFrom(
         jsonDecode('{"customer_name": "Ana"}'),
-      )!
-          .single;
+      )!.single;
 
       expect(field.jsonKey, 'customer_name');
       expect(field.name, 'customerName');
@@ -72,10 +78,12 @@ void main() {
   });
 
   group('generated sources', () {
-    final fields = JsonModelBuilder.fieldsFrom(jsonDecode('''
+    final fields = JsonModelBuilder.fieldsFrom(
+      jsonDecode('''
       {"id": 7, "customer_name": "Ana", "total": 12.5,
        "created_at": "2026-08-01T10:30:00Z", "tags": ["vip"]}
-    '''))!;
+    '''),
+    )!;
 
     test('no hand-rolled equality survives, keyed on id or otherwise', () {
       // Freezed derives `==` from the whole field list. The old `id`-keyed
@@ -110,13 +118,15 @@ void main() {
       // json_serializable owns both directions, so the key is an annotation
       // rather than a parse expression and a write expression that can drift.
       expect(
-          source,
-          contains(
-              "@JsonKey(name: 'customer_name') required String customerName,"));
+        source,
+        contains(
+          "@JsonKey(name: 'customer_name') required String customerName,",
+        ),
+      );
       expect(
-          source,
-          contains(
-              "@JsonKey(name: 'created_at') required DateTime createdAt,"));
+        source,
+        contains("@JsonKey(name: 'created_at') required DateTime createdAt,"),
+      );
       // A key that already matches earns no annotation.
       expect(source, contains('required int id,'));
       expect(source, isNot(contains("@JsonKey(name: 'id')")));
@@ -125,9 +135,11 @@ void main() {
     group('a sample from a Firestore document', () {
       // `id` is absent on purpose: a document's id is its name, so an exported
       // payload does not carry one.
-      final sample = JsonModelBuilder.fieldsFrom(jsonDecode('''
+      final sample = JsonModelBuilder.fieldsFrom(
+        jsonDecode('''
         {"titulo": "Obra", "criado_em": "2026-08-01T10:30:00Z"}
-      '''))!;
+      '''),
+      )!;
 
       test('gets the String id the sample could not carry', () {
         final withId = JsonModelBuilder.withDocumentId(sample);
@@ -141,8 +153,9 @@ void main() {
       test('retypes an id the sample got wrong', () {
         // `doc.id` is always a String, so an `id` inferred as int would make
         // fromDoc throw on the first read.
-        final numeric =
-            JsonModelBuilder.fieldsFrom(jsonDecode('{"id": 7, "a": "x"}'))!;
+        final numeric = JsonModelBuilder.fieldsFrom(
+          jsonDecode('{"id": 7, "a": "x"}'),
+        )!;
         final withId = JsonModelBuilder.withDocumentId(numeric);
 
         expect(withId.first.name, 'id');
@@ -151,8 +164,9 @@ void main() {
       });
 
       test('leaves a sample that already has a String id alone', () {
-        final ok =
-            JsonModelBuilder.fieldsFrom(jsonDecode('{"id": "d1", "a": "x"}'))!;
+        final ok = JsonModelBuilder.fieldsFrom(
+          jsonDecode('{"id": "d1", "a": "x"}'),
+        )!;
         expect(JsonModelBuilder.withDocumentId(ok), same(ok));
       });
 
@@ -166,29 +180,33 @@ void main() {
           isDocumentRoot: true,
         );
 
-        expect(source,
-            contains('@JsonKey(includeToJson: false) required String id,'));
+        expect(
+          source,
+          contains('@JsonKey(includeToJson: false) required String id,'),
+        );
         expect(source, contains("{...?doc.data(), 'id': doc.id}"));
         expect(source, contains('@TimestampConverter()'));
         // The blank model needs it too, or `.empty()` would not compile.
         expect(source, contains("id: '',"));
       });
 
-      test('without --doc it is a nested value that still stores Timestamps',
-          () {
-        // A map inside a document is still inside a document, so its dates
-        // belong on the wire the same way.
-        final source = JsonModelBuilder.modelSource(
-          'linha',
-          'Linha',
-          sample,
-          useFirestore: true,
-        );
+      test(
+        'without --doc it is a nested value that still stores Timestamps',
+        () {
+          // A map inside a document is still inside a document, so its dates
+          // belong on the wire the same way.
+          final source = JsonModelBuilder.modelSource(
+            'linha',
+            'Linha',
+            sample,
+            useFirestore: true,
+          );
 
-        expect(source, isNot(contains('fromDoc')));
-        expect(source, isNot(contains('includeToJson')));
-        expect(source, contains('@TimestampConverter()'));
-      });
+          expect(source, isNot(contains('fromDoc')));
+          expect(source, isNot(contains('includeToJson')));
+          expect(source, contains('@TimestampConverter()'));
+        },
+      );
     });
 
     test('a REST model leaves its dates to json_serializable', () {
@@ -213,15 +231,19 @@ void main() {
         isDocumentRoot: true,
       );
 
-      expect(source,
-          contains('@TimestampConverter() required DateTime placedAt,'));
       expect(
-          source,
-          contains(
-              "import '../../../../core/network/timestamp_converter.dart';"));
+        source,
+        contains('@TimestampConverter() required DateTime placedAt,'),
+      );
+      expect(
+        source,
+        contains("import '../../../../core/network/timestamp_converter.dart';"),
+      );
       // The id is the document's name, so it is read back off the snapshot.
-      expect(source,
-          contains('@JsonKey(includeToJson: false) required String id,'));
+      expect(
+        source,
+        contains('@JsonKey(includeToJson: false) required String id,'),
+      );
       expect(source, contains("{...?doc.data(), 'id': doc.id}"));
     });
 
@@ -230,40 +252,40 @@ void main() {
       // object nested in a document can carry one and still be a plain map.
       // Guessing wrong writes a model whose `fromJson` demands a key its own
       // `toJson` never wrote.
-      final source = JsonModelBuilder.modelSource(
-        'utilizador',
-        'Utilizador',
-        const [
-          JsonField(jsonKey: 'id', name: 'id', type: 'String'),
-          JsonField(jsonKey: 'inicio', name: 'inicio', type: 'DateTime'),
-        ],
-        useFirestore: true,
-      );
+      final source =
+          JsonModelBuilder.modelSource('utilizador', 'Utilizador', const [
+            JsonField(jsonKey: 'id', name: 'id', type: 'String'),
+            JsonField(jsonKey: 'inicio', name: 'inicio', type: 'DateTime'),
+          ], useFirestore: true);
 
       expect(source, isNot(contains('fromDoc')));
       expect(source, isNot(contains('includeToJson')));
       // Its dates still belong on the wire as Timestamps — a nested map lives
       // inside a Firestore document just the same.
       expect(
-          source, contains('@TimestampConverter() required DateTime inicio,'));
+        source,
+        contains('@TimestampConverter() required DateTime inicio,'),
+      );
     });
 
-    test('the model is freezed + json_serializable, with nothing to map to',
-        () {
-      final source = JsonModelBuilder.modelSource('order', 'Order', fields);
+    test(
+      'the model is freezed + json_serializable, with nothing to map to',
+      () {
+        final source = JsonModelBuilder.modelSource('order', 'Order', fields);
 
-      expect(source, contains("part 'order_model.freezed.dart';"));
-      expect(source, contains("part 'order_model.g.dart';"));
-      // Lets the class declare a getter or method of its own.
-      expect(source, contains('const OrderModel._();'));
-      expect(source, contains('_\$OrderModelFromJson(json)'));
-      expect(source, contains('required DateTime createdAt,'));
-      expect(source, contains('required List<String> tags,'));
-      expect(source, isNot(contains('Entity')));
-      // json_serializable writes both directions; nothing is hand-parsed.
-      expect(source, isNot(contains('as num).toDouble()')));
-      expect(source, isNot(contains('.cast<String>()')));
-      expect(source, isNot(contains('toIso8601String()')));
-    });
+        expect(source, contains("part 'order_model.freezed.dart';"));
+        expect(source, contains("part 'order_model.g.dart';"));
+        // Lets the class declare a getter or method of its own.
+        expect(source, contains('const OrderModel._();'));
+        expect(source, contains('_\$OrderModelFromJson(json)'));
+        expect(source, contains('required DateTime createdAt,'));
+        expect(source, contains('required List<String> tags,'));
+        expect(source, isNot(contains('Entity')));
+        // json_serializable writes both directions; nothing is hand-parsed.
+        expect(source, isNot(contains('as num).toDouble()')));
+        expect(source, isNot(contains('.cast<String>()')));
+        expect(source, isNot(contains('toIso8601String()')));
+      },
+    );
   });
 }

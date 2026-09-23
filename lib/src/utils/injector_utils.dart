@@ -71,8 +71,10 @@ class InjectorPatchResult {
   const InjectorPatchResult({required this.written, required this.targets});
 
   /// Nothing was expected of the locator, so nothing was asked of it.
-  static const InjectorPatchResult none =
-      InjectorPatchResult(written: [], targets: []);
+  static const InjectorPatchResult none = InjectorPatchResult(
+    written: [],
+    targets: [],
+  );
 
   /// Project-relative paths that were patched.
   final List<String> written;
@@ -206,10 +208,7 @@ abstract final class InjectorUtils {
       if (hasRepository)
         '''  getIt.registerLazySingleton<${className}Repository>(
     () => ${className}RepositoryImpl(
-${[
-          if (hasRemote) '      getIt<${className}RemoteDataSource>(),',
-          if (hasLocal) '      getIt<${className}LocalDataSource>(),',
-        ].join('\n')}
+${[if (hasRemote) '      getIt<${className}RemoteDataSource>(),', if (hasLocal) '      getIt<${className}LocalDataSource>(),'].join('\n')}
     ),
   );''',
     ];
@@ -257,31 +256,29 @@ ${blocRepo == null ? '  getIt.registerFactory<${className}Bloc>(${className}Bloc
     required bool hasLocal,
     required bool hasRepository,
     required bool useFirestore,
-  }) =>
-      <String>[
-        if (hasRemote && useFirestore)
-          "import 'package:cloud_firestore/cloud_firestore.dart';",
-        if (hasRemote && !useFirestore) "import 'package:dio/dio.dart';",
-        if (hasRemote)
-          "import '../../features/$featureName/data/datasources/${featureName}_remote_datasource.dart';",
-        if (hasLocal)
-          "import '../../features/$featureName/data/datasources/${featureName}_local_datasource.dart';",
-        if (hasRepository) ...[
-          "import '../../features/$featureName/data/repositories/${featureName}_repository_impl.dart';",
-          "import '../../features/$featureName/domain/repositories/${featureName}_repository.dart';",
-        ],
-      ];
+  }) => <String>[
+    if (hasRemote && useFirestore)
+      "import 'package:cloud_firestore/cloud_firestore.dart';",
+    if (hasRemote && !useFirestore) "import 'package:dio/dio.dart';",
+    if (hasRemote)
+      "import '../../features/$featureName/data/datasources/${featureName}_remote_datasource.dart';",
+    if (hasLocal)
+      "import '../../features/$featureName/data/datasources/${featureName}_local_datasource.dart';",
+    if (hasRepository) ...[
+      "import '../../features/$featureName/data/repositories/${featureName}_repository_impl.dart';",
+      "import '../../features/$featureName/domain/repositories/${featureName}_repository.dart';",
+    ],
+  ];
 
   static List<String> _holderImportsFor({
     required String featureName,
     required bool withRepository,
     required String blocFileName,
-  }) =>
-      <String>[
-        if (withRepository)
-          "import '../../features/$featureName/domain/repositories/${featureName}_repository.dart';",
-        "import '../../features/$featureName/presentation/blocs/${blocFileName}_bloc.dart';",
-      ];
+  }) => <String>[
+    if (withRepository)
+      "import '../../features/$featureName/domain/repositories/${featureName}_repository.dart';",
+    "import '../../features/$featureName/presentation/blocs/${blocFileName}_bloc.dart';",
+  ];
 
   /// Inserts [registrations] above the anchor in [source], with [imports]
   /// added after the last existing import.

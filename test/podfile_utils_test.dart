@@ -80,8 +80,11 @@ end
 ''';
 
       expect(
-        PodfileUtils.ensurePermissionHandlerDefinitions(custom,
-            camera: true, photos: true),
+        PodfileUtils.ensurePermissionHandlerDefinitions(
+          custom,
+          camera: true,
+          photos: true,
+        ),
         equals(custom),
       );
     });
@@ -90,8 +93,11 @@ end
       const noAnchor = "target 'Runner' do\nend\n";
 
       expect(
-        PodfileUtils.ensurePermissionHandlerDefinitions(noAnchor,
-            camera: true, photos: true),
+        PodfileUtils.ensurePermissionHandlerDefinitions(
+          noAnchor,
+          camera: true,
+          photos: true,
+        ),
         equals(noAnchor),
       );
     });

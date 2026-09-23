@@ -10,8 +10,11 @@ class FeatureTemplates {
   /// built on when the data is in Firestore, with `fetchAll` left for the
   /// one-off cases (an export, a background job) that do not want a
   /// subscription.
-  static String repositoryInterface(String name, String cls,
-          {bool useFirestore = false}) =>
+  static String repositoryInterface(
+    String name,
+    String cls, {
+    bool useFirestore = false,
+  }) =>
       '''
 import '../models/${name}_model.dart';
 
@@ -40,7 +43,8 @@ ${useFirestore ? '''
 
   /// The Firestore document's shape: the id is the document's own name, and
   /// `fromDoc` puts it back into the payload rather than reading it out of it.
-  static String _firestoreModel(String name, String cls) => '''
+  static String _firestoreModel(String name, String cls) =>
+      '''
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
@@ -83,7 +87,8 @@ abstract class ${cls}Model with _\$${cls}Model {
 ''';
 
   /// The REST payload's shape.
-  static String _restModel(String name, String cls) => '''
+  static String _restModel(String name, String cls) =>
+      '''
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part '${name}_model.freezed.dart';
@@ -138,8 +143,12 @@ abstract class ${cls}Model with _\$${cls}Model {
   ///
   /// [useFirestore] swaps the Dio client for `FirebaseFirestore` — the same
   /// layer, the same provider name, a different backend behind it.
-  static String remoteDatasource(String name, String cls, String varName,
-      {bool useFirestore = false}) {
+  static String remoteDatasource(
+    String name,
+    String cls,
+    String varName, {
+    bool useFirestore = false,
+  }) {
     if (useFirestore) return _firestoreDatasource(name, cls, varName);
 
     return '''
@@ -245,7 +254,8 @@ class ${cls}RemoteDataSource {
   // ── Data — Local/cache datasource ───────────────────────────────────────────
 
   /// Returns the generated localDatasource template.
-  static String localDatasource(String name, String cls, String varName) => '''
+  static String localDatasource(String name, String cls, String varName) =>
+      '''
 class ${cls}LocalDataSource {
   // TODO: inject SharedPreferences / Hive / Isar / etc. and register the
   // dependency in config/di/injector.dart.
@@ -406,8 +416,13 @@ ${useFirestore ? '''
   /// [hasRepository] is false when the feature was scaffolded without a data
   /// layer: `build()` is then a TODO returning an empty state, rather than
   /// resolving a repository that was never generated.
-  static String notifier(String name, String cls, String varName,
-      {bool useFirestore = false, bool hasRepository = true}) {
+  static String notifier(
+    String name,
+    String cls,
+    String varName, {
+    bool useFirestore = false,
+    bool hasRepository = true,
+  }) {
     final dependency =
         '  ${cls}Repository get _repo => getIt<${cls}Repository>();';
 
@@ -545,8 +560,13 @@ ${useFirestore ? '''  @override
   /// [useFirestore] renders the `items` the notifier's subscription keeps
   /// current, so the screen redraws on every change to the collection without
   /// a refresh gesture or an `invalidate` anywhere.
-  static String view(String name, String cls, String varName,
-      {required bool hasNotifier, bool useFirestore = false}) {
+  static String view(
+    String name,
+    String cls,
+    String varName, {
+    required bool hasNotifier,
+    bool useFirestore = false,
+  }) {
     if (!hasNotifier) {
       return '''
 import 'package:flutter/material.dart';

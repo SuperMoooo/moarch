@@ -65,7 +65,8 @@ enum NotificationPriority { defaultPriority, high }
 
   /// The service class. Only its constructor and the init-failure hint vary
   /// with the stack, so the rest is written once.
-  static String _notificationsBody(String constructor, String hint) => '''
+  static String _notificationsBody(String constructor, String hint) =>
+      '''
 class NotificationService {
 $constructor
   bool _initialized = false;
@@ -423,22 +424,52 @@ $_notificationsMethods
 ''';
 
   /// Returns a Firebase Cloud Messaging (push notifications) service scaffold.
-  static String firebaseNotificationsService() {
+  ///
+  /// [withLocalNotifications] — the project also has `NotificationService` —
+  /// lets it show the messages the OS will not: a data-only push while the
+  /// app is in the background, and anything that arrives while it is in the
+  /// foreground on Android. Read off disk, so a project without the local
+  /// service refreshes into a file that does not import it.
+  static String firebaseNotificationsService({
+    bool withLocalNotifications = false,
+  }) {
     const constructor = '''  FirebaseNotificationsService();
 
   // Reach other services from here with `getIt<Thing>()`, e.g. to navigate
   // on tap.
 ''';
 
-    return '''
+    final imports = withLocalNotifications
+        ? '''
+import 'dart:convert';
+
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
+
+import '../../config/di/injector.dart';
+import '../../core/utils/app_logger.dart';
+import 'notifications_service.dart';
+'''
+        : '''
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../core/utils/app_logger.dart';
-$_firebaseNotificationsPreamble'''
+''';
+
+    final body = withLocalNotifications
+        ? _firebaseNotificationsBody.replaceFirst(
+            _foregroundLogOnly,
+            _foregroundShowsLocally,
+          )
+        : _firebaseNotificationsBody;
+
+    return '$imports$_firebaseNotificationsPreamble'
+        '${withLocalNotifications ? _backgroundShowsLocally : _backgroundLogOnly}'
         'class FirebaseNotificationsService {\n'
-        '$constructor$_firebaseNotificationsBody';
+        '$constructor$body';
   }
 
   static const String _firebaseNotificationsPreamble = r'''
@@ -451,15 +482,94 @@ $_firebaseNotificationsPreamble'''
 
 final _log = appLogger.scoped('FCM');
 
+''';
+
+  /// The background handler without a local notifications plugin to show
+  /// anything through.
+  static const String _backgroundLogOnly = r'''
 // Must stay top-level.
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
-  // Runs in its own isolate — call Firebase.initializeApp() before using any
-  // other Firebase service here.
+  // Runs in its own isolate: nothing main() set up exists here — no Firebase
+  // app, no locator. A message with a `notification` block is displayed by
+  // the OS already; a data-only one shows nothing unless you show it, which
+  // needs a local notifications plugin initialized in this isolate.
+  if (Firebase.apps.isEmpty) await Firebase.initializeApp();
   _log.i('Background message | id: ${message.messageId}');
 }
 
 ''';
+
+  /// The background handler that shows data-only pushes, with the setup the
+  /// isolate needs for it.
+  static const String _backgroundShowsLocally = r'''
+// Must stay top-level.
+@pragma('vm:entry-point')
+Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
+  await _setUpBackgroundIsolate();
+  _log.i('Background message | id: ${message.messageId}');
+
+  // A message with a `notification` block is displayed by the OS already.
+  // A data-only one is not — without this it arrives, and nothing shows.
+  if (message.notification == null) await _showLocally(message);
+}
+
+/// A background message runs in an isolate of its own, with its own memory:
+/// nothing `main()` set up exists here — no Firebase app, none of the
+/// locator's registrations, no initialized notifications plugin (every `show`
+/// on an uninitialized one is silently dropped).
+///
+/// So this sets up exactly what a push needs and no more — the isolate starts
+/// cold for the messages the OS wakes it for. Idempotent: the isolate is
+/// reused across messages while it lives.
+Future<void> _setUpBackgroundIsolate() async {
+  if (Firebase.apps.isEmpty) await Firebase.initializeApp();
+  if (!getIt.isRegistered<NotificationService>()) {
+    getIt.registerLazySingleton<NotificationService>(NotificationService.new);
+  }
+  await getIt<NotificationService>().init();
+}
+
+/// Shows [message] through the local notifications plugin. The title and
+/// body come from its `notification` block, or from `title` / `body` in its
+/// data; a message with neither is a silent push and shows nothing. The data
+/// goes along as the payload, for the tap handler.
+Future<void> _showLocally(RemoteMessage message) async {
+  final title = message.notification?.title ?? message.data['title'] as String?;
+  final body = message.notification?.body ?? message.data['body'] as String?;
+  if (title == null && body == null) return;
+
+  await getIt<NotificationService>().show(
+    id: message.messageId.hashCode,
+    title: title ?? '',
+    body: body ?? '',
+    payload: jsonEncode(message.data),
+  );
+}
+
+''';
+
+  static const String _foregroundLogOnly = r'''
+  void _onForegroundMessage(RemoteMessage message) {
+    _log.i(
+      'Foreground message | title: ${message.notification?.title}',
+    );
+    // Android shows no system notification for foreground messages — show one
+    // yourself with the local NotificationService if you generated it.
+  }''';
+
+  static const String _foregroundShowsLocally = r'''
+  void _onForegroundMessage(RemoteMessage message) {
+    _log.i(
+      'Foreground message | title: ${message.notification?.title}',
+    );
+    // With the app open, Android shows no system notification at all, and iOS
+    // shows one only for a message with a `notification` block (see the
+    // presentation options in init) — the rest is shown here.
+    if (!_isApplePlatform || message.notification == null) {
+      _showLocally(message);
+    }
+  }''';
 
   static const String _firebaseNotificationsBody = r'''
   static const int _tokenRetries = 5;
@@ -842,8 +952,9 @@ final hasInternetProvider = StreamProvider<bool>((ref) {
 });
 ''';
 
-    final locatorImport =
-        isBloc ? '' : "import '../../config/di/injector.dart';\n";
+    final locatorImport = isBloc
+        ? ''
+        : "import '../../config/di/injector.dart';\n";
 
     return '''
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -866,6 +977,87 @@ $_connectivityServiceBody''';
   Future<bool> hasInternet() async {
     final results = await _connectivity.checkConnectivity();
     return !results.contains(ConnectivityResult.none);
+  }
+}
+''';
+
+  /// Returns `core/services/app_lifecycle_service.dart`: foreground and
+  /// background as streams, so the state holders that revalidate on return
+  /// share one binding observer instead of each owning a listener.
+  static String appLifecycleService() => r'''
+import 'dart:async';
+
+import 'package:flutter/widgets.dart';
+
+/// The app moving between foreground and background, as streams any layer
+/// can listen to.
+///
+/// The case it exists for is revalidating on return. While the app is in the
+/// background, its state goes stale in ways it cannot see. A push is handled
+/// in an isolate of its own that cannot reach the app's blocs or notifiers,
+/// so a badge count or a list it should have refreshed is simply out of date.
+/// On Android the process usually survives, so there is no cold start to
+/// reload it either. Re-read when the app comes back:
+///
+/// ```dart
+/// // In a notifier's build():
+/// final sub = getIt<AppLifecycleService>()
+///     .resumed
+///     .where((away) => away > const Duration(seconds: 30))
+///     .listen((_) => ref.invalidateSelf());
+/// ref.onDispose(sub.cancel);
+///
+/// // In a bloc's constructor — cancel it in close():
+/// _resumed = lifecycle.resumed.listen((_) => add(const UnreadStarted()));
+/// ```
+///
+/// Registered as a lazy singleton in `config/di/core_module.dart`, so it
+/// starts observing the first time something reads it.
+class AppLifecycleService {
+  AppLifecycleService() {
+    _listener = AppLifecycleListener(onStateChange: _onStateChange);
+  }
+
+  late final AppLifecycleListener _listener;
+  final _changes = StreamController<AppLifecycleState>.broadcast();
+  final _resumed = StreamController<Duration>.broadcast();
+
+  /// When the app last left the foreground, or null while it is in it.
+  DateTime? _backgroundedAt;
+
+  /// The state the binding last reported.
+  AppLifecycleState? get current => WidgetsBinding.instance.lifecycleState;
+
+  /// Every state change, as it happens.
+  Stream<AppLifecycleState> get changes => _changes.stream;
+
+  /// One event each time the app returns to the foreground, carrying how
+  /// long it was away.
+  ///
+  /// Timed from `hidden` / `paused`, not `inactive`. `inactive` is also a
+  /// pulled-down notification shade or an incoming-call banner, and the app
+  /// never left for those. Filter on the duration to skip the short trips.
+  Stream<Duration> get resumed => _resumed.stream;
+
+  void _onStateChange(AppLifecycleState state) {
+    _changes.add(state);
+    switch (state) {
+      case AppLifecycleState.hidden || AppLifecycleState.paused:
+        _backgroundedAt ??= DateTime.now();
+      case AppLifecycleState.resumed:
+        final since = _backgroundedAt;
+        _backgroundedAt = null;
+        if (since != null) _resumed.add(DateTime.now().difference(since));
+      case AppLifecycleState.inactive || AppLifecycleState.detached:
+        break;
+    }
+  }
+
+  /// Stops observing and closes both streams. The locator calls it.
+  void dispose() {
+    _listener.dispose();
+    _changes.close();
+    _resumed.close();
   }
 }
 ''';

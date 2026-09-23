@@ -52,7 +52,8 @@ class CreateWidgetCommand extends Command<int> {
     final rest = argResults?.rest ?? [];
     if (rest.isEmpty) {
       _logger.err(
-          'Provide a widget name.\n  Usage: moarch create widget <name> (or "all")');
+        'Provide a widget name.\n  Usage: moarch create widget <name> (or "all")',
+      );
       _logger.info('');
       _printList();
       return 1;
@@ -64,8 +65,9 @@ class CreateWidgetCommand extends Command<int> {
     // "all" expands to the whole catalog.
     final requested = rest.contains('all') ? WidgetCatalog.names : rest;
 
-    final unknown =
-        requested.where((n) => WidgetCatalog.byName(n) == null).toList();
+    final unknown = requested
+        .where((n) => WidgetCatalog.byName(n) == null)
+        .toList();
     if (unknown.isNotEmpty) {
       _logger.err('Unknown widget(s): ${unknown.join(', ')}');
       _logger.info('Run `moarch create widget --list` to see valid names.');
@@ -89,9 +91,11 @@ class CreateWidgetCommand extends Command<int> {
         .where((name) => !specs.any((spec) => spec.name == name))
         .toList();
     if (unsupported.isNotEmpty && !rest.contains('all')) {
-      _logger.warn('Not available on '
-          '${variants.hasBloc ? 'flutter_bloc' : 'Riverpod'}: '
-          '${unsupported.join(', ')}');
+      _logger.warn(
+        'Not available on '
+        '${variants.hasBloc ? 'flutter_bloc' : 'Riverpod'}: '
+        '${unsupported.join(', ')}',
+      );
     }
     if (specs.isEmpty) {
       _logger.info('Nothing to generate.');
@@ -144,7 +148,8 @@ class CreateWidgetCommand extends Command<int> {
           // manifest, copied in from another project, or written by a
           // `create widget` that stopped before saving. However it got there,
           // it is moarch's own file and `update` should be able to refresh it.
-          final tracked = manifest.recordedHash(projectRoot, path) ==
+          final tracked =
+              manifest.recordedHash(projectRoot, path) ==
               ProjectManifest.hashContent(content);
           manifest.record(projectRoot, path, content);
           if (!tracked) adopted.add(spec);
@@ -185,9 +190,11 @@ class CreateWidgetCommand extends Command<int> {
       if (adopted.isNotEmpty) {
         _logger.info('');
         _logger.info(
-            '  ${adopted.length} of them still match the current templates and are now');
+          '  ${adopted.length} of them still match the current templates and are now',
+        );
         _logger.info(
-            '  recorded in ${ProjectManifest.fileName}, so `moarch update` can refresh them.');
+          '  recorded in ${ProjectManifest.fileName}, so `moarch update` can refresh them.',
+        );
       }
     }
 
@@ -198,8 +205,9 @@ class CreateWidgetCommand extends Command<int> {
         _logger.info('    · lib/${spec.movedFrom}  →  lib/${spec.libFile}');
       }
       _logger.info(
-          '    Run `moarch update ${unmoved.map((s) => s.name).join(' ')}` '
-          'to move them.');
+        '    Run `moarch update ${unmoved.map((s) => s.name).join(' ')}` '
+        'to move them.',
+      );
     }
 
     if (packages.isNotEmpty) {
@@ -217,9 +225,11 @@ class CreateWidgetCommand extends Command<int> {
     if (needsRouter && !hasRouter) {
       _logger.info('');
       _logger.warn(
-          '  Some of these import config/router/app_router.dart (rootNavigatorKey).');
+        '  Some of these import config/router/app_router.dart (rootNavigatorKey).',
+      );
       _logger.warn(
-          '  Generate the GoRouter setup first, or point them at your own navigator key.');
+        '  Generate the GoRouter setup first, or point them at your own navigator key.',
+      );
     }
 
     _logger.info('');
@@ -246,8 +256,9 @@ class CreateWidgetCommand extends Command<int> {
     _logger.info('Available widgets  —  moarch create widget <name>');
     _logger.info('');
     for (final category in WidgetCatalog.categories) {
-      final items =
-          WidgetCatalog.all.where((w) => w.category == category).toList();
+      final items = WidgetCatalog.all
+          .where((w) => w.category == category)
+          .toList();
       if (items.isEmpty) continue;
       _logger.info('  $category:');
       for (final w in items) {
@@ -257,6 +268,7 @@ class CreateWidgetCommand extends Command<int> {
       _logger.info('');
     }
     _logger.info(
-        '  moarch create widget all   → generate the whole kit + preview');
+      '  moarch create widget all   → generate the whole kit + preview',
+    );
   }
 }

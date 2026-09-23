@@ -22,17 +22,18 @@ enum StateManagement {
 
   /// Matched as a whole pubspec entry rather than a substring, so `bloc` is
   /// not reported by `bloc_lint` and `flutter_bloc` not by a comment.
-  static bool _hasPackage(String pubspec, String package) =>
-      RegExp('^\\s+${RegExp.escape(package)}:', multiLine: true)
-          .hasMatch(pubspec);
+  static bool _hasPackage(String pubspec, String package) => RegExp(
+    '^\\s+${RegExp.escape(package)}:',
+    multiLine: true,
+  ).hasMatch(pubspec);
 
   /// Reads the stack off [pubspec] content: `flutter_bloc` says bloc,
   /// anything else — including no pubspec at all — says riverpod, which is
   /// what every project scaffolded before this option existed uses.
   static StateManagement fromPubspec(String pubspec) =>
       _hasPackage(pubspec, 'flutter_bloc')
-          ? StateManagement.bloc
-          : StateManagement.riverpod;
+      ? StateManagement.bloc
+      : StateManagement.riverpod;
 
   /// Reads the stack off the project owning [libPath], by walking up from it
   /// until a `pubspec.yaml` turns up.

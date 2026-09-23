@@ -22,32 +22,32 @@ class MaintenanceTemplates {
   }) {
     final imports = withFirestore
         ? "import 'dart:async';\n"
-            '\n'
-            "import 'package:cloud_firestore/cloud_firestore.dart';\n"
-            "import 'package:flutter/material.dart';\n"
-            "import 'package:flutter_bloc/flutter_bloc.dart';\n"
-            '\n'
-            "import '../../config/di/injector.dart';\n"
-            "import 'error_view.dart';\n"
+              '\n'
+              "import 'package:cloud_firestore/cloud_firestore.dart';\n"
+              "import 'package:flutter/material.dart';\n"
+              "import 'package:flutter_bloc/flutter_bloc.dart';\n"
+              '\n'
+              "import '../../config/di/injector.dart';\n"
+              "import 'error_view.dart';\n"
         : withDio
-            ? "import 'dart:async';\n"
-                '\n'
-                "import 'package:dio/dio.dart';\n"
-                "import 'package:flutter/material.dart';\n"
-                "import 'package:flutter_bloc/flutter_bloc.dart';\n"
-                '\n'
-                "import '../../config/di/injector.dart';\n"
-                "import 'error_view.dart';\n"
-            : "import 'package:flutter/material.dart';\n"
-                "import 'package:flutter_bloc/flutter_bloc.dart';\n"
-                '\n'
-                "import 'error_view.dart';\n";
+        ? "import 'dart:async';\n"
+              '\n'
+              "import 'package:dio/dio.dart';\n"
+              "import 'package:flutter/material.dart';\n"
+              "import 'package:flutter_bloc/flutter_bloc.dart';\n"
+              '\n'
+              "import '../../config/di/injector.dart';\n"
+              "import 'error_view.dart';\n"
+        : "import 'package:flutter/material.dart';\n"
+              "import 'package:flutter_bloc/flutter_bloc.dart';\n"
+              '\n'
+              "import 'error_view.dart';\n";
 
     final cubit = withFirestore
         ? _firestoreCubit
         : withDio
-            ? _dioCubit
-            : _stubCubit;
+        ? _dioCubit
+        : _stubCubit;
 
     return '$imports$_status\n$cubit\n$_gate';
   }

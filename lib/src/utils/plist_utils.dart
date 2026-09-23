@@ -34,7 +34,8 @@ class PlistUtils {
     if (insertAt == -1) return content;
 
     final strings = values.map((v) => '\t\t<string>$v</string>').join('\n');
-    final block = '\t<key>$key</key>\n'
+    final block =
+        '\t<key>$key</key>\n'
         '\t<array>\n'
         '$strings\n'
         '\t</array>\n';
@@ -60,7 +61,8 @@ class PlistUtils {
     if (content.contains('<string>$scheme</string>')) return content;
 
     final commentLine = comment == null ? '' : '\t\t\t<!-- $comment -->\n';
-    final entry = '\t\t<dict>\n'
+    final entry =
+        '\t\t<dict>\n'
         '$commentLine'
         '\t\t\t<key>CFBundleTypeRole</key>\n'
         '\t\t\t<string>Editor</string>\n'
@@ -74,7 +76,8 @@ class PlistUtils {
     if (keyIndex == -1) {
       final insertAt = content.lastIndexOf('</dict>');
       if (insertAt == -1) return content;
-      final block = '\t<key>CFBundleURLTypes</key>\n'
+      final block =
+          '\t<key>CFBundleURLTypes</key>\n'
           '\t<array>\n'
           '$entry'
           '\t</array>\n';
@@ -94,8 +97,10 @@ class PlistUtils {
   static String? readString(String content, String key) {
     final keyIndex = content.indexOf('<key>$key</key>');
     if (keyIndex == -1) return null;
-    final match = RegExp(r'<string>(.*?)</string>', dotAll: true)
-        .firstMatch(content.substring(keyIndex));
+    final match = RegExp(
+      r'<string>(.*?)</string>',
+      dotAll: true,
+    ).firstMatch(content.substring(keyIndex));
     return match?.group(1)?.trim();
   }
 
@@ -110,7 +115,8 @@ class PlistUtils {
       if (result.contains('<key>${entry.key}</key>')) continue;
       final insertAt = result.lastIndexOf('</dict>');
       if (insertAt == -1) return result;
-      final block = '\t<key>${entry.key}</key>\n'
+      final block =
+          '\t<key>${entry.key}</key>\n'
           '\t<string>${entry.value}</string>\n';
       result = result.replaceRange(insertAt, insertAt, block);
     }

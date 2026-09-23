@@ -133,8 +133,7 @@ void main() {
   });
 
   group('device token registration', () {
-    test('the notifier registers the device on restore, login and register',
-        () {
+    test('the notifier registers the device on restore, login and register', () {
       final output = AuthTemplates.notifier(withPushNotifications: true);
 
       // The two moments a session starts: app open and sign-in.
@@ -145,32 +144,44 @@ void main() {
       // Never before the session exists, or the request goes out unauthorized.
       expect(
         output.indexOf('await _repo.login(email: email, password: password);'),
-        lessThan(output.indexOf('unawaited(_repo.syncDeviceToken());',
-            output.indexOf('Future<void> login('))),
+        lessThan(
+          output.indexOf(
+            'unawaited(_repo.syncDeviceToken());',
+            output.indexOf('Future<void> login('),
+          ),
+        ),
       );
     });
 
-    test('the repository reads the FCM token and hands it to the datasource',
-        () {
-      final interface =
-          AuthTemplates.repositoryInterface(withPushNotifications: true);
-      final impl = AuthTemplates.repositoryImpl(withPushNotifications: true);
-      final datasource =
-          AuthTemplates.remoteDatasource(withPushNotifications: true);
+    test(
+      'the repository reads the FCM token and hands it to the datasource',
+      () {
+        final interface = AuthTemplates.repositoryInterface(
+          withPushNotifications: true,
+        );
+        final impl = AuthTemplates.repositoryImpl(withPushNotifications: true);
+        final datasource = AuthTemplates.remoteDatasource(
+          withPushNotifications: true,
+        );
 
-      expect(interface, contains('Future<void> syncDeviceToken();'));
-      expect(
+        expect(interface, contains('Future<void> syncDeviceToken();'));
+        expect(
           impl,
           contains(
-              'AuthRepositoryImpl(this._remote, this._tokens, this._push)'));
-      expect(impl, contains('await _push.getDeviceToken();'));
-      expect(
-          impl, contains('await _remote.saveDeviceToken(token: deviceToken)'));
-      // A device that cannot register must not fail the sign-in.
-      expect(impl, contains('} on AppException catch (e) {'));
-      expect(datasource, contains('Future<void> saveDeviceToken({'));
-      expect(datasource, contains("'/auth/device-token'"));
-    });
+            'AuthRepositoryImpl(this._remote, this._tokens, this._push)',
+          ),
+        );
+        expect(impl, contains('await _push.getDeviceToken();'));
+        expect(
+          impl,
+          contains('await _remote.saveDeviceToken(token: deviceToken)'),
+        );
+        // A device that cannot register must not fail the sign-in.
+        expect(impl, contains('} on AppException catch (e) {'));
+        expect(datasource, contains('Future<void> saveDeviceToken({'));
+        expect(datasource, contains("'/auth/device-token'"));
+      },
+    );
 
     test('a project without FCM keeps the auth feature as it was', () {
       for (final output in [
@@ -193,21 +204,29 @@ void main() {
     expect(helper, contains('abstract interface class ActionState<T>'));
 
     // Auth templates use it.
-    expect(AuthTemplates.notifier(),
-        contains('with ActionNotifierMixin<AuthState>'));
+    expect(
+      AuthTemplates.notifier(),
+      contains('with ActionNotifierMixin<AuthState>'),
+    );
     expect(AuthTemplates.notifier(), contains('return runAction((_) async {'));
     // The callback receives the pre-action state so the next state never
     // carries isLoadingAction: true forward.
     expect(helper, contains('Future<S> Function(S current) action'));
     expect(helper, contains('await action(current)'));
     expect(
-        AuthTemplates.state(), contains('implements ActionState<AuthState>'));
+      AuthTemplates.state(),
+      contains('implements ActionState<AuthState>'),
+    );
 
     // Generic feature templates use it too.
-    expect(FeatureTemplates.notifier('sample', 'Sample', 'sample'),
-        contains('with ActionNotifierMixin<SampleState>'));
-    expect(FeatureTemplates.state('sample', 'Sample'),
-        contains('implements ActionState<SampleState>'));
+    expect(
+      FeatureTemplates.notifier('sample', 'Sample', 'sample'),
+      contains('with ActionNotifierMixin<SampleState>'),
+    );
+    expect(
+      FeatureTemplates.state('sample', 'Sample'),
+      contains('implements ActionState<SampleState>'),
+    );
   });
 
   test('the repository owns the single-flight refresh guard', () {
@@ -220,7 +239,8 @@ void main() {
     expect(
       impl,
       contains(
-          '_refreshing ??= _refresh().whenComplete(() => _refreshing = null)'),
+        '_refreshing ??= _refresh().whenComplete(() => _refreshing = null)',
+      ),
     );
     // A guard needs a field, so the constructor cannot be const any more.
     expect(impl, isNot(contains('const AuthRepositoryImpl')));

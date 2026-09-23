@@ -9,15 +9,18 @@ void main() {
       // The table is the reason `init` no longer writes `any`. A package added
       // to init without an entry here would silently fall back to it, so this
       // reads the command's source and holds the two in step.
-      final source =
-          File('lib/src/commands/init_command.dart').readAsStringSync();
-      final asked = RegExp(r"PackageVersions\.entry\('([a-z_0-9]+)'\)")
-          .allMatches(source)
-          .map((m) => m.group(1)!)
-          .toSet();
+      final source = File(
+        'lib/src/commands/init_command.dart',
+      ).readAsStringSync();
+      final asked = RegExp(
+        r"PackageVersions\.entry\('([a-z_0-9]+)'\)",
+      ).allMatches(source).map((m) => m.group(1)!).toSet();
 
-      expect(asked, isNotEmpty,
-          reason: 'init should resolve through the table');
+      expect(
+        asked,
+        isNotEmpty,
+        reason: 'init should resolve through the table',
+      );
       for (final package in asked) {
         expect(
           PackageVersions.packages,

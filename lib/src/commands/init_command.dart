@@ -5,6 +5,7 @@ import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/templates/core/error_templates.dart';
 import 'package:moarch/src/templates/core/security_templates.dart';
 import 'package:moarch/src/templates/core/services_templates.dart';
+import 'package:moarch/src/templates/misc/agents_templates.dart';
 import 'package:moarch/src/templates/misc/android_templates.dart';
 import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/templates/misc/docs_templates.dart';
@@ -55,14 +56,17 @@ const _kWorkflows = 'Workflows (security, tests, build)';
 const _kMediaService = 'Media Service (Image Picker and File Picker)';
 const _kLaunchUrlService = 'Url launcher for links';
 const _kDebouncerService = 'Debouncer for actions';
+const _kAppLifecycle = 'App lifecycle service (revalidate on resume)';
 const _kNotificationsService = 'Notifications service';
 const _kFirebaseNotifications = 'Firebase push notifications (FCM)';
 const _kBiometricAuth = 'Biometric authentication';
 const _kMaintenanceGate = 'Maintenance gate (backend kill switch)';
+const _kUpdateGate = 'Update gate (backend minimum version)';
 const _kDarkTheme = 'Dark theme (second palette)';
 const _kMoAdapt = 'MoAdapt (proportional UI scaling)';
 const _kLocalizations = 'Localization (l10n)';
 const _kEasyLocalization = 'Localization (easy_localization)';
+const _kAgents = 'AI agent guide (AGENTS.md + CLAUDE.md)';
 
 /// Creates the project-initialization CLI command.
 class InitCommand extends Command<int> {
@@ -85,7 +89,8 @@ class InitCommand extends Command<int> {
         'state',
         abbr: 's',
         allowed: ['riverpod', 'bloc'],
-        help: 'State management. Skips that checklist; the only way to pick '
+        help:
+            'State management. Skips that checklist; the only way to pick '
             'one with --all.',
       )
       ..addFlag(
@@ -121,8 +126,9 @@ class InitCommand extends Command<int> {
     // Riverpod unless told otherwise — the stack every project scaffolded
     // before this option existed uses.
     final stateFlag = argResults?['state'] as String?;
-    var stateManagement =
-        stateFlag == 'bloc' ? StateManagement.bloc : StateManagement.riverpod;
+    var stateManagement = stateFlag == 'bloc'
+        ? StateManagement.bloc
+        : StateManagement.riverpod;
 
     if (skipChecklist) {
       stack = {
@@ -136,9 +142,12 @@ class InitCommand extends Command<int> {
         _kNotificationsService,
         _kBiometricAuth,
         _kMaintenanceGate,
+        _kUpdateGate,
+        _kAppLifecycle,
         _kMoAdapt,
         _kDarkTheme,
         _kLocalizations,
+        _kAgents,
       };
     } else {
       try {
@@ -152,14 +161,16 @@ class InitCommand extends Command<int> {
               const ChecklistItem(
                 _kRiverpod,
                 defaultOn: true,
-                description: 'An AsyncNotifier + runAction per feature, over a '
+                description:
+                    'An AsyncNotifier + runAction per feature, over a '
                     'get_it service locator.',
                 excludes: {_kBloc},
               ),
               const ChecklistItem(
                 _kBloc,
                 defaultOn: false,
-                description: 'A sealed event family and a Bloc per feature, '
+                description:
+                    'A sealed event family and a Bloc per feature, '
                     'over the same get_it locator. Adds bloc_lint.',
                 excludes: {_kRiverpod},
               ),
@@ -241,14 +252,22 @@ class InitCommand extends Command<int> {
               // saying, or it reads as the way to debounce a search.
               description: stateManagement.isBloc
                   ? 'Debounce rapid callbacks in widgets (e.g. filtering a '
-                      'local list). Events reaching a bloc debounce in an '
-                      'EventTransformer instead.'
+                        'local list). Events reaching a bloc debounce in an '
+                        'EventTransformer instead.'
                   : 'Debounce rapid user actions (e.g. search input).',
             ),
             const ChecklistItem(
               _kNotificationsService,
               defaultOn: false,
               description: 'Local push notifications.',
+            ),
+            const ChecklistItem(
+              _kAppLifecycle,
+              defaultOn: false,
+              description:
+                  'Foreground/background as streams, so blocs and '
+                  'notifiers can re-read what went stale while the app was '
+                  'away (e.g. after a push).',
             ),
             const ChecklistItem(
               _kFirebaseNotifications,
@@ -270,9 +289,18 @@ class InitCommand extends Command<int> {
                   'fails open if the flag cannot be read.',
             ),
             const ChecklistItem(
+              _kUpdateGate,
+              defaultOn: false,
+              description:
+                  'Replaces the app with an "update required" screen '
+                  'while the installed version is below a backend minimum; '
+                  'fails open if it cannot be read.',
+            ),
+            const ChecklistItem(
               _kMoAdapt,
               defaultOn: true,
-              description: 'Wraps the app so every fixed dimension scales '
+              description:
+                  'Wraps the app so every fixed dimension scales '
                   'proportionally to the screen from a 390×844 design frame.',
             ),
             const ChecklistItem(
@@ -297,6 +325,13 @@ class InitCommand extends Command<int> {
                   'easy_localization with English + Portuguese JSON files in assets/translations.',
               excludes: {_kLocalizations},
             ),
+            const ChecklistItem(
+              _kAgents,
+              defaultOn: true,
+              description:
+                  "The project's rules for coding agents — Codex, "
+                  'Cursor, Copilot and Claude Code read them before editing.',
+            ),
           ],
         );
 
@@ -314,8 +349,9 @@ class InitCommand extends Command<int> {
         stack.contains(_kAuthFeature) && stack.contains(_kFirebaseAuth);
 
     if (firebaseAuthFeature && stack.contains(_kDio)) {
-      _logger
-          .info('  Note: the auth feature is generated against Firebase Auth.');
+      _logger.info(
+        '  Note: the auth feature is generated against Firebase Auth.',
+      );
     }
 
     // The REST auth feature calls the API through the Dio client and its
@@ -334,7 +370,8 @@ class InitCommand extends Command<int> {
     if (stack.contains(_kEasyLocalization) && stack.contains(_kLocalizations)) {
       stack.remove(_kLocalizations);
       _logger.info(
-          '  Note: flutter_localizations dropped — easy_localization selected.');
+        '  Note: flutter_localizations dropped — easy_localization selected.',
+      );
     }
 
     // Every state-bearing template goes through this rather than through the
@@ -352,10 +389,7 @@ class InitCommand extends Command<int> {
     final manifest = ProjectManifest(
       version: packageVersion,
       generatedAt: DateTime.now(),
-      stack: [
-        ...stack,
-        stateManagement.isBloc ? _kBloc : _kRiverpod,
-      ]..sort(),
+      stack: [...stack, stateManagement.isBloc ? _kBloc : _kRiverpod]..sort(),
     );
 
     FileUtils.beginSession(
@@ -366,40 +400,55 @@ class InitCommand extends Command<int> {
 
     final pubspecFile = File(p.join(p.absolute(targetPath), 'pubspec.yaml'));
     final pubspecExisted = pubspecFile.existsSync();
-    final pubspecBackup =
-        pubspecExisted ? await pubspecFile.readAsString() : null;
+    final pubspecBackup = pubspecExisted
+        ? await pubspecFile.readAsString()
+        : null;
 
     // analysis_options.yaml is the one file FileUtils overwrites rather than
     // skips, so it needs a backup like the platform files below.
-    final analysisOptionsFile =
-        File(p.join(p.absolute(targetPath), 'analysis_options.yaml'));
+    final analysisOptionsFile = File(
+      p.join(p.absolute(targetPath), 'analysis_options.yaml'),
+    );
     final analysisOptionsBackup = analysisOptionsFile.existsSync()
         ? await analysisOptionsFile.readAsString()
         : null;
 
-    final infoPlistFile =
-        File(p.join(p.absolute(targetPath), 'ios', 'Runner', 'Info.plist'));
-    final infoPlistBackup =
-        infoPlistFile.existsSync() ? await infoPlistFile.readAsString() : null;
+    final infoPlistFile = File(
+      p.join(p.absolute(targetPath), 'ios', 'Runner', 'Info.plist'),
+    );
+    final infoPlistBackup = infoPlistFile.existsSync()
+        ? await infoPlistFile.readAsString()
+        : null;
 
     final appDelegateFile = File(
-        p.join(p.absolute(targetPath), 'ios', 'Runner', 'AppDelegate.swift'));
+      p.join(p.absolute(targetPath), 'ios', 'Runner', 'AppDelegate.swift'),
+    );
     final appDelegateBackup = appDelegateFile.existsSync()
         ? await appDelegateFile.readAsString()
         : null;
 
     final podfileFile = File(p.join(p.absolute(targetPath), 'ios', 'Podfile'));
-    final podfileBackup =
-        podfileFile.existsSync() ? await podfileFile.readAsString() : null;
+    final podfileBackup = podfileFile.existsSync()
+        ? await podfileFile.readAsString()
+        : null;
 
     final buildGradleFile = File(
-        p.join(p.absolute(targetPath), 'android', 'app', 'build.gradle.kts'));
+      p.join(p.absolute(targetPath), 'android', 'app', 'build.gradle.kts'),
+    );
     final buildGradleBackup = buildGradleFile.existsSync()
         ? await buildGradleFile.readAsString()
         : null;
 
-    final androidManifestFile = File(p.join(p.absolute(targetPath), 'android',
-        'app', 'src', 'main', 'AndroidManifest.xml'));
+    final androidManifestFile = File(
+      p.join(
+        p.absolute(targetPath),
+        'android',
+        'app',
+        'src',
+        'main',
+        'AndroidManifest.xml',
+      ),
+    );
     final androidManifestBackup = androidManifestFile.existsSync()
         ? await androidManifestFile.readAsString()
         : null;
@@ -409,8 +458,8 @@ class InitCommand extends Command<int> {
     final mainActivityFile = _findMainActivityFile(p.absolute(targetPath));
     final mainActivityBackup =
         mainActivityFile != null && mainActivityFile.existsSync()
-            ? await mainActivityFile.readAsString()
-            : null;
+        ? await mainActivityFile.readAsString()
+        : null;
 
     // Unversioned, so pub fetches the newest release each package allows. Pub
     // is free to resolve *backwards* to settle a conflict, so the packages
@@ -431,6 +480,9 @@ class InitCommand extends Command<int> {
         // equals the current one and BlocConsumer rebuilds on the same test,
         // so without it every emit repaints.
         PackageVersions.entry('equatable'),
+        // How events queue before a handler sees them: `droppable()` on the
+        // auth bloc's submits, and whatever a feature's handlers need.
+        PackageVersions.entry('bloc_concurrency'),
       ] else
         PackageVersions.entry('flutter_riverpod'),
       // The service locator, in both stacks: dependency injection is get_it's
@@ -469,8 +521,12 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kMediaService)) PackageVersions.entry('file_picker'),
       if (stack.contains(_kMediaService)) PackageVersions.entry('image_picker'),
       PackageVersions.entry('permission_handler'),
-      if (stack.contains(_kLaunchUrlService))
+      // The update gate opens the store through url_launcher, so it needs the
+      // package whether or not the links service was picked.
+      if (stack.contains(_kLaunchUrlService) || stack.contains(_kUpdateGate))
         PackageVersions.entry('url_launcher'),
+      if (stack.contains(_kUpdateGate))
+        PackageVersions.entry('package_info_plus'),
       if (stack.contains(_kNotificationsService))
         PackageVersions.entry('flutter_local_notifications'),
       if (stack.contains(_kNotificationsService))
@@ -495,17 +551,17 @@ class InitCommand extends Command<int> {
       // `build_runner build` before `analyze`.
       PackageVersions.entry('freezed'),
       PackageVersions.entry('json_serializable'),
-      PackageVersions.entry('mogen_unit_tests'),
-      PackageVersions.entry('mogen_integration_tests'),
+      // What `moarch create tests` writes against: mocktail for every
+      // generated unit test, bloc_test for a bloc's. The generator itself is
+      // part of moarch, so nothing of it lands in the app's pubspec.
+      PackageVersions.entry('mocktail'),
+      if (stateManagement.isBloc) PackageVersions.entry('bloc_test'),
       PackageVersions.entry('flutter_lints'),
       // The bloc team's own rules — file naming, no Flutter imports in a
       // bloc, no public fields on a state. Run with `bloc lint .` (see
       // `dart pub global activate bloc_tools`); analysis_options.yaml
       // carries the ruleset.
       if (stateManagement.isBloc) PackageVersions.entry('bloc_lint'),
-      // No bloc_test: moarch scaffolds no tests, and mogen_unit_tests above
-      // is the testing story for both stacks. Add it the day you write a
-      // bloc test by hand — `flutter pub add --dev bloc_test`.
     ];
 
     // False when a main.dart the developer wrote was left in place, which is
@@ -561,10 +617,12 @@ class InitCommand extends Command<int> {
           withCrashlytics: stack.contains(_kCrashlytics),
           // Firestore and Firebase Auth are read through providers the app
           // touches on its first frame, so Firebase has to be up by then.
-          withFirebase: stack.contains(_kFirestore) ||
+          withFirebase:
+              stack.contains(_kFirestore) ||
               stack.contains(_kFirebaseAuth) ||
               stack.contains(_kCrashlytics),
           withMaintenanceGate: stack.contains(_kMaintenanceGate),
+          withUpdateGate: stack.contains(_kUpdateGate),
           withMoAdapt: stack.contains(_kMoAdapt),
           withDarkTheme: stack.contains(_kDarkTheme),
           withAuthFeature: stack.contains(_kAuthFeature),
@@ -618,8 +676,9 @@ class InitCommand extends Command<int> {
       );
 
       await FileUtils.writeFile(
-          p.join(p.absolute(targetPath), 'analysis_options.yaml'),
-          DevTemplates.analysisOptions(stateManagement: stateManagement));
+        p.join(p.absolute(targetPath), 'analysis_options.yaml'),
+        DevTemplates.analysisOptions(stateManagement: stateManagement),
+      );
 
       // The one generated document aimed at a person rather than a task: what
       // the project is, how to run it, how the layers fit together, where the
@@ -635,14 +694,16 @@ class InitCommand extends Command<int> {
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), 'README.md'),
         ReadmeTemplates.projectReadme(
-          projectName:
-              ScaffoldContext.detect(p.absolute(targetPath)).projectName,
+          projectName: ScaffoldContext.detect(
+            p.absolute(targetPath),
+          ).projectName,
           stateManagement: stateManagement,
           withDio: stack.contains(_kDio),
           withRouter: stack.contains(_kRouter),
           withAuthFeature: stack.contains(_kAuthFeature),
           withFirebaseAuthFeature: firebaseAuthFeature,
-          withFirebase: stack.contains(_kFirestore) ||
+          withFirebase:
+              stack.contains(_kFirestore) ||
               stack.contains(_kFirebaseAuth) ||
               stack.contains(_kCrashlytics) ||
               stack.contains(_kFirebaseNotifications),
@@ -659,9 +720,41 @@ class InitCommand extends Command<int> {
         overwriteWhen: _isFlutterStockReadme,
       );
 
+      // The same project described for coding agents: rules rather than
+      // reasons, and the commands that prove a change is done. CLAUDE.md is
+      // only an import of it, so the two cannot disagree.
+      if (stack.contains(_kAgents)) {
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'AGENTS.md'),
+          AgentsTemplates.agentsMd(
+            projectName: ScaffoldContext.detect(
+              p.absolute(targetPath),
+            ).projectName,
+            stateManagement: stateManagement,
+            withDio: stack.contains(_kDio),
+            withFirebase:
+                stack.contains(_kFirestore) || stack.contains(_kFirebaseAuth),
+            withRouter: stack.contains(_kRouter),
+            withAuthFeature: stack.contains(_kAuthFeature),
+            withDarkTheme: stack.contains(_kDarkTheme),
+            withStatusColors: true,
+            withLocalization: stack.contains(_kLocalizations),
+            withEasyLocalization: stack.contains(_kEasyLocalization),
+            withFeatureModule: true,
+          ),
+        );
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'CLAUDE.md'),
+          AgentsTemplates.claudeMd(),
+        );
+      }
+
       await FileUtils.writeFile(
         p.join(
-            p.absolute(targetPath), 'docs', 'CHECKLIST_BEFORE_DEPLOYMENT.md'),
+          p.absolute(targetPath),
+          'docs',
+          'CHECKLIST_BEFORE_DEPLOYMENT.md',
+        ),
         DocsTemplates.prodChecklist(),
       );
 
@@ -701,11 +794,13 @@ class InitCommand extends Command<int> {
 
       if (stack.contains(_kWorkflows)) {
         await FileUtils.writeFile(
-          p.join(p.absolute(targetPath), '.github', 'workflows',
-              'unified_workflow.yml'),
-          WorkflowTemplates.unifiedWorkflow(
-            stateManagement: stateManagement,
+          p.join(
+            p.absolute(targetPath),
+            '.github',
+            'workflows',
+            'unified_workflow.yml',
           ),
+          WorkflowTemplates.unifiedWorkflow(stateManagement: stateManagement),
         );
         await FileUtils.writeFile(
           p.join(p.absolute(targetPath), '.github', 'workflows', 'csa.yml'),
@@ -713,9 +808,14 @@ class InitCommand extends Command<int> {
         );
         await FileUtils.writeFile(
           p.join(
-              p.absolute(targetPath), '.github', 'workflows', 'build_ipa.yml'),
+            p.absolute(targetPath),
+            '.github',
+            'workflows',
+            'build_ipa.yml',
+          ),
           WorkflowTemplates.buildIOS(
-            withFirebase: stack.contains(_kFirestore) ||
+            withFirebase:
+                stack.contains(_kFirestore) ||
                 stack.contains(_kFirebaseAuth) ||
                 stack.contains(_kCrashlytics) ||
                 stack.contains(_kFirebaseNotifications),
@@ -724,7 +824,11 @@ class InitCommand extends Command<int> {
         );
         await FileUtils.writeFile(
           p.join(
-              p.absolute(targetPath), '.github', 'workflows', 'build_apk.yml'),
+            p.absolute(targetPath),
+            '.github',
+            'workflows',
+            'build_apk.yml',
+          ),
           WorkflowTemplates.buildANDROID(),
         );
       }
@@ -765,8 +869,9 @@ class InitCommand extends Command<int> {
             .map((line) => line.trim())
             .where((line) => line.isNotEmpty)
             .toSet();
-        final missingRules =
-            ignoreRules.where((rule) => !existingRules.contains(rule));
+        final missingRules = ignoreRules.where(
+          (rule) => !existingRules.contains(rule),
+        );
         if (missingRules.isNotEmpty) {
           await gitignoreFile.writeAsString(
             '${gitignore.trimRight()}\n\n'
@@ -792,7 +897,8 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kLocalizations)) {
         // ARB files (flutter_localizations uses .arb, not .json)
         await FileUtils.createDir(
-            p.join(p.absolute(targetPath), 'lib', 'l10n'));
+          p.join(p.absolute(targetPath), 'lib', 'l10n'),
+        );
         await FileUtils.writeFile(
           p.join(p.absolute(targetPath), 'lib', 'l10n', 'app_en.arb'),
           '{\n  "@@locale": "en",\n  "appTitle": "Moarch App",\n  "welcome": "Welcome"\n}\n',
@@ -822,7 +928,8 @@ class InitCommand extends Command<int> {
         // generate: true under flutter: section
         if (dryRun) {
           _logger.info(
-              '  Would set generate: true and uses-material-design: true in pubspec.yaml');
+            '  Would set generate: true and uses-material-design: true in pubspec.yaml',
+          );
         } else {
           await PubspecUtils.ensureFlutterFlags(
             p.absolute(targetPath),
@@ -831,8 +938,13 @@ class InitCommand extends Command<int> {
         }
 
         await FileUtils.writeFile(
-          p.join(p.absolute(targetPath), 'lib', 'core', 'services',
-              'language_service.dart'),
+          p.join(
+            p.absolute(targetPath),
+            'lib',
+            'core',
+            'services',
+            'language_service.dart',
+          ),
           templates.languageService(),
         );
       }
@@ -850,7 +962,8 @@ class InitCommand extends Command<int> {
 
         if (dryRun) {
           _logger.info(
-              '  Would add assets/translations/ under flutter: assets in pubspec.yaml');
+            '  Would add assets/translations/ under flutter: assets in pubspec.yaml',
+          );
         } else {
           await PubspecUtils.ensureAssets(
             p.absolute(targetPath),
@@ -865,7 +978,8 @@ class InitCommand extends Command<int> {
         );
       }
 
-      final hasFirebase = stack.contains(_kFirestore) ||
+      final hasFirebase =
+          stack.contains(_kFirestore) ||
           stack.contains(_kFirebaseAuth) ||
           stack.contains(_kCrashlytics) ||
           stack.contains(_kFirebaseNotifications);
@@ -876,12 +990,20 @@ class InitCommand extends Command<int> {
         // provisioning profile lacks the push capability.
         await FileUtils.writeFile(
           p.join(
-              p.absolute(targetPath), 'ios', 'Runner', 'Runner.entitlements'),
+            p.absolute(targetPath),
+            'ios',
+            'Runner',
+            'Runner.entitlements',
+          ),
           IosTemplates.runnerEntitlements(),
         );
         await FileUtils.writeFile(
-          p.join(p.absolute(targetPath), 'ios', 'Runner',
-              'RunnerProfile.entitlements'),
+          p.join(
+            p.absolute(targetPath),
+            'ios',
+            'Runner',
+            'RunnerProfile.entitlements',
+          ),
           IosTemplates.runnerProfileEntitlements(),
         );
       }
@@ -961,21 +1083,26 @@ class InitCommand extends Command<int> {
     // complain — it quietly falls back to the Flutter on PATH, which is the
     // version .fvmrc exists to stop using. So this comes before pub get.
     _logger.info('  Run: fvm use   (creates .fvm/flutter_sdk, which');
-    _logger
-        .info('       .vscode/settings.json points the editor at — until it');
-    _logger
-        .info('       exists, debug and the analyzer use your PATH Flutter)');
+    _logger.info(
+      '       .vscode/settings.json points the editor at — until it',
+    );
+    _logger.info(
+      '       exists, debug and the analyzer use your PATH Flutter)',
+    );
     _logger.info('');
     _logger.info(
-        '  The selected scaffold dependencies were added to pubspec.yaml.');
+      '  The selected scaffold dependencies were added to pubspec.yaml.',
+    );
     _logger.info('  Then:  fvm flutter pub get');
     // config/env/app_env.dart is a `part` of an envied-generated file, so the
     // project does not analyze cleanly until build_runner has produced
     // app_env.g.dart. Say so here rather than letting it look like a bug.
     _logger.info(
-        '  Then:  fvm dart run build_runner build --delete-conflicting-outputs');
+      '  Then:  fvm dart run build_runner build --delete-conflicting-outputs',
+    );
     _logger.info(
-        '         (generates config/env/app_env.g.dart from .env — required)');
+      '         (generates config/env/app_env.g.dart from .env — required)',
+    );
     _logger.info('');
     // Nothing in the scaffold is reachable without its root wiring, and a
     // main.dart moarch was not allowed to touch has none.
@@ -983,8 +1110,9 @@ class InitCommand extends Command<int> {
       _logger.warn('  lib/main.dart is yours, so it was left alone.');
       _logger.info('    Call `await setupInjector()` before runApp and');
       if (stateManagement.isBloc) {
-        _logger
-            .info('    provide the app-wide blocs — see the App widget moarch');
+        _logger.info(
+          '    provide the app-wide blocs — see the App widget moarch',
+        );
         _logger.info('    generates for the shape it expects.');
       } else {
         _logger.info('    wrap your app in a ProviderScope — see the App');
@@ -992,8 +1120,9 @@ class InitCommand extends Command<int> {
       }
       _logger.info('');
     }
-    _logger
-        .info('  Dependencies are registered in lib/config/di/injector.dart,');
+    _logger.info(
+      '  Dependencies are registered in lib/config/di/injector.dart,',
+    );
     _logger.info('  and `moarch create feature` adds to it.');
     if (!stateManagement.isBloc) {
       _logger.info('  Notifiers stay Riverpod providers and read the locator.');
@@ -1007,29 +1136,37 @@ class InitCommand extends Command<int> {
       _logger.info('');
     }
     if (stack.contains(_kAuthFeature) && !firebaseAuthFeature) {
-      _logger
-          .info('  Auth feature generated at lib/features/auth/ — adjust the');
       _logger.info(
-          '  /auth/* endpoints and token JSON keys in auth_remote_datasource.dart');
+        '  Auth feature generated at lib/features/auth/ — adjust the',
+      );
+      _logger.info(
+        '  /auth/* endpoints and token JSON keys in auth_remote_datasource.dart',
+      );
       _logger.info('  and core/network/dio_client.dart to your API contract.');
       _logger.info('');
     }
     if (firebaseAuthFeature) {
       _logger.info(
-          '  Auth feature generated at lib/features/auth/ — Firebase Auth with');
+        '  Auth feature generated at lib/features/auth/ — Firebase Auth with',
+      );
       _logger.info('  email/password and Google sign-in. Before it runs:');
       _logger.info(
-          '    1. flutterfire configure  (writes the google-services files)');
+        '    1. flutterfire configure  (writes the google-services files)',
+      );
       _logger.info(
-          '    2. Firebase console → Authentication → Sign-in method: enable');
+        '    2. Firebase console → Authentication → Sign-in method: enable',
+      );
       _logger.info('       Email/Password and Google');
       _logger.info(
-          '    3. Android: add your SHA-1 and SHA-256 to the Firebase project,');
+        '    3. Android: add your SHA-1 and SHA-256 to the Firebase project,',
+      );
       _logger.info('       then re-download google-services.json');
       _logger.info(
-          '    4. iOS: GIDClientID + the REVERSED_CLIENT_ID URL scheme in');
-      _logger
-          .info('       Info.plist — `moarch doctor --fix` copies them across');
+        '    4. iOS: GIDClientID + the REVERSED_CLIENT_ID URL scheme in',
+      );
+      _logger.info(
+        '       Info.plist — `moarch doctor --fix` copies them across',
+      );
       _logger.info('');
       _logger.info('  Full guide: docs/FIREBASE_SETUP.md');
       _logger.info('');
@@ -1038,17 +1175,20 @@ class InitCommand extends Command<int> {
         stack.contains(_kCrashlytics) ||
         stack.contains(_kFirebaseNotifications)) {
       _logger.info(
-          '  Firebase selected — run `flutterfire configure` before the first');
+        '  Firebase selected — run `flutterfire configure` before the first',
+      );
       _logger.info('  launch. See docs/FIREBASE_SETUP.md.');
       _logger.info('');
     }
     // Said here rather than left to the docs: the palette is the first file
     // most people open, and it is the one place the choice is invisible.
     if (!stack.contains(_kDarkTheme)) {
-      _logger
-          .info('  One brand palette in core/constants/app_constants.dart —');
-      _logger
-          .info('  add the dark half later with `moarch create theme --dark`.');
+      _logger.info(
+        '  One brand palette in core/constants/app_constants.dart —',
+      );
+      _logger.info(
+        '  add the dark half later with `moarch create theme --dark`.',
+      );
       _logger.info('');
     }
     _logger.info('  moarch create feature <name>   → generate a feature');
@@ -1071,7 +1211,8 @@ class InitCommand extends Command<int> {
   static bool _isFlutterStockReadme(String source) =>
       source.contains('A new Flutter project.') &&
       source.contains(
-          'This project is a starting point for a Flutter application.');
+        'This project is a starting point for a Flutter application.',
+      );
 
   /// Whether [source] is still the counter test `flutter create` writes — the
   /// one that pumps the demo app [_isFlutterCounterDemo] matches.
@@ -1119,8 +1260,9 @@ class InitCommand extends Command<int> {
     }
     if (!plistFile.existsSync()) {
       _logger.info(
-          '  Note: ios/Runner/Info.plist not found — add $additions manually '
-          'once the iOS folder exists.');
+        '  Note: ios/Runner/Info.plist not found — add $additions manually '
+        'once the iOS folder exists.',
+      );
       return;
     }
 
@@ -1149,20 +1291,21 @@ class InitCommand extends Command<int> {
     if (wantsUrlLauncher) {
       // canLaunchUrl returns false on iOS for schemes not declared here,
       // which would force every link into the in-app web view fallback.
-      content = PlistUtils.ensureArray(
-        content,
-        'LSApplicationQueriesSchemes',
-        ['https', 'http', 'mailto', 'tel', 'sms'],
-      );
+      content = PlistUtils.ensureArray(content, 'LSApplicationQueriesSchemes', [
+        'https',
+        'http',
+        'mailto',
+        'tel',
+        'sms',
+      ]);
     }
     if (wantsFcm) {
       // Without the remote-notification background mode, FCM messages are
       // only delivered while the app is in the foreground.
-      content = PlistUtils.ensureArray(
-        content,
-        'UIBackgroundModes',
-        ['fetch', 'remote-notification'],
-      );
+      content = PlistUtils.ensureArray(content, 'UIBackgroundModes', [
+        'fetch',
+        'remote-notification',
+      ]);
     }
     if (wantsGoogleSignIn) {
       content = _patchGoogleSignInPlist(plistFile, content);
@@ -1178,8 +1321,9 @@ class InitCommand extends Command<int> {
   /// Real values are lifted from that plist when `flutterfire configure` has
   /// run; otherwise placeholders go in and `moarch doctor --fix` finishes.
   String _patchGoogleSignInPlist(File plistFile, String content) {
-    final googleServices =
-        File(p.join(p.dirname(plistFile.path), 'GoogleService-Info.plist'));
+    final googleServices = File(
+      p.join(p.dirname(plistFile.path), 'GoogleService-Info.plist'),
+    );
 
     String? clientId;
     String? reversedClientId;
@@ -1191,10 +1335,13 @@ class InitCommand extends Command<int> {
 
     if (clientId == null || reversedClientId == null) {
       _logger.warn(
-          '  ios/Runner/GoogleService-Info.plist not found — Info.plist got '
-          'placeholder Google client ids.');
-      _logger.info('    Run `flutterfire configure`, then `moarch doctor --fix`'
-          ' to fill them in.');
+        '  ios/Runner/GoogleService-Info.plist not found — Info.plist got '
+        'placeholder Google client ids.',
+      );
+      _logger.info(
+        '    Run `flutterfire configure`, then `moarch doctor --fix`'
+        ' to fill them in.',
+      );
     }
 
     final patched = PlistUtils.ensureEntries(content, {
@@ -1228,9 +1375,11 @@ class InitCommand extends Command<int> {
       return;
     }
     if (!appDelegateFile.existsSync()) {
-      _logger.info('  Note: ios/Runner/AppDelegate.swift not found — add the '
-          'UNUserNotificationCenter delegate manually once the iOS folder '
-          'exists (see the comment in notifications_service.dart).');
+      _logger.info(
+        '  Note: ios/Runner/AppDelegate.swift not found — add the '
+        'UNUserNotificationCenter delegate manually once the iOS folder '
+        'exists (see the comment in notifications_service.dart).',
+      );
       return;
     }
 
@@ -1256,16 +1405,20 @@ class InitCommand extends Command<int> {
 
     if (!podfileFile.existsSync()) {
       if (dryRun) {
-        _logger.info('  Would create ios/Podfile with permission_handler '
-            'defaults (camera/photos only)');
+        _logger.info(
+          '  Would create ios/Podfile with permission_handler '
+          'defaults (camera/photos only)',
+        );
         return;
       }
       await FileUtils.writeFile(
         podfileFile.path,
         PodfileUtils.defaultPodfile(camera: wantsMedia, photos: wantsMedia),
       );
-      _logger.info('  Created ios/Podfile with permission_handler defaults '
-          '(camera/photos only).');
+      _logger.info(
+        '  Created ios/Podfile with permission_handler defaults '
+        '(camera/photos only).',
+      );
       return;
     }
 
@@ -1301,9 +1454,11 @@ class InitCommand extends Command<int> {
         'core library desugaring (isCoreLibraryDesugaringEnabled + desugar_jdk_libs)';
 
     if (!buildGradleFile.existsSync()) {
-      _logger.info('  Note: android/app/build.gradle.kts not found — enable '
-          'core library desugaring manually once the android folder exists '
-          '(flutter_local_notifications requires it).');
+      _logger.info(
+        '  Note: android/app/build.gradle.kts not found — enable '
+        'core library desugaring manually once the android folder exists '
+        '(flutter_local_notifications requires it).',
+      );
       return;
     }
 
@@ -1332,26 +1487,28 @@ class InitCommand extends Command<int> {
 
     if (!manifestFile.existsSync()) {
       _logger.info(
-          '  Note: android/app/src/main/AndroidManifest.xml not found — add '
-          'the $addition manually once the android folder exists.');
+        '  Note: android/app/src/main/AndroidManifest.xml not found — add '
+        'the $addition manually once the android folder exists.',
+      );
       return;
     }
 
     if (dryRun) {
       _logger.info(
-          '  Would add $addition to android/app/src/main/AndroidManifest.xml');
+        '  Would add $addition to android/app/src/main/AndroidManifest.xml',
+      );
       return;
     }
 
     final content = await manifestFile.readAsString();
-    final patched = ManifestUtils.ensurePermissions(
-      content,
-      ['android.permission.USE_BIOMETRIC'],
-    );
+    final patched = ManifestUtils.ensurePermissions(content, [
+      'android.permission.USE_BIOMETRIC',
+    ]);
     if (patched == content) return;
     await manifestFile.writeAsString(patched);
     _logger.info(
-        '  Updated android/app/src/main/AndroidManifest.xml with $addition.');
+      '  Updated android/app/src/main/AndroidManifest.xml with $addition.',
+    );
   }
 
   /// local_auth's biometric prompt is shown by the native Android side as a
@@ -1367,10 +1524,11 @@ class InitCommand extends Command<int> {
     const addition = 'FlutterFragmentActivity (required by local_auth)';
 
     if (mainActivityFile == null || !mainActivityFile.existsSync()) {
-      _logger
-          .info('  Note: MainActivity.kt not found — make MainActivity extend '
-              'FlutterFragmentActivity manually once the android folder exists '
-              '(local_auth requires it).');
+      _logger.info(
+        '  Note: MainActivity.kt not found — make MainActivity extend '
+        'FlutterFragmentActivity manually once the android folder exists '
+        '(local_auth requires it).',
+      );
       return;
     }
 
@@ -1397,9 +1555,11 @@ class InitCommand extends Command<int> {
   Future<void> _writeProguardRules(String projectRoot) async {
     final appDir = Directory(p.join(projectRoot, 'android', 'app'));
     if (!appDir.existsSync()) {
-      _logger.info('  Note: android/app not found — copy the ProGuard rules '
-          'from docs/SECURITY_BEFORE_DEPLOYMENT.md once the android folder '
-          'exists.');
+      _logger.info(
+        '  Note: android/app not found — copy the ProGuard rules '
+        'from docs/SECURITY_BEFORE_DEPLOYMENT.md once the android folder '
+        'exists.',
+      );
       return;
     }
     await FileUtils.writeFile(
@@ -1413,8 +1573,9 @@ class InitCommand extends Command<int> {
   /// be addressed by a fixed path like AndroidManifest.xml.
   File? _findMainActivityFile(String projectRoot) {
     for (final base in ['kotlin', 'java']) {
-      final dir =
-          Directory(p.join(projectRoot, 'android', 'app', 'src', 'main', base));
+      final dir = Directory(
+        p.join(projectRoot, 'android', 'app', 'src', 'main', base),
+      );
       if (!dir.existsSync()) continue;
       for (final entity in dir.listSync(recursive: true)) {
         if (entity is File &&
@@ -1549,7 +1710,9 @@ class InitCommand extends Command<int> {
     if (stack.contains(_kFirebaseNotifications)) {
       await FileUtils.writeFile(
         p.join(c, 'services', 'firebase_notifications_service.dart'),
-        ServicesTemplates.firebaseNotificationsService(),
+        ServicesTemplates.firebaseNotificationsService(
+          withLocalNotifications: stack.contains(_kNotificationsService),
+        ),
       );
     }
 
@@ -1557,6 +1720,13 @@ class InitCommand extends Command<int> {
       await FileUtils.writeFile(
         p.join(c, 'services', 'debouncer_service.dart'),
         ServicesTemplates.debouncerService(),
+      );
+    }
+
+    if (stack.contains(_kAppLifecycle)) {
+      await FileUtils.writeFile(
+        p.join(c, 'services', 'app_lifecycle_service.dart'),
+        ServicesTemplates.appLifecycleService(),
       );
     }
 
@@ -1609,9 +1779,14 @@ class InitCommand extends Command<int> {
     }
     await FileUtils.writeFile(
       p.join(
-          f, 'presentation', templates.holderDir, templates.holderFile('auth')),
+        f,
+        'presentation',
+        templates.holderDir,
+        templates.holderFile('auth'),
+      ),
       templates.authHolder(
         withPushNotifications: withPushNotifications,
+        withConcurrency: templates.isBloc,
       ),
     );
     await FileUtils.writeFile(
@@ -1674,9 +1849,14 @@ class InitCommand extends Command<int> {
     }
     await FileUtils.writeFile(
       p.join(
-          f, 'presentation', templates.holderDir, templates.holderFile('auth')),
+        f,
+        'presentation',
+        templates.holderDir,
+        templates.holderFile('auth'),
+      ),
       templates.firebaseAuthHolder(
         withPushNotifications: withPushNotifications,
+        withConcurrency: templates.isBloc,
       ),
     );
     await FileUtils.writeFile(
@@ -1701,7 +1881,14 @@ class InitCommand extends Command<int> {
     );
     await FileUtils.writeFile(
       p.join(c, 'theme', 'app_theme.dart'),
-      ConfigTemplates.appTheme(withDark: stack.contains(_kDarkTheme)),
+      ConfigTemplates.appTheme(
+        withDark: stack.contains(_kDarkTheme),
+        withStatusColors: true,
+      ),
+    );
+    await FileUtils.writeFile(
+      p.join(c, 'theme', 'app_status_colors.dart'),
+      ConfigTemplates.appStatusColors(withDark: stack.contains(_kDarkTheme)),
     );
     if (stack.contains(_kRouter)) {
       await FileUtils.writeFile(
@@ -1717,8 +1904,9 @@ class InitCommand extends Command<int> {
       await FileUtils.writeFile(
         p.join(c, 'firebase', 'firebase_providers.dart'),
         templates.firebaseProviders(
-            hasAuth: stack.contains(_kFirebaseAuth),
-            hasDb: stack.contains(_kFirestore)),
+          hasAuth: stack.contains(_kFirebaseAuth),
+          hasDb: stack.contains(_kFirestore),
+        ),
       );
     }
 
@@ -1729,7 +1917,11 @@ class InitCommand extends Command<int> {
     // needs the `Ref` Riverpod owns and stays behind its provider.
     await FileUtils.writeFile(
       p.join(c, 'di', 'injector.dart'),
-      templates.injector(),
+      templates.injector(withFeatureModule: true),
+    );
+    await FileUtils.writeFile(
+      p.join(c, 'di', 'feature_module.dart'),
+      templates.featureModule(),
     );
     await FileUtils.writeFile(
       p.join(c, 'di', 'external_module.dart'),
@@ -1751,6 +1943,7 @@ class InitCommand extends Command<int> {
         withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
         withDebouncer: stack.contains(_kDebouncerService),
         withBiometric: stack.contains(_kBiometricAuth),
+        withAppLifecycle: stack.contains(_kAppLifecycle),
       ),
     );
     await FileUtils.writeFile(
@@ -1789,6 +1982,10 @@ class InitCommand extends Command<int> {
       hasFirestore: stack.contains(_kFirestore),
       hasDio: stack.contains(_kDio),
       hasDarkTheme: stack.contains(_kDarkTheme),
+      // Written by _buildConfig, which runs first.
+      hasStatusColors: true,
+      // AppConstants is written by _buildCore, with the curves.
+      hasMotionTokens: true,
       stateManagement: stateManagement,
     );
 
@@ -1797,13 +1994,17 @@ class InitCommand extends Command<int> {
     final specs = [
       ...WidgetCatalog.commonFor(stateManagement),
       if (stack.contains(_kMaintenanceGate))
-        ...WidgetCatalog.resolve(
-          ['maintenance-gate'],
-          stateManagement: stateManagement,
-        ),
+        ...WidgetCatalog.resolve([
+          'maintenance-gate',
+        ], stateManagement: stateManagement),
+      if (stack.contains(_kUpdateGate))
+        ...WidgetCatalog.resolve([
+          'update-gate',
+        ], stateManagement: stateManagement),
       if (stack.contains(_kMoAdapt))
-        ...WidgetCatalog.resolve(['mo-adapt'],
-            stateManagement: stateManagement),
+        ...WidgetCatalog.resolve([
+          'mo-adapt',
+        ], stateManagement: stateManagement),
     ];
 
     for (final spec in {for (final spec in specs) spec.name: spec}.values) {

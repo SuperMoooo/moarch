@@ -1,6 +1,6 @@
 name: moarch
 description: Flutter CLI — scaffold Clean Architecture projects with Riverpod or flutter_bloc, FVM and your own conventions.
-version: 8.2.0
+version: 9.0.0
 repository: https://github.com/SuperMoooo/moarch
 homepage: https://supermoooo.github.io/Portfolio/
 issue_tracker: https://github.com/SuperMoooo/moarch/issues
@@ -13,10 +13,16 @@ topics:
     - bloc
 
 environment:
-    sdk: '>=3.4.0 <4.0.0'
+    sdk: ^3.9.0
 
 dependencies:
+    # `moarch create tests` reads the project's source (analyzer) and formats
+    # what it writes (dart_style). Global activation keeps both out of the
+    # app's own dependency graph, which is where they used to collide with
+    # freezed and riverpod as the mogen dev dependencies.
+    analyzer: '>=10.0.0 <15.0.0'
     args: ^2.4.2
+    dart_style: ^3.1.3
     mason_logger: ^0.3.2
     path: ^1.9.0
     yaml: ^3.1.3

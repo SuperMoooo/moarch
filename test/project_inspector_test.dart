@@ -22,14 +22,16 @@ void main() {
     await File(p.join(libPath, 'main.dart')).writeAsString('void main() {}');
     await File(p.join(root, '.env')).writeAsString('API_URL=http://x');
     await File(p.join(root, '.fvmrc')).writeAsString('{}');
+    await File(p.join(root, 'AGENTS.md')).writeAsString('# AGENTS.md\n');
     await File(p.join(root, '.vscode', 'settings.json'))
         .create(recursive: true)
         .then((file) => file.writeAsString(DevTemplates.vscodeSettings()));
     // Stands in for the symlink `fvm use` creates — the checks only ask that
     // the path resolves, and a real directory does that on every platform
     // without needing the privileges a Windows symlink would.
-    await Directory(p.join(root, '.fvm', 'flutter_sdk'))
-        .create(recursive: true);
+    await Directory(
+      p.join(root, '.fvm', 'flutter_sdk'),
+    ).create(recursive: true);
     // The locator is part of a healthy project in both stacks now: it is
     // where the data layer is wired, whichever one holds the state. And it is
     // five files rather than one — `injector.dart` calls a registrar per
@@ -37,7 +39,8 @@ void main() {
     // Riverpod, so there is no presentation module.
     await File(p.join(libPath, 'config', 'di', 'injector.dart'))
         .create(recursive: true)
-        .then((file) => file.writeAsString('''
+        .then(
+          (file) => file.writeAsString('''
 final getIt = GetIt.instance;
 
 Future<void> setupInjector() async {
@@ -46,13 +49,16 @@ Future<void> setupInjector() async {
   registerDataLayer();
   await getIt.allReady();
 }
-'''));
+'''),
+        );
     for (final module in ['external_module', 'core_module']) {
-      await File(p.join(libPath, 'config', 'di', '$module.dart'))
-          .writeAsString('void register() {}\n');
+      await File(
+        p.join(libPath, 'config', 'di', '$module.dart'),
+      ).writeAsString('void register() {}\n');
     }
-    await File(p.join(libPath, 'config', 'di', 'data_module.dart'))
-        .writeAsString('''
+    await File(
+      p.join(libPath, 'config', 'di', 'data_module.dart'),
+    ).writeAsString('''
 void registerDataLayer() {
   // moarch:registrations
 }
@@ -107,44 +113,49 @@ dependencies:
   group('fvm', () {
     String settingsPath() => p.join(root, '.vscode', 'settings.json');
 
-    test('flags an SDK path that points nowhere, because the editor does not',
-        () async {
-      await scaffoldHealthyProject();
-      // What a fresh clone looks like: .fvm/ is gitignored, so the symlink
-      // the committed settings.json points at is simply absent.
-      await Directory(p.join(root, '.fvm', 'flutter_sdk')).delete();
+    test(
+      'flags an SDK path that points nowhere, because the editor does not',
+      () async {
+        await scaffoldHealthyProject();
+        // What a fresh clone looks like: .fvm/ is gitignored, so the symlink
+        // the committed settings.json points at is simply absent.
+        await Directory(p.join(root, '.fvm', 'flutter_sdk')).delete();
 
-      final findings = await ProjectInspector.inspect(root);
-      final finding = matching(findings, 'does not exist').single;
-      expect(finding.severity, DiagnosticSeverity.error);
-      expect(finding.hint, contains('fvm use'));
-      // Only a human running fvm can create it.
-      expect(finding.isFixable, isFalse);
-    });
+        final findings = await ProjectInspector.inspect(root);
+        final finding = matching(findings, 'does not exist').single;
+        expect(finding.severity, DiagnosticSeverity.error);
+        expect(finding.hint, contains('fvm use'));
+        // Only a human running fvm can create it.
+        expect(finding.isFixable, isFalse);
+      },
+    );
 
-    test('flags a versioned SDK path, and --fix points it back at the symlink',
-        () async {
-      await scaffoldHealthyProject();
-      // What `fvm use` leaves behind when it rewrites the file.
-      await File(settingsPath()).writeAsString(
-        '{"dart.flutterSdkPath": ".fvm/versions/stable"}',
-      );
+    test(
+      'flags a versioned SDK path, and --fix points it back at the symlink',
+      () async {
+        await scaffoldHealthyProject();
+        // What `fvm use` leaves behind when it rewrites the file.
+        await File(
+          settingsPath(),
+        ).writeAsString('{"dart.flutterSdkPath": ".fvm/versions/stable"}');
 
-      final finding =
-          matching(await ProjectInspector.inspect(root), 'versioned path')
-              .single;
-      expect(finding.severity, DiagnosticSeverity.warning);
-      expect(finding.isFixable, isTrue);
+        final finding = matching(
+          await ProjectInspector.inspect(root),
+          'versioned path',
+        ).single;
+        expect(finding.severity, DiagnosticSeverity.warning);
+        expect(finding.isFixable, isTrue);
 
-      await finding.fix!();
+        await finding.fix!();
 
-      expect(
-        await File(settingsPath()).readAsString(),
-        contains('"dart.flutterSdkPath": ".fvm/flutter_sdk"'),
-      );
-      // The rewritten path resolves again, so the whole group falls silent.
-      expect(await ProjectInspector.inspect(root), isEmpty);
-    });
+        expect(
+          await File(settingsPath()).readAsString(),
+          contains('"dart.flutterSdkPath": ".fvm/flutter_sdk"'),
+        );
+        // The rewritten path resolves again, so the whole group falls silent.
+        expect(await ProjectInspector.inspect(root), isEmpty);
+      },
+    );
 
     test('flags settings.json when it is missing entirely', () async {
       await scaffoldHealthyProject();
@@ -163,20 +174,24 @@ dependencies:
 
       expect(
         matching(
-            await ProjectInspector.inspect(root), 'no dart.flutterSdkPath'),
+          await ProjectInspector.inspect(root),
+          'no dart.flutterSdkPath',
+        ),
         hasLength(1),
       );
     });
 
-    test('leaves an absolute SDK path alone — that is a deliberate override',
-        () async {
-      await scaffoldHealthyProject();
-      await File(settingsPath()).writeAsString(
-        '{"dart.flutterSdkPath": "${p.join(root, 'lib').replaceAll(r'\', r'\\')}"}',
-      );
+    test(
+      'leaves an absolute SDK path alone — that is a deliberate override',
+      () async {
+        await scaffoldHealthyProject();
+        await File(settingsPath()).writeAsString(
+          '{"dart.flutterSdkPath": "${p.join(root, 'lib').replaceAll(r'\', r'\\')}"}',
+        );
 
-      expect(await ProjectInspector.inspect(root), isEmpty);
-    });
+        expect(await ProjectInspector.inspect(root), isEmpty);
+      },
+    );
 
     test('says nothing about a project that does not use fvm', () async {
       await scaffoldHealthyProject();
@@ -311,8 +326,9 @@ dependencies:
       final envDir = p.join(libPath, 'config', 'env');
       await Directory(envDir).create(recursive: true);
       await File(p.join(envDir, 'app_env.dart')).writeAsString('// envied');
-      await File(p.join(envDir, 'app_env.g.dart'))
-          .writeAsString('// generated');
+      await File(
+        p.join(envDir, 'app_env.g.dart'),
+      ).writeAsString('// generated');
 
       expect(
         matching(await ProjectInspector.inspect(root), 'app_env.g.dart'),
@@ -377,7 +393,9 @@ dependencies:
 
       expect(
         matching(
-            await ProjectInspector.inspect(root), 'config/router/ is missing'),
+          await ProjectInspector.inspect(root),
+          'config/router/ is missing',
+        ),
         hasLength(1),
       );
     });
@@ -386,8 +404,9 @@ dependencies:
       await scaffoldHealthyProject();
       final routerDir = p.join(libPath, 'config', 'router');
       await Directory(routerDir).create(recursive: true);
-      await File(p.join(routerDir, 'app_router.dart'))
-          .writeAsString('// router');
+      await File(
+        p.join(routerDir, 'app_router.dart'),
+      ).writeAsString('// router');
 
       expect(
         matching(
@@ -431,7 +450,9 @@ dependencies:
       // And the project is clean afterwards.
       expect(
         matching(
-            await ProjectInspector.inspect(root), 'AppInputStyle is missing'),
+          await ProjectInspector.inspect(root),
+          'AppInputStyle is missing',
+        ),
         isEmpty,
       );
     });
@@ -511,14 +532,43 @@ dependencies:
       await writeWidget('button');
       await writeWidget('card');
 
-      final names =
-          ProjectInspector.generatedWidgets(libPath).map((s) => s.name).toSet();
+      final names = ProjectInspector.generatedWidgets(
+        libPath,
+      ).map((s) => s.name).toSet();
       expect(names, {'button', 'card'});
     });
 
     test('is empty for a project with no widgets', () async {
       await scaffoldHealthyProject();
       expect(ProjectInspector.generatedWidgets(libPath), isEmpty);
+    });
+  });
+
+  group('mogen', () {
+    test('swaps the mogen dev dependencies for mocktail', () async {
+      await scaffoldHealthyProject();
+      final pubspec = File(p.join(root, 'pubspec.yaml'));
+      await pubspec.writeAsString(
+        '${await pubspec.readAsString()}'
+        'dev_dependencies:\n'
+        '  mogen_unit_tests: ^1.4.2\n'
+        '  mogen_integration_tests: ^1.1.1\n',
+      );
+
+      final finding = matching(
+        await ProjectInspector.inspect(root),
+        'replaced by `moarch create tests`',
+      ).single;
+      expect(finding.severity, DiagnosticSeverity.info);
+
+      await finding.fix!();
+
+      final after = await pubspec.readAsString();
+      expect(after, isNot(contains('mogen_')));
+      expect(after, contains('mocktail:'));
+      // Riverpod fixture: no bloc_test.
+      expect(after, isNot(contains('bloc_test')));
+      expect(await ProjectInspector.inspect(root), isEmpty);
     });
   });
 }

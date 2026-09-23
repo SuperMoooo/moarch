@@ -75,9 +75,7 @@ class CreateEmptyFactoriesCommand extends Command<int> {
     int failed = 0;
 
     for (final featureDir in featureDirs) {
-      final modelDir = Directory(
-        p.join(featureDir.path, 'domain', 'models'),
-      );
+      final modelDir = Directory(p.join(featureDir.path, 'domain', 'models'));
       if (!modelDir.existsSync()) continue;
 
       final modelFiles = modelDir
@@ -92,10 +90,7 @@ class CreateEmptyFactoriesCommand extends Command<int> {
       _logger.info('📦 $featureName');
 
       for (final file in modelFiles) {
-        final result = await _processModel(
-          file: file,
-          dryRun: dryRun,
-        );
+        final result = await _processModel(file: file, dryRun: dryRun);
         switch (result) {
           case _Result.patched:
             patched++;
@@ -132,8 +127,10 @@ class CreateEmptyFactoriesCommand extends Command<int> {
     required File file,
     required bool dryRun,
   }) async {
-    final relativePath =
-        file.path.replaceAll(RegExp(r'^.*[/\\]lib[/\\]'), 'lib/');
+    final relativePath = file.path.replaceAll(
+      RegExp(r'^.*[/\\]lib[/\\]'),
+      'lib/',
+    );
 
     try {
       String source = await file.readAsString();
@@ -157,7 +154,10 @@ class CreateEmptyFactoriesCommand extends Command<int> {
           return _Result.skipped;
         }
         updated = source.replaceRange(
-            existing.start, existing.end, newFactory.trim());
+          existing.start,
+          existing.end,
+          newFactory.trim(),
+        );
         _logger.info('  🔄  $relativePath (replaced existing .empty())');
       } else if (source.contains('factory $className.empty(')) {
         // Present, but with a body this can't rewrite (a block, not an arrow).
@@ -168,10 +168,12 @@ class CreateEmptyFactoriesCommand extends Command<int> {
       } else {
         // Append at the end of this class — the file's last brace may belong
         // to a second class declared below it.
-        final closing = ModelFieldParser.classBody(source, className)?.end ??
+        final closing =
+            ModelFieldParser.classBody(source, className)?.end ??
             source.lastIndexOf('}');
         if (closing == -1) throw Exception('Could not find closing brace');
-        updated = source.substring(0, closing) +
+        updated =
+            source.substring(0, closing) +
             newFactory +
             source.substring(closing);
         _logger.info('  ✨  $relativePath (injected new .empty())');

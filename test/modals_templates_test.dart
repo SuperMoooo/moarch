@@ -8,11 +8,13 @@ void main() {
   group('appActionSheet', () {
     test('takes the shape of the platform, the way the pickers do', () {
       expect(
-          output,
-          contains(
-              'enum AppActionSheetStyle { adaptive, material, cupertino }'));
-      expect(output,
-          contains('AppActionSheetStyle.adaptive => !Platform.isAndroid,'));
+        output,
+        contains('enum AppActionSheetStyle { adaptive, material, cupertino }'),
+      );
+      expect(
+        output,
+        contains('AppActionSheetStyle.adaptive => !Platform.isAndroid,'),
+      );
       expect(output, contains("import 'dart:io';"));
     });
 
@@ -32,18 +34,22 @@ void main() {
       // still closing fights the navigator for it.
       expect(
         output,
-        contains('if (picked == null) return null;\n'
-            '    // The sheet is gone by here, so a handler is free to push or open\n'
-            '    // whatever it likes.\n'
-            '    picked.onTap?.call();'),
+        contains(
+          'if (picked == null) return null;\n'
+          '    // The sheet is gone by here, so a handler is free to push or open\n'
+          '    // whatever it likes.\n'
+          '    picked.onTap?.call();',
+        ),
       );
     });
 
     test('a destructive row owns its color', () {
       expect(output, contains('const AppSheetAction.destructive({'));
       expect(output, contains('isDestructive = true,'));
-      expect(output,
-          contains('if (action.isDestructive) return colorScheme.error;'));
+      expect(
+        output,
+        contains('if (action.isDestructive) return colorScheme.error;'),
+      );
       // The override is ignored on a destructive row rather than fighting it.
       expect(output, contains('color = null;'));
     });
@@ -52,18 +58,22 @@ void main() {
       expect(output, contains('static const double _disabledOpacity = 0.38;'));
       expect(output, contains('if (!action.enabled) {'));
       expect(
-          output,
-          contains(
-              'onTap: action.enabled ? () => _pick(context, action) : null,'));
+        output,
+        contains(
+          'onTap: action.enabled ? () => _pick(context, action) : null,',
+        ),
+      );
     });
 
     test('the Material rows ink over the sheet, not under it', () {
       // showModalBottomSheet hands down a transparent Material, so ink on it
       // paints behind the sheet's own opaque surface.
       expect(
-          output,
-          contains(
-              'Material(\n      // Its own Material, so the ink paints over the sheet'));
+        output,
+        contains(
+          'Material(\n      // Its own Material, so the ink paints over the sheet',
+        ),
+      );
       expect(output, contains('color: Colors.transparent,'));
     });
 
@@ -74,9 +84,11 @@ void main() {
 
     test('the Cupertino label stays centered against a trailing icon', () {
       expect(
-          output,
-          contains(
-              'if (icon != null) const SizedBox(width: AppConstants.iconMedium),'));
+        output,
+        contains(
+          'if (icon != null) const SizedBox(width: AppConstants.iconMedium),',
+        ),
+      );
       expect(output, contains('textAlign: TextAlign.center,'));
     });
 
@@ -102,8 +114,9 @@ void main() {
     });
 
     test('is in the catalog under Overlays, needing no router', () {
-      final spec =
-          WidgetCatalog.all.firstWhere((s) => s.name == 'action-sheet');
+      final spec = WidgetCatalog.all.firstWhere(
+        (s) => s.name == 'action-sheet',
+      );
       expect(spec.file, 'overlays/app_action_sheet.dart');
       expect(spec.category, 'Overlays');
       expect(spec.deps, ['bottom-sheet']);

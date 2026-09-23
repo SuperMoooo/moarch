@@ -87,7 +87,8 @@ void main() {
       expect(
         SharedTemplates.appInputStyle(),
         contains(
-            "counterText: (showCounter ?? config.showCounter) ? null : ''"),
+          "counterText: (showCounter ?? config.showCounter) ? null : ''",
+        ),
       );
     });
 
@@ -128,8 +129,11 @@ void main() {
         'enum AppInputLabelMode { above, floating, placeholder, none }',
         'typedef InputSizeConfig',
       ]) {
-        expect(output, contains(declaration),
-            reason: '$declaration is missing');
+        expect(
+          output,
+          contains(declaration),
+          reason: '$declaration is missing',
+        );
       }
     });
 

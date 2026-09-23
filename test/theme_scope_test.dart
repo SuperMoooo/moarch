@@ -13,11 +13,9 @@ Set<String> _referenced(String source) =>
     RegExp(r'AppConstants\.(\w+)').allMatches(source).map((m) => m[1]!).toSet();
 
 /// Every token `AppConstants` declares.
-Set<String> _declared(String source) =>
-    RegExp(r'static (?:const|final)[^=]*?(\w+)\s*=')
-        .allMatches(source)
-        .map((m) => m[1]!)
-        .toSet();
+Set<String> _declared(String source) => RegExp(
+  r'static (?:const|final)[^=]*?(\w+)\s*=',
+).allMatches(source).map((m) => m[1]!).toSet();
 
 void main() {
   group('AppConstants', () {
@@ -50,10 +48,14 @@ void main() {
         hasBiometric: true,
         hasFirestore: true,
         hasDio: true,
+        hasStatusColors: true,
+        hasMotionTokens: true,
       );
 
       final used = <String>{
         ..._referenced(ConfigTemplates.appTheme()),
+        // The status colors' one reader once the extension exists.
+        ..._referenced(ConfigTemplates.appStatusColors()),
         ..._referenced(riverpod.AppTemplates.mainDart()),
         for (final spec in WidgetCatalog.all)
           ..._referenced(WidgetCatalog.sourceFor(spec, everything)),
@@ -88,8 +90,11 @@ void main() {
         };
 
         sources.forEach((name, source) {
-          expect(_referenced(source).difference(declared), isEmpty,
-              reason: '$name reads a token AppConstants does not declare');
+          expect(
+            _referenced(source).difference(declared),
+            isEmpty,
+            reason: '$name reads a token AppConstants does not declare',
+          );
         });
       });
     }
@@ -171,9 +176,8 @@ void main() {
     tearDown(() => temp.deleteSync(recursive: true));
 
     void writeTheme(String content) {
-      final file = File(
-        '${temp.path}/lib/config/theme/app_theme.dart',
-      )..createSync(recursive: true);
+      final file = File('${temp.path}/lib/config/theme/app_theme.dart')
+        ..createSync(recursive: true);
       file.writeAsStringSync(content);
     }
 

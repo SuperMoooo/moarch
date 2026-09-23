@@ -28,15 +28,20 @@ class FlavorTemplates {
       ..writeln('#   dart run flutter_flavorizr')
       ..writeln('#')
       ..writeln(
-          '# The `instructions` below keep flavorizr away from lib/main.dart:')
+        '# The `instructions` below keep flavorizr away from lib/main.dart:',
+      )
       ..writeln(
-          '# it patches the native side and generates lib/flavors.dart, nothing')
+        '# it patches the native side and generates lib/flavors.dart, nothing',
+      )
       ..writeln(
-          '# else — no per-flavor main_<flavor>.dart, no replaced entry point.')
+        '# else — no per-flavor main_<flavor>.dart, no replaced entry point.',
+      )
       ..writeln('# The same processors, one part at a time:')
       ..writeln('#')
-      ..writeln('#   dart run flutter_flavorizr -p '
-          'android:flavorizrGradle,android:buildGradle,android:androidManifest')
+      ..writeln(
+        '#   dart run flutter_flavorizr -p '
+        'android:flavorizrGradle,android:buildGradle,android:androidManifest',
+      )
       ..writeln('#   dart run flutter_flavorizr -p ios:xcconfig,ios:plist')
       ..writeln('#   dart run flutter_flavorizr -p flutter:flavors')
       ..writeln()

@@ -38,15 +38,17 @@ void main() {
       expect(output, contains('if (isEmpty?.call(data) ?? false) {'));
     });
 
-    test('shows the failure\'s own message, and nothing it cannot vouch for',
-        () {
-      expect(output, contains('AppException(:final message) => message,'));
-      expect(output, contains('_ => null,'));
-      expect(
-        output,
-        contains("import '../../core/errors/app_exception.dart';"),
-      );
-    });
+    test(
+      'shows the failure\'s own message, and nothing it cannot vouch for',
+      () {
+        expect(output, contains('AppException(:final message) => message,'));
+        expect(output, contains('_ => null,'));
+        expect(
+          output,
+          contains("import '../../core/errors/app_exception.dart';"),
+        );
+      },
+    );
 
     test('renders inline, so a Scaffold keeps its app bar while loading', () {
       // The doc comment shows one around the widget, which is the opposite of
@@ -76,7 +78,8 @@ void main() {
       expect(
         output,
         contains(
-            'Widget _render(BuildContext context, _AsyncState<T> state) {'),
+          'Widget _render(BuildContext context, _AsyncState<T> state) {',
+        ),
       );
       expect(output, contains('class _AsyncState<T> {'));
       expect(output, contains('builder: _render,'));
@@ -89,7 +92,9 @@ void main() {
       expect(output, isNot(contains('.copyWithPrevious(')));
       expect(output, contains('hasValue: value.hasValue,'));
       expect(
-          output, contains('value: value.hasValue ? value.value as T : null,'));
+        output,
+        contains('value: value.hasValue ? value.value as T : null,'),
+      );
       expect(output, contains('error: value.error,'));
       expect(output, contains('isLoading: value.isLoading,'));
     });
@@ -99,8 +104,10 @@ void main() {
       // and `_emitError` both leave `_hasValue`/`_value` where they are.
       expect(output, contains('bool _hasValue = false;'));
       expect(output, contains('_isLoading = true;'));
-      expect(output,
-          contains('void _emitError(Object error, {Future<T>? from}) {'));
+      expect(
+        output,
+        contains('void _emitError(Object error, {Future<T>? from}) {'),
+      );
       // Only a successful emit replaces the data.
       expect(output, contains('_hasValue = true;'));
     });
@@ -151,13 +158,16 @@ void main() {
     });
 
     test(
-        'a caller-supplied handler replaces the toast rather than adding to it',
-        () {
-      expect(output,
-          contains('if (onError != null) {\n          onError(error);'));
-      expect(output, contains('AppToast.error(context, error);'));
-      expect(output, contains('AppToast.success(context, success);'));
-    });
+      'a caller-supplied handler replaces the toast rather than adding to it',
+      () {
+        expect(
+          output,
+          contains('if (onError != null) {\n          onError(error);'),
+        );
+        expect(output, contains('AppToast.error(context, error);'));
+        expect(output, contains('AppToast.success(context, success);'));
+      },
+    );
 
     test('an unset extractor means nothing looks for that message', () {
       expect(output, contains('String? Function(S state)? errorOf,'));
@@ -231,7 +241,8 @@ void main() {
       expect(
         output,
         contains(
-            'skeleton: (context) => _body(context, OrdersState.placeholder),'),
+          'skeleton: (context) => _body(context, OrdersState.placeholder),',
+        ),
       );
       expect(output, contains('builder: _body,'));
       expect(

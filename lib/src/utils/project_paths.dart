@@ -17,6 +17,6 @@ String resolveLibPath(String path) {
   final root = p.absolute(path);
   final looksLikeProjectRoot =
       File(p.join(root, 'pubspec.yaml')).existsSync() &&
-          Directory(p.join(root, 'lib')).existsSync();
+      Directory(p.join(root, 'lib')).existsSync();
   return looksLikeProjectRoot ? p.join(path, 'lib') : path;
 }

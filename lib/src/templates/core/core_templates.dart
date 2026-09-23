@@ -8,7 +8,7 @@ class CoreTemplates {
   static String appLogger({bool withCrashlytics = false}) {
     final crashlyticsImport = withCrashlytics
         ? "\nimport 'package:firebase_core/firebase_core.dart';"
-            "\nimport 'package:firebase_crashlytics/firebase_crashlytics.dart';"
+              "\nimport 'package:firebase_crashlytics/firebase_crashlytics.dart';"
         : '';
 
     final sinks = withCrashlytics
@@ -581,8 +581,41 @@ $darkPalette
   static const Duration duration200 = Duration(milliseconds: 200);
   static const Duration duration300 = Duration(milliseconds: 300);
   static const Duration duration500 = Duration(milliseconds: 500);
+
+  // ── Motion curves ─────────────────────────────────────────────────────────
+  // Standard for anything that moves within the screen — a page, a fade.
+  // Enter decelerates into place and exit accelerates away, so an arrival
+  // settles quickly and a departure does not linger.
+  static const Curve curveStandard = Curves.easeInOut;
+  static const Curve curveEnter = Curves.easeOutCubic;
+  static const Curve curveExit = Curves.easeInCubic;
 }
 ''';
+  }
+
+  /// The `AppConstants` tokens a widget may read that older projects lack, and
+  /// the literal each one stands for.
+  ///
+  /// `app_constants.dart` is the first file a team edits — it holds the
+  /// palette — so `update` almost never refreshes it, while the widgets
+  /// reading it are refreshed freely. A widget written against a token the
+  /// project's constants do not declare would not compile, so
+  /// [inlineMissingTokens] writes these literals in their place: the same
+  /// value, just not shared.
+  static const Map<String, String> tokenLiterals = {
+    'AppConstants.curveStandard': 'Curves.easeInOut',
+    'AppConstants.curveEnter': 'Curves.easeOutCubic',
+    'AppConstants.curveExit': 'Curves.easeInCubic',
+  };
+
+  /// [source] with every [tokenLiterals] token replaced by its literal — for
+  /// a project whose `AppConstants` predates them.
+  static String inlineMissingTokens(String source) {
+    var out = source;
+    tokenLiterals.forEach((token, literal) {
+      out = out.replaceAll(token, literal);
+    });
+    return out;
   }
 
   /// Returns the generated apiConstants template.
@@ -794,13 +827,14 @@ int? _asInt(Object? value) => switch (value) {
   /// [withAuth] adds the `FirebaseAuthException` arm, which must come first —
   /// it is a subtype of `FirebaseException`.
   static String safeFirebaseCall({bool withAuth = false}) {
-    final authImport =
-        withAuth ? "import 'package:firebase_auth/firebase_auth.dart';\n" : '';
+    final authImport = withAuth
+        ? "import 'package:firebase_auth/firebase_auth.dart';\n"
+        : '';
 
     final authCatch = withAuth
         ? '\n  } on FirebaseAuthException catch (e) {'
-            '\n    // Before FirebaseException — it is a subtype of it.'
-            '\n    throw AppException.fromFirebaseAuthError(e);'
+              '\n    // Before FirebaseException — it is a subtype of it.'
+              '\n    throw AppException.fromFirebaseAuthError(e);'
         : '';
 
     final authStreamCatch = withAuth
@@ -973,8 +1007,9 @@ Dio buildDioClient(
 }) {'''
         : 'Dio buildDioClient(TokenStorage storage) {';
 
-    final exceptionImport =
-        withAuthFeature ? "import '../errors/app_exception.dart';\n" : '';
+    final exceptionImport = withAuthFeature
+        ? "import '../errors/app_exception.dart';\n"
+        : '';
 
     final refreshOnError = withAuthFeature
         ? r'''

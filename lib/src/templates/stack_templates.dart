@@ -8,12 +8,17 @@ import 'bloc/auth_templates.dart' as bloc;
 import 'bloc/feature_templates.dart' as bloc;
 import 'bloc/firebase_auth_templates.dart' as bloc;
 import 'bloc/maintenance_templates.dart' as bloc;
+import 'bloc/scope_templates.dart';
+import 'bloc/update_gate_templates.dart' as bloc;
 import 'riverpod/app_templates.dart' as riverpod;
 import 'riverpod/async_templates.dart' as riverpod;
 import 'riverpod/auth_templates.dart' as riverpod;
 import 'riverpod/feature_templates.dart' as riverpod;
 import 'riverpod/firebase_auth_templates.dart' as riverpod;
 import 'riverpod/maintenance_templates.dart' as riverpod;
+import 'riverpod/update_gate_templates.dart' as riverpod;
+
+export 'bloc/scope_templates.dart' show ScopeBloc, ScopeParent;
 
 /// The one place that knows which stack a template comes from.
 ///
@@ -115,36 +120,38 @@ class StackTemplates {
     bool withCrashlytics = false,
     bool withFirebase = false,
     bool withMaintenanceGate = false,
+    bool withUpdateGate = false,
     bool withMoAdapt = false,
     bool withDarkTheme = false,
     bool withAuthFeature = false,
-  }) =>
-      isBloc
-          ? bloc.AppTemplates.mainDart(
-              withRouter: withRouter,
-              withLocalization: withLocalization,
-              withEasyLocalization: withEasyLocalization,
-              withNotificationsService: withNotificationsService,
-              withFirebaseNotifications: withFirebaseNotifications,
-              withCrashlytics: withCrashlytics,
-              withFirebase: withFirebase,
-              withMaintenanceGate: withMaintenanceGate,
-              withMoAdapt: withMoAdapt,
-              withDarkTheme: withDarkTheme,
-              withAuthFeature: withAuthFeature,
-            )
-          : riverpod.AppTemplates.mainDart(
-              withRouter: withRouter,
-              withLocalization: withLocalization,
-              withEasyLocalization: withEasyLocalization,
-              withNotificationsService: withNotificationsService,
-              withFirebaseNotifications: withFirebaseNotifications,
-              withCrashlytics: withCrashlytics,
-              withFirebase: withFirebase,
-              withMaintenanceGate: withMaintenanceGate,
-              withMoAdapt: withMoAdapt,
-              withDarkTheme: withDarkTheme,
-            );
+  }) => isBloc
+      ? bloc.AppTemplates.mainDart(
+          withRouter: withRouter,
+          withLocalization: withLocalization,
+          withEasyLocalization: withEasyLocalization,
+          withNotificationsService: withNotificationsService,
+          withFirebaseNotifications: withFirebaseNotifications,
+          withCrashlytics: withCrashlytics,
+          withFirebase: withFirebase,
+          withMaintenanceGate: withMaintenanceGate,
+          withUpdateGate: withUpdateGate,
+          withMoAdapt: withMoAdapt,
+          withDarkTheme: withDarkTheme,
+          withAuthFeature: withAuthFeature,
+        )
+      : riverpod.AppTemplates.mainDart(
+          withRouter: withRouter,
+          withLocalization: withLocalization,
+          withEasyLocalization: withEasyLocalization,
+          withNotificationsService: withNotificationsService,
+          withFirebaseNotifications: withFirebaseNotifications,
+          withCrashlytics: withCrashlytics,
+          withFirebase: withFirebase,
+          withMaintenanceGate: withMaintenanceGate,
+          withUpdateGate: withUpdateGate,
+          withMoAdapt: withMoAdapt,
+          withDarkTheme: withDarkTheme,
+        );
 
   /// The stack's shared state vocabulary: bloc's `AppStatus` enum with the
   /// `StatusState` contract and `runAction` mixin every bloc leans on, or the
@@ -180,14 +187,29 @@ class StackTemplates {
   /// nothing about it for get_it to hold.
   bool get hasPresentationModule => isBloc;
 
+  /// Whether this stack has scopes to generate. Bloc only: a Riverpod
+  /// provider lives above the Navigator, so a pushed route or a sheet already
+  /// reads the same notifier and there is nothing to carry.
+  bool get hasScopes => isBloc;
+
+  /// A bloc scope — see [ScopeTemplates.scope]. Only called when [hasScopes].
+  String scope({
+    required String name,
+    required List<ScopeBloc> blocs,
+    ScopeParent? parent,
+  }) => ScopeTemplates.scope(name: name, blocs: blocs, parent: parent);
+
   /// The root of the get_it service locator: `getIt`, and `setupInjector()`
   /// calling one registrar per layer.
   ///
   /// Both stacks have one: DI is get_it's job either way. What varies is only
   /// whether there is a presentation module among the layers — see
   /// [InjectorTemplates].
-  String injector() =>
-      InjectorTemplates.injector(stateManagement: stateManagement);
+  String injector({bool withFeatureModule = false}) =>
+      InjectorTemplates.injector(
+        stateManagement: stateManagement,
+        withFeatureModule: withFeatureModule,
+      );
 
   /// The locator's external layer — Dio, Firebase, secure storage. Same in
   /// both stacks.
@@ -197,14 +219,13 @@ class StackTemplates {
     bool withFirebaseAuth = false,
     bool withAuthFeature = false,
     bool withFirebaseAuthFeature = false,
-  }) =>
-      InjectorTemplates.externalModule(
-        withDio: withDio,
-        withFirestore: withFirestore,
-        withFirebaseAuth: withFirebaseAuth,
-        withAuthFeature: withAuthFeature,
-        withFirebaseAuthFeature: withFirebaseAuthFeature,
-      );
+  }) => InjectorTemplates.externalModule(
+    withDio: withDio,
+    withFirestore: withFirestore,
+    withFirebaseAuth: withFirebaseAuth,
+    withAuthFeature: withAuthFeature,
+    withFirebaseAuthFeature: withFirebaseAuthFeature,
+  );
 
   /// The locator's core-services layer. Same in both stacks.
   String coreModule({
@@ -215,16 +236,21 @@ class StackTemplates {
     bool withDebouncer = false,
     bool withBiometric = false,
     bool withConnectivity = false,
-  }) =>
-      InjectorTemplates.coreModule(
-        withMedia: withMedia,
-        withUrlLauncher: withUrlLauncher,
-        withNotifications: withNotifications,
-        withFirebaseNotifications: withFirebaseNotifications,
-        withDebouncer: withDebouncer,
-        withBiometric: withBiometric,
-        withConnectivity: withConnectivity,
-      );
+    bool withAppLifecycle = false,
+  }) => InjectorTemplates.coreModule(
+    withMedia: withMedia,
+    withUrlLauncher: withUrlLauncher,
+    withNotifications: withNotifications,
+    withFirebaseNotifications: withFirebaseNotifications,
+    withDebouncer: withDebouncer,
+    withBiometric: withBiometric,
+    withConnectivity: withConnectivity,
+    withAppLifecycle: withAppLifecycle,
+  );
+
+  /// The locator's feature layer — long-lived services a feature owns, and
+  /// the scope helpers. Same in both stacks.
+  String featureModule() => InjectorTemplates.featureModule();
 
   /// The locator's data layer — datasources and repositories. Same in both
   /// stacks, and where `moarch create feature` writes.
@@ -234,14 +260,13 @@ class StackTemplates {
     bool withAuthFeature = false,
     bool withFirebaseAuthFeature = false,
     bool withFirebaseNotifications = false,
-  }) =>
-      InjectorTemplates.dataModule(
-        withDio: withDio,
-        withFirestore: withFirestore,
-        withAuthFeature: withAuthFeature,
-        withFirebaseAuthFeature: withFirebaseAuthFeature,
-        withFirebaseNotifications: withFirebaseNotifications,
-      );
+  }) => InjectorTemplates.dataModule(
+    withDio: withDio,
+    withFirestore: withFirestore,
+    withAuthFeature: withAuthFeature,
+    withFirebaseAuthFeature: withFirebaseAuthFeature,
+    withFirebaseNotifications: withFirebaseNotifications,
+  );
 
   /// The locator's presentation layer — the blocs.
   ///
@@ -250,11 +275,10 @@ class StackTemplates {
   String presentationModule({
     bool withAuthFeature = false,
     bool withLocalization = false,
-  }) =>
-      InjectorTemplates.presentationModule(
-        withAuthFeature: withAuthFeature,
-        withLocalization: withLocalization,
-      );
+  }) => InjectorTemplates.presentationModule(
+    withAuthFeature: withAuthFeature,
+    withLocalization: withLocalization,
+  );
 
   /// The pre-split single-file locator, for projects that still have one.
   ///
@@ -275,23 +299,22 @@ class StackTemplates {
     bool withBiometric = false,
     bool withLocalization = false,
     bool withConnectivity = false,
-  }) =>
-      InjectorTemplates.singleFileInjector(
-        stateManagement: stateManagement,
-        withDio: withDio,
-        withFirestore: withFirestore,
-        withFirebaseAuth: withFirebaseAuth,
-        withAuthFeature: withAuthFeature,
-        withFirebaseAuthFeature: withFirebaseAuthFeature,
-        withMedia: withMedia,
-        withUrlLauncher: withUrlLauncher,
-        withNotifications: withNotifications,
-        withFirebaseNotifications: withFirebaseNotifications,
-        withDebouncer: withDebouncer,
-        withBiometric: withBiometric,
-        withLocalization: withLocalization,
-        withConnectivity: withConnectivity,
-      );
+  }) => InjectorTemplates.singleFileInjector(
+    stateManagement: stateManagement,
+    withDio: withDio,
+    withFirestore: withFirestore,
+    withFirebaseAuth: withFirebaseAuth,
+    withAuthFeature: withAuthFeature,
+    withFirebaseAuthFeature: withFirebaseAuthFeature,
+    withMedia: withMedia,
+    withUrlLauncher: withUrlLauncher,
+    withNotifications: withNotifications,
+    withFirebaseNotifications: withFirebaseNotifications,
+    withDebouncer: withDebouncer,
+    withBiometric: withBiometric,
+    withLocalization: withLocalization,
+    withConnectivity: withConnectivity,
+  );
 
   // ── Shared widgets ──────────────────────────────────────────────────────────
 
@@ -321,48 +344,78 @@ class StackTemplates {
   /// The maintenance gate.
   String maintenanceGate({bool withFirestore = false, bool withDio = false}) =>
       isBloc
-          ? bloc.MaintenanceTemplates.maintenanceGate(
-              withFirestore: withFirestore,
-              withDio: withDio,
-            )
-          : riverpod.MaintenanceTemplates.maintenanceGate(
-              withFirestore: withFirestore,
-              withDio: withDio,
-            );
+      ? bloc.MaintenanceTemplates.maintenanceGate(
+          withFirestore: withFirestore,
+          withDio: withDio,
+        )
+      : riverpod.MaintenanceTemplates.maintenanceGate(
+          withFirestore: withFirestore,
+          withDio: withDio,
+        );
+
+  /// The update gate — the backend's minimum version.
+  String updateGate({bool withFirestore = false, bool withDio = false}) =>
+      isBloc
+      ? bloc.UpdateGateTemplates.updateGate(
+          withFirestore: withFirestore,
+          withDio: withDio,
+        )
+      : riverpod.UpdateGateTemplates.updateGate(
+          withFirestore: withFirestore,
+          withDio: withDio,
+        );
 
   // ── Feature ─────────────────────────────────────────────────────────────────
 
   /// The repository contract.
-  String featureRepositoryInterface(String name, String cls,
-          {bool useFirestore = false}) =>
-      isBloc
-          ? bloc.FeatureTemplates.repositoryInterface(name, cls,
-              useFirestore: useFirestore)
-          : riverpod.FeatureTemplates.repositoryInterface(name, cls,
-              useFirestore: useFirestore);
+  String featureRepositoryInterface(
+    String name,
+    String cls, {
+    bool useFirestore = false,
+  }) => isBloc
+      ? bloc.FeatureTemplates.repositoryInterface(
+          name,
+          cls,
+          useFirestore: useFirestore,
+        )
+      : riverpod.FeatureTemplates.repositoryInterface(
+          name,
+          cls,
+          useFirestore: useFirestore,
+        );
 
   /// The data model — the one class a feature passes from datasource to
   /// screen.
   String featureModel(String name, String cls, {bool useFirestore = false}) =>
       isBloc
-          ? bloc.FeatureTemplates.model(name, cls, useFirestore: useFirestore)
-          : riverpod.FeatureTemplates.model(name, cls,
-              useFirestore: useFirestore);
+      ? bloc.FeatureTemplates.model(name, cls, useFirestore: useFirestore)
+      : riverpod.FeatureTemplates.model(name, cls, useFirestore: useFirestore);
 
   /// The remote datasource.
-  String featureRemoteDatasource(String name, String cls, String varName,
-          {bool useFirestore = false}) =>
-      isBloc
-          ? bloc.FeatureTemplates.remoteDatasource(name, cls, varName,
-              useFirestore: useFirestore)
-          : riverpod.FeatureTemplates.remoteDatasource(name, cls, varName,
-              useFirestore: useFirestore);
+  String featureRemoteDatasource(
+    String name,
+    String cls,
+    String varName, {
+    bool useFirestore = false,
+  }) => isBloc
+      ? bloc.FeatureTemplates.remoteDatasource(
+          name,
+          cls,
+          varName,
+          useFirestore: useFirestore,
+        )
+      : riverpod.FeatureTemplates.remoteDatasource(
+          name,
+          cls,
+          varName,
+          useFirestore: useFirestore,
+        );
 
   /// The local/cache datasource.
   String featureLocalDatasource(String name, String cls, String varName) =>
       isBloc
-          ? bloc.FeatureTemplates.localDatasource(name, cls, varName)
-          : riverpod.FeatureTemplates.localDatasource(name, cls, varName);
+      ? bloc.FeatureTemplates.localDatasource(name, cls, varName)
+      : riverpod.FeatureTemplates.localDatasource(name, cls, varName);
 
   /// The repository implementation.
   String featureRepositoryImpl(
@@ -372,39 +425,33 @@ class StackTemplates {
     required bool hasRemote,
     required bool hasLocal,
     bool useFirestore = false,
-  }) =>
-      isBloc
-          ? bloc.FeatureTemplates.repositoryImpl(
-              name,
-              cls,
-              varName,
-              hasRemote: hasRemote,
-              hasLocal: hasLocal,
-              useFirestore: useFirestore,
-            )
-          : riverpod.FeatureTemplates.repositoryImpl(
-              name,
-              cls,
-              varName,
-              hasRemote: hasRemote,
-              hasLocal: hasLocal,
-              useFirestore: useFirestore,
-            );
+  }) => isBloc
+      ? bloc.FeatureTemplates.repositoryImpl(
+          name,
+          cls,
+          varName,
+          hasRemote: hasRemote,
+          hasLocal: hasLocal,
+          useFirestore: useFirestore,
+        )
+      : riverpod.FeatureTemplates.repositoryImpl(
+          name,
+          cls,
+          varName,
+          hasRemote: hasRemote,
+          hasLocal: hasLocal,
+          useFirestore: useFirestore,
+        );
 
   /// The feature state.
   ///
   /// [useFirestore] is Riverpod's alone: its state is built from the live
   /// query. A bloc's state carries a status and the screen's own fields —
   /// nothing the backend decides.
-  String featureState(
-    String name,
-    String cls, {
-    bool useFirestore = false,
-  }) =>
+  String featureState(String name, String cls, {bool useFirestore = false}) =>
       isBloc
-          ? bloc.FeatureTemplates.state(name, cls)
-          : riverpod.FeatureTemplates.state(name, cls,
-              useFirestore: useFirestore);
+      ? bloc.FeatureTemplates.state(name, cls)
+      : riverpod.FeatureTemplates.state(name, cls, useFirestore: useFirestore);
 
   /// The feature's sealed event family — bloc only.
   String featureEvent(String name, String cls) =>
@@ -428,23 +475,22 @@ class StackTemplates {
     bool hasRepository = true,
     String? repositoryName,
     String? repositoryClass,
-  }) =>
-      isBloc
-          ? bloc.FeatureTemplates.bloc(
-              name,
-              cls,
-              varName,
-              hasRepository: hasRepository,
-              repositoryName: repositoryName,
-              repositoryClass: repositoryClass,
-            )
-          : riverpod.FeatureTemplates.notifier(
-              name,
-              cls,
-              varName,
-              useFirestore: useFirestore,
-              hasRepository: hasRepository,
-            );
+  }) => isBloc
+      ? bloc.FeatureTemplates.bloc(
+          name,
+          cls,
+          varName,
+          hasRepository: hasRepository,
+          repositoryName: repositoryName,
+          repositoryClass: repositoryClass,
+        )
+      : riverpod.FeatureTemplates.notifier(
+          name,
+          cls,
+          varName,
+          useFirestore: useFirestore,
+          hasRepository: hasRepository,
+        );
 
   /// The page that creates the bloc and provides it above the view. Bloc
   /// only — see [hasPage].
@@ -458,30 +504,26 @@ class StackTemplates {
     String varName, {
     required bool hasHolder,
     bool useFirestore = false,
-  }) =>
-      isBloc
-          ? bloc.FeatureTemplates.view(
-              name,
-              cls,
-              varName,
-              hasBloc: hasHolder,
-            )
-          : riverpod.FeatureTemplates.view(
-              name,
-              cls,
-              varName,
-              hasNotifier: hasHolder,
-              useFirestore: useFirestore,
-            );
+  }) => isBloc
+      ? bloc.FeatureTemplates.view(name, cls, varName, hasBloc: hasHolder)
+      : riverpod.FeatureTemplates.view(
+          name,
+          cls,
+          varName,
+          hasNotifier: hasHolder,
+          useFirestore: useFirestore,
+        );
 
   // ── Auth feature (REST) ─────────────────────────────────────────────────────
 
   /// The auth repository contract.
   String authRepositoryInterface({bool withPushNotifications = false}) => isBloc
       ? bloc.AuthTemplates.repositoryInterface(
-          withPushNotifications: withPushNotifications)
+          withPushNotifications: withPushNotifications,
+        )
       : riverpod.AuthTemplates.repositoryInterface(
-          withPushNotifications: withPushNotifications);
+          withPushNotifications: withPushNotifications,
+        );
 
   /// The token-pair model.
   String authModel() =>
@@ -490,16 +532,20 @@ class StackTemplates {
   /// The auth datasource.
   String authRemoteDatasource({bool withPushNotifications = false}) => isBloc
       ? bloc.AuthTemplates.remoteDatasource(
-          withPushNotifications: withPushNotifications)
+          withPushNotifications: withPushNotifications,
+        )
       : riverpod.AuthTemplates.remoteDatasource(
-          withPushNotifications: withPushNotifications);
+          withPushNotifications: withPushNotifications,
+        );
 
   /// The auth repository implementation.
   String authRepositoryImpl({bool withPushNotifications = false}) => isBloc
       ? bloc.AuthTemplates.repositoryImpl(
-          withPushNotifications: withPushNotifications)
+          withPushNotifications: withPushNotifications,
+        )
       : riverpod.AuthTemplates.repositoryImpl(
-          withPushNotifications: withPushNotifications);
+          withPushNotifications: withPushNotifications,
+        );
 
   /// The auth state.
   String authState() =>
@@ -509,10 +555,19 @@ class StackTemplates {
   String authEvent() => bloc.AuthTemplates.event();
 
   /// The auth state holder.
-  String authHolder({bool withPushNotifications = false}) => isBloc
-      ? bloc.AuthTemplates.bloc(withPushNotifications: withPushNotifications)
+  ///
+  /// [withConcurrency] is bloc's: `droppable()` on the submit events.
+  String authHolder({
+    bool withPushNotifications = false,
+    bool withConcurrency = false,
+  }) => isBloc
+      ? bloc.AuthTemplates.bloc(
+          withPushNotifications: withPushNotifications,
+          withConcurrency: withConcurrency,
+        )
       : riverpod.AuthTemplates.notifier(
-          withPushNotifications: withPushNotifications);
+          withPushNotifications: withPushNotifications,
+        );
 
   /// The login screen.
   String authLoginView() => isBloc
@@ -529,13 +584,13 @@ class StackTemplates {
   /// The Firebase auth repository contract.
   String firebaseAuthRepositoryInterface({
     bool withPushNotifications = false,
-  }) =>
-      isBloc
-          ? bloc.FirebaseAuthTemplates.repositoryInterface(
-              withPushNotifications: withPushNotifications)
-          : riverpod.FirebaseAuthTemplates.repositoryInterface(
-              withPushNotifications: withPushNotifications,
-            );
+  }) => isBloc
+      ? bloc.FirebaseAuthTemplates.repositoryInterface(
+          withPushNotifications: withPushNotifications,
+        )
+      : riverpod.FirebaseAuthTemplates.repositoryInterface(
+          withPushNotifications: withPushNotifications,
+        );
 
   /// The signed-in-user model.
   String firebaseAuthModel({bool withFirestore = false}) => isBloc
@@ -546,31 +601,29 @@ class StackTemplates {
   String firebaseAuthRemoteDatasource({
     bool withFirestore = false,
     bool withPushNotifications = false,
-  }) =>
-      isBloc
-          ? bloc.FirebaseAuthTemplates.remoteDatasource(
-              withFirestore: withFirestore,
-              withPushNotifications: withPushNotifications,
-            )
-          : riverpod.FirebaseAuthTemplates.remoteDatasource(
-              withFirestore: withFirestore,
-              withPushNotifications: withPushNotifications,
-            );
+  }) => isBloc
+      ? bloc.FirebaseAuthTemplates.remoteDatasource(
+          withFirestore: withFirestore,
+          withPushNotifications: withPushNotifications,
+        )
+      : riverpod.FirebaseAuthTemplates.remoteDatasource(
+          withFirestore: withFirestore,
+          withPushNotifications: withPushNotifications,
+        );
 
   /// The Firebase auth repository implementation.
   String firebaseAuthRepositoryImpl({
     bool withFirestore = false,
     bool withPushNotifications = false,
-  }) =>
-      isBloc
-          ? bloc.FirebaseAuthTemplates.repositoryImpl(
-              withFirestore: withFirestore,
-              withPushNotifications: withPushNotifications,
-            )
-          : riverpod.FirebaseAuthTemplates.repositoryImpl(
-              withFirestore: withFirestore,
-              withPushNotifications: withPushNotifications,
-            );
+  }) => isBloc
+      ? bloc.FirebaseAuthTemplates.repositoryImpl(
+          withFirestore: withFirestore,
+          withPushNotifications: withPushNotifications,
+        )
+      : riverpod.FirebaseAuthTemplates.repositoryImpl(
+          withFirestore: withFirestore,
+          withPushNotifications: withPushNotifications,
+        );
 
   /// The Firebase auth state.
   String firebaseAuthState() => isBloc
@@ -581,11 +634,19 @@ class StackTemplates {
   String firebaseAuthEvent() => bloc.FirebaseAuthTemplates.event();
 
   /// The Firebase auth state holder.
-  String firebaseAuthHolder({bool withPushNotifications = false}) => isBloc
+  ///
+  /// [withConcurrency] is bloc's: `droppable()` on the submit events.
+  String firebaseAuthHolder({
+    bool withPushNotifications = false,
+    bool withConcurrency = false,
+  }) => isBloc
       ? bloc.FirebaseAuthTemplates.bloc(
-          withPushNotifications: withPushNotifications)
+          withPushNotifications: withPushNotifications,
+          withConcurrency: withConcurrency,
+        )
       : riverpod.FirebaseAuthTemplates.notifier(
-          withPushNotifications: withPushNotifications);
+          withPushNotifications: withPushNotifications,
+        );
 
   /// The Firebase login screen.
   String firebaseAuthLoginView() => isBloc

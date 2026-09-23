@@ -45,10 +45,7 @@ void main() {
   group('unified', () {
     test('marks added and removed lines', () {
       final diff = TextDiff.unified('a\nb\nc', 'a\nX\nc');
-      expect(
-        diff.map((l) => l.toString()),
-        containsAll(['-b', '+X']),
-      );
+      expect(diff.map((l) => l.toString()), containsAll(['-b', '+X']));
     });
 
     test('keeps context lines around a change', () {

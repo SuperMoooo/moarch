@@ -34,8 +34,7 @@ void main() {
     expect(flavors['staging']['app']['name'], 'Cool Shop Staging');
   });
 
-  test(
-      'instructions run the native processors and flutter:flavors — '
+  test('instructions run the native processors and flutter:flavors — '
       'never the processors that generate main_<flavor>.dart', () {
     final doc = loadYaml(render()) as YamlMap;
     final instructions = (doc['instructions'] as YamlList).cast<String>();
@@ -60,7 +59,9 @@ void main() {
     expect(flavors.keys, ['qa', 'production']);
     // 'production' counts as the production flavor and keeps the bare id.
     expect(
-        flavors['production']['android']['applicationId'], 'com.acme.coolshop');
+      flavors['production']['android']['applicationId'],
+      'com.acme.coolshop',
+    );
     expect(flavors['qa']['android']['applicationId'], 'com.acme.coolshop.qa');
   });
 

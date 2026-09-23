@@ -14,17 +14,16 @@ final _mask = RegExp(r"'([^']*)'");
 typedef _Country = ({String iso, String dial, String name, List<String> masks});
 
 List<_Country> _parseTable(String output) => [
-      for (final match in _row.allMatches(output))
-        (
-          iso: match.group(1)!,
-          dial: match.group(2)!,
-          name: match.group(3)!.replaceAll(r"\'", "'"),
-          masks: [
-            for (final mask in _mask.allMatches(match.group(4)!))
-              mask.group(1)!,
-          ],
-        ),
-    ];
+  for (final match in _row.allMatches(output))
+    (
+      iso: match.group(1)!,
+      dial: match.group(2)!,
+      name: match.group(3)!.replaceAll(r"\'", "'"),
+      masks: [
+        for (final mask in _mask.allMatches(match.group(4)!)) mask.group(1)!,
+      ],
+    ),
+];
 
 void main() {
   group('appCountry', () {
@@ -97,42 +96,48 @@ void main() {
       expect(variable, hasLength(24));
     });
 
-    test('territories sharing a code keep the prefix that tells them apart',
-        () {
-      final byIso = {for (final country in table) country.iso: country};
-      expect(byIso['US']!.dial, '1');
-      expect(byIso['VG']!.dial, '1284', reason: 'British Virgin Islands');
-      expect(byIso['AS']!.dial, '1684', reason: 'American Samoa');
-      // +7 is Russia and Kazakhstan both; the table carries the real code and
-      // the tie is broken by preferredForSharedDialCode.
-      expect(byIso['KZ']!.dial, '7');
-      expect(byIso['RU']!.dial, '7');
-    });
+    test(
+      'territories sharing a code keep the prefix that tells them apart',
+      () {
+        final byIso = {for (final country in table) country.iso: country};
+        expect(byIso['US']!.dial, '1');
+        expect(byIso['VG']!.dial, '1284', reason: 'British Virgin Islands');
+        expect(byIso['AS']!.dial, '1684', reason: 'American Samoa');
+        // +7 is Russia and Kazakhstan both; the table carries the real code and
+        // the tie is broken by preferredForSharedDialCode.
+        expect(byIso['KZ']!.dial, '7');
+        expect(byIso['RU']!.dial, '7');
+      },
+    );
 
-    test('names a preference for every calling code more than one country uses',
-        () {
-      final shared = <String, List<String>>{};
-      for (final country in table) {
-        shared.putIfAbsent(country.dial, () => []).add(country.iso);
-      }
-      final ambiguous = shared.entries.where((e) => e.value.length > 1);
+    test(
+      'names a preference for every calling code more than one country uses',
+      () {
+        final shared = <String, List<String>>{};
+        for (final country in table) {
+          shared.putIfAbsent(country.dial, () => []).add(country.iso);
+        }
+        final ambiguous = shared.entries.where((e) => e.value.length > 1);
 
-      for (final entry in ambiguous) {
-        expect(
-          output,
-          contains("'${entry.key}': '"),
-          reason:
-              '+${entry.key} is shared by ${entry.value} with no preference',
-        );
-      }
-    });
+        for (final entry in ambiguous) {
+          expect(
+            output,
+            contains("'${entry.key}': '"),
+            reason:
+                '+${entry.key} is shared by ${entry.value} with no preference',
+          );
+        }
+      },
+    );
 
     test('derives flags from the ISO code instead of storing them', () {
       expect(output, contains('_regionalIndicator'));
       expect(output, contains('String get flag'));
       // An emoji in the table would be a second thing to keep in sync.
-      expect(output,
-          isNot(matches(RegExp(r'[\u{1F1E6}-\u{1F1FF}]', unicode: true))));
+      expect(
+        output,
+        isNot(matches(RegExp(r'[\u{1F1E6}-\u{1F1FF}]', unicode: true))),
+      );
     });
 
     test('validates a length against the plan, not against a range', () {
@@ -148,8 +153,10 @@ void main() {
       expect(output, contains('if (lowerName.contains(needle)) return 5;'));
       expect(
         output,
-        contains('static List<AppCountry> search(String query, '
-            '{List<AppCountry>? within})'),
+        contains(
+          'static List<AppCountry> search(String query, '
+          '{List<AppCountry>? within})',
+        ),
       );
     });
 
@@ -159,7 +166,9 @@ void main() {
       expect(output, contains('static AppCountry? byDialCode('));
       // Longest-prefix, so +1284 is the BVI rather than the US.
       expect(
-          output, contains('for (var length = longest; length > 0; length--)'));
+        output,
+        contains('for (var length = longest; length > 0; length--)'),
+      );
     });
 
     test('lets an app move the default off the United States', () {
@@ -169,7 +178,9 @@ void main() {
     test('needs nothing from Flutter but its immutability annotation', () {
       expect(output, contains("import 'package:flutter/foundation.dart';"));
       expect(
-          output, isNot(contains("import 'package:flutter/material.dart';")));
+        output,
+        isNot(contains("import 'package:flutter/material.dart';")),
+      );
     });
   });
 
@@ -178,8 +189,10 @@ void main() {
 
     test('masks through the country rather than a fixed format', () {
       expect(output, contains('class PhoneNumberInputFormatter'));
-      expect(output,
-          contains('inputFormatters: [PhoneNumberInputFormatter(_country)]'));
+      expect(
+        output,
+        contains('inputFormatters: [PhoneNumberInputFormatter(_country)]'),
+      );
       expect(output, contains('country.format(newValue.text)'));
     });
 
@@ -190,7 +203,9 @@ void main() {
       expect(output, contains('final reshaped = country.format(digits);'));
       expect(output, contains('if (reshaped != _controller.text)'));
       expect(
-          output, contains('TextSelection.collapsed(offset: reshaped.length)'));
+        output,
+        contains('TextSelection.collapsed(offset: reshaped.length)'),
+      );
     });
 
     test('puts the country picker in the prefix, not in the value', () {
@@ -243,8 +258,10 @@ void main() {
     });
 
     test('a read-only field cannot change country either', () {
-      expect(output,
-          contains('final enabled = widget.enabled && !widget.readOnly;'));
+      expect(
+        output,
+        contains('final enabled = widget.enabled && !widget.readOnly;'),
+      );
     });
   });
 
@@ -252,8 +269,10 @@ void main() {
     final output = SharedTemplates.searchPickerSheet();
 
     test('is generic over the row, and hands the row back', () {
-      expect(output,
-          contains('class SearchPickerSheet<T> extends StatefulWidget'));
+      expect(
+        output,
+        contains('class SearchPickerSheet<T> extends StatefulWidget'),
+      );
       expect(output, contains('static Future<T?> show<T>('));
       expect(output, contains('Navigator.pop(context, item)'));
     });
@@ -273,9 +292,11 @@ void main() {
 
     test('drops a stale offset when the list is filtered underneath it', () {
       expect(
-          output,
-          contains(
-              'if (_scrollController.hasClients) _scrollController.jumpTo(0);'));
+        output,
+        contains(
+          'if (_scrollController.hasClients) _scrollController.jumpTo(0);',
+        ),
+      );
     });
 
     test('lets a caller rank matches, not just select them', () {
@@ -284,7 +305,8 @@ void main() {
       expect(
         output,
         contains(
-            'final List<T> Function(List<T> items, String query)? filter;'),
+          'final List<T> Function(List<T> items, String query)? filter;',
+        ),
       );
       expect(output, contains('if (filter != null) return filter('));
     });
@@ -324,10 +346,7 @@ void main() {
         output,
         contains('? _searchableField(context, selected, alignment)'),
       );
-      expect(
-        output,
-        contains(': _menuField(context, selected, alignment)'),
-      );
+      expect(output, contains(': _menuField(context, selected, alignment)'));
       // Same callback either way: both forms report through one _pick, which
       // is the only place the caller's onChanged is called at all.
       expect('_pick('.allMatches(output).length, greaterThanOrEqualTo(3));
@@ -370,15 +389,17 @@ void main() {
       expect(output, contains('decoration: _decoration(context),'));
     });
 
-    test('both forms validate — a sheet-backed field is still a form field',
-        () {
-      expect(output, contains('static String? validate('));
-      // The searchable form: an InputDecorator alone is invisible to a Form.
-      expect(output, contains('FormField<String>('));
-      expect(output, contains('errorText: state.errorText'));
-      // The menu form validates through the FormField it already is.
-      expect(output, contains('validator: _validate,'));
-    });
+    test(
+      'both forms validate — a sheet-backed field is still a form field',
+      () {
+        expect(output, contains('static String? validate('));
+        // The searchable form: an InputDecorator alone is invisible to a Form.
+        expect(output, contains('FormField<String>('));
+        expect(output, contains('errorText: state.errorText'));
+        // The menu form validates through the FormField it already is.
+        expect(output, contains('validator: _validate,'));
+      },
+    );
 
     test('an id with no row never reaches the menu', () {
       // A dropdown asserts one item carries its value, so an id waiting on its
@@ -400,9 +421,9 @@ void main() {
 
   group('catalog wiring', () {
     test('the phone field pulls in everything it imports', () {
-      final resolved = WidgetCatalog.resolve(['phone-input'])
-          .map((spec) => spec.name)
-          .toSet();
+      final resolved = WidgetCatalog.resolve([
+        'phone-input',
+      ]).map((spec) => spec.name).toSet();
       expect(
         resolved,
         containsAll([
@@ -440,8 +461,9 @@ void main() {
     });
 
     test('the country table stands alone — it is data, not a widget', () {
-      final spec =
-          WidgetCatalog.all.firstWhere((spec) => spec.name == 'country');
+      final spec = WidgetCatalog.all.firstWhere(
+        (spec) => spec.name == 'country',
+      );
       expect(spec.deps, isEmpty);
       expect(spec.packages, isEmpty);
     });

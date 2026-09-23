@@ -131,7 +131,8 @@ abstract final class JsonModelBuilder {
     bool isDocumentRoot = false,
   }) {
     final modelFields = fields.map(_asModelField).toList(growable: false);
-    final asDocument = useFirestore &&
+    final asDocument =
+        useFirestore &&
         isDocumentRoot &&
         modelFields.any((f) => f.name == 'id');
     // Only a Firestore project has a converter to point at — a REST payload
@@ -139,18 +140,20 @@ abstract final class JsonModelBuilder {
     bool convertsDate(ModelField f) => useFirestore && _isDate(f.type);
     final dates = modelFields.any(convertsDate);
 
-    final params = modelFields.map((f) {
-      final prefix = [
-        // Only on the id of a document, never on a nested value object's:
-        // Firestore keys the document by its own name, so a copy of it in the
-        // body is stale the moment `add()` assigns a different one.
-        if (asDocument && f.name == 'id') '@JsonKey(includeToJson: false)',
-        // Without this json_serializable writes the date as an ISO string,
-        // which Firestore sorts and ranges as text.
-        if (convertsDate(f)) '@TimestampConverter()',
-      ].join(' ');
-      return '    ${prefix.isEmpty ? '' : '$prefix '}${f.asParameter},';
-    }).join('\n');
+    final params = modelFields
+        .map((f) {
+          final prefix = [
+            // Only on the id of a document, never on a nested value object's:
+            // Firestore keys the document by its own name, so a copy of it in the
+            // body is stale the moment `add()` assigns a different one.
+            if (asDocument && f.name == 'id') '@JsonKey(includeToJson: false)',
+            // Without this json_serializable writes the date as an ISO string,
+            // which Firestore sorts and ranges as text.
+            if (convertsDate(f)) '@TimestampConverter()',
+          ].join(' ');
+          return '    ${prefix.isEmpty ? '' : '$prefix '}${f.asParameter},';
+        })
+        .join('\n');
 
     final imports = [
       if (asDocument) "import 'package:cloud_firestore/cloud_firestore.dart';",
@@ -219,9 +222,10 @@ $fromDoc
   /// The original key travels as a `@JsonKey` annotation rather than as parse
   /// and write expressions, so json_serializable owns both directions.
   static ModelField _asModelField(JsonField f) => ModelField(
-        name: f.name,
-        type: f.type,
-        annotations:
-            f.jsonKey == f.name ? const [] : ["@JsonKey(name: '${f.jsonKey}')"],
-      );
+    name: f.name,
+    type: f.type,
+    annotations: f.jsonKey == f.name
+        ? const []
+        : ["@JsonKey(name: '${f.jsonKey}')"],
+  );
 }

@@ -18,6 +18,7 @@ class AppTemplates {
     bool withCrashlytics = false,
     bool withFirebase = false,
     bool withMaintenanceGate = false,
+    bool withUpdateGate = false,
     bool withMoAdapt = false,
     bool withDarkTheme = false,
   }) {
@@ -31,8 +32,8 @@ class AppTemplates {
     final localizationImports = withEasyLocalization
         ? "\nimport 'package:easy_localization/easy_localization.dart';\n"
         : withLocalization
-            ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\nimport 'core/services/language_service.dart';\nimport 'package:flutter_localizations/flutter_localizations.dart';\n"
-            : '';
+        ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\nimport 'core/services/language_service.dart';\nimport 'package:flutter_localizations/flutter_localizations.dart';\n"
+        : '';
 
     final easyLocalizationInit = withEasyLocalization
         ? '\n  await EasyLocalization.ensureInitialized();\n'
@@ -47,7 +48,8 @@ class AppTemplates {
     // provider scopes, MaterialApp — renders in design-space coordinates.
     final String runAppCall;
     if (withEasyLocalization && withMoAdapt) {
-      runAppCall = '''runApp(
+      runAppCall =
+          '''runApp(
     MoAdapt(
       // The frame the UI is designed against; every fixed dimension scales
       // proportionally from it. Tune with scaleMode / minScale / maxScale.
@@ -61,7 +63,8 @@ class AppTemplates {
     ),
   );''';
     } else if (withEasyLocalization) {
-      runAppCall = '''runApp(
+      runAppCall =
+          '''runApp(
     EasyLocalization(
       supportedLocales: const [Locale('en'), Locale('pt')],
       path: 'assets/translations',
@@ -96,8 +99,9 @@ class AppTemplates {
 
     // Called after the Firebase block so the FCM service finds an app already
     // there; it only initializes Firebase itself when no one else has.
-    final notificationInit =
-        withAnyNotifications ? '\n  await _initNotifications();\n' : '';
+    final notificationInit = withAnyNotifications
+        ? '\n  await _initNotifications();\n'
+        : '';
 
     final notificationsBootstrap = withAnyNotifications
         ? '''
@@ -109,12 +113,7 @@ class AppTemplates {
 /// only be undone in Settings, so call `requestPermissions()` once onboarding
 /// has explained what the notifications are for.${withFirebaseNotifications ? '\n/// On iOS FCM has no device token to hand out until that ask is accepted.' : ''}
 Future<void> _initNotifications() async {
-${[
-            if (withNotificationsService)
-              _guardedInit('NotificationService', 'Notifications'),
-            if (withFirebaseNotifications)
-              _guardedInit('FirebaseNotificationsService', 'FCM'),
-          ].join('\n\n')}
+${[if (withNotificationsService) _guardedInit('NotificationService', 'Notifications'), if (withFirebaseNotifications) _guardedInit('FirebaseNotificationsService', 'FCM')].join('\n\n')}
 }
 
 '''
@@ -156,7 +155,7 @@ ${[
       localizationsDelegates: context.localizationDelegates,
 '''
         : withLocalization
-            ? '''
+        ? '''
       locale: locale,
       supportedLocales: L10n.all,
       localizationsDelegates: const [
@@ -166,7 +165,7 @@ ${[
         GlobalCupertinoLocalizations.delegate
       ],
 '''
-            : '';
+        : '';
 
     final localizationWatch = withEasyLocalization
         ? '''
@@ -174,18 +173,21 @@ ${[
 // Switch language with context.setLocale(const Locale('pt'));
 '''
         : withLocalization
-            ? '''
+        ? '''
 final locale = ref.watch(languageProvider).locale;
 //final l10n = AppLocalizations.of(context);
 '''
-            : '';
-
-    final maintenanceImport = withMaintenanceGate
-        ? "\nimport 'shared/widgets/maintenance_gate.dart';"
         : '';
 
-    final moAdaptImport =
-        withMoAdapt ? "\nimport 'shared/widgets/mo_adapt.dart';" : '';
+    final maintenanceImport = [
+      if (withMaintenanceGate)
+        "\nimport 'shared/widgets/maintenance_gate.dart';",
+      if (withUpdateGate) "\nimport 'shared/widgets/update_gate.dart';",
+    ].join();
+
+    final moAdaptImport = withMoAdapt
+        ? "\nimport 'shared/widgets/mo_adapt.dart';"
+        : '';
 
     // With one palette there is no second ThemeData to hand MaterialApp, and
     // no themeMode worth setting: every mode would resolve to the same theme.
@@ -200,9 +202,14 @@ final locale = ref.watch(languageProvider).locale;
 
     // Inside `builder`, so it wraps the Navigator rather than sitting in a
     // route: a gate below the Navigator could be pushed on top of.
-    final maintenanceOpen =
-        withMaintenanceGate ? 'MaintenanceGate(child: ' : '';
-    final maintenanceClose = withMaintenanceGate ? ')' : '';
+    // Maintenance outermost: while the backend is down there is no point
+    // telling anyone to update first.
+    final maintenanceOpen = [
+      if (withMaintenanceGate) 'MaintenanceGate(child: ',
+      if (withUpdateGate) 'UpdateGate(child: ',
+    ].join();
+    final maintenanceClose =
+        ')' * ((withMaintenanceGate ? 1 : 0) + (withUpdateGate ? 1 : 0));
 
     if (withRouter) {
       return '''
@@ -383,7 +390,8 @@ $localizationConfig      debugShowCheckedModeBanner: false,
 
   /// One `init()` call wrapped in its own guard, so a plugin that throws only
   /// costs its own service rather than every one after it.
-  static String _guardedInit(String type, String scope) => '''  try {
+  static String _guardedInit(String type, String scope) =>
+      '''  try {
     await getIt<$type>().init();
   } catch (error, stackTrace) {
     appLogger.e(
@@ -445,10 +453,10 @@ mixin ActionNotifierMixin<S extends ActionState<S>> on AsyncNotifier<S> {
   static String appRouter({bool withAuth = false}) {
     final relativeImports = withAuth
         ? "import '../../features/auth/presentation/notifiers/auth_notifier.dart';\n"
-            "import '../../features/auth/presentation/views/login_view.dart';\n"
-            "import '../../features/auth/presentation/views/register_view.dart';\n"
-            "import '../../shared/widgets/loadings/app_loading_data.dart';\n"
-            "import './app_routes.dart';"
+              "import '../../features/auth/presentation/views/login_view.dart';\n"
+              "import '../../features/auth/presentation/views/register_view.dart';\n"
+              "import '../../shared/widgets/loadings/app_loading_data.dart';\n"
+              "import './app_routes.dart';"
         : "import './app_routes.dart';";
 
     final options = withAuth
@@ -481,7 +489,7 @@ mixin ActionNotifierMixin<S extends ActionState<S>> on AsyncNotifier<S> {
 /// Re-runs [_redirect] whenever the auth state changes.
 class _AuthRefresh extends ChangeNotifier {
   _AuthRefresh(Ref ref) {
-    ref.listen(authNotifierProvider, (_, __) => notifyListeners());
+    ref.listen(authNotifierProvider, (_, _) => notifyListeners());
   }
 }
 

@@ -26,19 +26,22 @@ void main() {
         .then((file) => file.writeAsString(DevTemplates.vscodeSettings()));
     // Stands in for the symlink `fvm use` creates — a real directory resolves
     // the same way without needing Windows symlink privileges.
-    await Directory(p.join(root, '.fvm', 'flutter_sdk'))
-        .create(recursive: true);
+    await Directory(
+      p.join(root, '.fvm', 'flutter_sdk'),
+    ).create(recursive: true);
     // The locator is part of a healthy project in both stacks now: it is
     // where the data layer is wired, whichever one holds the state.
     await File(p.join(libPath, 'config', 'di', 'injector.dart'))
         .create(recursive: true)
-        .then((file) => file.writeAsString('''
+        .then(
+          (file) => file.writeAsString('''
 final getIt = GetIt.instance;
 
 Future<void> setupInjector() async {
   // moarch:registrations
 }
-'''));
+'''),
+        );
     await File(p.join(root, 'pubspec.yaml')).writeAsString('''
 name: demo
 
