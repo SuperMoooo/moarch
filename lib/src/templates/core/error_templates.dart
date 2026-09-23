@@ -186,7 +186,7 @@ enum AppExceptionType { network, server, notFound, auth, cancelled, unknown }
 ///
 /// Catch the base class wherever all you do is show [message] — which is most
 /// places, and what your stack's shell already does for you — `runAction` and
-/// `AppAsyncView` on Riverpod, a bloc handler and `AppStatusView`. Catch a
+/// `AppAsyncView` on Riverpod, `runAction` and `AppStatusView` on bloc. Catch a
 /// subclass where one failure needs its own path:
 ///
 /// ```dart

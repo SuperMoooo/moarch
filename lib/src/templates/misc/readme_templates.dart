@@ -492,7 +492,7 @@ ${withRouter ? '│   ├── router/                      # GoRouter routes +
 │   ├── network/                     # HTTP client + the safe call wrappers
 │   ├── security/                    # secure storage, validation, biometrics
 │   ├── services/                    # notifications, media, permissions, …
-│   └── utils/                       # logger, extensions${bloc ? '' : ', runAction'}
+│   └── utils/                       # logger, extensions${bloc ? ', AppStatus + runAction' : ', runAction'}
 ├── features/                        # One folder per feature — the app itself
 │   └── $feature/
 │       ├── domain/
@@ -848,7 +848,7 @@ the status is your screen's business:
 // core/utils/app_status.dart — shared by every screen
 enum AppStatus { initial, loading, success, failure }
 
-class ProfileState extends Equatable {
+class ProfileState extends Equatable implements StatusState<ProfileState> {
   const ProfileState({
     this.status = AppStatus.initial,
     this.errorMessage,
@@ -864,6 +864,10 @@ class ProfileState extends Equatable {
   final List<ProfileModel> items;
 
   ProfileState copyWith({...}) => ...;
+
+  @override
+  ProfileState withStatus(AppStatus status, {String? errorMessage}) =>
+      copyWith(status: status, errorMessage: errorMessage);
 
   @override
   List<Object?> get props => [status, errorMessage, successMessage, items];
@@ -897,9 +901,11 @@ dropped — so a new field has to reach four places: the constructor, `copyWith`
 ### The bloc
 
 ```dart
-class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
+class ProfileBloc extends Bloc<ProfileEvent, ProfileState>
+    with ActionBlocMixin<ProfileEvent, ProfileState> {
   ProfileBloc(this._repo) : super(const ProfileState()) {
     on<ProfileStarted>(_onStarted);
+    on<ProfileRenamed>(_onRenamed);
   }
 
   final ProfileRepository _repo;
@@ -907,23 +913,32 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
   Future<void> _onStarted(
     ProfileStarted event,
     Emitter<ProfileState> emit,
-  ) async {
-    emit(state.copyWith(status: AppStatus.loading));
-    try {
-      emit(state.copyWith(
-        status: AppStatus.success,
-        items: await _repo.fetchAll(),
-      ));
-    } on AppException catch (e) {
-      emit(state.copyWith(
-        status: AppStatus.failure,
-        errorMessage: e.message,
-      ));
-    }
-  }
+  ) =>
+      runAction(emit, (current) async {
+        final items = await _repo.fetchAll();
+        return current.copyWith(status: AppStatus.success, items: items);
+      });
+
+  Future<void> _onRenamed(
+    ProfileRenamed event,
+    Emitter<ProfileState> emit,
+  ) =>
+      runAction(emit, (current) async {
+        await _repo.rename(event.id, event.name);
+        return current.copyWith(successMessage: 'Saved');
+      });
 }
 ```
 
+- **`runAction` is every handler.** It comes from `ActionBlocMixin`
+  (`lib/core/utils/app_status.dart`) and handles loading, `AppException` and
+  unknown errors for you. It hands you the state as it was before the handler;
+  return the state that should follow. Where the screen already is decides
+  what a failure looks like: with nothing on screen yet it emits `loading`
+  first and lands on `failure` (the error screen); over data already on screen
+  it emits no `loading` and keeps `success`, setting only `errorMessage` — a
+  toast, not a blank screen. The first load returns
+  `status: AppStatus.success` itself; later actions inherit it from `current`.
 - The repository is a constructor parameter, so a test hands it a fake. The
   locator is what fills it in, in `presentation_module.dart`:
   `getIt.registerFactory<ProfileBloc>(() => ProfileBloc(getIt<ProfileRepository>()))`.
@@ -1038,7 +1053,8 @@ state. The ruleset is in `analysis_options.yaml`.
         ? '''3. **Hold the screen's state.** Add the fields to `profile_state.dart`
    (and to `copyWith`, `props` and `placeholder`), add an event to
    `profile_event.dart`, register it with `on<ProfileSomething>(...)` in the
-   bloc's constructor, and emit through `state.copyWith(...)`.'''
+   bloc's constructor, and wrap the handler's body in `runAction` so loading
+   and errors are handled for you.'''
         : '''3. **Hold the screen's state.** Add the fields to `profile_state.dart`
    (and to `copyWith`), then add methods to the notifier — wrap each one in
    `runAction` so loading and errors are handled for you.''';

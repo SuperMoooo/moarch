@@ -353,8 +353,9 @@ import '../../../../core/utils/app_status.dart';
 /// added once and every phase can draw it. Showing a spinner over the list
 /// already on screen is a `copyWith` with the status moved to `loading` —
 /// there is nothing to re-declare. The status itself is [AppStatus], shared by
-/// every screen, which is what lets `AppStatusView` draw it.
-class ${cls}State extends Equatable {
+/// every screen, which is what lets `AppStatusView` draw it — and being a
+/// [StatusState] is what lets the bloc's `runAction` handle its errors.
+class ${cls}State extends Equatable implements StatusState<${cls}State> {
   const ${cls}State({
     this.status = AppStatus.initial,
     this.errorMessage,
@@ -370,6 +371,7 @@ class ${cls}State extends Equatable {
   /// bone.
   static const placeholder = ${cls}State(status: AppStatus.success);
 
+  @override
   final AppStatus status;
 
   /// Why the last attempt failed — and only the last one: [copyWith] drops
@@ -402,6 +404,10 @@ class ${cls}State extends Equatable {
       successMessage: successMessage,
     );
   }
+
+  @override
+  ${cls}State withStatus(AppStatus status, {String? errorMessage}) =>
+      copyWith(status: status, errorMessage: errorMessage);
 
   @override
   List<Object?> get props => [status, errorMessage, successMessage];
@@ -461,17 +467,32 @@ final class ${cls}Started extends ${cls}Event {
     // TODO: one handler per action, e.g.
     // on<${cls}Deleted>(_onDeleted, transformer: droppable());
     // `transformer:` is how events queue before the handler sees them —
-    // droppable, restartable, sequential, concurrent, from bloc_concurrency.''';
+    // droppable, restartable, sequential, concurrent, from bloc_concurrency.
+    // Wrap each handler's body in runAction (from ActionBlocMixin), which
+    // handles loading and AppException for you:
+    //
+    // Future<void> _onDeleted(${cls}Deleted event, Emitter<${cls}State> emit) =>
+    //     runAction(emit, (current) async {
+    //       ${hasRepository ? 'await _repo.delete(event.id);' : '// do the work, then'}
+    //       return current.copyWith(successMessage: 'Deleted');
+    //     });''';
 
-    if (!hasRepository) {
-      return '''
+    // The first load returns its state with `status: AppStatus.success` —
+    // runAction takes the status from what the action returns, and `current`
+    // is still on initial here.
+    final header = '''
 import 'package:bloc/bloc.dart';
 
 import '../../../../core/utils/app_status.dart';
-import '${name}_event.dart';
+${hasRepository ? "import '../../domain/repositories/${repoName}_repository.dart';\n" : ''}import '${name}_event.dart';
 import '${name}_state.dart';
 
-class ${cls}Bloc extends Bloc<${cls}Event, ${cls}State> {
+class ${cls}Bloc extends Bloc<${cls}Event, ${cls}State>
+    with ActionBlocMixin<${cls}Event, ${cls}State> {''';
+
+    if (!hasRepository) {
+      return '''
+$header
   ${cls}Bloc() : super(const ${cls}State()) {
     on<${cls}Started>(_onStarted);
 
@@ -481,27 +502,17 @@ $handlerTodo
   Future<void> _onStarted(
     ${cls}Started event,
     Emitter<${cls}State> emit,
-  ) async {
-    emit(state.copyWith(status: AppStatus.loading));
-    // TODO: load what the screen needs, put it on the state, then emit it
-    // with `status: AppStatus.success` — or `AppStatus.failure` and an
-    // `errorMessage`.
-    emit(state.copyWith(status: AppStatus.success));
-  }
+  ) =>
+      runAction(emit, (current) async {
+        // TODO: load what the screen needs and put it on the state.
+        return current.copyWith(status: AppStatus.success);
+      });
 }
 ''';
     }
 
     return '''
-import 'package:bloc/bloc.dart';
-
-import '../../../../core/errors/app_exception.dart';
-import '../../../../core/utils/app_status.dart';
-import '../../domain/repositories/${repoName}_repository.dart';
-import '${name}_event.dart';
-import '${name}_state.dart';
-
-class ${cls}Bloc extends Bloc<${cls}Event, ${cls}State> {
+$header
   ${cls}Bloc(this._repo) : super(const ${cls}State()) {
     on<${cls}Started>(_onStarted);
 
@@ -513,20 +524,13 @@ $handlerTodo
   Future<void> _onStarted(
     ${cls}Started event,
     Emitter<${cls}State> emit,
-  ) async {
-    emit(state.copyWith(status: AppStatus.loading));
-    try {
-      // TODO: put what this returns onto the state — add a field for it in
-      // ${cls}State, and pass it in the copyWith below.
-      await _repo.fetchAll();
-      emit(state.copyWith(status: AppStatus.success));
-    } on AppException catch (e) {
-      emit(state.copyWith(
-        status: AppStatus.failure,
-        errorMessage: e.message,
-      ));
-    }
-  }
+  ) =>
+      runAction(emit, (current) async {
+        // TODO: put what this returns onto the state — add a field for it in
+        // ${cls}State, and pass it in the copyWith below.
+        await _repo.fetchAll();
+        return current.copyWith(status: AppStatus.success);
+      });
 }
 ''';
   }

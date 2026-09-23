@@ -92,7 +92,10 @@ void main() {
       expect(output, isNot(contains('enum OrdersStatus')));
       expect(output, isNot(contains('isLoadingAction')));
       // Still one class, so the view's `_body` takes the same thing always.
-      expect(output, contains('class OrdersState extends Equatable {'));
+      expect(
+          output,
+          contains('class OrdersState extends Equatable '
+              'implements StatusState<OrdersState> {'));
       expect(output, isNot(contains('extends OrdersState')));
     });
 
@@ -114,6 +117,42 @@ void main() {
       // The getters that save every caller a `== AppStatus.x`.
       expect(output, contains('bool get isLoading =>'));
       expect(output, contains('bool get isFailure =>'));
+    });
+
+    test('runAction sits beside the status it chooses between', () {
+      final output = bloc.AsyncTemplates.appStatus();
+
+      expect(output, contains('abstract interface class StatusState<S> {'));
+      expect(
+        output,
+        contains('mixin ActionBlocMixin<E, S extends StatusState<S>> '
+            'on Bloc<E, S> {'),
+      );
+      expect(output, contains("import '../errors/app_exception.dart';"));
+      // Over data already on screen: no loading, and a failure keeps the
+      // body — a toast rather than the error screen.
+      expect(output, contains('final loaded = current.status.isSuccess;'));
+      expect(
+          output,
+          contains(
+              'if (!loaded) emit(current.withStatus(AppStatus.loading));'));
+      expect(
+        output,
+        contains(
+            'final failed = loaded ? AppStatus.success : AppStatus.failure;'),
+      );
+      expect(output, contains('} on AppException catch (e) {'));
+      // The unexpected still reaches onError and the BlocObserver.
+      expect(output, contains('addError(error, stackTrace);'));
+    });
+
+    test('a stale app_status.dart is told apart from a current one', () {
+      const blocStack = StackTemplates(StateManagement.bloc);
+      const riverpodStack = StackTemplates(StateManagement.riverpod);
+
+      expect(blocStack.isStaleActionBase(blocStack.actionBase()), isFalse);
+      expect(blocStack.isStaleActionBase('enum AppStatus { initial }'), isTrue);
+      expect(riverpodStack.isStaleActionBase(''), isFalse);
     });
   });
 
@@ -171,6 +210,18 @@ void main() {
       expect(output, isNot(contains('_seq')));
     });
 
+    test('the state is a StatusState, so runAction can move it', () {
+      final output = bloc.FeatureTemplates.state('orders', 'Orders');
+
+      expect(output, contains('  @override\n  final AppStatus status;'));
+      expect(
+        output,
+        contains('OrdersState withStatus(AppStatus status, '
+            '{String? errorMessage}) =>\n'
+            '      copyWith(status: status, errorMessage: errorMessage);'),
+      );
+    });
+
     test('the state is the same whatever the backend is', () {
       // `useFirestore` reaches the data layer, not this: a bloc's state
       // carries nothing the backend decides.
@@ -186,12 +237,14 @@ void main() {
       final output = bloc.FeatureTemplates.bloc('orders', 'Orders', 'orders');
 
       expect(output, contains('await _repo.fetchAll();'));
+      // Loading and AppException are runAction's, not the handler's.
       expect(
-          output, contains('emit(state.copyWith(status: AppStatus.loading));'));
-      expect(
-          output, contains('emit(state.copyWith(status: AppStatus.success));'));
-      expect(output, contains('status: AppStatus.failure,'));
-      expect(output, contains('errorMessage: e.message,'));
+          output, contains('with ActionBlocMixin<OrdersEvent, OrdersState> {'));
+      expect(output, contains('runAction(emit, (current) async {'));
+      expect(output,
+          contains('return current.copyWith(status: AppStatus.success);'));
+      expect(output, isNot(contains('try {')));
+      expect(output, isNot(contains('app_exception.dart')));
       // The subscription variant is gone — a live query is the project's to
       // wire, not the scaffold's to assume.
       expect(output, isNot(contains('watchAll()')));
@@ -277,10 +330,9 @@ void main() {
               "import '../../domain/repositories/orders_repository.dart';")));
       // Still a working bloc: it just has nothing to load yet.
       expect(output, contains('on<OrdersStarted>(_onStarted);'));
-      expect(
-          output, contains('emit(state.copyWith(status: AppStatus.loading));'));
-      expect(
-          output, contains('emit(state.copyWith(status: AppStatus.success));'));
+      expect(output, contains('runAction(emit, (current) async {'));
+      expect(output,
+          contains('return current.copyWith(status: AppStatus.success);'));
     });
 
     test('the bloc points at a transformer rather than a debouncer', () {

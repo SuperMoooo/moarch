@@ -1460,8 +1460,8 @@ class InitCommand extends Command<int> {
       p.join(c, 'utils', 'app_logger.dart'),
       CoreTemplates.appLogger(withCrashlytics: stack.contains(_kCrashlytics)),
     );
-    // Riverpod's notifiers share a runAction mixin; a bloc's sealed states
-    // leave nothing central to declare.
+    // Both stacks' state holders share a runAction mixin — Riverpod's in
+    // action_notifier.dart, bloc's beside AppStatus in app_status.dart.
     if (templates.hasActionBase) {
       await FileUtils.writeFile(
         p.join(c, 'utils', templates.actionBaseFile),

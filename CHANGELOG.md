@@ -2,6 +2,26 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 8.2.0
+
+- **Bloc gets `runAction`.** `core/utils/app_status.dart` now carries a
+  `StatusState` contract and an `ActionBlocMixin`, the bloc counterpart to
+  Riverpod's `ActionNotifierMixin`: a handler is
+  `runAction(emit, (current) async { … })` and returns the next state, with no
+  `try` / `on AppException` of its own. Where the screen already is decides
+  what a run looks like. With nothing on screen it emits `loading` and a
+  failure lands on `failure`. Over loaded data it emits no `loading`, and a
+  failure keeps `success` with only `errorMessage` set, so the body stays and a
+  toast shows. Errors that are not an `AppException` go to `addError` as well,
+  so `BlocObserver` still sees them.
+- Generated feature states implement `StatusState` (one `withStatus`
+  override), and generated blocs mix in `ActionBlocMixin` and load through
+  `runAction`. The auth blocs keep their sealed states and are unchanged.
+- **Existing bloc projects:** run `moarch update app-status` before creating a
+  feature or bloc — `create feature` and `create bloc` warn when the file
+  predates the mixin. Features already generated keep compiling as they are.
+  `create bloc` now also writes `app_status.dart` when it is missing.
+
 ## 8.1.0
 
 - **`build_apk.yml` skips cleanly when the keystore is not set up.** A new

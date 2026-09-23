@@ -247,6 +247,7 @@ class CreateFeatureCommand extends Command<int> {
     FileUtils.beginSession();
 
     var injectorPatch = InjectorPatchResult.none;
+    var staleActionBase = false;
 
     try {
       if (selected.contains(_kRemoteDatasource)) {
@@ -297,14 +298,16 @@ class CreateFeatureCommand extends Command<int> {
           useFirestore: liveQuery,
           hasRepository: hasRepository,
         );
-        // The Riverpod state/notifier depend on the shared runAction helper —
+        // Both stacks' state/holder depend on the shared runAction helper —
         // write it if the project doesn't have it yet (writeFile never
-        // overwrites). A bloc's sealed state needs nothing central.
+        // overwrites, so an older copy is only reported, below).
         if (templates.hasActionBase) {
-          await FileUtils.writeFile(
-            p.join(libPath, 'core', 'utils', templates.actionBaseFile),
-            templates.actionBase(),
-          );
+          final actionBase =
+              p.join(libPath, 'core', 'utils', templates.actionBaseFile);
+          await FileUtils.writeFile(actionBase, templates.actionBase());
+          final file = File(actionBase);
+          staleActionBase = file.existsSync() &&
+              templates.isStaleActionBase(file.readAsStringSync());
         }
       }
       if (selected.contains(_kView)) {
@@ -388,6 +391,12 @@ class CreateFeatureCommand extends Command<int> {
         _logger.info('  add what belongs there yourself, or put back the');
         _logger.info('  `${InjectorUtils.anchor}` comment.');
       }
+      _logger.info('');
+    }
+    if (staleActionBase) {
+      _logger.warn('  core/utils/${templates.actionBaseFile} predates '
+          'ActionBlocMixin, which ${className}Bloc uses —');
+      _logger.info('  run `moarch update app-status` before building.');
       _logger.info('');
     }
     _logger.info(

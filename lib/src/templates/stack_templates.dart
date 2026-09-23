@@ -41,10 +41,21 @@ class StackTemplates {
   ///
   /// Both do, and they are different files: Riverpod's is `ActionState` and
   /// the `runAction` mixin every notifier leans on; bloc's is the `AppStatus`
-  /// enum every state carries. Bloc needs one enum rather than one per feature
+  /// enum every state carries, with `StatusState` and the `runAction` mixin
+  /// every bloc leans on. Bloc needs one enum rather than one per feature
   /// because `AppStatusView` switches over it — a widget cannot switch over a
   /// type it does not know.
   bool get hasActionBase => true;
+
+  /// Whether an action base already on disk, given as its [source], predates
+  /// what a newly generated holder needs.
+  ///
+  /// Bloc's `app_status.dart` from before 8.2.0 carried only the enum; a bloc
+  /// generated now mixes in `ActionBlocMixin`, so it will not compile until
+  /// the file is refreshed. `writeFile` never overwrites, so the create
+  /// commands check this and point at `moarch update app-status`.
+  bool isStaleActionBase(String source) =>
+      isBloc && !source.contains('mixin ActionBlocMixin');
 
   /// The shared action base's file name, which differs by stack — see
   /// [hasActionBase].
@@ -135,7 +146,8 @@ class StackTemplates {
               withDarkTheme: withDarkTheme,
             );
 
-  /// The stack's shared state vocabulary: bloc's `AppStatus` enum, or the
+  /// The stack's shared state vocabulary: bloc's `AppStatus` enum with the
+  /// `StatusState` contract and `runAction` mixin every bloc leans on, or the
   /// `ActionState` contract and `runAction` mixin every notifier leans on.
   String actionBase() => isBloc
       ? bloc.AsyncTemplates.appStatus()

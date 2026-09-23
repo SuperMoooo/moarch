@@ -356,7 +356,7 @@ abstract final class ScaffoldCatalog {
       category: 'Core',
       template: (c) => c.stack.actionBase(),
       description:
-          'The status enum every feature state carries, and AppStatusView switches over (bloc).',
+          'The status enum every feature state carries, and the runAction mixin every bloc uses (bloc).',
     ),
     ScaffoldSpec(
       name: 'constants',

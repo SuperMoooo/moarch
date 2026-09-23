@@ -105,8 +105,18 @@ class CreateBlocCommand extends Command<int> {
     FileUtils.beginSession();
 
     var patch = InjectorPatchResult.none;
+    var staleActionBase = false;
 
     try {
+      // The bloc mixes in ActionBlocMixin from here — write it if the project
+      // lacks it (writeFile never overwrites, so an older copy is reported).
+      final actionBase =
+          p.join(libPath, 'core', 'utils', templates.actionBaseFile);
+      await FileUtils.writeFile(actionBase, templates.actionBase());
+      final actionBaseFile = File(actionBase);
+      staleActionBase = actionBaseFile.existsSync() &&
+          templates.isStaleActionBase(actionBaseFile.readAsStringSync());
+
       await FileUtils.writeFile(
         p.join(featurePath, 'presentation', templates.stateDir,
             '${blocName}_state.dart'),
@@ -178,6 +188,11 @@ class CreateBlocCommand extends Command<int> {
       _logger.info('  ${className}Bloc there yourself, or put back the '
           '`${InjectorUtils.anchor}`');
       _logger.info('  comment.');
+    }
+    if (staleActionBase) {
+      _logger.warn('  core/utils/${templates.actionBaseFile} predates '
+          'ActionBlocMixin, which ${className}Bloc uses —');
+      _logger.info('  run `moarch update app-status` before building.');
     }
     _logger.info('');
     return 0;
