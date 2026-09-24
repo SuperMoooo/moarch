@@ -2,6 +2,20 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.0.2
+
+- Bloc projects get `lib/core/utils/app_bloc_observer.dart`, and `main.dart`
+  installs it with `Bloc.observer = const AppBlocObserver();` before the
+  locator is set up. `runAction` hands any error that is not an
+  `AppException` to `addError`, and bloc's default observer ignores it, so
+  until now the screen showed "Unknown error" and the exception behind it
+  was lost. The observer logs it through `appLogger`, which also sends it to
+  Crashlytics when the project has it.
+- `moarch update bloc-observer` refreshes the file. `update` never adds files,
+  so an existing bloc project has to create it by hand (copy it from a fresh
+  `init`) before `moarch update main` installs it. Until the file is there,
+  `main.dart` refreshes without it.
+
 ## 9.0.1
 
 - The generated `build.yaml` sets json_serializable's `field_rename: snake`,

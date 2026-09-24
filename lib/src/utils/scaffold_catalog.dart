@@ -137,6 +137,11 @@ class ScaffoldContext {
   /// scaling every screen was built against.
   bool get hasMoAdapt => hasFile('lib/shared/widgets/mo_adapt.dart');
 
+  /// `AppBlocObserver` was generated (bloc, 9.0.2 on). `main.dart` installs
+  /// it, so refreshing main checks rather than importing a file an older
+  /// project does not have.
+  bool get hasBlocObserver => hasFile('lib/core/utils/app_bloc_observer.dart');
+
   /// Firestore is installed.
   bool get hasFirestore => hasPackage('cloud_firestore');
 
@@ -378,6 +383,16 @@ abstract final class ScaffoldCatalog {
       description:
           'The status enum every feature state carries, and the runAction mixin every bloc uses (bloc).',
     ),
+    // Bloc only, by the same filter.
+    ScaffoldSpec(
+      name: 'bloc-observer',
+      title: 'AppBlocObserver',
+      path: 'lib/core/utils/app_bloc_observer.dart',
+      category: 'Core',
+      template: (c) => c.stack.appBlocObserver(),
+      description:
+          'Logs every error a bloc reports, so runAction\'s unexpected failures are not lost (bloc).',
+    ),
     ScaffoldSpec(
       name: 'constants',
       title: 'AppConstants',
@@ -414,6 +429,7 @@ abstract final class ScaffoldCatalog {
         withMoAdapt: c.hasMoAdapt,
         withDarkTheme: c.hasDarkTheme,
         withAuthFeature: c.hasAuthFeature,
+        withBlocObserver: c.hasBlocObserver,
       ),
       description:
           'The entry point: the root scope, theme, router and the services the project selected.',

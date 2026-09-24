@@ -626,6 +626,7 @@ class InitCommand extends Command<int> {
           withMoAdapt: stack.contains(_kMoAdapt),
           withDarkTheme: stack.contains(_kDarkTheme),
           withAuthFeature: stack.contains(_kAuthFeature),
+          withBlocObserver: templates.hasBlocObserver,
         ),
         overwriteWhen: _isFlutterCounterDemo,
       );
@@ -1627,6 +1628,14 @@ class InitCommand extends Command<int> {
       await FileUtils.writeFile(
         p.join(c, 'utils', templates.actionBaseFile),
         templates.actionBase(),
+      );
+    }
+    // Bloc's runAction hands unexpected errors to addError; this is what
+    // logs them. main.dart installs it.
+    if (templates.hasBlocObserver) {
+      await FileUtils.writeFile(
+        p.join(c, 'utils', 'app_bloc_observer.dart'),
+        templates.appBlocObserver(),
       );
     }
     await FileUtils.writeFile(

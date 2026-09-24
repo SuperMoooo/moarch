@@ -333,6 +333,7 @@ class CreateThemeCommand extends Command<int> {
         withMoAdapt: context.hasMoAdapt,
         withDarkTheme: target,
         withAuthFeature: context.hasAuthFeature,
+        withBlocObserver: context.hasBlocObserver,
       ),
       'lib/shared/widgets/overlays/app_toast.dart': SharedTemplates.appToast(
         withDark: target,

@@ -111,6 +111,7 @@ class StackTemplates {
   ///
   /// [withAuthFeature] only matters on bloc, where the auth bloc has to be
   /// provided above the router; Riverpod reads it through a provider.
+  /// [withBlocObserver] is bloc's too — see [hasBlocObserver].
   String mainDart({
     bool withRouter = true,
     bool withLocalization = false,
@@ -124,6 +125,7 @@ class StackTemplates {
     bool withMoAdapt = false,
     bool withDarkTheme = false,
     bool withAuthFeature = false,
+    bool withBlocObserver = false,
   }) => isBloc
       ? bloc.AppTemplates.mainDart(
           withRouter: withRouter,
@@ -138,6 +140,7 @@ class StackTemplates {
           withMoAdapt: withMoAdapt,
           withDarkTheme: withDarkTheme,
           withAuthFeature: withAuthFeature,
+          withBlocObserver: withBlocObserver,
         )
       : riverpod.AppTemplates.mainDart(
           withRouter: withRouter,
@@ -159,6 +162,17 @@ class StackTemplates {
   String actionBase() => isBloc
       ? bloc.AsyncTemplates.appStatus()
       : riverpod.AppTemplates.actionNotifier();
+
+  /// Whether this stack has a `core/utils/app_bloc_observer.dart`.
+  ///
+  /// Bloc does: its `runAction` hands an unexpected error to `addError`, and
+  /// only an installed observer does anything with it. Riverpod has no
+  /// equivalent to install.
+  bool get hasBlocObserver => isBloc;
+
+  /// The observer that logs every bloc's errors. Only called when
+  /// [hasBlocObserver].
+  String appBlocObserver() => bloc.AppTemplates.appBlocObserver();
 
   /// The GoRouter setup.
   String appRouter({bool withAuth = false}) => isBloc

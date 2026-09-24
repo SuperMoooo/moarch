@@ -26,6 +26,7 @@ class AppTemplates {
     bool withMoAdapt = false,
     bool withDarkTheme = false,
     bool withAuthFeature = false,
+    bool withBlocObserver = false,
   }) {
     if (withEasyLocalization) withLocalization = false;
 
@@ -282,13 +283,28 @@ ${_materialApp(withRouter: withRouter, themeConfig: themeConfig, localizationCon
         ? "\nimport 'config/router/app_router.dart';"
         : '';
 
+    final blocObserverImport = withBlocObserver
+        ? "\nimport 'core/utils/app_bloc_observer.dart';"
+        : '';
+
+    // Before the locator, so a bloc built while it is set up already reports
+    // to it.
+    final blocObserverInit = withBlocObserver
+        ? '''
+
+  // What a bloc hands to addError — runAction does, for anything that is not
+  // an AppException — reaches the logger instead of vanishing.
+  Bloc.observer = const AppBlocObserver();
+'''
+        : '';
+
     return '''
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';$localizationImports$notificationImport$firebaseNotificationImport$firebaseImports
 import 'config/di/injector.dart';
-import 'core/utils/app_logger.dart';
+import 'core/utils/app_logger.dart';$blocObserverImport
 import 'shared/widgets/error_view.dart';$maintenanceImport$moAdaptImport$authImport
 import 'config/theme/app_theme.dart';$routerImport
 
@@ -316,7 +332,7 @@ $easyLocalizationInit$firebaseInit
     if (kDebugMode) return ErrorWidget(details.exception);
     return const Scaffold(body: ErrorView());
   };
-
+$blocObserverInit
   // Registers every repository, datasource, service and bloc. Firebase is up
   // by this point, so the locator can hand out its instances.
   await setupInjector();
@@ -332,6 +348,36 @@ $notificationInit
 
 $notificationsBootstrap$appBody''';
   }
+
+  /// Returns the generated appBlocObserver template —
+  /// `core/utils/app_bloc_observer.dart`.
+  ///
+  /// bloc's default observer does nothing with an error, so without this the
+  /// `addError` in `runAction` reaches no one: the screen shows the generic
+  /// message and the exception behind it is gone. `main.dart` installs it.
+  static String appBlocObserver() => r'''
+import 'package:bloc/bloc.dart';
+
+import 'app_logger.dart';
+
+final _log = appLogger.scoped('Bloc');
+
+/// Logs what a bloc hands to `addError` — `runAction` does so for anything
+/// that is not an `AppException`, so an unexpected failure is not lost behind
+/// the generic message it shows. An error thrown out of an event handler
+/// lands here too.
+///
+/// Installed once, in `main.dart`: `Bloc.observer = const AppBlocObserver();`
+class AppBlocObserver extends BlocObserver {
+  const AppBlocObserver();
+
+  @override
+  void onError(BlocBase<dynamic> bloc, Object error, StackTrace stackTrace) {
+    _log.e('${bloc.runtimeType} failed', error: error, stackTrace: stackTrace);
+    super.onError(bloc, error, stackTrace);
+  }
+}
+''';
 
   /// One `init()` call wrapped in its own guard, so a plugin that throws only
   /// costs its own service rather than every one after it.

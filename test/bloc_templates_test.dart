@@ -885,11 +885,65 @@ Future<void> setupInjector() async {
       );
     });
 
+    test('installs the bloc observer before the locator', () {
+      final output = bloc.AppTemplates.mainDart(
+        withRouter: false,
+        withBlocObserver: true,
+      );
+
+      expect(output, contains("import 'core/utils/app_bloc_observer.dart';"));
+      expect(output, contains('Bloc.observer = const AppBlocObserver();'));
+      // A bloc built while the locator is set up already reports to it.
+      expect(
+        output.indexOf('Bloc.observer'),
+        lessThan(output.indexOf('await setupInjector();')),
+      );
+    });
+
+    test('an older project without the observer is not handed one', () {
+      final output = bloc.AppTemplates.mainDart(withRouter: false);
+
+      expect(output, isNot(contains('AppBlocObserver')));
+      expect(output, isNot(contains('app_bloc_observer.dart')));
+    });
+
     test('no notification bootstrap without a notification service', () {
       final output = bloc.AppTemplates.mainDart(withRouter: false);
 
       expect(output, isNot(contains('_initNotifications')));
       expect(output, isNot(contains('} catch (error, stackTrace) {')));
+    });
+  });
+
+  group('AppBlocObserver', () {
+    test('logs what a bloc hands to addError', () {
+      final output = bloc.AppTemplates.appBlocObserver();
+
+      expect(output, contains('class AppBlocObserver extends BlocObserver'));
+      expect(output, contains("import 'app_logger.dart';"));
+      expect(output, contains("appLogger.scoped('Bloc')"));
+      expect(
+        output,
+        contains(
+          "_log.e('\${bloc.runtimeType} failed', error: error, stackTrace: stackTrace);",
+        ),
+      );
+      expect(output, contains('super.onError(bloc, error, stackTrace);'));
+    });
+
+    test('is bloc-only, and refreshable once generated', () {
+      expect(
+        const StackTemplates(StateManagement.bloc).hasBlocObserver,
+        isTrue,
+      );
+      expect(
+        const StackTemplates(StateManagement.riverpod).hasBlocObserver,
+        isFalse,
+      );
+      final spec = ScaffoldCatalog.all.singleWhere(
+        (s) => s.name == 'bloc-observer',
+      );
+      expect(spec.path, 'lib/core/utils/app_bloc_observer.dart');
     });
   });
 

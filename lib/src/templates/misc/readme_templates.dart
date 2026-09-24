@@ -534,7 +534,7 @@ ${withRouter ? '│   ├── router/                      # GoRouter routes +
 │   ├── network/                     # HTTP client + the safe call wrappers
 │   ├── security/                    # secure storage, validation, biometrics
 │   ├── services/                    # notifications, media, permissions, …
-│   └── utils/                       # logger, extensions${bloc ? ', AppStatus + runAction' : ', runAction'}
+│   └── utils/                       # logger, extensions${bloc ? ', AppStatus + runAction, AppBlocObserver' : ', runAction'}
 ├── features/                        # One folder per feature — the app itself
 │   └── $feature/
 │       ├── domain/
