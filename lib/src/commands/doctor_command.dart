@@ -60,19 +60,27 @@ class DoctorCommand extends Command<int> {
       _report(finding);
     }
 
-    if (findings.isEmpty) {
+    // An info finding can carry a fix too — the files a newer moarch
+    // generates, offered to an older project — and `--fix` applies it: the
+    // note does not fail the run, but asking for fixes is asking for it.
+    final fixable = reported.where((f) => f.isFixable).toList();
+    final fixableIssues = findings.where((f) => f.isFixable).length;
+
+    if (findings.isEmpty && (!shouldFix || fixable.isEmpty)) {
       if (reported.isEmpty) _logger.success('  ✓  No issues found.');
+      if (fixable.isNotEmpty) {
+        _logger.info('');
+        _logger.info('  Apply the notes above with: moarch doctor --fix');
+      }
       _logger.info('');
       return 0;
     }
 
-    final fixable = findings.where((f) => f.isFixable).toList();
-
     if (!shouldFix) {
       _logger.info('');
-      if (fixable.isNotEmpty) {
+      if (fixableIssues > 0) {
         _logger.info(
-          '  ${fixable.length} of ${findings.length} can be fixed '
+          '  $fixableIssues of ${findings.length} can be fixed '
           'automatically — run: moarch doctor --fix',
         );
       }

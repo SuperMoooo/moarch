@@ -2,6 +2,37 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.1.0
+
+- The "AI agent guide" option in `init` now writes step-by-step **skills**
+  beside `AGENTS.md`, in `.agents/skills/`: `moarch-add-feature`,
+  `moarch-add-endpoint`, `moarch-add-action`, `moarch-add-model`,
+  `moarch-build-screen`, `moarch-add-env-key`, `moarch-write-tests`,
+  `moarch-update-scaffold` and `moarch-review`. Each one is written for the
+  project's stack and options: bloc gets events, handlers and scopes, and
+  Riverpod gets notifier methods and `listenAction`. They also cover Dio and/or
+  Firestore, the router, localization and the CI workflows. They feed
+  `create feature` its checklist on stdin and pass `-y` to `update`, so an
+  agent never waits on a prompt it cannot answer.
+- Claude Code reads skills only from `.claude/skills/`, so each skill also
+  gets a pointer there to its `.agents` copy, the same way `CLAUDE.md` imports
+  `AGENTS.md`.
+- `.claude/settings.json` allows the format / analyze / test / build_runner
+  commands without a prompt, and denies reading `.env` and editing
+  `*.g.dart`, `*.freezed.dart` and `.moarch.yaml`. `.gemini/settings.json`
+  points Gemini CLI at `AGENTS.md`. `.claude/settings.local.json` is added
+  to `.gitignore`.
+- `AGENTS.md` lists the skills when the project has them, and says that
+  where a generic Flutter skill disagrees with the project's rules, the rules
+  win.
+- All of it is the new `ai` group: `moarch update ai`. `update` never adds
+  files, so a project from before 9.1.0 gets them from `moarch doctor --fix`,
+  then `moarch update agents` to list them in `AGENTS.md`.
+- Fix: `moarch doctor --fix` now applies the fixes that come with a note, not
+  only those on a warning or an error. Until now the 9.0.0 offer to generate
+  `AGENTS.md` was printed but never applied. A note still does not make
+  `doctor` exit 1.
+
 ## 9.0.2
 
 - Bloc projects get `lib/core/utils/app_bloc_observer.dart`, and `main.dart`

@@ -132,6 +132,34 @@ dependencies:
     expect(await runDoctor(['--fix']), 1);
   });
 
+  test('--fix applies a note that carries a fix', () async {
+    // The fixture has no AGENTS.md and no manifest: an info finding whose fix
+    // generates the agent guide. A note does not fail the run, but --fix
+    // applies it.
+    await scaffoldHealthyProject();
+    expect(await runDoctor([]), 0);
+    expect(File(p.join(root, 'AGENTS.md')).existsSync(), isFalse);
+
+    expect(await runDoctor(['--fix']), 0);
+    expect(File(p.join(root, 'AGENTS.md')).existsSync(), isTrue);
+    expect(
+      File(
+        p.join(root, '.agents', 'skills', 'moarch-review', 'SKILL.md'),
+      ).existsSync(),
+      isTrue,
+    );
+  });
+
+  test('--fix applies the notes beside an issue it cannot fix', () async {
+    await scaffoldHealthyProject();
+    final envDir = p.join(libPath, 'config', 'env');
+    await Directory(envDir).create(recursive: true);
+    await File(p.join(envDir, 'app_env.dart')).writeAsString('// envied');
+
+    expect(await runDoctor(['--fix']), 1);
+    expect(File(p.join(root, 'AGENTS.md')).existsSync(), isTrue);
+  });
+
   test('--fix records what it generated in the manifest', () async {
     await scaffoldHealthyProject();
     await writeWidget('switch');

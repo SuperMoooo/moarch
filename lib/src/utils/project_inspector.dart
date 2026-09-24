@@ -92,6 +92,7 @@ abstract final class ProjectInspector {
       ..._codegen(libPath),
       ..._theme(root, libPath),
       ..._agents(root),
+      ..._skills(root),
       ..._widgets(root, libPath, pubspec),
     ];
   }
@@ -101,11 +102,16 @@ abstract final class ProjectInspector {
   /// The release `init` started offering `AGENTS.md`.
   static const _agentsSince = [9, 0, 0];
 
+  /// The release `init` started writing the agent skills beside it.
+  static const _skillsSince = [9, 1, 0];
+
   /// A project scaffolded before `init` wrote `AGENTS.md` and `CLAUDE.md`.
   ///
   /// Offered only to those: a project from 9.0.0 on that has no `AGENTS.md`
   /// unticked it in the checklist, and being asked again on every `doctor`
   /// would be nagging. A project with no manifest cannot say, so it is asked.
+  /// The fix brings the skills along, so one `--fix` leaves it where a fresh
+  /// `init` would.
   static List<Diagnostic> _agents(String root) {
     if (File(p.join(root, 'AGENTS.md')).existsSync()) return const [];
     final manifest = ProjectManifest.load(root);
@@ -115,29 +121,79 @@ abstract final class ProjectInspector {
 
     return [
       Diagnostic.info(
-        'No AGENTS.md — coding agents get none of the project\'s rules',
-        hint: 'Generate AGENTS.md and CLAUDE.md with `moarch doctor --fix`.',
+        "No AGENTS.md — coding agents get none of the project's rules",
+        hint:
+            'Generate AGENTS.md, CLAUDE.md and the agent skills with '
+            '`moarch doctor --fix`.',
+        // Skills first: AGENTS.md lists them only once they are on disk.
+        fix: () => _generate(root, [
+          ..._aiSpecs,
+          'agents',
+          'claude-md',
+        ], 'the files already exist'),
+      ),
+    ];
+  }
+
+  /// A project with `AGENTS.md` from before `init` wrote the skills (9.1.0).
+  ///
+  /// Same rule as [_agents]: a newer project without them chose that.
+  static List<Diagnostic> _skills(String root) {
+    if (!File(p.join(root, 'AGENTS.md')).existsSync()) return const [];
+    if (ScaffoldContext.detect(root).hasAgentSkills) return const [];
+    final manifest = ProjectManifest.load(root);
+    if (manifest != null && !_predates(manifest.version, _skillsSince)) {
+      return const [];
+    }
+
+    return [
+      Diagnostic.info(
+        'No agent skills — agents get the rules but not the procedures',
+        hint:
+            'Generate .agents/skills/, .claude/ and .gemini/ with '
+            '`moarch doctor --fix`, then `moarch update agents` to list the '
+            'skills in AGENTS.md.',
         fix: () async {
-          final context = ScaffoldContext.detect(root);
-          final written = <String>[];
-          final updated = ProjectManifest.loadOrCreate(root);
-          for (final name in const ['agents', 'claude-md']) {
-            final spec = ScaffoldCatalog.byName(name)!;
-            final path = context.resolve(spec.path);
-            final content = spec.template(context);
-            // Never clobbers: a CLAUDE.md the team wrote is left alone.
-            if (await FileUtils.writeFile(path, content)) {
-              updated.record(root, path, content);
-              written.add(spec.path);
-            }
-          }
-          if (written.isNotEmpty) await updated.save(root);
-          return written.isEmpty
-              ? 'nothing written — the files already exist'
-              : 'generated ${written.join(', ')}';
+          final result = await _generate(
+            root,
+            _aiSpecs,
+            'the files already exist',
+          );
+          return '$result — run `moarch update agents` to list them in '
+              'AGENTS.md';
         },
       ),
     ];
+  }
+
+  /// Every spec in the `ai` group: the skills and the agents' settings.
+  static List<String> get _aiSpecs =>
+      ScaffoldCatalog.byGroup('ai').map((spec) => spec.name).toList();
+
+  /// Writes the catalog entries [names] into [root] and records them in the
+  /// manifest. Never clobbers: a file the team wrote is left alone.
+  static Future<String> _generate(
+    String root,
+    List<String> names,
+    String whenNothing,
+  ) async {
+    final context = ScaffoldContext.detect(root);
+    final written = <String>[];
+    final updated = ProjectManifest.loadOrCreate(root);
+    for (final name in names) {
+      final spec = ScaffoldCatalog.byName(name)!;
+      final path = context.resolve(spec.pathIn(context));
+      final content = spec.template(context);
+      if (await FileUtils.writeFile(path, content)) {
+        updated.record(root, path, content);
+        written.add(spec.pathIn(context));
+      }
+    }
+    if (written.isNotEmpty) await updated.save(root);
+    if (written.isEmpty) return 'nothing written — $whenNothing';
+    return written.length > 4
+        ? 'generated ${written.length} files'
+        : 'generated ${written.join(', ')}';
   }
 
   /// Whether [version] (`major.minor.patch`) is older than [since]. An

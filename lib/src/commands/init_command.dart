@@ -6,6 +6,7 @@ import 'package:moarch/src/templates/core/error_templates.dart';
 import 'package:moarch/src/templates/core/security_templates.dart';
 import 'package:moarch/src/templates/core/services_templates.dart';
 import 'package:moarch/src/templates/misc/agents_templates.dart';
+import 'package:moarch/src/templates/misc/skills_templates.dart';
 import 'package:moarch/src/templates/misc/android_templates.dart';
 import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/templates/misc/docs_templates.dart';
@@ -66,7 +67,7 @@ const _kDarkTheme = 'Dark theme (second palette)';
 const _kMoAdapt = 'MoAdapt (proportional UI scaling)';
 const _kLocalizations = 'Localization (l10n)';
 const _kEasyLocalization = 'Localization (easy_localization)';
-const _kAgents = 'AI agent guide (AGENTS.md + CLAUDE.md)';
+const _kAgents = 'AI agent guide (AGENTS.md, CLAUDE.md, skills)';
 
 /// Creates the project-initialization CLI command.
 class InitCommand extends Command<int> {
@@ -329,8 +330,8 @@ class InitCommand extends Command<int> {
               _kAgents,
               defaultOn: true,
               description:
-                  "The project's rules for coding agents — Codex, "
-                  'Cursor, Copilot and Claude Code read them before editing.',
+                  "The project's rules and step-by-step skills for coding "
+                  'agents — Codex, Cursor, Copilot, Gemini and Claude Code.',
             ),
           ],
         );
@@ -742,11 +743,48 @@ class InitCommand extends Command<int> {
             withLocalization: stack.contains(_kLocalizations),
             withEasyLocalization: stack.contains(_kEasyLocalization),
             withFeatureModule: true,
+            withSkills: true,
           ),
         );
         await FileUtils.writeFile(
           p.join(p.absolute(targetPath), 'CLAUDE.md'),
           AgentsTemplates.claudeMd(),
+        );
+
+        // The procedures behind the rules: one body per skill in
+        // .agents/skills/, which every agent but Claude Code reads, and a
+        // pointer to it in .claude/skills/, which is all Claude Code reads.
+        final skillOptions = SkillOptions(
+          stateManagement: stateManagement,
+          withDio: stack.contains(_kDio),
+          withFirestore: stack.contains(_kFirestore),
+          withRouter: stack.contains(_kRouter),
+          withLocalization: stack.contains(_kLocalizations),
+          withEasyLocalization: stack.contains(_kEasyLocalization),
+          withDarkTheme: stack.contains(_kDarkTheme),
+          withStatusColors: true,
+          withWorkflows: stack.contains(_kWorkflows),
+          blocConcurrency: stateManagement.isBloc,
+        );
+        String at(String path) =>
+            p.joinAll([p.absolute(targetPath), ...p.posix.split(path)]);
+        for (final skill in SkillsTemplates.all) {
+          await FileUtils.writeFile(
+            at(skill.agentsPath),
+            SkillsTemplates.skill(skill, skillOptions),
+          );
+          await FileUtils.writeFile(
+            at(skill.claudePath),
+            SkillsTemplates.claudeSkill(skill),
+          );
+        }
+        await FileUtils.writeFile(
+          at('.claude/settings.json'),
+          SkillsTemplates.claudeSettings(bloc: stateManagement.isBloc),
+        );
+        await FileUtils.writeFile(
+          at('.gemini/settings.json'),
+          SkillsTemplates.geminiSettings(),
         );
       }
 
@@ -853,6 +891,9 @@ class InitCommand extends Command<int> {
         // merge conflicts a regenerated file guarantees.
         '*.freezed.dart',
         '*.g.dart',
+        // Claude Code's per-person settings; `.claude/settings.json` is the
+        // shared half and is committed.
+        '.claude/settings.local.json',
       ];
 
       // `flutter create` projects already have a .gitignore, and writeFile

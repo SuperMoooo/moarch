@@ -1,4 +1,5 @@
 import '../../utils/state_management.dart';
+import 'skills_templates.dart';
 
 /// The instructions a coding agent reads before it touches the project.
 ///
@@ -28,6 +29,7 @@ class AgentsTemplates {
     bool withLocalization = false,
     bool withEasyLocalization = false,
     bool withFeatureModule = false,
+    bool withSkills = false,
   }) {
     final bloc = stateManagement.isBloc;
     return <String>[
@@ -45,7 +47,8 @@ class AgentsTemplates {
       _addingAFeature(bloc: bloc, withRouter: withRouter),
       if (withLocalization || withEasyLocalization)
         _localization(easy: withEasyLocalization),
-      _generated(withAuthFeature: withAuthFeature),
+      if (withSkills) SkillsTemplates.agentsMdSection(),
+      _generated(withAuthFeature: withAuthFeature, withSkills: withSkills),
       _done(bloc: bloc),
     ].join('\n');
   }
@@ -282,7 +285,10 @@ are read through `AppLocalizations.of(context)`. Add every new key to
 **every** `.arb` file; `fvm flutter gen-l10n` regenerates the accessors.
 ''';
 
-  static String _generated({required bool withAuthFeature}) =>
+  static String _generated({
+    required bool withAuthFeature,
+    required bool withSkills,
+  }) =>
       '''
 ## Files moarch owns
 
@@ -293,7 +299,7 @@ overwriting it — but prefer extending over rewriting:
 
 - `lib/core/`, `lib/config/`, `lib/shared/widgets/`${withAuthFeature ? ', `lib/features/auth/`' : ''}
 - `README.md`, `AGENTS.md`, `CLAUDE.md`, `docs/`, `analysis_options.yaml`,
-  `.github/workflows/`
+  `.github/workflows/`${withSkills ? ', `.agents/skills/`, `.claude/`, `.gemini/`' : ''}
 
 Never edit `.moarch.yaml`, `*.g.dart` or `*.freezed.dart`.
 ''';

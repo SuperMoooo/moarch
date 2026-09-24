@@ -13,6 +13,7 @@ import '../templates/misc/dev_templates.dart';
 import '../templates/misc/docs_templates.dart';
 import '../templates/misc/ios_templates.dart';
 import '../templates/misc/readme_templates.dart';
+import '../templates/misc/skills_templates.dart';
 import '../templates/misc/workflow_templates.dart';
 import '../templates/stack_templates.dart';
 import 'state_management.dart';
@@ -225,6 +226,10 @@ class ScaffoldContext {
   /// The GitHub Actions workflows were generated — what the README's CI/CD
   /// section describes, and skips when they are absent.
   bool get hasWorkflows => hasFile('.github/workflows/build_ipa.yml');
+
+  /// The agent skills were generated (9.1.0 on) — what `AGENTS.md`'s skills
+  /// section lists, and leaves out on a project that does not have them yet.
+  bool get hasAgentSkills => hasFile(SkillsTemplates.all.first.agentsPath);
 }
 
 /// One generated file outside the widget kit that `moarch update` can refresh.
@@ -300,6 +305,7 @@ abstract final class ScaffoldCatalog {
     'Config',
     'Auth feature',
     'Docs',
+    'AI agents',
     'Workflows',
     'Project',
     'iOS',
@@ -318,6 +324,7 @@ abstract final class ScaffoldCatalog {
     'config': 'Config',
     'auth': 'Auth feature',
     'docs': 'Docs',
+    'ai': 'AI agents',
     'workflows': 'Workflows',
     'project': 'Project',
     'ios': 'iOS',
@@ -952,6 +959,7 @@ abstract final class ScaffoldCatalog {
         withLocalization: c.hasLocalization,
         withEasyLocalization: c.hasEasyLocalization,
         withFeatureModule: c.hasFeatureModule,
+        withSkills: c.hasAgentSkills,
       ),
       description:
           'The rules coding agents (Codex, Cursor, Copilot, Claude) '
@@ -1022,6 +1030,46 @@ abstract final class ScaffoldCatalog {
       category: 'Docs',
       template: (_) => DocsTemplates.stepsForWorkflow(),
       description: 'The secrets and steps the GitHub Actions workflows expect.',
+    ),
+
+    // ── AI agents ───────────────────────────────────────────────────────────
+    // Each skill is two files: the body in `.agents/skills/` (Codex, Cursor,
+    // Gemini CLI, Copilot) and a pointer to it in `.claude/skills/`.
+    for (final skill in SkillsTemplates.all) ...[
+      ScaffoldSpec(
+        name: 'skill-${skill.slug}',
+        title: '${skill.name} skill',
+        path: skill.agentsPath,
+        category: 'AI agents',
+        template: (c) => SkillsTemplates.skill(skill, _skillOptions(c)),
+        description: skill.summary,
+      ),
+      ScaffoldSpec(
+        name: 'claude-skill-${skill.slug}',
+        title: '${skill.name} skill (Claude Code)',
+        path: skill.claudePath,
+        category: 'AI agents',
+        template: (_) => SkillsTemplates.claudeSkill(skill),
+        description: "Claude Code's pointer to ${skill.agentsPath}.",
+      ),
+    ],
+    ScaffoldSpec(
+      name: 'claude-settings',
+      title: 'Claude Code settings',
+      path: '.claude/settings.json',
+      category: 'AI agents',
+      template: (c) => SkillsTemplates.claudeSettings(bloc: c.hasBloc),
+      description:
+          'Allows the checks without a prompt; denies .env and generated '
+          'files.',
+    ),
+    ScaffoldSpec(
+      name: 'gemini-settings',
+      title: 'Gemini CLI settings',
+      path: '.gemini/settings.json',
+      category: 'AI agents',
+      template: (_) => SkillsTemplates.geminiSettings(),
+      description: 'Points Gemini CLI at AGENTS.md.',
     ),
 
     // ── Workflows ───────────────────────────────────────────────────────────
@@ -1201,3 +1249,17 @@ abstract final class ScaffoldCatalog {
         .toList();
   }
 }
+
+/// What [c]'s skills vary with, read off the project like every other option.
+SkillOptions _skillOptions(ScaffoldContext c) => SkillOptions(
+  stateManagement: c.stateManagement,
+  withDio: c.hasDio,
+  withFirestore: c.hasFirestore,
+  withRouter: c.hasRouter,
+  withLocalization: c.hasLocalization,
+  withEasyLocalization: c.hasEasyLocalization,
+  withDarkTheme: c.hasDarkTheme,
+  withStatusColors: c.hasStatusColors,
+  withWorkflows: c.hasWorkflows,
+  blocConcurrency: c.hasBlocConcurrency,
+);

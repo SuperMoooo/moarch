@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import 'package:moarch/src/templates/misc/dev_templates.dart';
+import 'package:moarch/src/templates/misc/skills_templates.dart';
 import 'package:moarch/src/utils/file_utils.dart';
 import 'package:moarch/src/utils/injector_utils.dart';
 import 'package:moarch/src/utils/project_inspector.dart';
+import 'package:moarch/src/utils/project_manifest.dart';
 import 'package:moarch/src/utils/widget_catalog.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -23,6 +25,9 @@ void main() {
     await File(p.join(root, '.env')).writeAsString('API_URL=http://x');
     await File(p.join(root, '.fvmrc')).writeAsString('{}');
     await File(p.join(root, 'AGENTS.md')).writeAsString('# AGENTS.md\n');
+    await File(
+      p.join(root, SkillsTemplates.all.first.agentsPath),
+    ).create(recursive: true).then((file) => file.writeAsString('---\n'));
     await File(p.join(root, '.vscode', 'settings.json'))
         .create(recursive: true)
         .then((file) => file.writeAsString(DevTemplates.vscodeSettings()));
@@ -569,6 +574,70 @@ dependencies:
       // Riverpod fixture: no bloc_test.
       expect(after, isNot(contains('bloc_test')));
       expect(await ProjectInspector.inspect(root), isEmpty);
+    });
+  });
+
+  group('agent skills', () {
+    Future<void> removeSkills() =>
+        Directory(p.join(root, '.agents')).delete(recursive: true);
+
+    test('offers them to a project that has AGENTS.md but no skills', () async {
+      await scaffoldHealthyProject();
+      await removeSkills();
+
+      final finding = matching(
+        await ProjectInspector.inspect(root),
+        'No agent skills',
+      ).single;
+      expect(finding.severity, DiagnosticSeverity.info);
+
+      await finding.fix!();
+
+      for (final skill in SkillsTemplates.all) {
+        expect(File(p.join(root, skill.agentsPath)).existsSync(), isTrue);
+        expect(File(p.join(root, skill.claudePath)).existsSync(), isTrue);
+      }
+      expect(
+        File(p.join(root, '.claude', 'settings.json')).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(p.join(root, '.gemini', 'settings.json')).existsSync(),
+        isTrue,
+      );
+      expect(await ProjectInspector.inspect(root), isEmpty);
+    });
+
+    test('leaves alone a project from 9.1.0 on that has none', () async {
+      await scaffoldHealthyProject();
+      await removeSkills();
+      // Written by hand: `save` stamps the running version, not this one.
+      await File(
+        p.join(root, ProjectManifest.fileName),
+      ).writeAsString("version: '9.1.0'\nstack: []\n");
+
+      expect(
+        matching(await ProjectInspector.inspect(root), 'No agent skills'),
+        isEmpty,
+      );
+    });
+
+    test('a project with no AGENTS.md gets the skills with it', () async {
+      await scaffoldHealthyProject();
+      await removeSkills();
+      await File(p.join(root, 'AGENTS.md')).delete();
+
+      final findings = await ProjectInspector.inspect(root);
+      // One offer, not two: the AGENTS.md fix brings the skills along.
+      expect(matching(findings, 'No agent skills'), isEmpty);
+      await matching(findings, 'No AGENTS.md').single.fix!();
+
+      final agents = await File(p.join(root, 'AGENTS.md')).readAsString();
+      expect(agents, contains('## Skills'));
+      expect(
+        File(p.join(root, SkillsTemplates.all.last.agentsPath)).existsSync(),
+        isTrue,
+      );
     });
   });
 }
