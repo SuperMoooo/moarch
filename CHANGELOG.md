@@ -12,6 +12,13 @@ All notable changes to this package are documented in this file, newest first.
   app. It adds `mocktail` (and `bloc_test` on bloc) instead, which is what the
   generated tests import. For an existing project, `moarch doctor --fix` makes
   the same swap.
+- The generated `build.yaml` sets json_serializable's `field_rename: snake`,
+  so every model field reads and writes a snake_case key (`createdAt` is
+  `created_at`) with no `@JsonKey(name:)`. `create model --from-json`
+  annotates only the keys the rename would not reach, like a camelCase key.
+  `moarch update build-yaml` hands an existing project the same option, and
+  that changes the key of every camelCase field in its models: check the
+  models first, or keep your `build.yaml` as it is.
 
 **`moarch create scope <feature> <name>`** (bloc) — carries a screen's
 blocs to the routes, sheets and dialogs it opens. Those are siblings in the

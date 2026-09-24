@@ -71,12 +71,17 @@ linter:
   /// The `build.yaml` that configures the generators behind the
   /// models.
   ///
-  /// One option, and it is not cosmetic: without `explicit_to_json`,
-  /// json_serializable writes a nested model into `toJson()`'s map as the
-  /// object it is rather than as a map of its own. `jsonEncode` papers over
-  /// that — it calls `toJson()` on whatever it finds — but anything handed the
-  /// raw map does not. `FirebaseFirestore.add(model.toJson())` throws on the
-  /// nested value, and so does any code that reads the map back.
+  /// `explicit_to_json` is not cosmetic: without it, json_serializable writes
+  /// a nested model into `toJson()`'s map as the object it is rather than as a
+  /// map of its own. `jsonEncode` papers over that — it calls `toJson()` on
+  /// whatever it finds — but anything handed the raw map does not.
+  /// `FirebaseFirestore.add(model.toJson())` throws on the nested value, and
+  /// so does any code that reads the map back.
+  ///
+  /// `field_rename: snake` is the convention: JSON keys are snake_case, so a
+  /// `createdAt` field reads and writes `created_at` with no annotation. Only
+  /// a key that breaks the convention needs `@JsonKey(name: …)`, which is all
+  /// `JsonModelBuilder` writes.
   static String buildYaml() => r'''
 targets:
     $default:
@@ -88,6 +93,17 @@ targets:
                     # default in json_serializable, and the failure only shows
                     # up once something other than `jsonEncode` reads the map.
                     explicit_to_json: true
+                    # The case every JSON key is written in. A field without
+                    # an explicit `@JsonKey(name:)` is read and written in
+                    # it. Set it to whatever your API uses:
+                    #   none            createdAt   (the field name as is)
+                    #   snake           created_at
+                    #   kebab           created-at
+                    #   pascal          CreatedAt
+                    #   screamingSnake  CREATED_AT
+                    # Changing it changes the key of every field, so run
+                    # build_runner afterwards and check your models.
+                    field_rename: snake
 ''';
 
   /// The FVM pin written at the project root.

@@ -109,9 +109,9 @@ abstract class ${cls}Model with _\$${cls}Model {
 
   const factory ${cls}Model({
     required int id,
-    // TODO: add your other fields. Where the payload's
-    // key differs from the Dart name, say so once:
-    // `@JsonKey(name: 'created_at') DateTime? createdAt,`.
+    // TODO: add your other fields. build.yaml maps `createdAt` to
+    // `created_at`; only a key that is not snake_case needs saying:
+    // `@JsonKey(name: 'createdAt') DateTime? createdAt,`.
   }) = _${cls}Model;
 
   factory ${cls}Model.fromJson(Map<String, dynamic> json) =>

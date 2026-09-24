@@ -62,8 +62,9 @@ part 'auth_tokens_model.g.dart';
 /// The token pair as the API sends it. Freezed writes the constructor,
 /// `copyWith` and an equality covering both tokens.
 ///
-/// Adjust the keys to your API contract with `@JsonKey(name: 'access_token')`
-/// on the field, rather than by hand-writing the parse.
+/// `build.yaml` renames every field to snake_case, so these read `access_token`
+/// and `refresh_token`. A key your API spells otherwise gets a
+/// `@JsonKey(name: …)` on the field, rather than a hand-written parse.
 @freezed
 abstract class AuthTokensModel with _$AuthTokensModel {
   const factory AuthTokensModel({

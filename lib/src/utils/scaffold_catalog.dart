@@ -1073,8 +1073,8 @@ abstract final class ScaffoldCatalog {
       category: 'Project',
       template: (_) => DevTemplates.buildYaml(),
       description:
-          'How build_runner writes the models — one option, and '
-          'it is load-bearing.',
+          'How build_runner writes the models: nested toJson, and '
+          'snake_case keys.',
     ),
     ScaffoldSpec(
       name: 'fvmrc',

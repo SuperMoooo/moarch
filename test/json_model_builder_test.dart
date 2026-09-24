@@ -112,24 +112,29 @@ void main() {
       expect(source, contains('tags: const [],'));
     });
 
-    test('a key that differs from the field name is stated once', () {
+    test('a snake_case key is left to build.yaml\'s field_rename', () {
       final source = JsonModelBuilder.modelSource('order', 'Order', fields);
+
+      expect(source, contains('    required String customerName,'));
+      expect(source, contains('    required DateTime createdAt,'));
+      expect(source, contains('required int id,'));
+      expect(source, isNot(contains('@JsonKey(name:')));
+    });
+
+    test('a key the snake rename would not reach is stated once', () {
+      final source = JsonModelBuilder.modelSource(
+        'order',
+        'Order',
+        JsonModelBuilder.fieldsFrom(
+          jsonDecode('{"customerName": "Ana", "userID": 1, "total": 2}'),
+        )!,
+      );
 
       // json_serializable owns both directions, so the key is an annotation
       // rather than a parse expression and a write expression that can drift.
-      expect(
-        source,
-        contains(
-          "@JsonKey(name: 'customer_name') required String customerName,",
-        ),
-      );
-      expect(
-        source,
-        contains("@JsonKey(name: 'created_at') required DateTime createdAt,"),
-      );
-      // A key that already matches earns no annotation.
-      expect(source, contains('required int id,'));
-      expect(source, isNot(contains("@JsonKey(name: 'id')")));
+      expect(source, contains("@JsonKey(name: 'customerName')"));
+      expect(source, contains("@JsonKey(name: 'userID')"));
+      expect(source, isNot(contains("@JsonKey(name: 'total')")));
     });
 
     group('a sample from a Firestore document', () {
@@ -225,7 +230,7 @@ void main() {
         'Order',
         const [
           JsonField(jsonKey: 'id', name: 'id', type: 'String'),
-          JsonField(jsonKey: 'placedAt', name: 'placedAt', type: 'DateTime'),
+          JsonField(jsonKey: 'placed_at', name: 'placedAt', type: 'DateTime'),
         ],
         useFirestore: true,
         isDocumentRoot: true,

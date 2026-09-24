@@ -613,9 +613,10 @@ abstract class ProfileModel with _\$ProfileModel {
 
 Freezed writes the constructor, `copyWith`, `==` and `hashCode` from that field
 list, so equality covers **every** field — which is what the state layer runs
-on. json_serializable writes `fromJson` / `toJson` from the same list; where the
-payload's key differs from the Dart name, say so once with
-`@JsonKey(name: 'created_at')`.
+on. json_serializable writes `fromJson` / `toJson` from the same list, and
+`build.yaml` renames every field to snake_case: `createdAt` reads and writes
+`created_at` with no annotation. Only a key that is not snake_case needs saying
+once, with `@JsonKey(name: 'createdAt')`.
 
 There is no second class to keep in step. A field you add here is in the parsed
 payload and on the screen, with no mapping in between. The other half of the

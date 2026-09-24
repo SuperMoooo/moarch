@@ -107,9 +107,10 @@ $syncDeviceToken  /// The signed-in user's uid.
 
   /// The profile document at `users/{uid}`.
   ///
-  /// Add the rest of your profile fields to the constructor above — a key that
-  /// differs from the Dart name gets an `@JsonKey(name: 'created_at')`, and a
-  /// DateTime an `@TimestampConverter()`.
+  /// Add the rest of your profile fields to the constructor above. They are
+  /// stored snake_case (`createdAt` as `created_at`, via `build.yaml`); a key
+  /// that is not gets an `@JsonKey(name: …)`, and a DateTime an
+  /// `@TimestampConverter()`.
   factory AuthUserModel.fromJson(Map<String, dynamic> json) =>
       _$AuthUserModelFromJson(json);
 '''

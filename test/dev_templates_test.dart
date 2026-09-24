@@ -15,6 +15,16 @@ Map<String, dynamic> _decodeJsonc(String source) {
 }
 
 void main() {
+  group('buildYaml', () {
+    test('configures json_serializable for nested toJson and snake keys', () {
+      final yaml = DevTemplates.buildYaml();
+
+      expect(yaml, contains('json_serializable:'));
+      expect(yaml, contains('explicit_to_json: true'));
+      expect(yaml, contains('field_rename: snake'));
+    });
+  });
+
   group('vscodeSettings', () {
     test('points the extension at the fvm SDK the .fvmrc pins', () {
       final settings = _decodeJsonc(DevTemplates.vscodeSettings());

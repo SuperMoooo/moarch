@@ -108,9 +108,10 @@ abstract final class JsonModelBuilder {
 
   /// The model source inferred from a JSON sample.
   ///
-  /// json_serializable writes `fromJson` and `toJson`; a key that differs from
-  /// the Dart name is stated once as a `@JsonKey(name: …)` rather than twice
-  /// as hand-written parse and write expressions.
+  /// json_serializable writes `fromJson` and `toJson`, and the project's
+  /// `build.yaml` has it rename every field to snake_case. Only a key that
+  /// breaks that convention is stated, once, as a `@JsonKey(name: …)` rather
+  /// than twice as hand-written parse and write expressions.
   ///
   /// [useFirestore] says the payload is a Firestore document rather than a
   /// REST body, which is what decides how a `DateTime` is stored.
@@ -220,12 +221,24 @@ $fromDoc
   /// A field inferred from JSON, as the shared model builder wants it.
   ///
   /// The original key travels as a `@JsonKey` annotation rather than as parse
-  /// and write expressions, so json_serializable owns both directions.
+  /// and write expressions, so json_serializable owns both directions — and
+  /// only when `field_rename: snake` would not already arrive at it. A
+  /// camelCase key is the case that needs it: `customerName` stays the field
+  /// name, but the rename alone would look for `customer_name`.
   static ModelField _asModelField(JsonField f) => ModelField(
     name: f.name,
     type: f.type,
-    annotations: f.jsonKey == f.name
+    annotations: f.jsonKey == _snakeRenamed(f.name)
         ? const []
         : ["@JsonKey(name: '${f.jsonKey}')"],
+  );
+
+  /// The key json_serializable's `FieldRename.snake` derives from [name]:
+  /// every capital becomes `_` plus its lowercase. Its rule rather than
+  /// `StringUtils.toSnakeCase`, which keeps an acronym in one piece where
+  /// json_serializable splits it (`userID` is `user_i_d`).
+  static String _snakeRenamed(String name) => name.replaceAllMapped(
+    RegExp('[A-Z]'),
+    (m) => '${m.start == 0 ? '' : '_'}${m[0]!.toLowerCase()}',
   );
 }
