@@ -139,6 +139,7 @@ lib/
       repositories/  # the interface the presentation layer depends on
     presentation/
       $holder      views/        # <x>_view.dart — the screen
+      widgets/      # the screens' pieces, one widget per file
   shared/
     widgets/       # the UI kit — catalogued in docs/UI_KIT.md
     views/         # screens that belong to no feature
@@ -251,7 +252,11 @@ test/
   shadows come from `AppConstants` (`space16`, `padding16`, `borderRadius12`,
   `duration300`, `curveStandard`, `shadowCard`…).
 - No hard-coded colors: read `Theme.of(context).colorScheme`${withStatusColors ? ', and\n  `context.statusColors` for success / warning / info' : ''}.${withDarkTheme ? ' The app has a dark\n  theme, so a literal `Color` is a bug in one of the two.' : ''}
-- A growing `build` is split into private widget **classes** (`_Header`), not
+- **Every widget gets its own file.** A `build` is split into public widget
+  classes, one per file, in the feature's `presentation/widgets/`
+  (`order_header.dart` → `OrderHeader`); a screen in `lib/shared/views/` puts
+  them in `lib/shared/widgets/`, and so does a widget a second feature needs.
+  No private widget classes (`_Header`) in a view file and no
   `Widget _buildHeader()` methods. `const` wherever it compiles.
 ''';
 

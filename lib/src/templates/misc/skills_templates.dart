@@ -589,9 +589,12 @@ A screen is `presentation/views/<name>_view.dart` in its feature — or
   curves and shadows come from `AppConstants` (`space16`, `padding16`,
   `borderRadius12`, `duration300`, `curveStandard`, `shadowCard`…).
 - **Theme, not colors.** Read $colors. A literal `Color` is a bug${o.withDarkTheme ? ' in one of\n  the two themes' : ''}.
-- **Small widgets.** Split a growing `build` into private widget classes
-  (`_Header`), not `Widget _buildHeader()` methods. `const` wherever it
-  compiles.
+- **One widget per file.** Split the screen into public widget classes, each
+  in its own file in the feature's `presentation/widgets/`
+  (`order_header.dart` → `OrderHeader`) — or `lib/shared/widgets/` for a
+  screen in `lib/shared/views/`, or once a second feature needs it. Never a
+  private `_Header` class in the view file, never a `Widget _buildHeader()`
+  method. `const` wherever it compiles.
 - **The skeleton.** The view draws `_body` from the real state and, while
   loading, from `XState.placeholder`. Every field `_body` reads needs a
   *fake* value there (`BoneMock.name`, `BoneMock.words(3)`) or it shimmers as

@@ -161,6 +161,15 @@ void main() {
       expect(firestore, isNot(contains('integration test')));
     });
 
+    test('build-screen puts every widget in its own file', () {
+      for (final stack in StateManagement.values) {
+        final source = render('build-screen', options(stack));
+        expect(source, contains('**One widget per file.**'));
+        expect(source, contains('presentation/widgets/'));
+        expect(source, isNot(contains('Split a growing `build` into private')));
+      }
+    });
+
     test('the route section appears only with the router', () {
       expect(
         render('build-screen', options(StateManagement.bloc)),

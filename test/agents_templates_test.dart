@@ -40,6 +40,15 @@ void main() {
       expect(source, contains('// moarch:registrations'));
     });
 
+    test('puts every widget in its own file, on both stacks', () {
+      for (final stack in StateManagement.values) {
+        final source = agents(stack);
+        expect(source, contains('**Every widget gets its own file.**'));
+        expect(source, contains("widgets/      # the screens' pieces"));
+        expect(source, isNot(contains('split into private widget')));
+      }
+    });
+
     test('describes the Riverpod stack on a Riverpod project', () {
       final source = agents(StateManagement.riverpod);
       expect(source, contains('## State — Riverpod'));

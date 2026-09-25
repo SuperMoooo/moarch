@@ -192,6 +192,15 @@ void main() {
       },
     );
 
+    test("widgets get their own file in the feature's widgets/ folder", () {
+      for (final stack in StateManagement.values) {
+        final source = readme(stack: stack);
+        expect(source, contains('**Every widget gets its own file.**'));
+        expect(source, contains('└── widgets/'));
+        expect(source, isNot(contains('*private widget class*')));
+      }
+    });
+
     test('the hard-coded-colour rule appears only with a dark palette', () {
       expect(
         readme(withDarkTheme: true),

@@ -2,6 +2,17 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.1.1
+
+- Every widget a screen is split into now gets its own file. `AGENTS.md`, the
+  `moarch-build-screen` skill and the project README tell agents (and people)
+  to write each one as a public class in the feature's
+  `presentation/widgets/` (`order_header.dart` → `OrderHeader`), or in
+  `lib/shared/widgets/` once a second feature needs it, instead of a private
+  `_Header` class at the bottom of the view. The layout in `AGENTS.md` and the
+  README shows the new folder. Existing projects: `moarch update ai` and
+  `moarch update readme`.
+
 ## 9.1.0
 
 - The "AI agent guide" option in `init` now writes step-by-step **skills**

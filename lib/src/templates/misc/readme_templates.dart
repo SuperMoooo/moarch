@@ -512,11 +512,13 @@ ${packages.toString().trimRight()}
         ? '''│       └── presentation/
 │           ├── blocs/                   # events, states and the bloc
 │           ├── pages/                   # the route target: provides the bloc
-│           └── views/                   # the screen itself'''
+│           ├── views/                   # the screen itself
+│           └── widgets/                 # its pieces, one widget per file'''
         : '''│       └── presentation/
 │           ├── notifiers/               # the AsyncNotifier
 │           ├── states/                  # its immutable state class
-│           └── views/                   # the screens''';
+│           ├── views/                   # the screens
+│           └── widgets/                 # their pieces, one widget per file''';
 
     return '''
 ## 4. Project structure
@@ -1391,15 +1393,19 @@ keychain, and that keychain dies with the job.
 | Files and folders | `snake_case` | `profile_view.dart` |
 | Classes, enums, extensions | `PascalCase` | `Profile${bloc ? 'Bloc' : 'Notifier'}` |
 | Variables and methods | `camelCase` | `fetchProfile()` |
-| Private members | leading `_` | `_repo`, `_ProfileHeader` |
+| Private members | leading `_` | `_repo`, `_onSaved` |
 | Constants | `camelCase` | `defaultPadding` |
 
 ### Widgets
 
 - **Small and reusable beats one long `build`.** When a `build` method grows a
-  section, extract it as a *private widget class* (`_ProfileHeader`), not as a
-  `Widget _buildHeader()` method. A class gets its own `const` constructor and
-  its own rebuild boundary; a method is rebuilt with its parent every time.
+  section, extract it as a widget class, not as a `Widget _buildHeader()`
+  method. A class gets its own `const` constructor and its own rebuild
+  boundary; a method is rebuilt with its parent every time.
+- **Every widget gets its own file.** The class is public and lives in the
+  feature's `presentation/widgets/` (`profile_header.dart` → `ProfileHeader`),
+  never as a private `_ProfileHeader` at the bottom of the view. A widget a
+  second feature needs moves to `lib/shared/widgets/`.
 - **`const` wherever it compiles.** A `const` widget is skipped entirely on
   rebuild.
 
