@@ -8,6 +8,7 @@ import '../templates/core/error_templates.dart';
 import '../templates/core/security_templates.dart';
 import '../templates/core/services_templates.dart';
 import '../templates/misc/agents_templates.dart';
+import '../templates/misc/deep_links_templates.dart';
 import '../templates/misc/android_templates.dart';
 import '../templates/misc/dev_templates.dart';
 import '../templates/misc/docs_templates.dart';
@@ -138,6 +139,16 @@ class ScaffoldContext {
   /// scaling every screen was built against.
   bool get hasMoAdapt => hasFile('lib/shared/widgets/mo_adapt.dart');
 
+  /// The offline screen over the app, with the reconnect hook in main.dart.
+  bool get hasOfflineGate => hasFile('lib/shared/widgets/offline_gate.dart');
+
+  /// The saved light / dark / system switch (9.2.0 on, with the dark theme).
+  bool get hasThemeMode => hasFile('lib/core/services/theme_mode_service.dart');
+
+  /// `PreferencesService`, which the theme-mode switch saves through.
+  bool get hasPreferences =>
+      hasFile('lib/core/services/preferences_service.dart');
+
   /// `AppBlocObserver` was generated (bloc, 9.0.2 on). `main.dart` installs
   /// it, so refreshing main checks rather than importing a file an older
   /// project does not have.
@@ -226,6 +237,44 @@ class ScaffoldContext {
   /// The GitHub Actions workflows were generated — what the README's CI/CD
   /// section describes, and skips when they are absent.
   bool get hasWorkflows => hasFile('.github/workflows/build_ipa.yml');
+
+  /// The `applicationId` in `android/app/build.gradle(.kts)`, or null when
+  /// there is no Android project or it declares none.
+  String? get androidApplicationId {
+    for (final path in [
+      'android/app/build.gradle.kts',
+      'android/app/build.gradle',
+    ]) {
+      if (!hasFile(path)) continue;
+      final match = RegExp(
+        r'''applicationId\s*=?\s*["']([^"']+)["']''',
+      ).firstMatch(File(resolve(path)).readAsStringSync());
+      if (match != null) return match.group(1)!;
+    }
+    return null;
+  }
+
+  /// The app's `PRODUCT_BUNDLE_IDENTIFIER` from the Xcode project, or null
+  /// when there is no iOS project — usually the Android id, but not
+  /// guaranteed to be.
+  String? get iosBundleId {
+    const path = 'ios/Runner.xcodeproj/project.pbxproj';
+    if (!hasFile(path)) return null;
+    final match = RegExp(
+      r'PRODUCT_BUNDLE_IDENTIFIER\s*=\s*([^;\s]+);',
+      multiLine: true,
+    ).firstMatch(File(resolve(path)).readAsStringSync());
+    // The RunnerTests target's id ends in .RunnerTests — strip that rather
+    // than hand back the test bundle when it happens to match first.
+    final id = match?.group(1)?.replaceAll('"', '');
+    if (id == null) return null;
+    return id.endsWith('.RunnerTests')
+        ? id.substring(0, id.length - '.RunnerTests'.length)
+        : id;
+  }
+
+  /// The deep-link setup was generated (9.2.0 on).
+  bool get hasDeepLinks => hasFile('docs/DEEP_LINKS.md');
 
   /// The agent skills were generated (9.1.0 on) — what `AGENTS.md`'s skills
   /// section lists, and leaves out on a project that does not have them yet.
@@ -435,6 +484,8 @@ abstract final class ScaffoldCatalog {
         withUpdateGate: c.hasUpdateGate,
         withMoAdapt: c.hasMoAdapt,
         withDarkTheme: c.hasDarkTheme,
+        withThemeMode: c.hasThemeMode,
+        withOfflineGate: c.hasOfflineGate,
         withAuthFeature: c.hasAuthFeature,
         withBlocObserver: c.hasBlocObserver,
       ),
@@ -582,6 +633,48 @@ abstract final class ScaffoldCatalog {
           'One place to request a permission and handle the permanently-denied case.',
     ),
     ScaffoldSpec(
+      name: 'connectivity',
+      title: 'ConnectivityService',
+      path: 'lib/core/services/connectivity_service.dart',
+      category: 'Services',
+      template: (c) => ServicesTemplates.connectivityService(
+        stateManagement: c.stateManagement,
+      ),
+      description:
+          'Online / offline as a stream, and onReconnect for what runs when '
+          'the connection is back.',
+    ),
+    ScaffoldSpec(
+      name: 'offline-gate',
+      title: 'OfflineGate',
+      path: 'lib/shared/widgets/offline_gate.dart',
+      category: 'Services',
+      template: (c) => c.stack.offlineGate(),
+      description:
+          'Covers the app with an offline screen while there is no '
+          'connection, keeping it mounted underneath.',
+    ),
+    ScaffoldSpec(
+      name: 'preferences',
+      title: 'PreferencesService',
+      path: 'lib/core/services/preferences_service.dart',
+      category: 'Services',
+      template: (_) => ServicesTemplates.preferencesService(),
+      description:
+          'Small non-secret settings (shared_preferences), loaded before '
+          'runApp so they read synchronously.',
+    ),
+    ScaffoldSpec(
+      name: 'theme-mode',
+      title: 'ThemeModeService',
+      path: 'lib/core/services/theme_mode_service.dart',
+      category: 'Services',
+      template: (c) => c.stack.themeModeService(),
+      description:
+          'The saved light / dark / system choice — a Notifier on '
+          'Riverpod, a Cubit on bloc (dark theme).',
+    ),
+    ScaffoldSpec(
       name: 'language-service',
       title: 'LanguageService',
       path: 'lib/core/services/language_service.dart',
@@ -724,6 +817,7 @@ abstract final class ScaffoldCatalog {
           'lib/core/services/connectivity_service.dart',
         ),
         withAppLifecycle: c.hasAppLifecycle,
+        withPreferences: c.hasPreferences,
       ),
       description: 'Core layer of the locator: the services under lib/core.',
     ),
@@ -955,6 +1049,9 @@ abstract final class ScaffoldCatalog {
         withRouter: c.hasRouter,
         withAuthFeature: c.hasAuthFeature,
         withDarkTheme: c.hasDarkTheme,
+        withThemeMode: c.hasThemeMode,
+        withDeepLinks: c.hasDeepLinks,
+        withOfflineGate: c.hasOfflineGate,
         withStatusColors: c.hasStatusColors,
         withLocalization: c.hasLocalization,
         withEasyLocalization: c.hasEasyLocalization,
@@ -1007,6 +1104,20 @@ abstract final class ScaffoldCatalog {
       category: 'Docs',
       template: (_) => DocsTemplates.generateJKS(),
       description: 'How to generate and wire up the Android signing key.',
+    ),
+    ScaffoldSpec(
+      name: 'deep-links-doc',
+      title: 'Deep links guide',
+      path: 'docs/DEEP_LINKS.md',
+      category: 'Docs',
+      template: (c) => DeepLinksTemplates.doc(
+        androidApplicationId: c.androidApplicationId,
+        iosBundleId: c.iosBundleId,
+        withAuthFeature: c.hasAuthFeature,
+      ),
+      description:
+          'The domain files, the iOS capability and the checks that make '
+          'https links open the app.',
     ),
     ScaffoldSpec(
       name: 'firebase-doc',

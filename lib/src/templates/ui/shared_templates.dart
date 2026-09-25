@@ -9168,14 +9168,14 @@ $toggleAction              const SizedBox(width: AppConstants.space8),
                         ),
                       ],
                     ),
-                    Row(
+                    const Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Managed by your administrator'),
+                        Text('Managed by your administrator'),
                         // Full-strength colors, no response: the setting is
                         // on, and it is not this screen's to turn off. No
                         // onChanged to invent — readOnly is the whole of it.
-                        const AppSwitch(value: true, readOnly: true),
+                        AppSwitch(value: true, readOnly: true),
                       ],
                     ),
                   ],

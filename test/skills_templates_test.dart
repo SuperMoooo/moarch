@@ -180,7 +180,21 @@ void main() {
         options(StateManagement.bloc, withRouter: true),
       );
       expect(routed, contains('## The route'));
-      expect(routed, contains('returns\n   the page'));
+      expect(routed, contains('whose builder returns the page'));
+      // The feature's own route comes from `create feature`, above the anchor.
+      expect(routed, contains('`moarch create feature` adds it'));
+      expect(routed, contains('above `// moarch:routes`'));
+    });
+
+    test('add-feature says the route is already there', () {
+      expect(
+        render('add-feature', options(StateManagement.bloc, withRouter: true)),
+        contains('It adds the route too'),
+      );
+      expect(
+        render('add-feature', options(StateManagement.riverpod)),
+        isNot(contains('moarch:routes')),
+      );
     });
 
     test('an env key reaches CI only when there are workflows', () {

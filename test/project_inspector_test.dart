@@ -405,6 +405,41 @@ dependencies:
       );
     });
 
+    test('notes a router with no anchor, and not one that has it', () async {
+      await scaffoldHealthyProject();
+      await File(p.join(root, 'pubspec.yaml')).writeAsString('''
+name: demo
+
+dependencies:
+  flutter_riverpod: ^2.0.0
+  envied: ^0.5.0
+  go_router: ^14.0.0
+''');
+      final routerDir = p.join(libPath, 'config', 'router');
+      await Directory(routerDir).create(recursive: true);
+      await File(
+        p.join(routerDir, 'app_router.dart'),
+      ).writeAsString('// routes: [\n// moarch:routes\n');
+      await File(
+        p.join(routerDir, 'app_routes.dart'),
+      ).writeAsString('abstract final class AppRoutes {}\n');
+
+      final finding = matching(
+        await ProjectInspector.inspect(root),
+        'moarch:routes',
+      ).single;
+      expect(finding.severity, DiagnosticSeverity.info);
+      expect(finding.message, startsWith('app_routes.dart has no'));
+
+      await File(p.join(routerDir, 'app_routes.dart')).writeAsString(
+        'abstract final class AppRoutes {\n  // moarch:routes\n}\n',
+      );
+      expect(
+        matching(await ProjectInspector.inspect(root), 'moarch:routes'),
+        isEmpty,
+      );
+    });
+
     test('flags config/router/ without go_router', () async {
       await scaffoldHealthyProject();
       final routerDir = p.join(libPath, 'config', 'router');
@@ -523,6 +558,35 @@ dependencies:
         matching(await ProjectInspector.inspect(root), 'cached_network_image'),
         isEmpty,
       );
+    });
+
+    test('does not ask for the other stack\'s widgets', () async {
+      await scaffoldHealthyProject();
+      // The preview lists the whole kit as its deps; a Riverpod project never
+      // has the bloc-only AppStatusView, and never imports it.
+      await writeWidget('design-system');
+
+      final findings = await ProjectInspector.inspect(root);
+      expect(matching(findings, 'AppStatusView is missing'), isEmpty);
+      expect(matching(findings, 'AppAsyncView is missing'), hasLength(1));
+    });
+
+    test('a bloc project is not asked for the Riverpod-only ones', () async {
+      await scaffoldHealthyProject();
+      await File(p.join(root, 'pubspec.yaml')).writeAsString('''
+name: demo
+
+dependencies:
+  flutter_bloc: ^8.0.0
+  get_it: ^8.0.0
+  envied: ^0.5.0
+''');
+      await writeWidget('design-system');
+
+      final findings = await ProjectInspector.inspect(root);
+      expect(matching(findings, 'AppAsyncView is missing'), isEmpty);
+      expect(matching(findings, 'ActionListener is missing'), isEmpty);
+      expect(matching(findings, 'AppStatusView is missing'), hasLength(1));
     });
 
     test('reports nothing when no widgets are generated', () async {

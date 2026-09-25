@@ -25,6 +25,9 @@ class AgentsTemplates {
     bool withRouter = false,
     bool withAuthFeature = false,
     bool withDarkTheme = false,
+    bool withThemeMode = false,
+    bool withDeepLinks = false,
+    bool withOfflineGate = false,
     bool withStatusColors = false,
     bool withLocalization = false,
     bool withEasyLocalization = false,
@@ -43,8 +46,18 @@ class AgentsTemplates {
         withFeatureModule: withFeatureModule,
       ),
       bloc ? _blocRules() : _riverpodRules(),
-      _ui(withDarkTheme: withDarkTheme, withStatusColors: withStatusColors),
+      _ui(
+        bloc: bloc,
+        withDarkTheme: withDarkTheme,
+        withThemeMode: withThemeMode,
+        withStatusColors: withStatusColors,
+      ),
       _addingAFeature(bloc: bloc, withRouter: withRouter),
+      if (withDeepLinks || withOfflineGate)
+        _linksAndConnectivity(
+          withDeepLinks: withDeepLinks,
+          withOfflineGate: withOfflineGate,
+        ),
       if (withLocalization || withEasyLocalization)
         _localization(easy: withEasyLocalization),
       if (withSkills) SkillsTemplates.agentsMdSection(),
@@ -238,7 +251,9 @@ test/
 ''';
 
   static String _ui({
+    required bool bloc,
     required bool withDarkTheme,
+    required bool withThemeMode,
     required bool withStatusColors,
   }) =>
       '''
@@ -251,7 +266,7 @@ test/
 - No magic numbers: spacing, padding, radii, icon sizes, durations, curves and
   shadows come from `AppConstants` (`space16`, `padding16`, `borderRadius12`,
   `duration300`, `curveStandard`, `shadowCard`…).
-- No hard-coded colors: read `Theme.of(context).colorScheme`${withStatusColors ? ', and\n  `context.statusColors` for success / warning / info' : ''}.${withDarkTheme ? ' The app has a dark\n  theme, so a literal `Color` is a bug in one of the two.' : ''}
+- No hard-coded colors: read `Theme.of(context).colorScheme`${withStatusColors ? ', and\n  `context.statusColors` for success / warning / info' : ''}.${withDarkTheme ? ' The app has a dark\n  theme, so a literal `Color` is a bug in one of the two.' : ''}${withDarkTheme && withThemeMode ? '\n- Light / dark / system is the user\'s choice, saved across launches:\n  ${bloc ? '`context.read<ThemeModeCubit>().setMode(mode)`' : '`ref.read(themeModeProvider.notifier).setMode(mode)`'}\n  (`core/services/theme_mode_service.dart`). Never set `themeMode` on\n  `MaterialApp` by hand. Other small non-secret settings go through\n  `PreferencesService`; tokens stay in `TokenStorage`.' : ''}
 - **Every widget gets its own file.** A `build` is split into public widget
   classes, one per file, in the feature's `presentation/widgets/`
   (`order_header.dart` → `OrderHeader`); a screen in `lib/shared/views/` puts
@@ -267,13 +282,27 @@ test/
       '''
 ## Adding a feature
 
-1. `moarch create feature <name>` — never create the folders by hand.
+1. `moarch create feature <name>` — never create the folders by hand.${withRouter ? '\n   It also adds the route: `AppRoutes.<name>` in `app_routes.dart` and the\n   `GoRoute` in `app_router.dart`${bloc ? ', pointing at the page' : ''}, above `// moarch:routes`.' : ''}
 2. Fields on `domain/models/<name>_model.dart`, then run `build_runner`.
 3. Methods on the repository interface, implemented in the `_impl`, with the
    call itself in the datasource.
 4. ${bloc ? 'An event per action, a handler through `runAction`, and the fields on the state\n   (`copyWith`, `props`, `placeholder`).' : 'A notifier method per action through `runAction`, and the fields on the state\n   (`copyWith`).'}
-5. The screen in `presentation/views/`, from the UI kit.${withRouter ? '\n6. The path in `lib/config/router/app_routes.dart` and the route in\n   `app_router.dart`${bloc ? ', pointing at the page' : ''}.' : ''}
+5. The screen in `presentation/views/`, from the UI kit.
 ''';
+
+  static String _linksAndConnectivity({
+    required bool withDeepLinks,
+    required bool withOfflineGate,
+  }) =>
+      '${['## Links and connectivity\n', if (withDeepLinks) '- Any route can be opened from an https link, on a cold start. A '
+            'screen\n  loads from its path and query (`/orders/42`), never from '
+            '`extra` or from\n  state the previous screen left behind. The '
+            'platform setup is in\n  `docs/DEEP_LINKS.md`.', if (withOfflineGate) '- The offline screen is `OfflineGate`\'s job (`main.dart`); screens do '
+            'not\n  check the connection to show one. Work that should run when '
+            'the\n  connection is back goes through '
+            '`ConnectivityService.onReconnect` —\n  the hook in `main.dart` for '
+            'app-wide sync, or subscribed (and cancelled)\n  by the feature '
+            'that owns it.'].join('\n')}\n';
 
   static String _localization({required bool easy}) => easy
       ? r'''

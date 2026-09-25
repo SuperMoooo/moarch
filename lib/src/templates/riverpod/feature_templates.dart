@@ -162,12 +162,15 @@ class ${cls}RemoteDataSource {
 
   final Dio _dio;
 
-  // TODO: implement methods
-  Future<${cls}Model?> fetchOne() async {
-    return safeApiCall<${cls}Model>(
+  // TODO: point this at your endpoint, and add the others beside it.
+  Future<List<${cls}Model>> fetchAll() {
+    return safeApiCall<List<${cls}Model>>(
       apiCall: () async {
-        final response = await _dio.get('/$name');
-        return ${cls}Model.fromJson(response.data);
+        final response = await _dio.get<List<dynamic>>('/$name');
+        return [
+          for (final json in response.data ?? const <dynamic>[])
+            ${cls}Model.fromJson(json as Map<String, dynamic>),
+        ];
       },
     );
   }
@@ -257,8 +260,8 @@ class ${cls}RemoteDataSource {
   static String localDatasource(String name, String cls, String varName) =>
       '''
 class ${cls}LocalDataSource {
-  // TODO: inject SharedPreferences / Hive / Isar / etc. and register the
-  // dependency in config/di/injector.dart.
+  // TODO: inject SharedPreferences / Hive / Isar / etc. and register it in
+  // config/di/external_module.dart.
   // TODO: implement methods
 }
 ''';
@@ -285,33 +288,39 @@ class ${cls}LocalDataSource {
 
     final fields = [
       if (hasRemote) '  final ${cls}RemoteDataSource _remote;',
-      if (hasLocal) '  final ${cls}LocalDataSource _local;',
+      if (hasLocal) ...[
+        // Nothing reads the cache until it has methods, and the analyzer
+        // flags an unread private field.
+        '  // TODO: read from / write to the cache once it has methods.',
+        '  // ignore: unused_field',
+        '  final ${cls}LocalDataSource _local;',
+      ],
     ].join('\n');
 
-    // Without the remote datasource there is nothing to return, so the Firestore
-    // methods stay TODOs like the REST one — the layer the user declined is
-    // not invented for them.
-    final methods = useFirestore && hasRemote
+    // Both remote datasources have `fetchAll`, so the repository hands it on.
+    // Without one there is nothing to return, and the layer the user declined
+    // is not invented for them: the methods stay TODOs.
+    final methods = hasRemote
         ? '''
   @override
   Future<List<${cls}Model>> fetchAll() {
     return _remote.fetchAll();
-  }
+  }${useFirestore ? '''
 
   @override
   Stream<List<${cls}Model>> watchAll() {
     return _remote.watchAll();
-  }'''
+  }''' : ''}'''
         : '''
   @override
   Future<List<${cls}Model>> fetchAll() {
-    // TODO: implement using the datasource(s) above
+    // TODO: implement using the datasource above
     throw UnimplementedError();
   }${useFirestore ? '''
 
   @override
   Stream<List<${cls}Model>> watchAll() {
-    // TODO: implement using the datasource(s) above
+    // TODO: implement using the datasource above
     throw UnimplementedError();
   }''' : ''}''';
 
@@ -529,8 +538,9 @@ ${useFirestore ? '''  @override
   //   });
   // }''' : '''  @override
   FutureOr<${cls}State> build() async {
-    // The repository's fetchAll is a TODO until you implement it, which is
-    // why this fails on the first run rather than showing an empty screen.
+    // Until the data layer is real (the datasource's placeholder endpoint, or
+    // the repository itself), this fails on the first run rather than
+    // showing an empty screen.
     // TODO: put what it returns into ${cls}State — add a field for it, give
     // that field a fake value in `placeholder`, and draw it in the view.
     await _repo.fetchAll();

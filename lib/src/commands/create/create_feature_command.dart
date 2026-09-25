@@ -13,6 +13,7 @@ import '../../utils/injector_utils.dart';
 import '../../utils/project_manifest.dart';
 import '../../utils/project_paths.dart';
 import '../../utils/pubspec_utils.dart';
+import '../../utils/router_utils.dart';
 import '../../utils/scaffold_catalog.dart';
 import '../../utils/state_management.dart';
 import '../../utils/string_utils.dart';
@@ -254,6 +255,7 @@ class CreateFeatureCommand extends Command<int> {
     FileUtils.beginSession();
 
     var injectorPatch = InjectorPatchResult.none;
+    var routePatch = RoutePatchResult.noRouter;
     var staleActionBase = false;
 
     try {
@@ -373,6 +375,20 @@ class CreateFeatureCommand extends Command<int> {
         ),
       );
 
+      // A screen nothing navigates to is not reachable, so the view gets its
+      // route the same way the data layer gets its registrations. On bloc it
+      // is the page, which creates the bloc — closing the route closes it.
+      if (selected.contains(_kView)) {
+        final screen = _screenFor(featureName, className, templates, selected);
+        routePatch = await RouterUtils.register(
+          libPath,
+          featureName: featureName,
+          varName: varName,
+          screen: screen.className,
+          screenImport: screen.import,
+        );
+      }
+
       progress.complete('Feature scaffolded');
     } catch (e) {
       progress.fail('Failed: $e');
@@ -424,6 +440,29 @@ class CreateFeatureCommand extends Command<int> {
       }
       _logger.info('');
     }
+    switch (routePatch) {
+      case RoutePatchResult.added:
+      case RoutePatchResult.alreadyThere:
+        _logger.info(
+          '  Route: AppRoutes.$varName → ${RouterUtils.pathFor(featureName)} '
+          '(lib/config/router/).',
+        );
+        _logger.info('');
+      case RoutePatchResult.missingAnchor:
+        final screen = _screenFor(featureName, className, templates, selected);
+        _logger.warn(
+          '  No route was added — app_routes.dart or app_router.dart has no',
+        );
+        _logger.info(
+          '  `${RouterUtils.anchor}` comment. Add it yourself: in AppRoutes,',
+        );
+        _logger.info('  ${RouterUtils.routeConstant(featureName, varName)}');
+        _logger.info("  and in the router's routes list:");
+        _logger.info(RouterUtils.goRoute(varName, screen.className, '    '));
+        _logger.info('');
+      case RoutePatchResult.noRouter:
+        break;
+    }
     if (staleActionBase) {
       _logger.warn(
         '  core/utils/${templates.actionBaseFile} predates '
@@ -437,6 +476,29 @@ class CreateFeatureCommand extends Command<int> {
     _logger.info('Once it has real methods, generate its tests with:');
     _logger.info('  moarch create tests $featureName');
     return 0;
+  }
+
+  /// The widget a feature's route builds, and its import from
+  /// `lib/config/router/`: the page where the stack has one (it provides the
+  /// bloc), the view otherwise.
+  ({String className, String import}) _screenFor(
+    String name,
+    String cls,
+    StackTemplates templates,
+    Set<String> selected,
+  ) {
+    final hasPage =
+        templates.hasPage && selected.contains(templates.holderChecklistItem);
+    return hasPage
+        ? (
+            className: '${cls}Page',
+            import:
+                '../../features/$name/presentation/pages/${templates.pageFile(name)}',
+          )
+        : (
+            className: '${cls}View',
+            import: '../../features/$name/presentation/views/${name}_view.dart',
+          );
   }
 
   // ── Writers ─────────────────────────────────────────────────────────────────

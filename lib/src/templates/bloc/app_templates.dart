@@ -25,10 +25,14 @@ class AppTemplates {
     bool withUpdateGate = false,
     bool withMoAdapt = false,
     bool withDarkTheme = false,
+    bool withThemeMode = false,
+    bool withOfflineGate = false,
     bool withAuthFeature = false,
     bool withBlocObserver = false,
   }) {
     if (withEasyLocalization) withLocalization = false;
+    // The saved choice only means something with two themes to choose from.
+    withThemeMode = withThemeMode && withDarkTheme;
 
     // Crashlytics has always initialized Firebase on its own; Firestore and
     // Firebase Auth need the same call, or the first `getIt` read of a
@@ -130,11 +134,19 @@ ${[if (withNotificationsService) _guardedInit('NotificationService', 'Notificati
       if (withMaintenanceGate)
         "\nimport 'shared/widgets/maintenance_gate.dart';",
       if (withUpdateGate) "\nimport 'shared/widgets/update_gate.dart';",
+      if (withOfflineGate) ...[
+        "\nimport 'core/services/connectivity_service.dart';",
+        "\nimport 'shared/widgets/offline_gate.dart';",
+      ],
     ].join();
 
-    final moAdaptImport = withMoAdapt
-        ? "\nimport 'shared/widgets/mo_adapt.dart';"
-        : '';
+    final moAdaptImport = [
+      if (withMoAdapt) "\nimport 'shared/widgets/mo_adapt.dart';",
+      if (withThemeMode) ...[
+        "\nimport 'core/services/preferences_service.dart';",
+        "\nimport 'core/services/theme_mode_service.dart';",
+      ],
+    ].join();
 
     // Both halves: the bloc to create, and the event to open it with.
     final authImport = withAuthFeature
@@ -148,7 +160,7 @@ ${[if (withNotificationsService) _guardedInit('NotificationService', 'Notificati
         ? '''
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,'''
+      themeMode: ${withThemeMode ? 'context.watch<ThemeModeCubit>().state' : 'ThemeMode.system'},'''
         : '''
       // One brand theme. `moarch create theme --dark` adds the dark half.
       theme: AppTheme.light,''';
@@ -156,13 +168,32 @@ ${[if (withNotificationsService) _guardedInit('NotificationService', 'Notificati
     // Inside `builder`, so it wraps the Navigator rather than sitting in a
     // route: a gate below the Navigator could be pushed on top of.
     // Maintenance outermost: while the backend is down there is no point
-    // telling anyone to update first.
+    // telling anyone to update first. Offline innermost: it covers the app
+    // rather than replacing it, and the other two cannot read their flags
+    // offline anyway (they fail open).
     final maintenanceOpen = [
       if (withMaintenanceGate) 'MaintenanceGate(child: ',
       if (withUpdateGate) 'UpdateGate(child: ',
+      if (withOfflineGate) 'OfflineGate(child: ',
     ].join();
     final maintenanceClose =
-        ')' * ((withMaintenanceGate ? 1 : 0) + (withUpdateGate ? 1 : 0));
+        ')' *
+        ((withMaintenanceGate ? 1 : 0) +
+            (withUpdateGate ? 1 : 0) +
+            (withOfflineGate ? 1 : 0));
+
+    // The app-wide "back online" hook. The locator is up by now.
+    final reconnectHook = withOfflineGate
+        ? '''
+
+  // Runs each time the device comes back online (not on start). Sync what
+  // was saved while offline, retry what failed — or subscribe from the
+  // feature that owns the sync; see ConnectivityService.onReconnect.
+  getIt<ConnectivityService>().onReconnect(() async {
+    // TODO: sync what changed while offline.
+  });
+'''
+        : '';
 
     // The blocs that outlive any one screen. The auth bloc is the reason this
     // exists: the router's redirect reads it, so it has to be above the
@@ -180,6 +211,10 @@ ${[if (withNotificationsService) _guardedInit('NotificationService', 'Notificati
         ),''',
       if (withLocalization)
         '        BlocProvider<LanguageCubit>(create: (_) => getIt<LanguageCubit>()),',
+      if (withThemeMode)
+        '        BlocProvider<ThemeModeCubit>(\n'
+            '          create: (_) => ThemeModeCubit(getIt<PreferencesService>()),\n'
+            '        ),',
     ];
 
     final languageWatch = withLocalization
@@ -336,7 +371,7 @@ $blocObserverInit
   // Registers every repository, datasource, service and bloc. Firebase is up
   // by this point, so the locator can hand out its instances.
   await setupInjector();
-$notificationInit
+$notificationInit$reconnectHook
   $runAppCall
 
   // After runApp, so the native splash gives way to a painted first frame
@@ -486,22 +521,49 @@ $localizationConfig$routerConfig      debugShowCheckedModeBanner: false,
 String? _redirect(BuildContext context, GoRouterState state) {
   final auth = getIt<AuthBloc>().state;
   final onSplash = state.matchedLocation == AppRoutes.splash;
+  // Where the user was headed — a deep link, a notification tap — carried
+  // through splash and login as `?from=`, so they land there, not on home.
+  final from = _fromOf(state);
 
   // Session restore is still running — hold on splash so nothing flashes.
   // The refreshListenable re-runs this once it completes.
-  if (auth is AuthInitial) return onSplash ? null : AppRoutes.splash;
+  if (auth is AuthInitial) {
+    return onSplash ? null : _withFrom(AppRoutes.splash, state.uri.toString());
+  }
 
   // AuthFailure carries the session it failed from: a delete or a password
   // reset the backend refused leaves the user signed in, and bouncing them to
   // login over it would be a worse lie than the error itself.
   final isAuthenticated =
       auth is AuthAuthenticated || (auth is AuthFailure && auth.authenticated);
-  if (onSplash) return isAuthenticated ? AppRoutes.home : AppRoutes.login;
+  if (onSplash) {
+    return isAuthenticated
+        ? from ?? AppRoutes.home
+        : _withFrom(AppRoutes.login, from);
+  }
 
   final onPublicRoute = AppRoutes.publicRoutes.contains(state.matchedLocation);
-  if (!isAuthenticated && !onPublicRoute) return AppRoutes.login;
-  if (isAuthenticated && onPublicRoute) return AppRoutes.home;
+  if (!isAuthenticated && !onPublicRoute) {
+    return _withFrom(AppRoutes.login, state.uri.toString());
+  }
+  if (isAuthenticated && onPublicRoute) return from ?? AppRoutes.home;
   return null;
+}
+
+/// [path], carrying [from] as the place to continue to once it is left.
+String _withFrom(String path, String? from) =>
+    from == null || from == AppRoutes.home
+    ? path
+    : Uri(path: path, queryParameters: {'from': from}).toString();
+
+/// The `from` the redirect was handed, if it is a path inside the app. A
+/// link can put anything in a query, and only an app path is followed.
+String? _fromOf(GoRouterState state) {
+  final from = state.uri.queryParameters['from'];
+  if (from == null || !from.startsWith('/') || from.startsWith('//')) {
+    return null;
+  }
+  return from;
 }
 
 /// Bridges a bloc's `Stream` to the `Listenable` GoRouter refreshes on.
@@ -550,11 +612,9 @@ $authRoutes    GoRoute(
     ),
 
     // A screen with its own bloc points at its page, which creates the bloc —
-    // so closing the route closes it.
-    // GoRoute(
-    //   path: AppRoutes.orders,
-    //   builder: (context, state) => const OrdersPage(),
-    // ),
+    // so closing the route closes it. `moarch create feature` adds each
+    // feature's route above the next line — keep it.
+    // moarch:routes
 
     // Path parameter — build the location with AppRoutes.featureDetailOf(id).
     // GoRoute(
@@ -566,6 +626,39 @@ $authRoutes    GoRoute(
 );$authGuard
 ''';
   }
+
+  /// `lib/core/services/theme_mode_service.dart` — the bloc counterpart of
+  /// Riverpod's `themeModeProvider`. Only with the dark theme: with one
+  /// palette every mode resolves to the same theme.
+  static String themeModeService() => '''
+import 'package:bloc/bloc.dart';
+import 'package:flutter/material.dart';
+
+import 'preferences_service.dart';
+
+/// The user's light / dark / system choice, saved across launches.
+///
+/// Provided by `main.dart`, which watches it for `MaterialApp.themeMode`.
+/// Change it from a settings screen with
+/// `context.read<ThemeModeCubit>().setMode(ThemeMode.dark)`.
+class ThemeModeCubit extends Cubit<ThemeMode> {
+  /// Starts from the saved choice, or the system's until the user makes one.
+  ThemeModeCubit(this._prefs)
+    : super(
+        ThemeMode.values.asNameMap()[_prefs.getString(_key)] ??
+            ThemeMode.system,
+      );
+
+  static const _key = 'theme_mode';
+
+  final PreferencesService _prefs;
+
+  Future<void> setMode(ThemeMode mode) async {
+    emit(mode);
+    await _prefs.setString(_key, mode.name);
+  }
+}
+''';
 
   /// Returns the language cubit — the bloc counterpart of Riverpod's
   /// `languageProvider`.

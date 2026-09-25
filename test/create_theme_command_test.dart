@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/commands/create/create_theme_command.dart';
 import 'package:moarch/src/templates/config/config_templates.dart';
+import 'package:moarch/src/templates/config/injector_templates.dart';
 import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
 import 'package:moarch/src/utils/project_manifest.dart';
@@ -115,6 +116,109 @@ void main() {
       isNot(contains('get dark')),
     );
     expect(read('lib/main.dart'), isNot(contains('AppTheme.dark')));
+  });
+
+  /// The locator layout from 9.0.0 on, which the switch is registered in.
+  Future<void> placeSplitLocator() async {
+    await File(at('pubspec.yaml')).writeAsString(
+      'name: demo\n\ndependencies:\n  flutter_riverpod: ^3.0.0\n',
+    );
+    await place(
+      'lib/config/di/core_module.dart',
+      InjectorTemplates.coreModule(),
+    );
+    await place(
+      'lib/config/di/data_module.dart',
+      InjectorTemplates.dataModule(),
+    );
+  }
+
+  test('--dark brings the saved theme-mode switch with it', () async {
+    await placeLightProject();
+    await placeSplitLocator();
+
+    expect(await run(['--yes']), 0);
+
+    expect(
+      read('lib/core/services/preferences_service.dart'),
+      contains('class PreferencesService'),
+    );
+    expect(
+      read('lib/core/services/theme_mode_service.dart'),
+      contains('final themeModeProvider'),
+    );
+    expect(
+      read('lib/main.dart'),
+      contains('themeMode: ref.watch(themeModeProvider),'),
+    );
+    expect(
+      read('lib/config/di/core_module.dart'),
+      contains('registerSingletonAsync<PreferencesService>'),
+    );
+    expect(read('pubspec.yaml'), contains('shared_preferences:'));
+    // Recorded, so `update` can refresh them later.
+    final manifest = ProjectManifest.load(root)!;
+    expect(
+      manifest.recordedHash(
+        root,
+        at('lib/core/services/theme_mode_service.dart'),
+      ),
+      isNotNull,
+    );
+  });
+
+  test(
+    '--dark adds the switch to a project with the dark theme from before',
+    () async {
+      await placeSplitLocator();
+      await place(
+        'lib/core/constants/app_constants.dart',
+        CoreTemplates.appConstants(withDark: true),
+      );
+      await place(
+        'lib/config/theme/app_theme.dart',
+        ConfigTemplates.appTheme(withDark: true),
+      );
+      await place(
+        'lib/main.dart',
+        riverpod.AppTemplates.mainDart(withRouter: false, withDarkTheme: true),
+      );
+
+      expect(await run(['--yes']), 0);
+
+      expect(read('lib/main.dart'), contains('ref.watch(themeModeProvider)'));
+      expect(
+        File(at('lib/core/services/theme_mode_service.dart')).existsSync(),
+        isTrue,
+      );
+      // Nothing left to add: a second run changes nothing.
+      final main = read('lib/main.dart');
+      expect(await run(['--yes']), 0);
+      expect(read('lib/main.dart'), main);
+    },
+  );
+
+  test('--no-dark leaves an edited core_module.dart out of it', () async {
+    await placeSplitLocator();
+    await place(
+      'lib/config/di/core_module.dart',
+      '${InjectorTemplates.coreModule()}// my own service\n',
+      record: false,
+    );
+    await place(
+      'lib/core/constants/app_constants.dart',
+      CoreTemplates.appConstants(withDark: true),
+    );
+    await place(
+      'lib/config/theme/app_theme.dart',
+      ConfigTemplates.appTheme(withDark: true),
+    );
+
+    expect(await run(['--no-dark', '--yes']), 0);
+    expect(
+      read('lib/config/theme/app_theme.dart'),
+      isNot(contains('get dark')),
+    );
   });
 
   test(

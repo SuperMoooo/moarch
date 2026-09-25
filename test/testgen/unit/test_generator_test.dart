@@ -145,6 +145,44 @@ void main() {
       expect(output, contains("group('loadUser'"));
     });
 
+    test('tests build() itself, even with no public methods yet', () {
+      NotifierInfo notifier({required bool isAsync}) => NotifierInfo(
+        className: 'OrdersNotifier',
+        sourceFilePath: '/tmp/orders_notifier.dart',
+        importPath:
+            'package:app/features/orders/presentation/notifiers/orders_notifier.dart',
+        packageName: 'app',
+        stateType: 'OrdersState',
+        isAsync: isAsync,
+        repositories: const [],
+        methods: const [],
+      );
+
+      // A fresh `create feature` notifier has only build(). Without this test
+      // the file imports the notifier and never uses it.
+      final async = generator.generate(notifier(isAsync: true));
+      expect(async, contains("test('build() loads without an error'"));
+      expect(
+        async,
+        contains('await container.read(ordersNotifierProvider.future);'),
+      );
+      expect(
+        async,
+        contains(
+          'expect(container.read(ordersNotifierProvider).hasError, isFalse);',
+        ),
+      );
+
+      final sync = generator.generate(notifier(isAsync: false));
+      expect(
+        sync,
+        contains(
+          'expect(() => container.read(ordersNotifierProvider), returnsNormally);',
+        ),
+      );
+      expect(sync, isNot(contains('.future')));
+    });
+
     test('skips internal helper methods starting with p', () {
       const notifier = NotifierInfo(
         className: 'DataNotifier',

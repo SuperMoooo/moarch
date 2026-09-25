@@ -481,6 +481,7 @@ class TestGenerator {
     _setUpAll(b, plan);
     _setUp(b, n, plan);
     _tearDown(b, resetLocator: plan.dependencies.any((r) => r.viaLocator));
+    _buildTest(b, n);
 
     for (final method in plan.publicMethods) {
       _methodTests(b, method, n, plan);
@@ -637,6 +638,30 @@ class TestGenerator {
       b.writeln('      container.dispose();');
       b.writeln('    });');
     }
+    b.writeln();
+  }
+
+  // ── build() ──────────────────────────────────────────────────────────────
+
+  /// The notifier's own starting point, with setUp()'s stubs in effect — the
+  /// bloc generator's "starts in a valid initial state". A notifier with no
+  /// public methods yet still gets a test, rather than a file whose provider
+  /// import is unused.
+  void _buildTest(StringBuffer b, NotifierInfo n) {
+    final providerRead = _providerRead(n);
+    if (n.isAsync) {
+      b.writeln("    test('build() loads without an error', () async {");
+      b.writeln('      await container.read($providerRead.future);');
+      b.writeln(
+        '      expect(container.read($providerRead).hasError, isFalse);',
+      );
+    } else {
+      b.writeln("    test('build() loads without an error', () {");
+      b.writeln(
+        '      expect(() => container.read($providerRead), returnsNormally);',
+      );
+    }
+    b.writeln('    });');
     b.writeln();
   }
 

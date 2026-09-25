@@ -5,6 +5,7 @@ import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/templates/core/error_templates.dart';
 import 'package:moarch/src/templates/core/security_templates.dart';
 import 'package:moarch/src/templates/core/services_templates.dart';
+import 'package:moarch/src/templates/misc/deep_links_templates.dart';
 import 'package:moarch/src/templates/misc/agents_templates.dart';
 import 'package:moarch/src/templates/misc/skills_templates.dart';
 import 'package:moarch/src/templates/misc/android_templates.dart';
@@ -63,7 +64,9 @@ const _kFirebaseNotifications = 'Firebase push notifications (FCM)';
 const _kBiometricAuth = 'Biometric authentication';
 const _kMaintenanceGate = 'Maintenance gate (backend kill switch)';
 const _kUpdateGate = 'Update gate (backend minimum version)';
-const _kDarkTheme = 'Dark theme (second palette)';
+const _kOfflineGate = 'Offline screen + reconnect hook';
+const _kDeepLinks = 'Deep links (App Links + Universal Links)';
+const _kDarkTheme = 'Dark theme + theme mode switch';
 const _kMoAdapt = 'MoAdapt (proportional UI scaling)';
 const _kLocalizations = 'Localization (l10n)';
 const _kEasyLocalization = 'Localization (easy_localization)';
@@ -144,6 +147,8 @@ class InitCommand extends Command<int> {
         _kBiometricAuth,
         _kMaintenanceGate,
         _kUpdateGate,
+        _kOfflineGate,
+        _kDeepLinks,
         _kAppLifecycle,
         _kMoAdapt,
         _kDarkTheme,
@@ -298,6 +303,22 @@ class InitCommand extends Command<int> {
                   'fails open if it cannot be read.',
             ),
             const ChecklistItem(
+              _kOfflineGate,
+              defaultOn: false,
+              description:
+                  'Covers the app with an offline screen while there is no '
+                  'connection (the app stays mounted underneath), and a hook '
+                  'in main.dart that runs when it comes back — for a sync.',
+            ),
+            const ChecklistItem(
+              _kDeepLinks,
+              defaultOn: false,
+              description:
+                  'https links open the app on the matching route (needs the '
+                  'router): the Android intent filter, and docs/DEEP_LINKS.md '
+                  'for the iOS capability and the files your domain hosts.',
+            ),
+            const ChecklistItem(
               _kMoAdapt,
               defaultOn: true,
               description:
@@ -308,9 +329,10 @@ class InitCommand extends Command<int> {
               _kDarkTheme,
               defaultOn: false,
               description:
-                  'A dark half for AppConstants and AppTheme, followed by '
-                  'MaterialApp through themeMode. Off leaves one brand theme; '
-                  'add it later with `moarch create theme --dark`.',
+                  'A dark half for AppConstants and AppTheme, and the user\'s '
+                  'light / dark / system choice saved across launches '
+                  '(PreferencesService). Off leaves one brand theme and no '
+                  'switch; add both later with `moarch create theme --dark`.',
             ),
             const ChecklistItem(
               _kLocalizations,
@@ -373,6 +395,11 @@ class InitCommand extends Command<int> {
       _logger.info(
         '  Note: flutter_localizations dropped — easy_localization selected.',
       );
+    }
+    // A link opens a route, so without the router there is nothing to open.
+    if (stack.contains(_kDeepLinks) && !stack.contains(_kRouter)) {
+      stack.remove(_kDeepLinks);
+      _logger.info('  Note: deep links skipped — they need the router.');
     }
 
     // Every state-bearing template goes through this rather than through the
@@ -506,6 +533,8 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kDio)) PackageVersions.entry('dio'),
       if (stack.contains(_kDio)) PackageVersions.entry('dio_smart_retry'),
       PackageVersions.entry('flutter_secure_storage'),
+      if (stack.contains(_kDarkTheme))
+        PackageVersions.entry('shared_preferences'),
       if (stack.contains(_kFirebaseAuth) ||
           stack.contains(_kFirestore) ||
           stack.contains(_kCrashlytics) ||
@@ -626,6 +655,8 @@ class InitCommand extends Command<int> {
           withUpdateGate: stack.contains(_kUpdateGate),
           withMoAdapt: stack.contains(_kMoAdapt),
           withDarkTheme: stack.contains(_kDarkTheme),
+          withThemeMode: stack.contains(_kDarkTheme),
+          withOfflineGate: stack.contains(_kOfflineGate),
           withAuthFeature: stack.contains(_kAuthFeature),
           withBlocObserver: templates.hasBlocObserver,
         ),
@@ -739,6 +770,9 @@ class InitCommand extends Command<int> {
             withRouter: stack.contains(_kRouter),
             withAuthFeature: stack.contains(_kAuthFeature),
             withDarkTheme: stack.contains(_kDarkTheme),
+            withThemeMode: stack.contains(_kDarkTheme),
+            withDeepLinks: stack.contains(_kDeepLinks),
+            withOfflineGate: stack.contains(_kOfflineGate),
             withStatusColors: true,
             withLocalization: stack.contains(_kLocalizations),
             withEasyLocalization: stack.contains(_kEasyLocalization),
@@ -810,6 +844,18 @@ class InitCommand extends Command<int> {
         p.join(p.absolute(targetPath), 'docs', 'STEPS_FOR_WORKFLOW.md'),
         DocsTemplates.stepsForWorkflow(),
       );
+
+      if (stack.contains(_kDeepLinks)) {
+        final context = ScaffoldContext.detect(p.absolute(targetPath));
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'docs', 'DEEP_LINKS.md'),
+          DeepLinksTemplates.doc(
+            androidApplicationId: context.androidApplicationId,
+            iosBundleId: context.iosBundleId,
+            withAuthFeature: stack.contains(_kAuthFeature),
+          ),
+        );
+      }
 
       // The platform-side work the generated Firebase code depends on —
       // config files, sign-in providers, SHA fingerprints, the iOS URL
@@ -988,6 +1034,39 @@ class InitCommand extends Command<int> {
             'language_service.dart',
           ),
           templates.languageService(),
+        );
+      }
+
+      if (stack.contains(_kOfflineGate)) {
+        final lib = p.join(p.absolute(targetPath), 'lib');
+        await FileUtils.writeFile(
+          p.join(lib, 'core', 'services', 'connectivity_service.dart'),
+          ServicesTemplates.connectivityService(
+            stateManagement: stateManagement,
+          ),
+        );
+        await FileUtils.writeFile(
+          p.join(lib, 'shared', 'widgets', 'offline_gate.dart'),
+          templates.offlineGate(),
+        );
+      }
+
+      // Two themes are worth choosing between, so the dark theme brings the
+      // saved choice with it — and the preferences it is saved in.
+      if (stack.contains(_kDarkTheme)) {
+        final services = p.join(
+          p.absolute(targetPath),
+          'lib',
+          'core',
+          'services',
+        );
+        await FileUtils.writeFile(
+          p.join(services, 'preferences_service.dart'),
+          ServicesTemplates.preferencesService(),
+        );
+        await FileUtils.writeFile(
+          p.join(services, 'theme_mode_service.dart'),
+          templates.themeModeService(),
         );
       }
 
@@ -1220,6 +1299,17 @@ class InitCommand extends Command<int> {
         '  Firebase selected — run `flutterfire configure` before the first',
       );
       _logger.info('  launch. See docs/FIREBASE_SETUP.md.');
+      _logger.info('');
+    }
+    if (stack.contains(_kDeepLinks)) {
+      _logger.info(
+        '  Deep links — replace ${DeepLinksTemplates.placeholderHost} with your '
+        'domain in AndroidManifest.xml,',
+      );
+      _logger.info(
+        '  then host the two files in docs/DEEP_LINKS.md and add the iOS '
+        'capability.',
+      );
       _logger.info('');
     }
     // Said here rather than left to the docs: the palette is the first file
@@ -1523,9 +1613,14 @@ class InitCommand extends Command<int> {
     Set<String> stack, {
     required bool dryRun,
   }) async {
-    if (!stack.contains(_kBiometricAuth)) return;
+    final biometric = stack.contains(_kBiometricAuth);
+    final deepLinks = stack.contains(_kDeepLinks);
+    if (!biometric && !deepLinks) return;
 
-    const addition = 'USE_BIOMETRIC permission';
+    final addition = [
+      if (biometric) 'USE_BIOMETRIC permission',
+      if (deepLinks) 'App Links intent filter',
+    ].join(' and ');
 
     if (!manifestFile.existsSync()) {
       _logger.info(
@@ -1543,9 +1638,21 @@ class InitCommand extends Command<int> {
     }
 
     final content = await manifestFile.readAsString();
-    final patched = ManifestUtils.ensurePermissions(content, [
-      'android.permission.USE_BIOMETRIC',
-    ]);
+    var patched = content;
+    if (biometric) {
+      patched = ManifestUtils.ensurePermissions(patched, [
+        'android.permission.USE_BIOMETRIC',
+      ]);
+    }
+    if (deepLinks) {
+      patched = ManifestUtils.ensureActivityIntentFilter(
+        patched,
+        intentFilter: DeepLinksTemplates.androidIntentFilter(
+          DeepLinksTemplates.placeholderHost,
+        ),
+        marker: 'android:autoVerify="true"',
+      );
+    }
     if (patched == content) return;
     await manifestFile.writeAsString(patched);
     _logger.info(
@@ -1994,6 +2101,8 @@ class InitCommand extends Command<int> {
         withDebouncer: stack.contains(_kDebouncerService),
         withBiometric: stack.contains(_kBiometricAuth),
         withAppLifecycle: stack.contains(_kAppLifecycle),
+        withConnectivity: stack.contains(_kOfflineGate),
+        withPreferences: stack.contains(_kDarkTheme),
       ),
     );
     await FileUtils.writeFile(

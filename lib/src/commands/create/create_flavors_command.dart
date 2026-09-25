@@ -9,6 +9,7 @@ import '../../templates/config/flavor_templates.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/project_manifest.dart';
 import '../../utils/pubspec_utils.dart';
+import '../../utils/scaffold_catalog.dart';
 
 /// Sets a project up for flavors via [flutter_flavorizr], without touching
 /// `lib/main.dart`.
@@ -188,37 +189,10 @@ class CreateFlavorsCommand extends Command<int> {
 
   /// The `applicationId` declared in `android/app/build.gradle(.kts)`, or a
   /// placeholder the user is told to review.
-  String _androidApplicationId(String root) {
-    for (final file in [
-      File(p.join(root, 'android', 'app', 'build.gradle.kts')),
-      File(p.join(root, 'android', 'app', 'build.gradle')),
-    ]) {
-      if (!file.existsSync()) continue;
-      final match = RegExp(
-        r'''applicationId\s*=?\s*["']([^"']+)["']''',
-      ).firstMatch(file.readAsStringSync());
-      if (match != null) return match.group(1)!;
-    }
-    return 'com.example.app';
-  }
+  String _androidApplicationId(String root) =>
+      ScaffoldContext.detect(root).androidApplicationId ?? 'com.example.app';
 
   /// The `PRODUCT_BUNDLE_IDENTIFIER` from the Xcode project, when the iOS
   /// folder exists — usually the Android id, but not guaranteed to be.
-  String? _iosBundleId(String root) {
-    final pbxproj = File(
-      p.join(root, 'ios', 'Runner.xcodeproj', 'project.pbxproj'),
-    );
-    if (!pbxproj.existsSync()) return null;
-    final match = RegExp(
-      r'PRODUCT_BUNDLE_IDENTIFIER\s*=\s*([^;\s]+);',
-      multiLine: true,
-    ).firstMatch(pbxproj.readAsStringSync());
-    // The RunnerTests target's id ends in .RunnerTests — strip that rather
-    // than hand back the test bundle when it happens to match first.
-    final id = match?.group(1)?.replaceAll('"', '');
-    if (id == null) return null;
-    return id.endsWith('.RunnerTests')
-        ? id.substring(0, id.length - '.RunnerTests'.length)
-        : id;
-  }
+  String? _iosBundleId(String root) => ScaffoldContext.detect(root).iosBundleId;
 }

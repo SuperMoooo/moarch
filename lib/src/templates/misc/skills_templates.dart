@@ -268,23 +268,24 @@ $scaffold
 
    It writes `domain/models/<name>_model.dart`, the repository interface and
    implementation, the datasource(s), $holder and `presentation/views/<name>_view.dart`,
-   and registers the data layer in `lib/config/di/data_module.dart`${o.bloc ? ' and the bloc\n   in `presentation_module.dart`' : ''} above `// moarch:registrations`.
+   and registers the data layer in `lib/config/di/data_module.dart`${o.bloc ? ' and the bloc\n   in `presentation_module.dart`' : ''} above `// moarch:registrations`.${o.withRouter ? '\n   It adds the route too: `AppRoutes.<name>` and a `GoRoute` to the\n   ${o.bloc ? 'page' : 'view'}, above `// moarch:routes`.' : ''}
    Read what it printed before going on.
 
 2. **The model** — fields on `domain/models/<name>_model.dart`, then
    `$_buildRunner`. Follow `moarch-add-model`.
 
-3. **The data layer** — the generated `fetchAll` implementation throws
-   `UnimplementedError`, and the ${o.bloc ? 'bloc calls it on `Started`' : "notifier's `build` calls it"}, so the
-   screen fails until it is written. Implement it, and any other call, with
-   `moarch-add-endpoint`.
+3. **The data layer** — the repository hands `fetchAll` on to the remote
+   datasource, whose request is a placeholder (without a remote datasource,
+   the repository throws `UnimplementedError`). The ${o.bloc ? 'bloc calls it on `Started`' : "notifier's `build` calls it"}, so
+   the screen fails until it is real. Point it at the real endpoint, and add
+   any other call, with `moarch-add-endpoint`.
 
 4. **The state** — add what the screen draws to the state class: $stateFields.
    ${o.bloc ? 'Set it in `_onStarted`.' : 'Return it from `build()`.'}
    `placeholder` needs *fake* values — it is what the skeleton is traced from.
 
 5. **The screen** — `_body` in the view, from the UI kit. Follow
-   `moarch-build-screen`${o.withRouter ? ', which also adds the route' : ''}.
+   `moarch-build-screen`.
 
 6. **Actions** — every button that does something: `moarch-add-action`.
 
@@ -549,11 +550,15 @@ ${_done(o)}''';
 
 ## The route
 
-1. The path in `lib/config/router/app_routes.dart`. A path parameter gets a
+A feature's own screen already has one: `moarch create feature` adds it. For
+any other screen (a detail page, a second screen in the feature):
+
+1. The path in `lib/config/router/app_routes.dart`, above `// moarch:routes`
+   (never remove that line). A path parameter gets a
    pattern constant plus an `…Of(id)` helper that builds the location, like
    `featureDetail` / `featureDetailOf`.
-2. A `GoRoute` in `lib/config/router/app_router.dart` whose builder returns
-   the $holderTarget${o.bloc ? ' (which provides the bloc)' : ''}.
+2. A `GoRoute` in `lib/config/router/app_router.dart`, above
+   `// moarch:routes`, whose builder returns the $holderTarget${o.bloc ? ' (which provides the bloc)' : ''}.
 3. Navigate with `context.go(AppRoutes.x)` / `context.push(...)` — never a
    raw string.
 '''

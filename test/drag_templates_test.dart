@@ -6,15 +6,12 @@ void main() {
   final output = DragTemplates.appDragSection();
 
   group('appDragSection', () {
-    test('corrects the off-by-one so callers never have to', () {
-      // ReorderableListView reports the destination against the list before
-      // the dragged item is removed from it.
-      expect(
-        output,
-        contains(
-          'final corrected = newIndex > oldIndex ? newIndex - 1 : newIndex;',
-        ),
-      );
+    test('uses onReorderItem, so there is no off-by-one to correct', () {
+      // onReorder (deprecated after Flutter 3.41) reported the destination
+      // against the list before the dragged item was removed from it.
+      expect(output, contains('onReorderItem: _handleReorder,'));
+      expect(output, isNot(contains('onReorder: _handleReorder')));
+      expect(output, contains('_clampToPinned(oldIndex, newIndex);'));
     });
 
     test('a pinned item is a wall, not merely un-draggable', () {

@@ -2,6 +2,82 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.2.0
+
+- **`create feature` adds the route.** The new view gets `AppRoutes.<name>`
+  (`order_history` → `/order-history`) and a `GoRoute` pointing at it — the
+  page on bloc, which provides the bloc — inserted above a new
+  `// moarch:routes` anchor in `app_routes.dart` and `app_router.dart`, the
+  way the locator is patched above `// moarch:registrations`. Until now every
+  new feature's screen was unreachable until someone wrote the route by hand.
+  A router without the anchor is left alone and the route is printed instead.
+  Existing projects: `moarch update router routes` if you never edited them,
+  otherwise add the two `// moarch:routes` lines; `moarch doctor` notes a
+  router without them.
+- **Dark theme + theme mode switch.** The dark theme option now brings the
+  user's light / dark / system choice, saved across launches:
+  `core/services/theme_mode_service.dart` (`themeModeProvider` on Riverpod,
+  `ThemeModeCubit` on bloc), watched by `main.dart` for `themeMode`, and
+  stored through the new `PreferencesService`
+  (`core/services/preferences_service.dart`, shared_preferences). The locator
+  loads it before `runApp`, so the saved theme is there on the first frame.
+  Without the dark theme there is no switch either. `moarch create theme
+  --dark` adds both, and adds the switch to a project that already has the
+  dark theme; new catalog entries `preferences` and `theme-mode`.
+- **Offline screen + reconnect hook**, a new `init` option. `OfflineGate`
+  covers the app with an offline screen while there is no connection — the
+  app stays mounted underneath, so nothing the user was doing is lost — and
+  `ConnectivityService.onReconnect` runs work when the connection comes back,
+  with an app-wide hook in `main.dart` for a sync. `ConnectivityService`'s
+  stream now starts with the current state and drops repeats, and bloc gets a
+  `ConnectivityCubit` beside Riverpod's `hasInternetProvider`. New catalog
+  entries `connectivity` and `offline-gate`. Existing projects:
+  `moarch update connectivity`.
+- **Deep links**, a new `init` option (needs the router): the Android App
+  Links intent filter in `MainActivity`, and `docs/DEEP_LINKS.md` with the
+  iOS Associated Domains steps and the `assetlinks.json` /
+  `apple-app-site-association` files the domain serves, filled in with the
+  project's ids. GoRouter does the routing, so there is no package. `moarch
+  doctor` notes the placeholder `example.com` until it is replaced.
+- Fix: with the auth feature, a link opened on a cold start was lost — the
+  redirect sent every location to the splash route while the session was
+  restored, and splash went on to home. A signed-out user who opened a link
+  landed on home after signing in, too. The redirect now carries the location
+  through splash and login as `?from=` and continues there; only in-app paths
+  are followed. Existing projects: `moarch update router`.
+- `AGENTS.md` names the theme-mode switch, and — with deep links or the
+  offline gate — says that a route must load from its URL alone and that
+  reconnect work goes through `onReconnect`. The `moarch-add-feature` and
+  `moarch-build-screen` skills say `create feature` adds the route. Existing
+  projects: `moarch update ai`.
+- Fix: `create feature`'s repository no longer fails `flutter analyze` with
+  two `unused_field` warnings. The REST datasource's placeholder is now
+  `fetchAll()`, the method the repository interface declares, and the
+  repository hands it on as the Firestore one already did; the local
+  datasource's field carries an `ignore` until the cache has methods.
+- Fix: patching `AndroidManifest.xml` (the biometric permission) left a CRLF
+  manifest with mixed line endings.
+- Fix: `moarch doctor` no longer reports the other stack's widgets as missing.
+  The design-system preview lists the whole kit as its dependencies, so a
+  Riverpod project was told `AppStatusView` was missing, and a bloc project
+  `AppAsyncView` and `ActionListener`. Neither stack imports them. `doctor
+  --fix` would have generated them, and the bloc project could not compile
+  the Riverpod-only ones.
+- `moarch create tests` now tests a Riverpod notifier's `build()` (`build()
+  loads without an error`), the same as the bloc generator's initial-state
+  test. A notifier fresh from `create feature` has no public methods yet, so
+  its test file used to contain no tests and import the notifier without
+  using it (`unused_import`).
+- `AppDragSection` uses `onReorderItem` instead of `onReorder`, which is
+  deprecated from Flutter 3.41. The indices your `onReorder` receives are the
+  same as before. Existing projects: `moarch update drag-section`.
+- The design-system preview's read-only switch row is `const` (two
+  `prefer_const` infos in `flutter analyze`). Existing projects: `moarch
+  update design-system`.
+- The local datasource from `create feature` now says to register its
+  storage in `config/di/external_module.dart`, where the locator has kept
+  externals since 9.0.0, not in `injector.dart`.
+
 ## 9.1.1
 
 - Every widget a screen is split into now gets its own file. `AGENTS.md`, the

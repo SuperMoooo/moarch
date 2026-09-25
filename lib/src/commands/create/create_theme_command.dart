@@ -6,8 +6,11 @@ import 'package:path/path.dart' as p;
 
 import '../../templates/config/config_templates.dart';
 import '../../templates/core/core_templates.dart';
+import '../../templates/core/services_templates.dart';
 import '../../templates/ui/shared_templates.dart';
+import '../../utils/package_versions.dart';
 import '../../utils/project_manifest.dart';
+import '../../utils/pubspec_utils.dart';
 import '../../utils/scaffold_catalog.dart';
 import '../../utils/text_diff.dart';
 import '../../utils/widget_catalog.dart';
@@ -40,6 +43,19 @@ class _ThemeFile {
 
   /// Nothing to do: the file is already what the target scope wants.
   bool get isCurrent => _sameText(current, generated);
+}
+
+/// The project as it will be once the theme-mode switch is added: the
+/// templates that detect it off disk see it before its files are written.
+class _WithThemeMode extends ScaffoldContext {
+  _WithThemeMode(ScaffoldContext context)
+    : super(projectRoot: context.projectRoot, pubspec: context.pubspec);
+
+  @override
+  bool get hasThemeMode => true;
+
+  @override
+  bool get hasPreferences => true;
 }
 
 /// Line endings differ between a CRLF checkout and what the templates write,
@@ -133,6 +149,12 @@ class CreateThemeCommand extends Command<int> {
     }
 
     final current = WidgetVariants.hasDarkThemeIn(libPath);
+    final detected = ScaffoldContext.detect(root);
+    // The dark theme brings the saved light / dark / system choice with it
+    // (9.2.0 on), so `--dark` also adds that to a project that has the dark
+    // palette from before. It is registered in core_module.dart, which a
+    // project from before the 9.0.0 locator split does not have.
+    final addSwitch = target && detected.hasSplitDi && !detected.hasThemeMode;
 
     _logger.info('');
     _logger.info(
@@ -142,7 +164,7 @@ class CreateThemeCommand extends Command<int> {
     );
     _logger.info('');
 
-    if (current == target) {
+    if (current == target && !addSwitch) {
       _logger.info(
         target
             ? '  This project already has AppTheme.dark — nothing to do.'
@@ -166,10 +188,12 @@ class CreateThemeCommand extends Command<int> {
       _logger.info('');
     }
 
-    final files = _collect(root, libPath, manifest, target);
+    final context = addSwitch ? _WithThemeMode(detected) : detected;
+    final files = _collect(root, libPath, manifest, target, context);
     final changed = files.where((f) => !f.isCurrent).toList();
+    final created = addSwitch ? _newFiles(context) : const <String, String>{};
 
-    if (changed.isEmpty) {
+    if (changed.isEmpty && created.isEmpty) {
       _logger.info('  Nothing to rewrite.');
       _logger.info('');
       return 0;
@@ -189,6 +213,16 @@ class CreateThemeCommand extends Command<int> {
         'default:',
       );
       _describe(review, showDiff: showDiff);
+      _logger.info('');
+    }
+    if (created.isNotEmpty) {
+      _logger.info('  New — the saved light / dark / system choice:');
+      for (final relative in created.keys) {
+        _logger.info('    $relative');
+      }
+      _logger.info(
+        '    pubspec.yaml: ${PackageVersions.entry('shared_preferences')}',
+      );
       _logger.info('');
     }
 
@@ -228,7 +262,9 @@ class CreateThemeCommand extends Command<int> {
 
     if (!assumeYes) {
       final confirmed = _logger.confirm(
-        '  Rewrite ${toWrite.length} file(s)?',
+        created.isEmpty
+            ? '  Rewrite ${toWrite.length} file(s)?'
+            : '  Rewrite ${toWrite.length} file(s) and add ${created.length}?',
         defaultValue: !force,
       );
       if (!confirmed) {
@@ -244,8 +280,23 @@ class CreateThemeCommand extends Command<int> {
     // What each file held before, so a failure partway through restores the
     // ones already written rather than leaving the project half-switched.
     final replaced = <String, String>{};
+    final added = <String>[];
 
     try {
+      for (final entry in created.entries) {
+        final path = p.joinAll([root, ...p.posix.split(entry.key)]);
+        if (File(path).existsSync()) continue;
+        await File(path).create(recursive: true);
+        added.add(path);
+        await File(path).writeAsString(entry.value);
+        updated.record(root, path, entry.value);
+      }
+      if (created.isNotEmpty) {
+        await PubspecUtils.ensureDependencies(
+          root,
+          dependencies: [PackageVersions.entry('shared_preferences')],
+        );
+      }
       for (final file in toWrite) {
         replaced[file.path] = file.current;
         await File(file.path).writeAsString(file.generated);
@@ -262,15 +313,38 @@ class CreateThemeCommand extends Command<int> {
           // Best-effort restore — the git diff still shows what changed.
         }
       }
+      for (final path in added) {
+        try {
+          File(path).deleteSync();
+        } catch (_) {
+          // Best-effort, like the restore above.
+        }
+      }
       _logger.info('  Restored the files that had already been written.');
       return 1;
     }
 
     _logger.success('');
+    for (final path in added) {
+      _logger.info(
+        '  + ${p.posix.joinAll(p.split(p.relative(path, from: root)))}',
+      );
+    }
     for (final file in toWrite) {
       _logger.info('  ↻ ${file.displayPath}');
     }
     _logger.info('');
+    if (added.isNotEmpty) {
+      _logger.info('  Run `fvm flutter pub get` for shared_preferences.');
+    }
+    if (target && !detected.hasSplitDi && !detected.hasThemeMode) {
+      _logger.info(
+        '  The saved light / dark / system switch needs the split locator',
+      );
+      _logger.info(
+        '  (lib/config/di/core_module.dart), so this project follows the system.',
+      );
+    }
     if (target) {
       _logger.info(
         '  The palette is placeholder black/white — set the *Dark '
@@ -294,9 +368,8 @@ class CreateThemeCommand extends Command<int> {
     String libPath,
     ProjectManifest? manifest,
     bool target,
+    ScaffoldContext context,
   ) {
-    final context = ScaffoldContext.detect(root);
-
     // Sourced from the catalog rather than written out, so the entry that
     // moved to `shared/views/` cannot drift out of sync here. The pre-move
     // path is offered too: a project that has not run `moarch update` yet
@@ -332,9 +405,18 @@ class CreateThemeCommand extends Command<int> {
         withUpdateGate: context.hasUpdateGate,
         withMoAdapt: context.hasMoAdapt,
         withDarkTheme: target,
+        withThemeMode: context.hasThemeMode,
+        withOfflineGate: context.hasOfflineGate,
         withAuthFeature: context.hasAuthFeature,
         withBlocObserver: context.hasBlocObserver,
       ),
+      // Registers PreferencesService — only while the switch is being added,
+      // since core_module.dart is where hand-written services go too, and an
+      // edit there should not block switching the palette alone.
+      if (context is _WithThemeMode)
+        'lib/config/di/core_module.dart': ScaffoldCatalog.byName(
+          'di-core',
+        )!.template(context),
       'lib/shared/widgets/overlays/app_toast.dart': SharedTemplates.appToast(
         withDark: target,
         withStatusColors: context.hasStatusColors,
@@ -364,6 +446,14 @@ class CreateThemeCommand extends Command<int> {
     });
     return files;
   }
+
+  /// The files the theme-mode switch adds, project-relative.
+  Map<String, String> _newFiles(ScaffoldContext context) => {
+    'lib/core/services/preferences_service.dart':
+        ServicesTemplates.preferencesService(),
+    'lib/core/services/theme_mode_service.dart': context.stack
+        .themeModeService(),
+  };
 
   void _describe(List<_ThemeFile> files, {required bool showDiff}) {
     for (final file in files) {

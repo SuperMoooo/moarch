@@ -21,8 +21,12 @@ class AppTemplates {
     bool withUpdateGate = false,
     bool withMoAdapt = false,
     bool withDarkTheme = false,
+    bool withThemeMode = false,
+    bool withOfflineGate = false,
   }) {
     if (withEasyLocalization) withLocalization = false;
+    // The saved choice only means something with two themes to choose from.
+    withThemeMode = withThemeMode && withDarkTheme;
 
     // Crashlytics has always initialized Firebase on its own; Firestore and
     // Firebase Auth need the same call, or the first provider read throws
@@ -183,11 +187,16 @@ final locale = ref.watch(languageProvider).locale;
       if (withMaintenanceGate)
         "\nimport 'shared/widgets/maintenance_gate.dart';",
       if (withUpdateGate) "\nimport 'shared/widgets/update_gate.dart';",
+      if (withOfflineGate) ...[
+        "\nimport 'core/services/connectivity_service.dart';",
+        "\nimport 'shared/widgets/offline_gate.dart';",
+      ],
     ].join();
 
-    final moAdaptImport = withMoAdapt
-        ? "\nimport 'shared/widgets/mo_adapt.dart';"
-        : '';
+    final moAdaptImport = [
+      if (withMoAdapt) "\nimport 'shared/widgets/mo_adapt.dart';",
+      if (withThemeMode) "\nimport 'core/services/theme_mode_service.dart';",
+    ].join();
 
     // With one palette there is no second ThemeData to hand MaterialApp, and
     // no themeMode worth setting: every mode would resolve to the same theme.
@@ -195,7 +204,7 @@ final locale = ref.watch(languageProvider).locale;
         ? '''
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,'''
+      themeMode: ${withThemeMode ? 'ref.watch(themeModeProvider)' : 'ThemeMode.system'},'''
         : '''
       // One brand theme. `moarch create theme --dark` adds the dark half.
       theme: AppTheme.light,''';
@@ -203,13 +212,32 @@ final locale = ref.watch(languageProvider).locale;
     // Inside `builder`, so it wraps the Navigator rather than sitting in a
     // route: a gate below the Navigator could be pushed on top of.
     // Maintenance outermost: while the backend is down there is no point
-    // telling anyone to update first.
+    // telling anyone to update first. Offline innermost: it covers the app
+    // rather than replacing it, and the other two cannot read their flags
+    // offline anyway (they fail open).
     final maintenanceOpen = [
       if (withMaintenanceGate) 'MaintenanceGate(child: ',
       if (withUpdateGate) 'UpdateGate(child: ',
+      if (withOfflineGate) 'OfflineGate(child: ',
     ].join();
     final maintenanceClose =
-        ')' * ((withMaintenanceGate ? 1 : 0) + (withUpdateGate ? 1 : 0));
+        ')' *
+        ((withMaintenanceGate ? 1 : 0) +
+            (withUpdateGate ? 1 : 0) +
+            (withOfflineGate ? 1 : 0));
+
+    // The app-wide "back online" hook. The locator is up by now.
+    final reconnectHook = withOfflineGate
+        ? '''
+
+  // Runs each time the device comes back online (not on start). Sync what
+  // was saved while offline, retry what failed — or subscribe from the
+  // feature that owns the sync; see ConnectivityService.onReconnect.
+  getIt<ConnectivityService>().onReconnect(() async {
+    // TODO: sync what changed while offline.
+  });
+'''
+        : '';
 
     if (withRouter) {
       return '''
@@ -251,7 +279,7 @@ $easyLocalizationInit$firebaseInit
   // Registers every repository, datasource and service. Firebase is up by
   // this point, so the locator can hand out its instances.
   await setupInjector();
-$notificationInit
+$notificationInit$reconnectHook
   $runAppCall
 
   // After runApp, so the native splash gives way to a painted first frame
@@ -339,7 +367,7 @@ $easyLocalizationInit$firebaseInit
   // Registers every repository, datasource and service. Firebase is up by
   // this point, so the locator can hand out its instances.
   await setupInjector();
-$notificationInit
+$notificationInit$reconnectHook
   $runAppCall
 
   // After runApp, so the native splash gives way to a painted first frame
@@ -496,18 +524,45 @@ class _AuthRefresh extends ChangeNotifier {
 String? _redirect(Ref ref, GoRouterState state) {
   final auth = ref.read(authNotifierProvider);
   final onSplash = state.matchedLocation == AppRoutes.splash;
+  // Where the user was headed — a deep link, a notification tap — carried
+  // through splash and login as `?from=`, so they land there, not on home.
+  final from = _fromOf(state);
 
   // Session restore is still running — hold on splash so nothing flashes.
   // The refreshListenable re-runs this once it completes.
-  if (auth.isLoading) return onSplash ? null : AppRoutes.splash;
+  if (auth.isLoading) {
+    return onSplash ? null : _withFrom(AppRoutes.splash, state.uri.toString());
+  }
 
   final isAuthenticated = auth.value?.authenticated ?? false;
-  if (onSplash) return isAuthenticated ? AppRoutes.home : AppRoutes.login;
+  if (onSplash) {
+    return isAuthenticated
+        ? from ?? AppRoutes.home
+        : _withFrom(AppRoutes.login, from);
+  }
 
   final onPublicRoute = AppRoutes.publicRoutes.contains(state.matchedLocation);
-  if (!isAuthenticated && !onPublicRoute) return AppRoutes.login;
-  if (isAuthenticated && onPublicRoute) return AppRoutes.home;
+  if (!isAuthenticated && !onPublicRoute) {
+    return _withFrom(AppRoutes.login, state.uri.toString());
+  }
+  if (isAuthenticated && onPublicRoute) return from ?? AppRoutes.home;
   return null;
+}
+
+/// [path], carrying [from] as the place to continue to once it is left.
+String _withFrom(String path, String? from) =>
+    from == null || from == AppRoutes.home
+    ? path
+    : Uri(path: path, queryParameters: {'from': from}).toString();
+
+/// The `from` the redirect was handed, if it is a path inside the app. A
+/// link can put anything in a query, and only an app path is followed.
+String? _fromOf(GoRouterState state) {
+  final from = state.uri.queryParameters['from'];
+  if (from == null || !from.startsWith('/') || from.startsWith('//')) {
+    return null;
+  }
+  return from;
 }'''
         : '';
 
@@ -537,11 +592,15 @@ $authRoutes      GoRoute(
         ),
       ),
 
-      // Path parameter — build the location with AppRoutes.groupDetailOf(id).
+      // `moarch create feature` adds each feature's route above the next
+      // line — keep it.
+      // moarch:routes
+
+      // Path parameter — build the location with AppRoutes.featureDetailOf(id).
       // GoRoute(
-      //   path: AppRoutes.groupDetail,
+      //   path: AppRoutes.featureDetail,
       //   builder: (context, state) =>
-      //       GroupDetailView(id: state.pathParameters['id']!),
+      //       FeatureDetailView(id: state.pathParameters['id']!),
       // ),
 
       // Whole object, passed as `extra` instead of through the URL.
@@ -555,6 +614,42 @@ $authRoutes      GoRoute(
 });$authGuard
 ''';
   }
+
+  /// `lib/core/services/theme_mode_service.dart` — the user's light / dark /
+  /// system choice, saved across launches. Only with the dark theme: with one
+  /// palette every mode resolves to the same theme.
+  static String themeModeService() => '''
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../config/di/injector.dart';
+import 'preferences_service.dart';
+
+final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(
+  ThemeModeNotifier.new,
+);
+
+/// The user's light / dark / system choice, saved across launches.
+///
+/// `main.dart` watches it for `MaterialApp.themeMode`. Change it from a
+/// settings screen with
+/// `ref.read(themeModeProvider.notifier).setMode(ThemeMode.dark)`.
+class ThemeModeNotifier extends Notifier<ThemeMode> {
+  static const _key = 'theme_mode';
+
+  PreferencesService get _prefs => getIt<PreferencesService>();
+
+  /// The saved choice, or the system's until the user makes one.
+  @override
+  ThemeMode build() =>
+      ThemeMode.values.asNameMap()[_prefs.getString(_key)] ?? ThemeMode.system;
+
+  Future<void> setMode(ThemeMode mode) async {
+    state = mode;
+    await _prefs.setString(_key, mode.name);
+  }
+}
+''';
 
   /// Returns a language service scaffold.
   static String languageService() => '''

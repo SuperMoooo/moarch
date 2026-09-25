@@ -8,6 +8,7 @@ import 'bloc/auth_templates.dart' as bloc;
 import 'bloc/feature_templates.dart' as bloc;
 import 'bloc/firebase_auth_templates.dart' as bloc;
 import 'bloc/maintenance_templates.dart' as bloc;
+import 'bloc/offline_templates.dart' as bloc;
 import 'bloc/scope_templates.dart';
 import 'bloc/update_gate_templates.dart' as bloc;
 import 'riverpod/app_templates.dart' as riverpod;
@@ -16,6 +17,7 @@ import 'riverpod/auth_templates.dart' as riverpod;
 import 'riverpod/feature_templates.dart' as riverpod;
 import 'riverpod/firebase_auth_templates.dart' as riverpod;
 import 'riverpod/maintenance_templates.dart' as riverpod;
+import 'riverpod/offline_templates.dart' as riverpod;
 import 'riverpod/update_gate_templates.dart' as riverpod;
 
 export 'bloc/scope_templates.dart' show ScopeBloc, ScopeParent;
@@ -124,6 +126,8 @@ class StackTemplates {
     bool withUpdateGate = false,
     bool withMoAdapt = false,
     bool withDarkTheme = false,
+    bool withThemeMode = false,
+    bool withOfflineGate = false,
     bool withAuthFeature = false,
     bool withBlocObserver = false,
   }) => isBloc
@@ -139,6 +143,8 @@ class StackTemplates {
           withUpdateGate: withUpdateGate,
           withMoAdapt: withMoAdapt,
           withDarkTheme: withDarkTheme,
+          withThemeMode: withThemeMode,
+          withOfflineGate: withOfflineGate,
           withAuthFeature: withAuthFeature,
           withBlocObserver: withBlocObserver,
         )
@@ -154,6 +160,8 @@ class StackTemplates {
           withUpdateGate: withUpdateGate,
           withMoAdapt: withMoAdapt,
           withDarkTheme: withDarkTheme,
+          withThemeMode: withThemeMode,
+          withOfflineGate: withOfflineGate,
         );
 
   /// The stack's shared state vocabulary: bloc's `AppStatus` enum with the
@@ -183,6 +191,12 @@ class StackTemplates {
   /// both stacks.
   String firebaseProviders({bool hasAuth = false, bool hasDb = false}) =>
       ConfigTemplates.firebaseProviders(hasAuth: hasAuth, hasDb: hasDb);
+
+  /// The saved light / dark / system choice — a `Notifier` on Riverpod, a
+  /// `Cubit` on bloc. Only generated with the dark theme.
+  String themeModeService() => isBloc
+      ? bloc.AppTemplates.themeModeService()
+      : riverpod.AppTemplates.themeModeService();
 
   /// The locale holder — a `Notifier` on Riverpod, a `Cubit` on bloc.
   String languageService() => isBloc
@@ -251,6 +265,7 @@ class StackTemplates {
     bool withBiometric = false,
     bool withConnectivity = false,
     bool withAppLifecycle = false,
+    bool withPreferences = false,
   }) => InjectorTemplates.coreModule(
     withMedia: withMedia,
     withUrlLauncher: withUrlLauncher,
@@ -260,6 +275,7 @@ class StackTemplates {
     withBiometric: withBiometric,
     withConnectivity: withConnectivity,
     withAppLifecycle: withAppLifecycle,
+    withPreferences: withPreferences,
   );
 
   /// The locator's feature layer — long-lived services a feature owns, and
@@ -354,6 +370,11 @@ class StackTemplates {
   /// else the action left on the state. Riverpod only; a bloc screen uses
   /// `BlocConsumer`'s listener.
   String actionListener() => riverpod.AsyncTemplates.actionListener();
+
+  /// The offline gate: covers the app while the device has no connection.
+  String offlineGate() => isBloc
+      ? bloc.OfflineTemplates.offlineGate()
+      : riverpod.OfflineTemplates.offlineGate();
 
   /// The maintenance gate.
   String maintenanceGate({bool withFirestore = false, bool withDio = false}) =>

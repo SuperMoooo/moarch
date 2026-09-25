@@ -188,7 +188,10 @@ void main() {
       );
 
       expect(output, contains('final Dio _dio;'));
-      expect(output, contains('safeApiCall<OrderModel>'));
+      // The same method the repository interface asks for, so the repository
+      // can hand it on.
+      expect(output, contains('Future<List<OrderModel>> fetchAll()'));
+      expect(output, contains('safeApiCall<List<OrderModel>>'));
       expect(output, isNot(contains('firestore')));
     });
 
@@ -226,7 +229,7 @@ void main() {
     });
 
     test(
-      'the repository impl passes the datasource through, TODO left to Dio',
+      'the repository impl passes the datasource through, on both backends',
       () {
         final output = FeatureTemplates.repositoryImpl(
           'order',
@@ -243,18 +246,35 @@ void main() {
         expect(output, isNot(contains('toEntity')));
         expect(output, isNot(contains('UnimplementedError')));
 
-        expect(
-          FeatureTemplates.repositoryImpl(
-            'order',
-            'Order',
-            'order',
-            hasRemote: true,
-            hasLocal: false,
-          ),
-          contains('throw UnimplementedError()'),
+        final dio = FeatureTemplates.repositoryImpl(
+          'order',
+          'Order',
+          'order',
+          hasRemote: true,
+          hasLocal: false,
         );
+        expect(dio, contains('return _remote.fetchAll();'));
+        expect(dio, isNot(contains('watchAll')));
+        expect(dio, isNot(contains('UnimplementedError')));
       },
     );
+
+    test('a cache with no methods yet is not an analyzer warning', () {
+      final output = FeatureTemplates.repositoryImpl(
+        'order',
+        'Order',
+        'order',
+        hasRemote: true,
+        hasLocal: true,
+      );
+
+      expect(
+        output,
+        contains(
+          '  // ignore: unused_field\n  final OrderLocalDataSource _local;',
+        ),
+      );
+    });
 
     test('the layer the user declined is not invented for them', () {
       // No remote datasource selected — there is nothing to return, so both

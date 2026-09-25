@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'dart_source.dart';
+
 /// A generated feature's registrations, split by the module file each part
 /// belongs in.
 ///
@@ -297,7 +299,7 @@ ${blocRepo == null ? '  getIt.registerFactory<${className}Bloc>(${className}Bloc
     // honest test for "already registered".
     if (source.contains('// ── $className ')) return source;
 
-    var patched = _withImports(source, imports);
+    var patched = DartSource.addImports(source, imports);
 
     final anchorIndex = patched.indexOf(anchor);
     // Back up to the start of the anchor's line so the insert lands above its
@@ -306,22 +308,6 @@ ${blocRepo == null ? '  getIt.registerFactory<${className}Bloc>(${className}Bloc
 
     return '${patched.substring(0, lineStart)}$registrations\n\n'
         '${patched.substring(lineStart)}';
-  }
-
-  /// Adds any of [imports] the file does not already have, after the last
-  /// existing import line.
-  static String _withImports(String source, List<String> imports) {
-    final missing = imports.where((line) => !source.contains(line)).toList()
-      ..sort();
-    if (missing.isEmpty) return source;
-
-    final importPattern = RegExp(r"^import\s+'[^']+';$", multiLine: true);
-    final matches = importPattern.allMatches(source).toList();
-    if (matches.isEmpty) return '${missing.join('\n')}\n$source';
-
-    final last = matches.last.end;
-    return '${source.substring(0, last)}\n${missing.join('\n')}'
-        '${source.substring(last)}';
   }
 
   /// Patches the locator for the project owning [libPath], reporting which

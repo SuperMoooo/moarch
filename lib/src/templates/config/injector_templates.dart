@@ -201,6 +201,7 @@ ${entries.join('\n')};
     bool withBiometric = false,
     bool withConnectivity = false,
     bool withAppLifecycle = false,
+    bool withPreferences = false,
   }) {
     final imports = <String>[
       if (withBiometric) "import '../../core/security/biometric_service.dart';",
@@ -215,6 +216,8 @@ ${entries.join('\n')};
       if (withNotifications)
         "import '../../core/services/notifications_service.dart';",
       "import '../../core/services/permission_service.dart';",
+      if (withPreferences)
+        "import '../../core/services/preferences_service.dart';",
       if (withUrlLauncher)
         "import '../../core/services/url_launcher_service.dart';",
       "import 'injector.dart';",
@@ -222,6 +225,7 @@ ${entries.join('\n')};
 
     final entries = <String>[
       '    ..registerLazySingleton<PermissionService>(PermissionService.new)',
+      if (withPreferences) _preferencesEntry,
       if (withMedia)
         '    ..registerLazySingleton<MediaService>(\n        () => MediaService(getIt<PermissionService>()))',
       if (withUrlLauncher)
@@ -261,6 +265,13 @@ ${entries.join('\n')};
 }
 ''';
   }
+
+  /// [PreferencesService] is the one async registration: it reads the stored
+  /// values once, and `setupInjector()` waits for that through `allReady()`.
+  static const String _preferencesEntry =
+      '    // Loaded before runApp, so the first frame already has the saved\n'
+      '    // values (the theme mode among them) — setupInjector() waits for it.\n'
+      '    ..registerSingletonAsync<PreferencesService>(PreferencesService.create)';
 
   /// `lib/config/di/feature_module.dart` — the long-lived services a feature
   /// owns, and the scope helpers for what only one flow owns.

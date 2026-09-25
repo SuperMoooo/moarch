@@ -50,6 +50,9 @@ abstract final class PackageVersions {
     // which replaced the older `printTime` flag partway through logger 2.x.
     'logger': '^2.4.0',
     'connectivity_plus': '^7.3.1',
+    // Floored for SharedPreferencesWithCache, which preferences_service.dart
+    // is built on: loaded once, then read synchronously.
+    'shared_preferences': '^2.5.5',
 
     // ── Codegen (models) ───────────────────────────────────────
     // The annotations are runtime dependencies — the generated `.freezed.dart`

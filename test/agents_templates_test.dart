@@ -31,6 +31,31 @@ void main() {
       expect(source, contains('fvm dart run build_runner build'));
     });
 
+    test('names the saved theme-mode switch, per stack, when there is one', () {
+      String themed(StateManagement stack, {required bool withThemeMode}) =>
+          AgentsTemplates.agentsMd(
+            projectName: 'demo',
+            stateManagement: stack,
+            withDarkTheme: true,
+            withThemeMode: withThemeMode,
+          );
+
+      expect(
+        themed(StateManagement.riverpod, withThemeMode: true),
+        contains('ref.read(themeModeProvider.notifier).setMode(mode)'),
+      );
+      expect(
+        themed(StateManagement.bloc, withThemeMode: true),
+        contains('context.read<ThemeModeCubit>().setMode(mode)'),
+      );
+      // A dark theme from before 9.2.0 has no switch to point at.
+      expect(
+        themed(StateManagement.bloc, withThemeMode: false),
+        isNot(contains('ThemeModeCubit')),
+      );
+      expect(agents(StateManagement.riverpod), isNot(contains('themeMode')));
+    });
+
     test('states the architecture the templates generate', () {
       final source = agents(StateManagement.riverpod);
       // The two rules an agent trained on other Clean Architecture apps is

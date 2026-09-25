@@ -221,11 +221,9 @@ class AppDragSection extends StatelessWidget {
   }
 
   void _handleReorder(int oldIndex, int newIndex) {
-    // ReorderableListView reports the destination against the list *before*
-    // the dragged item is taken out of it, so a downward move arrives one too
-    // high. Every caller would otherwise have to know that.
-    final corrected = newIndex > oldIndex ? newIndex - 1 : newIndex;
-    final target = _clampToPinned(oldIndex, corrected);
+    // onReorderItem already reports the destination against the list with
+    // the dragged item taken out, so it goes straight to the pinned clamp.
+    final target = _clampToPinned(oldIndex, newIndex);
     if (target == oldIndex) return;
     HapticFeedback.selectionClick();
     onReorder(oldIndex, target);
@@ -252,7 +250,7 @@ class AppDragSection extends StatelessWidget {
       // The listeners are attached per item instead, so a pinned one has none
       // and cannot be picked up at all.
       buildDefaultDragHandles: false,
-      onReorder: _handleReorder,
+      onReorderItem: _handleReorder,
       onReorderStart: (_) {
         HapticFeedback.mediumImpact();
         onReorderStart?.call();

@@ -927,57 +927,173 @@ $_launchUrlServiceBody''';
 }
 ''';
 
+  /// `lib/core/services/preferences_service.dart` — the app's small,
+  /// non-secret settings, loaded before `runApp` so they read synchronously.
+  static String preferencesService() => '''
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// The app's small, non-secret settings: the theme mode, a dismissed banner,
+/// an onboarding flag. Tokens and anything else sensitive belong in
+/// `core/security/secure_storage.dart`, never here.
+///
+/// Loaded once, before `runApp` — `core_module.dart` registers it with
+/// `registerSingletonAsync`, and `setupInjector()` waits for it — so every
+/// read is synchronous and the first frame already has the saved values.
+class PreferencesService {
+  PreferencesService._(this._prefs);
+
+  final SharedPreferencesWithCache _prefs;
+
+  /// Reads the stored values into memory.
+  static Future<PreferencesService> create() async => PreferencesService._(
+    await SharedPreferencesWithCache.create(
+      cacheOptions: const SharedPreferencesWithCacheOptions(),
+    ),
+  );
+
+  String? getString(String key) => _prefs.getString(key);
+
+  Future<void> setString(String key, String value) =>
+      _prefs.setString(key, value);
+
+  bool? getBool(String key) => _prefs.getBool(key);
+
+  Future<void> setBool(String key, bool value) => _prefs.setBool(key, value);
+
+  Future<void> remove(String key) => _prefs.remove(key);
+}
+''';
+
   /// Returns the generated connectivityService template.
   ///
   /// The service itself is registered in the locator in both stacks. Riverpod
-  /// additionally gets `hasInternetProvider` over it — connectivity *is*
-  /// state, and a widget wants to watch it rather than resolve it once.
+  /// additionally gets `hasInternetProvider` over it and bloc a
+  /// `ConnectivityCubit` — connectivity *is* state, and a widget wants to
+  /// watch it rather than resolve it once.
   static String connectivityService({
     StateManagement stateManagement = StateManagement.riverpod,
   }) {
     final isBloc = stateManagement.isBloc;
 
     final imports = isBloc
-        ? ''
+        ? "import 'package:bloc/bloc.dart';\n"
         : "import 'package:flutter_riverpod/flutter_riverpod.dart';\n";
 
-    final providers = isBloc
-        ? ''
-        : '''
-
-/// The connection, as something a widget can watch. The service behind it
-/// comes out of the locator like every other dependency.
-final hasInternetProvider = StreamProvider<bool>((ref) {
-  return getIt<ConnectivityService>().hasInternetStream;
-});
-''';
+    final holder = isBloc ? _connectivityCubit : _hasInternetProvider;
 
     final locatorImport = isBloc
         ? ''
         : "import '../../config/di/injector.dart';\n";
 
     return '''
+import 'dart:async';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 $imports
 ${locatorImport}import '../utils/app_logger.dart';
 
 final _log = appLogger.scoped('Connectivity');
-$providers
+$holder
 $_connectivityServiceBody''';
   }
 
-  static const String _connectivityServiceBody = r'''class ConnectivityService {
+  static const String _hasInternetProvider = '''
+
+/// The connection, as something a widget can watch — the current state
+/// first, then every change. The service behind it comes out of the locator
+/// like every other dependency. `ref.invalidate` it to read it again.
+final hasInternetProvider = StreamProvider<bool>((ref) {
+  return getIt<ConnectivityService>().hasInternetStream;
+});
+''';
+
+  static const String _connectivityCubit = '''
+
+/// The connection as bloc state: `true` while online.
+///
+/// `OfflineGate` provides one above the navigator, so any screen can
+/// `context.watch<ConnectivityCubit>()`. Without the gate, provide it where
+/// it is needed. It starts online and fails open, like the gate.
+///
+/// A Cubit, not a Bloc: it holds one flag and has no events. It lives beside
+/// the service it reads rather than in a `connectivity_cubit.dart` of its own
+/// — which is the naming rule waived below.
+// ignore: prefer_file_naming_conventions
+class ConnectivityCubit extends Cubit<bool> {
+  ConnectivityCubit(this._service) : super(true) {
+    _subscription = _service.hasInternetStream.listen(emit);
+  }
+
+  final ConnectivityService _service;
+  late final StreamSubscription<bool> _subscription;
+
+  /// Reads the connection again, for a change the platform was slow to
+  /// report — the offline screen's retry.
+  Future<void> recheck() async => emit(await _service.hasInternet());
+
+  @override
+  Future<void> close() {
+    _subscription.cancel();
+    return super.close();
+  }
+}
+''';
+
+  static const String _connectivityServiceBody =
+      r'''/// Whether the device has a network connection, and what to do when it comes
+/// back.
+///
+/// A connection is a network interface, not a working internet: a captive
+/// portal or a dead router reads as online. So this decides what to show,
+/// never whether to try — a request still handles `NetworkException`.
+class ConnectivityService {
   final Connectivity _connectivity = Connectivity();
 
-  Stream<bool> get hasInternetStream =>
-      _connectivity.onConnectivityChanged.map((results) {
-        _log.d('$results');
-        return !results.contains(ConnectivityResult.none);
-      });
-  Future<bool> hasInternet() async {
-    final results = await _connectivity.checkConnectivity();
-    return !results.contains(ConnectivityResult.none);
+  /// `true` while online: the current state first, then each change. The
+  /// platform reports every interface switch (wifi to mobile), so repeats
+  /// are dropped.
+  Stream<bool> get hasInternetStream => _states().distinct();
+
+  Stream<bool> _states() async* {
+    yield await hasInternet();
+    yield* _connectivity.onConnectivityChanged.map((results) {
+      _log.d('$results');
+      return _isOnline(results);
+    });
   }
+
+  Future<bool> hasInternet() async =>
+      _isOnline(await _connectivity.checkConnectivity());
+
+  /// Runs [action] each time the device comes back online — only on the way
+  /// back from offline, never on start. Sync what was saved while offline,
+  /// retry what failed.
+  ///
+  /// `main.dart` has the app-wide hook. A feature that owns its own sync can
+  /// subscribe too, and cancels the subscription when it goes away:
+  ///
+  /// ```dart
+  /// _reconnect = getIt<ConnectivityService>().onReconnect(_repo.flushQueue);
+  /// // in close() / dispose():
+  /// _reconnect.cancel();
+  /// ```
+  StreamSubscription<bool> onReconnect(FutureOr<void> Function() action) {
+    bool? previous;
+    return hasInternetStream.listen((online) {
+      final cameBack = previous == false && online;
+      previous = online;
+      if (!cameBack) return;
+      // The action's errors are its own, but a failed sync must not vanish.
+      unawaited(
+        Future.sync(action).catchError((Object error, StackTrace stackTrace) {
+          _log.e('Reconnect task failed', error: error, stackTrace: stackTrace);
+        }),
+      );
+    });
+  }
+
+  static bool _isOnline(List<ConnectivityResult> results) =>
+      !results.contains(ConnectivityResult.none);
 }
 ''';
 

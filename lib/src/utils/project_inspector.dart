@@ -4,11 +4,13 @@ import 'package:path/path.dart' as p;
 import 'package:yaml_edit/yaml_edit.dart';
 
 import '../templates/config/config_templates.dart';
+import '../templates/misc/deep_links_templates.dart';
 import 'file_utils.dart';
 import 'package_versions.dart';
 import 'injector_utils.dart';
 import 'plist_utils.dart';
 import 'project_manifest.dart';
+import 'router_utils.dart';
 import 'pubspec_utils.dart';
 import 'scaffold_catalog.dart';
 import 'state_management.dart';
@@ -614,6 +616,63 @@ abstract final class ProjectInspector {
       );
     }
 
+    // The intent filter is written with a placeholder domain, and nothing
+    // fails while it is there — links just never open the app.
+    final manifest = File(
+      p.join(
+        p.dirname(libPath),
+        'android',
+        'app',
+        'src',
+        'main',
+        'AndroidManifest.xml',
+      ),
+    );
+    if (manifest.existsSync() &&
+        manifest.readAsStringSync().contains(
+          'android:host="${DeepLinksTemplates.placeholderHost}"',
+        )) {
+      findings.add(
+        const Diagnostic.info(
+          'AndroidManifest.xml still links ${DeepLinksTemplates.placeholderHost}, '
+          'so no deep link opens the app',
+          hint:
+              'Put your domain in the App Links intent filter, and follow '
+              'docs/DEEP_LINKS.md for the rest.',
+        ),
+      );
+    }
+
+    // Before 9.2.0 the router had no anchor, so `create feature` prints the
+    // route instead of adding it. Nothing is broken, so it is a note.
+    if (hasRouterFiles) {
+      final missing =
+          [
+                RouterUtils.routesFileFor(libPath),
+                RouterUtils.routerFileFor(libPath),
+              ]
+              .where((path) {
+                final file = File(path);
+                return file.existsSync() &&
+                    !file.readAsStringSync().contains(RouterUtils.anchor);
+              })
+              .map(p.basename)
+              .toList();
+      if (missing.isNotEmpty) {
+        findings.add(
+          Diagnostic.info(
+            '${missing.join(' and ')} ${missing.length == 1 ? 'has' : 'have'} '
+            'no `${RouterUtils.anchor}` line, so `create feature` cannot add '
+            'routes',
+            hint:
+                'Run `moarch update router routes` if you never edited them; '
+                'otherwise add `// moarch:routes` inside AppRoutes and at the '
+                'end of the routes list.',
+          ),
+        );
+      }
+    }
+
     return findings;
   }
 
@@ -931,11 +990,23 @@ abstract final class ProjectInspector {
 
     final presentNames = {for (final spec in present) spec.name};
     final findings = <Diagnostic>[];
+    // The preview screen lists the whole kit as its deps, but a stack's
+    // source never imports the other stack's widgets, so those are not
+    // missing — and generating them would add a file that cannot compile.
+    final stateManagement = pubspec == null
+        ? null
+        : StateManagement.fromPubspec(pubspec);
 
     // Missing widget dependencies.
     final missingDeps = <String, Set<String>>{};
     for (final spec in present) {
       for (final dep in spec.deps) {
+        final depSpec = WidgetCatalog.byName(dep);
+        if (stateManagement != null &&
+            depSpec != null &&
+            !depSpec.supports(stateManagement)) {
+          continue;
+        }
         if (!presentNames.contains(dep)) {
           missingDeps.putIfAbsent(dep, () => <String>{}).add(spec.name);
         }
@@ -959,7 +1030,9 @@ abstract final class ProjectInspector {
             final written = <String>[];
             final packages = <String>{};
 
-            for (final spec in WidgetCatalog.resolve([dep.name])) {
+            for (final spec in WidgetCatalog.resolve([
+              dep.name,
+            ], stateManagement: stateManagement)) {
               final path = spec.pathIn(libPath);
               final content = widgetSource(libPath, spec);
               if (await FileUtils.writeFile(path, content)) {

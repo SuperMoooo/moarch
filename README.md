@@ -59,7 +59,7 @@ switches never touch the editor config. `moarch doctor --fix` does exactly that.
 moarch init          # interactive scaffold
 moarch init --all    # generate the default structure without prompts
 moarch init --state bloc   # pick the stack without the checklist (riverpod | bloc)
-moarch create feature <featureName>
+moarch create feature <featureName>   # all layers, registered in the locator, with its route
 moarch create model <featureName> <modelName> # generate the model
 moarch create model <featureName> <modelName> --from-json sample.json # infer the fields from a JSON payload
 moarch create model --empty <featureName> <modelName> # Inject a .empty() factory into an existing model.
@@ -69,7 +69,7 @@ moarch create bloc <featureName> <blocName> # add a state+event+bloc trio to an 
 moarch create widget <name>        # add a UI-kit widget on demand (e.g. switch, otp, list-tile)
 moarch create widget all           # generate the whole UI kit + the preview screen
 moarch create widget --list        # list every available widget
-moarch create theme --dark         # add the dark palette + AppTheme.dark to a one-theme project
+moarch create theme --dark         # add the dark palette, AppTheme.dark and the saved theme-mode switch
 moarch create theme --no-dark      # ...and drop back to the single brand theme
 moarch create tests [feature]      # unit tests for every notifier/bloc, integration tests for every GET endpoint
 moarch create scope <feature> <name> [--blocs A,B] [--parent XScope]  # carry a screen's blocs to what it opens (bloc)
@@ -91,6 +91,8 @@ moarch doctor --fix  # ...and apply the ones that don't need a decision
 - secure storage, logger, helpers, and a full shared UI kit / design system (see below)
 - optional services such as notifications (local or Firebase push), URL launcher, media, debounce
 - an optional maintenance gate — a backend flag that empties the app (see below)
+- an optional offline screen over the app, and a hook that runs when the connection comes back — for a sync (see below)
+- optional deep links: https links open the app on the matching route, Android App Links and iOS Universal Links (see below)
 - optional localization: flutter_localizations (`lib/l10n/` + `.arb` files) or easy_localization (`assets/translations/` JSON files) — pick one, the checklist keeps them mutually exclusive
 - a backend: Dio against a REST API, Firebase (Firestore / Auth), or both (see below)
 - `AGENTS.md` + `CLAUDE.md` — the project's rules for coding agents (Codex, Cursor, Copilot, Gemini CLI, Claude Code): the layout, no entity layer, the state stack's patterns, the UI kit and tokens, and the commands that prove a change is done. `CLAUDE.md` is only `@AGENTS.md`, so there is one set of instructions. Both are catalog entries, so `moarch update agents claude-md` keeps them in step with the templates; a project from before 9.0.0 gets them from `moarch doctor --fix`
@@ -493,6 +495,66 @@ minimum changes with a release, not by the minute).
 moarch create widget update-gate   # or take it in the init checklist
 ```
 
+### Offline screen and reconnect
+
+Tick **Offline screen + reconnect hook** in `init` and `OfflineGate` covers the
+app with a "You're offline" screen while the device has no connection, and
+lifts it the moment the connection is back. It is mounted in
+`MaterialApp.builder` with the other gates, innermost:
+
+```dart
+builder: (context, child) => MaintenanceGate(child: UpdateGate(child: OfflineGate(child: child!))),
+```
+
+It **covers** rather than replaces. The maintenance gate unmounts the app on
+purpose; being offline is no reason to lose the screen the user was on or the
+form they were half way through, so the app stays mounted underneath. It fails
+open, like the other gates.
+
+What should happen when the connection returns goes through
+`ConnectivityService.onReconnect`, which fires only on the way back from
+offline, never at start-up. `main.dart` gets the app-wide hook:
+
+```dart
+getIt<ConnectivityService>().onReconnect(() async {
+  // TODO: sync what changed while offline.
+});
+```
+
+A feature that owns its own sync subscribes the same way and cancels the
+subscription in `close()` / `dispose()`. Screens can watch the connection too:
+`hasInternetProvider` on Riverpod, `context.watch<ConnectivityCubit>()` on bloc
+(the gate provides it above the navigator). If parts of your app work offline,
+take the gate out of `main.dart` and show an `AppBanner` there instead.
+
+A connection is a network interface, not a working internet: a captive portal
+reads as online. The gate decides what to show; requests still handle
+`NetworkException`.
+
+### Deep links
+
+Tick **Deep links** in `init` (it needs the router) and `https://<your
+domain>/orders` opens the app on `AppRoutes.orders`, on Android (App Links) and
+iOS (Universal Links). GoRouter does the routing — Flutter hands it the link's
+path — so there is no package and no Dart to write. `init` adds the
+`autoVerify` intent filter to `MainActivity` with `example.com` as the domain,
+and `docs/DEEP_LINKS.md` covers what no file in the repository can do: the
+`assetlinks.json` and `apple-app-site-association` your domain serves (filled in
+with the project's application id and bundle id), the iOS Associated Domains
+capability, and the commands that check it all. `moarch doctor` notes the
+placeholder domain until you replace it.
+
+With the auth feature, a link survives sign-in. The router's redirect carries
+where the user was going as `?from=` through the splash route (a cold start
+while the session is restored) and through login, and continues there
+afterwards, so a signed-out user who opens a link lands on it after signing in.
+Only in-app paths are followed. This is in every project with the auth feature,
+deep links or not — a notification tap that opens a route needs it too.
+
+A route a link can open gets only its URL, so everything its screen loads has to
+be in the path or the query (`/orders/42`), never in `extra`. `AGENTS.md` says
+so when the option is on.
+
 ### Extensions
 
 `core/utils/extensions.dart` carries the small helpers every screen reaches for:
@@ -836,9 +898,9 @@ A long press starts the drag by default, because an immediate listener over the
 item's whole surface fights the scroll; `trigger: AppDragTrigger.handle` puts a
 grip on the trailing edge instead, for an item that is already tappable.
 
-`onReorder` hands you indices **already corrected** for both the
-`ReorderableListView` off-by-one and any pinned item in the way, and
-`AppDragSection.reorder` does the remove-and-insert.
+`onReorder` hands you indices **ready to use** — measured against the list
+with the dragged item taken out, and stopped at any pinned item in the way —
+and `AppDragSection.reorder` does the remove-and-insert.
 
 ### A table that fits a phone
 
@@ -1098,10 +1160,22 @@ set of colors and `AppTheme` has a single `light` getter that `main.dart` hands
 to `MaterialApp`. That is the common case, and it keeps the file you actually
 edit — the palette — half the size.
 
-Tick **Dark theme** in the `init` checklist to get the other half: a `*Dark`
-counterpart for every color token, an `AppTheme.dark` built from them, and
-`darkTheme` + `themeMode: ThemeMode.system` wired into `main.dart`. The
-design-system preview gets its toggle.
+Tick **Dark theme + theme mode switch** in the `init` checklist to get the
+other half: a `*Dark` counterpart for every color token, an `AppTheme.dark`
+built from them, and `darkTheme` wired into `main.dart`. The design-system
+preview gets its toggle.
+
+It also brings the user's light / dark / system choice, saved across launches.
+`core/services/theme_mode_service.dart` holds it — `themeModeProvider` on
+Riverpod, `ThemeModeCubit` on bloc — and `main.dart` watches it for `themeMode`.
+A settings screen changes it with
+`ref.read(themeModeProvider.notifier).setMode(ThemeMode.dark)` or
+`context.read<ThemeModeCubit>().setMode(ThemeMode.dark)`. It is stored through
+`PreferencesService` (`core/services/preferences_service.dart`), a small
+wrapper over shared_preferences for any non-secret setting. The locator loads
+it before `runApp`, so the first frame already has the saved theme, with no
+flash of the wrong one. Tokens stay in `TokenStorage`. With one palette there
+is nothing to choose between, so there is no switch either.
 
 Success, warning and info have no slot in `ColorScheme`, so they live in
 `AppStatusColors` (`config/theme/app_status_colors.dart`), a `ThemeExtension`
@@ -1123,10 +1197,16 @@ rather than remembering it, so `moarch update` keeps regenerating what the
 project actually is:
 
 ```bash
-moarch create theme --dark      # add the dark half to a one-theme project
+moarch create theme --dark      # add the dark half (and the switch) to a one-theme project
 moarch create theme --no-dark   # drop it again
 moarch create theme --dark -d   # ...or just print the diff first
 ```
+
+A project that has the dark theme from before 9.2.0 has no switch: `moarch
+create theme --dark` adds it, writing the two services, registering
+`PreferencesService` in `core_module.dart`, and adding shared_preferences to the
+pubspec. (A project whose locator is still the single pre-9.0.0 `injector.dart`
+keeps following the system.)
 
 The palette and everything reading it are generated against each other, so the
 switch is all of those files at once. Files moarch wrote and nobody edited are

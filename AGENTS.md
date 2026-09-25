@@ -117,8 +117,10 @@ Files moarch does not own are patched, not rewritten, by one util per format:
 `gradle_utils`, `kotlin_utils`, `manifest_utils`, `plist_utils`,
 `podfile_utils`, `swift_utils`, `pubspec_utils`. Generated files that get
 patched later carry an anchor comment — `injector_utils.dart` inserts get_it
-registrations above `// moarch:registrations`; the anchor is load-bearing and
-says so in the generated source.
+registrations above `// moarch:registrations`, and `router_utils.dart` each
+feature's path and `GoRoute` above `// moarch:routes`; the anchors are
+load-bearing and say so in the generated source. `dart_source.dart` holds the
+import-and-insert helpers both use.
 
 ### The locator is one file per layer
 
