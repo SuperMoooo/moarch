@@ -25,6 +25,7 @@ import '../utils/gradle_utils.dart';
 import '../utils/kotlin_utils.dart';
 import '../utils/manifest_utils.dart';
 import '../utils/package_versions.dart';
+import '../utils/platform_requirements.dart';
 import '../utils/plist_utils.dart';
 import '../utils/project_manifest.dart';
 import '../utils/podfile_utils.dart';
@@ -1258,12 +1259,15 @@ class InitCommand extends Command<int> {
     }
     if (stack.contains(_kAuthFeature) && !firebaseAuthFeature) {
       _logger.info(
-        '  Auth feature generated at lib/features/auth/ — adjust the',
+        '  Auth feature generated at lib/features/auth/ — adjust the /auth/*',
       );
       _logger.info(
-        '  /auth/* endpoints and token JSON keys in auth_remote_datasource.dart',
+        '  paths in core/constants/api_constants.dart, the payload keys in',
       );
-      _logger.info('  and core/network/dio_client.dart to your API contract.');
+      _logger.info(
+        '  auth_remote_datasource.dart and the fields GET /auth/me returns in',
+      );
+      _logger.info('  domain/models/user_model.dart to your API contract.');
       _logger.info('');
     }
     if (firebaseAuthFeature) {
@@ -1403,22 +1407,12 @@ class InitCommand extends Command<int> {
       content = PlistUtils.ensureLocalizations(content, ['en', 'pt']);
     }
     if (wantsMedia) {
-      content = PlistUtils.ensureEntries(content, {
-        'NSCameraUsageDescription':
-            'This app uses the camera to take photos and record videos.',
-        'NSPhotoLibraryUsageDescription':
-            'This app accesses your photo library so you can pick images.',
-        'NSMicrophoneUsageDescription':
-            'This app uses the microphone when recording videos.',
-      });
+      content = PlatformRequirement.media.patchPlist(content);
     }
     if (wantsBiometrics) {
       // Face ID requires an explicit usage description on iOS; Touch ID does
       // not, but the key is harmless to include either way.
-      content = PlistUtils.ensureEntries(content, {
-        'NSFaceIDUsageDescription':
-            'This app uses Face ID to verify your identity.',
-      });
+      content = PlatformRequirement.biometric.patchPlist(content);
     }
     if (wantsUrlLauncher) {
       // canLaunchUrl returns false on iOS for schemes not declared here,
@@ -1606,20 +1600,32 @@ class InitCommand extends Command<int> {
     _logger.info('  Updated android/app/build.gradle.kts with $addition.');
   }
 
-  /// local_auth needs the `USE_BIOMETRIC` permission declared, or biometric
-  /// prompts silently fail to appear on Android.
+  /// What the selected services need declared on Android — without it their
+  /// calls fail at runtime, not at build time (see [PlatformRequirement]) —
+  /// and the App Links intent filter.
   Future<void> _patchAndroidManifest(
     File manifestFile,
     Set<String> stack, {
     required bool dryRun,
   }) async {
-    final biometric = stack.contains(_kBiometricAuth);
+    final requirements = [
+      if (stack.contains(_kDio)) PlatformRequirement.internet,
+      if (stack.contains(_kMediaService)) PlatformRequirement.media,
+      if (stack.contains(_kNotificationsService))
+        PlatformRequirement.localNotifications,
+      if (stack.contains(_kFirebaseNotifications))
+        PlatformRequirement.pushNotifications,
+      if (stack.contains(_kLaunchUrlService)) PlatformRequirement.urlLauncher,
+      if (stack.contains(_kBiometricAuth)) PlatformRequirement.biometric,
+    ];
     final deepLinks = stack.contains(_kDeepLinks);
-    if (!biometric && !deepLinks) return;
+    if (requirements.isEmpty && !deepLinks) return;
 
     final addition = [
-      if (biometric) 'USE_BIOMETRIC permission',
-      if (deepLinks) 'App Links intent filter',
+      if (requirements.isNotEmpty)
+        'what ${requirements.map((r) => r.service).join(', ')} '
+            '${requirements.length == 1 ? 'needs' : 'need'}',
+      if (deepLinks) 'the App Links intent filter',
     ].join(' and ');
 
     if (!manifestFile.existsSync()) {
@@ -1639,10 +1645,8 @@ class InitCommand extends Command<int> {
 
     final content = await manifestFile.readAsString();
     var patched = content;
-    if (biometric) {
-      patched = ManifestUtils.ensurePermissions(patched, [
-        'android.permission.USE_BIOMETRIC',
-      ]);
+    for (final requirement in requirements) {
+      patched = requirement.patchManifest(patched);
     }
     if (deepLinks) {
       patched = ManifestUtils.ensureActivityIntentFilter(
@@ -1737,6 +1741,22 @@ class InitCommand extends Command<int> {
     return null;
   }
 
+  /// `api_constants.dart` for [stack]: the paths of everything it calls over
+  /// Dio. The gates poll their config over Dio only when Firestore is not
+  /// there to serve it instead.
+  String _apiConstants(Set<String> stack) {
+    final restAuthFeature =
+        stack.contains(_kAuthFeature) && !stack.contains(_kFirebaseAuth);
+    final dioConfig = stack.contains(_kDio) && !stack.contains(_kFirestore);
+    return CoreTemplates.apiConstants(
+      withAuthFeature: restAuthFeature,
+      withDeviceToken:
+          restAuthFeature && stack.contains(_kFirebaseNotifications),
+      withMaintenanceGate: dioConfig && stack.contains(_kMaintenanceGate),
+      withUpdateGate: dioConfig && stack.contains(_kUpdateGate),
+    );
+  }
+
   Future<void> _buildCore(
     String libPath,
     Set<String> stack,
@@ -1792,7 +1812,7 @@ class InitCommand extends Command<int> {
     );
     await FileUtils.writeFile(
       p.join(c, 'constants', 'api_constants.dart'),
-      CoreTemplates.apiConstants(withAuthFeature: restAuthFeature),
+      _apiConstants(stack),
     );
     if (stack.contains(_kDio)) {
       await FileUtils.writeFile(
@@ -1911,6 +1931,10 @@ class InitCommand extends Command<int> {
     await FileUtils.writeFile(
       p.join(f, 'domain', 'models', 'auth_tokens_model.dart'),
       templates.authModel(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'domain', 'models', 'user_model.dart'),
+      templates.authUserModel(),
     );
     await FileUtils.writeFile(
       p.join(f, 'data', 'datasources', 'auth_remote_datasource.dart'),
@@ -2145,6 +2169,8 @@ class InitCommand extends Command<int> {
       hasStatusColors: true,
       // AppConstants is written by _buildCore, with the curves.
       hasMotionTokens: true,
+      // And ApiConstants, with every path this checklist calls.
+      apiEndpoints: CoreTemplates.declaredEndpoints(_apiConstants(stack)),
       stateManagement: stateManagement,
     );
 

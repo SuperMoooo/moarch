@@ -41,6 +41,7 @@ class WidgetVariants {
     this.hasDarkTheme = false,
     this.hasStatusColors = false,
     this.hasMotionTokens = false,
+    this.apiEndpoints = const {},
     this.stateManagement = StateManagement.riverpod,
   });
 
@@ -57,8 +58,20 @@ class WidgetVariants {
     hasDarkTheme: hasDarkThemeIn(libPath),
     hasStatusColors: hasStatusColorsIn(libPath),
     hasMotionTokens: hasMotionTokensIn(libPath),
+    apiEndpoints: apiEndpointsIn(libPath),
     stateManagement: StateManagement.detect(libPath),
   );
+
+  /// The constant names `lib/core/constants/api_constants.dart` declares —
+  /// see [CoreTemplates.endpointLiterals] for why a widget has to ask.
+  static Set<String> apiEndpointsIn(String libPath) {
+    final file = File(
+      p.join(libPath, 'core', 'constants', 'api_constants.dart'),
+    );
+    return file.existsSync()
+        ? CoreTemplates.declaredEndpoints(file.readAsStringSync())
+        : const {};
+  }
 
   /// Whether `lib/core/constants/app_constants.dart` declares the motion
   /// curves — see [CoreTemplates.tokenLiterals] for why a widget has to ask.
@@ -141,6 +154,10 @@ class WidgetVariants {
   /// `AppConstants` declares the motion curves. Without them every widget is
   /// written with the literal curve instead of the token.
   final bool hasMotionTokens;
+
+  /// The constants `ApiConstants` declares. A gate whose config path is not
+  /// among them is written with the literal path instead.
+  final Set<String> apiEndpoints;
 
   /// The stack the project's state-bearing widgets are generated against —
   /// AppAsyncView, the action listener, the maintenance gate and AppButton
@@ -1122,7 +1139,10 @@ abstract final class WidgetCatalog {
   /// and `update` cannot each answer it differently — the bug that shows up as
   /// `update` reporting a file as edited the moment it was generated.
   static String sourceFor(WidgetSpec spec, WidgetVariants variants) {
-    final source = spec.variantTemplate?.call(variants) ?? spec.template();
+    final source = CoreTemplates.inlineMissingEndpoints(
+      spec.variantTemplate?.call(variants) ?? spec.template(),
+      variants.apiEndpoints,
+    );
     return variants.hasMotionTokens
         ? source
         : CoreTemplates.inlineMissingTokens(source);

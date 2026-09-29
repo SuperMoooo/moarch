@@ -43,8 +43,10 @@ $_notificationsPreamble${_notificationsBody(constructor, ensureInitHint)}''';
   /// Everything above the class: the platform notes, the logger and the
   /// top-level background handler.
   static const String _notificationsPreamble = r'''
-// Android: AndroidManifest.xml needs RECEIVE_BOOT_COMPLETED, SCHEDULE_EXACT_ALARM,
-// USE_EXACT_ALARM and POST_NOTIFICATIONS.
+// Android: `moarch init` declares POST_NOTIFICATIONS, RECEIVE_BOOT_COMPLETED,
+// SCHEDULE_EXACT_ALARM and the plugin's receivers in AndroidManifest.xml
+// (`moarch doctor --fix` adds them to an older project). USE_EXACT_ALARM is
+// left out on purpose: Google Play allows it only for alarm and calendar apps.
 // iOS: `moarch init` sets UNUserNotificationCenter.current().delegate in
 // AppDelegate.swift. Never override userNotificationCenter(_:didReceive:)
 // without calling super — that blocks the plugins from receiving taps.

@@ -198,6 +198,15 @@ class ScaffoldContext {
   /// refresh callback the Dio client has anything to do with.
   bool get hasRestAuthFeature => hasAuthFeature && !hasFirebaseAuthFeature;
 
+  /// The constant names `lib/core/constants/api_constants.dart` declares —
+  /// see [CoreTemplates.inlineMissingEndpoints] for why a template asks.
+  Set<String> get apiEndpoints {
+    final file = File(resolve('lib/core/constants/api_constants.dart'));
+    return file.existsSync()
+        ? CoreTemplates.declaredEndpoints(file.readAsStringSync())
+        : const {};
+  }
+
   /// The package name from `pubspec.yaml` — what the README calls the project.
   ///
   /// Falls back to `app` for a project with no pubspec, which is the same
@@ -463,9 +472,14 @@ abstract final class ScaffoldCatalog {
       title: 'ApiConstants',
       path: 'lib/core/constants/api_constants.dart',
       category: 'Core',
-      template: (c) =>
-          CoreTemplates.apiConstants(withAuthFeature: c.hasRestAuthFeature),
-      description: 'Endpoint paths and API timeouts.',
+      template: (c) => CoreTemplates.apiConstants(
+        withAuthFeature: c.hasRestAuthFeature,
+        withDeviceToken: c.hasRestAuthFeature && c.hasFirebaseNotifications,
+        withMaintenanceGate:
+            c.hasMaintenanceGate && c.hasDio && !c.hasFirestore,
+        withUpdateGate: c.hasUpdateGate && c.hasDio && !c.hasFirestore,
+      ),
+      description: 'Every endpoint path, and the API timeouts.',
     ),
     ScaffoldSpec(
       name: 'main',
@@ -888,6 +902,14 @@ abstract final class ScaffoldCatalog {
       description: 'The access/refresh token pair, as the API sends it.',
     ),
     ScaffoldSpec(
+      name: 'auth-me-model',
+      title: 'UserModel',
+      path: 'lib/features/auth/domain/models/user_model.dart',
+      category: 'Auth feature',
+      template: (c) => c.stack.authUserModel(),
+      description: 'The signed-in user, as GET /auth/me returns it (REST).',
+    ),
+    ScaffoldSpec(
       name: 'auth-user-model',
       title: 'AuthUserModel',
       path: 'lib/features/auth/domain/models/auth_user_model.dart',
@@ -907,8 +929,11 @@ abstract final class ScaffoldCatalog {
               withFirestore: c.hasFirestore,
               withPushNotifications: c.hasFirebaseNotifications,
             )
-          : c.stack.authRemoteDatasource(
-              withPushNotifications: c.hasFirebaseNotifications,
+          : CoreTemplates.inlineMissingEndpoints(
+              c.stack.authRemoteDatasource(
+                withPushNotifications: c.hasFirebaseNotifications,
+              ),
+              c.apiEndpoints,
             ),
       description:
           'The auth calls — /auth/* over Dio, or FirebaseAuth and Google sign-in.',

@@ -19,27 +19,33 @@ class AuthTemplates {
   static String repositoryInterface({bool withPushNotifications = false}) {
     final syncDeviceToken = withPushNotifications
         ? '''
+
   /// Reads this device's push token and sends it to the backend, so it can
   /// target the signed-in user. Safe to call repeatedly — the token only
   /// changes when the install does.
   Future<void> syncDeviceToken();
-
 '''
         : '';
 
     return '''
+import '../models/user_model.dart';
+
 abstract interface class AuthRepository {
   /// True when a session can be restored: a refresh token is stored and a
   /// new access token could be obtained from it. Called by the auth bloc
   /// when AuthStarted is dispatched at app start.
   Future<bool> isLoggedIn();
 
-  /// Authenticates and saves access token, refresh token and user id in
-  /// secure storage.
-  Future<void> login({required String email, required String password});
+  /// Authenticates, saves the access and refresh tokens in secure storage,
+  /// and returns the signed-in user from `GET /auth/me`.
+  Future<UserModel> login({required String email, required String password});
 
-  /// Creates the account and saves the returned session in secure storage.
-  Future<void> register({required String email, required String password});
+  /// Creates the account, saves the returned session in secure storage, and
+  /// returns the new user from `GET /auth/me`.
+  Future<UserModel> register({required String email, required String password});
+
+  /// The signed-in user, as `GET /auth/me` returns it.
+  Future<UserModel> me();
 
   /// Exchanges the stored refresh token for a new access token.
   Future<void> refresh();
@@ -50,10 +56,7 @@ abstract interface class AuthRepository {
 
   /// Deletes the account on the backend and clears the local session.
   Future<void> deleteAccount();
-
-$syncDeviceToken  /// User id extracted from the access token when the session was saved.
-  Future<String?> currentUserId();
-}
+$syncDeviceToken}
 ''';
   }
 
@@ -84,6 +87,37 @@ abstract class AuthTokensModel with _$AuthTokensModel {
 }
 ''';
 
+  /// Returns the generated signed-in user model template — what
+  /// `GET /auth/me` answers with.
+  static String userModel() => r'''
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'user_model.freezed.dart';
+part 'user_model.g.dart';
+
+/// The signed-in user, as `GET /auth/me` returns it. The auth state carries
+/// it, so any screen reads who is signed in from there rather than asking
+/// the API again.
+///
+/// `build.yaml` renames every field to snake_case. Add the fields your API
+/// sends; an `id` your backend sends as a number is `int` here, not `String`.
+@freezed
+abstract class UserModel with _$UserModel {
+  const factory UserModel({
+    required String id,
+    required String email,
+    String? name,
+  }) = _UserModel;
+
+  factory UserModel.fromJson(Map<String, dynamic> json) =>
+      _$UserModelFromJson(json);
+
+  /// A blank user — what a test stubs `me()` with. Freezed does not write this
+  /// one, so it is yours to keep in step with the fields above.
+  factory UserModel.empty() => const UserModel(id: '', email: '');
+}
+''';
+
   // ── Data — Remote datasource ────────────────────────────────────────────────
 
   /// Returns the generated auth remote datasource template.
@@ -102,7 +136,7 @@ abstract class AuthTokensModel with _$AuthTokensModel {
   Future<void> saveDeviceToken({required String token}) {
     return safeApiCall<void>(
       apiCall: () async {
-        await _dio.post<dynamic>('/auth/device-token', data: {
+        await _dio.post<dynamic>(ApiConstants.authDeviceToken, data: {
           'token': token,
         });
       },
@@ -117,6 +151,7 @@ import 'package:dio/dio.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/network/safe_api_call.dart';
 import '../../domain/models/auth_tokens_model.dart';
+import '../../domain/models/user_model.dart';
 
 class AuthRemoteDataSource {
   const AuthRemoteDataSource(this._dio);
@@ -124,8 +159,8 @@ class AuthRemoteDataSource {
   final Dio _dio;
 
   // The paths live in ApiConstants, which is also where dio_client.dart reads
-  // the three that go out without an Authorization header. Adjust the payload
-  // keys below to your API contract.
+  // the three that go out without an Authorization header. Payload keys are
+  // snake_case, like the models' — adjust them to your API contract.
 
   Future<AuthTokensModel> login({
     required String email,
@@ -161,15 +196,26 @@ class AuthRemoteDataSource {
     return safeApiCall<AuthTokensModel>(
       apiCall: () async {
         final response = await _dio.post<dynamic>(ApiConstants.authRefresh, data: {
-          'refreshToken': refreshToken,
+          'refresh_token': refreshToken,
         });
         final data = response.data as Map<String, dynamic>;
         // Backends that don't rotate the refresh token only return a new
         // access token — keep the current one in that case.
         return AuthTokensModel(
-          accessToken: data['accessToken'] as String,
-          refreshToken: data['refreshToken'] as String? ?? refreshToken,
+          accessToken: data['access_token'] as String,
+          refreshToken: data['refresh_token'] as String? ?? refreshToken,
         );
+      },
+    );
+  }
+
+  /// The signed-in user. The access token on the request is what says who
+  /// that is, so this is called once the session is saved.
+  Future<UserModel> me() {
+    return safeApiCall<UserModel>(
+      apiCall: () async {
+        final response = await _dio.get<dynamic>(ApiConstants.authAccount);
+        return UserModel.fromJson(response.data as Map<String, dynamic>);
       },
     );
   }
@@ -180,7 +226,7 @@ class AuthRemoteDataSource {
         // Lets the backend revoke the refresh token; local cleanup happens
         // in the repository even when this call fails.
         await _dio.post<dynamic>(ApiConstants.authLogout, data: {
-          'refreshToken': refreshToken,
+          'refresh_token': refreshToken,
         });
       },
     );
@@ -236,6 +282,8 @@ $saveDeviceToken}
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/security/secure_storage.dart';
 ${pushImport}import '../../../../core/utils/app_logger.dart';
+import '../../domain/models/auth_tokens_model.dart';
+import '../../domain/models/user_model.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_datasource.dart';
 
@@ -265,24 +313,42 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<void> login({required String email, required String password}) async {
+  Future<UserModel> login({
+    required String email,
+    required String password,
+  }) async {
     final tokens = await _remote.login(email: email, password: password);
-    await _tokens.saveSession(
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-    );
+    return _startSession(tokens);
   }
 
   @override
-  Future<void> register({
+  Future<UserModel> register({
     required String email,
     required String password,
   }) async {
     final tokens = await _remote.register(email: email, password: password);
+    return _startSession(tokens);
+  }
+
+  @override
+  Future<UserModel> me() => _remote.me();
+
+  /// Saves [tokens], then asks the backend who they belong to.
+  ///
+  /// A session with no user is not one any screen expects, so a failed
+  /// `GET /auth/me` undoes the save: the error reaches the login screen, and
+  /// the next attempt starts clean.
+  Future<UserModel> _startSession(AuthTokensModel tokens) async {
     await _tokens.saveSession(
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     );
+    try {
+      return await _remote.me();
+    } on AppException {
+      await _tokens.clearSession();
+      rethrow;
+    }
   }
 
   /// The refresh currently in flight, if any.
@@ -327,10 +393,7 @@ class AuthRepositoryImpl implements AuthRepository {
     await _remote.delete();
     await _tokens.clearSession();
   }
-$syncDeviceToken
-  @override
-  Future<String?> currentUserId() => _tokens.userId;
-}
+$syncDeviceToken}
 ''';
   }
 
@@ -339,6 +402,8 @@ $syncDeviceToken
   /// Returns the generated auth state template.
   static String state() => r'''
 import 'package:equatable/equatable.dart';
+
+import '../../domain/models/user_model.dart';
 
 /// Whether this app has a session, as a sealed family.
 ///
@@ -363,12 +428,14 @@ final class AuthLoading extends AuthState {
 
 /// Signed in.
 final class AuthAuthenticated extends AuthState {
-  const AuthAuthenticated({this.userId});
+  const AuthAuthenticated({this.user});
 
-  final String? userId;
+  /// The signed-in user from `GET /auth/me`. Null only after an offline start
+  /// on a kept session, until `AuthUserReloadRequested` succeeds.
+  final UserModel? user;
 
   @override
-  List<Object?> get props => [userId];
+  List<Object?> get props => [user];
 }
 
 /// Signed out, and nothing went wrong getting here.
@@ -378,17 +445,17 @@ final class AuthUnauthenticated extends AuthState {
 
 /// An attempt failed.
 ///
-/// [userId] is what the failure did *not* change: null means the app is
+/// [session] is what the failure did *not* change: null means the app is
 /// signed out and the login screen shows [message]; non-null means the
-/// session survived — a delete or a password reset the backend refused — and
-/// the screen that asked for it shows [message] without the user being
-/// bounced to login.
+/// session survived — a delete or a reload the backend refused — and the
+/// screen that asked for it shows [message] without the user being bounced
+/// to login.
 final class AuthFailure extends AuthState {
   /// Not const, and not value-equal: every failure gets its own [id] off
   /// [_seq], so two failures with the same message are two different states.
   /// Without that, a second wrong password equals the current state, the
   /// emit is dropped, and the screen never shows the error again.
-  AuthFailure(this.message, {this.userId}) : id = ++_seq;
+  AuthFailure(this.message, {this.session}) : id = ++_seq;
 
   static int _seq = 0;
 
@@ -396,16 +463,19 @@ final class AuthFailure extends AuthState {
 
   final String message;
 
-  /// The still-signed-in user, or null when this failure left the app
+  /// The still-signed-in session, or null when this failure left the app
   /// signed out.
-  final String? userId;
+  final AuthAuthenticated? session;
+
+  /// The still-signed-in user, if there is one.
+  UserModel? get user => session?.user;
 
   /// Whether the session outlived the failure. The router redirect reads
   /// this — see `config/router/app_router.dart`.
-  bool get authenticated => userId != null;
+  bool get authenticated => session != null;
 
   @override
-  List<Object?> get props => [message, userId, id];
+  List<Object?> get props => [message, session, id];
 }
 ''';
 
@@ -447,6 +517,12 @@ final class AuthRegisterRequested extends AuthEvent {
 
   @override
   List<Object?> get props => [email, password];
+}
+
+/// Fetch the signed-in user again — after the profile changed, or when the
+/// app started offline and `AuthAuthenticated.user` is still null.
+final class AuthUserReloadRequested extends AuthEvent {
+  const AuthUserReloadRequested();
 }
 
 final class AuthLogoutRequested extends AuthEvent {
@@ -546,6 +622,7 @@ class RegisterView extends StatelessWidget {
         ? withDroppable(source, const [
             'AuthLoginRequested',
             'AuthRegisterRequested',
+            'AuthUserReloadRequested',
             'AuthLogoutRequested',
             'AuthAccountDeleted',
           ])
@@ -573,6 +650,8 @@ import 'dart:async';
 import 'package:bloc/bloc.dart';
 
 import '../../../../core/errors/app_exception.dart';
+import '../../../../core/utils/app_logger.dart';
+import '../../domain/models/user_model.dart';
 import '../../domain/repositories/auth_repository.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
@@ -586,6 +665,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthStarted>(_onStarted);
     on<AuthLoginRequested>(_onLogin);
     on<AuthRegisterRequested>(_onRegister);
+    on<AuthUserReloadRequested>(_onUserReload);
     on<AuthLogoutRequested>(_onLogout);
     on<AuthAccountDeleted>(_onDeleteAccount);
   }
@@ -603,7 +683,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         return;
       }
 $syncOnRestore
-      emit(AuthAuthenticated(userId: await _repo.currentUserId()));
+      // The session is what decides signed in or out, and it survived — an
+      // offline start keeps it (see isLoggedIn). So a user that cannot be
+      // fetched yet stays null, for AuthUserReloadRequested to fill in,
+      // rather than bouncing to login.
+      UserModel? user;
+      try {
+        user = await _repo.me();
+      } on AppException catch (e) {
+        appLogger.w('Signed-in user not loaded', error: e);
+      }
+      emit(AuthAuthenticated(user: user));
     } on AppException catch (_) {
       // A failed restore is a signed-out app, not an error screen — the user
       // can still log in.
@@ -617,8 +707,11 @@ $syncOnRestore
   ) async {
     emit(const AuthLoading());
     try {
-      await _repo.login(email: event.email, password: event.password);$syncAfterAuth
-      emit(AuthAuthenticated(userId: await _repo.currentUserId()));
+      final user = await _repo.login(
+        email: event.email,
+        password: event.password,
+      );$syncAfterAuth
+      emit(AuthAuthenticated(user: user));
     } on AppException catch (e) {
       // Still signed out, now with a reason the login screen can show.
       emit(AuthFailure(e.message));
@@ -631,10 +724,28 @@ $syncOnRestore
   ) async {
     emit(const AuthLoading());
     try {
-      await _repo.register(email: event.email, password: event.password);$syncAfterAuth
-      emit(AuthAuthenticated(userId: await _repo.currentUserId()));
+      final user = await _repo.register(
+        email: event.email,
+        password: event.password,
+      );$syncAfterAuth
+      emit(AuthAuthenticated(user: user));
     } on AppException catch (e) {
       emit(AuthFailure(e.message));
+    }
+  }
+
+  Future<void> _onUserReload(
+    AuthUserReloadRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final current = state;
+    if (current is! AuthAuthenticated) return;
+
+    // No AuthLoading, for the reason given in _onDeleteAccount.
+    try {
+      emit(AuthAuthenticated(user: await _repo.me()));
+    } on AppException catch (e) {
+      emit(AuthFailure(e.message, session: current));
     }
   }
 
@@ -657,13 +768,13 @@ $syncOnRestore
     // No AuthLoading around this one, deliberately: the router keys on this
     // state and would read a loading state as "not signed in", bouncing a
     // user who still is. The screen showing the confirm dialog owns the
-    // spinner. A failure does get reported — carrying the userId, which is
-    // what tells the redirect the session is still good.
+    // spinner. A failure does get reported — carrying the session, which is
+    // what tells the redirect it is still good.
     try {
       await _repo.deleteAccount();
       emit(const AuthUnauthenticated());
     } on AppException catch (e) {
-      emit(AuthFailure(e.message, userId: current.userId));
+      emit(AuthFailure(e.message, session: current));
     }
   }
 }

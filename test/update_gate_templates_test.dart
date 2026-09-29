@@ -44,7 +44,8 @@ void main() {
 
       test('Dio re-reads on resume, not on a timer', () {
         final source = updateGate(withDio: true);
-        expect(source, contains("'/config/app-version'"));
+        expect(source, contains('ApiConstants.configAppVersion'));
+        expect(source, contains('core/constants/api_constants.dart'));
         expect(source, contains('AppLifecycleListener(onResume: check)'));
         expect(source, isNot(contains('Timer.periodic')));
         expect(source, isNot(contains('cloud_firestore')));

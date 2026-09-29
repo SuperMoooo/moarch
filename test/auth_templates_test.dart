@@ -16,9 +16,12 @@ void main() {
     expect(output, isNot(contains('flutter_riverpod')));
     expect(output, contains('Future<void> saveSession'));
     expect(output, contains('Future<void> clearSession'));
-    // User id is decoded from the access token payload at save time.
-    expect(output, contains('_userIdFromJwt(accessToken)'));
-    expect(output, contains("payload['sub']"));
+    // Who is signed in comes from GET /auth/me, not from the token.
+    expect(output, isNot(contains('_userIdFromJwt')));
+    expect(output, isNot(contains('get userId')));
+    expect(output, isNot(contains('dart:convert')));
+    // What older builds stored is still wiped on logout.
+    expect(output, contains('await _storage.delete(key: _legacyUserIdKey);'));
   });
 
   test('dioClient refreshes the session on 401 and retries once', () {
@@ -105,11 +108,44 @@ void main() {
     expect(output, contains('safeApiCall<'));
   });
 
+  test('auth datasource fetches the user from GET /auth/me', () {
+    final output = AuthTemplates.remoteDatasource();
+
+    expect(output, contains('Future<UserModel> me()'));
+    expect(output, contains('_dio.get<dynamic>(ApiConstants.authAccount)'));
+    expect(output, contains('UserModel.fromJson('));
+    expect(output, contains("import '../../domain/models/user_model.dart';"));
+  });
+
+  test('auth payloads are snake_case, like the models', () {
+    final output = AuthTemplates.remoteDatasource();
+
+    expect(output, contains("'refresh_token': refreshToken"));
+    expect(output, contains("data['access_token'] as String"));
+    expect(output, contains("data['refresh_token'] as String?"));
+    expect(output, isNot(contains("'refreshToken'")));
+    expect(output, isNot(contains("'accessToken'")));
+  });
+
+  test('the user model is freezed and snake_case through build.yaml', () {
+    final output = AuthTemplates.userModel();
+
+    expect(output, contains('abstract class UserModel with _\$UserModel'));
+    expect(output, contains("part 'user_model.freezed.dart';"));
+    expect(output, contains("part 'user_model.g.dart';"));
+    expect(output, contains('required String id,'));
+    expect(output, contains('required String email,'));
+  });
+
   test('auth repository saves the session on login and restores it', () {
     final interface = AuthTemplates.repositoryInterface();
     final impl = AuthTemplates.repositoryImpl();
 
     expect(interface, contains('Future<bool> isLoggedIn()'));
+    expect(interface, contains('Future<UserModel> login('));
+    expect(interface, contains('Future<UserModel> register('));
+    expect(interface, contains('Future<UserModel> me();'));
+    expect(interface, isNot(contains('currentUserId')));
     // Constructor injection, resolved in injector.dart.
     expect(impl, contains('AuthRepositoryImpl(this._remote, this._tokens)'));
     expect(impl, isNot(contains('Provider')));
@@ -117,6 +153,12 @@ void main() {
     // isLoggedIn: refresh token present → refresh() → logged in.
     expect(impl, contains('if (refreshToken == null) return false;'));
     expect(impl, contains('await refresh();'));
+    // Login and register save the tokens, then ask who they belong to — and
+    // a failed /auth/me leaves no half session behind.
+    expect(impl, contains('return _startSession(tokens);'));
+    expect(impl, contains('return await _remote.me();'));
+    expect(impl, contains('await _tokens.clearSession();\n      rethrow;'));
+    expect(impl, isNot(contains('_tokens.userId')));
   });
 
   test('auth views are generated as bare skeletons', () {
@@ -130,6 +172,26 @@ void main() {
     expect(output, contains('FutureOr<AuthState> build() async'));
     expect(output, contains('await _repo.isLoggedIn();'));
     expect(output, contains('authenticated: true'));
+  });
+
+  test('auth notifier carries the user from /auth/me', () {
+    final notifier = AuthTemplates.notifier();
+    final state = AuthTemplates.state();
+
+    expect(state, contains('final UserModel? user;'));
+    expect(state, isNot(contains('userId')));
+    expect(
+      notifier,
+      contains('return AuthState(authenticated: true, user: user);'),
+    );
+    // A restored session whose user cannot be fetched stays signed in.
+    expect(notifier, contains('user = await _repo.me();'));
+    expect(
+      notifier,
+      contains('return AuthState(authenticated: true, user: user);'),
+    );
+    expect(notifier, contains('Future<void> reloadUser()'));
+    expect(notifier, isNot(contains('currentUserId')));
   });
 
   group('device token registration', () {
@@ -179,7 +241,7 @@ void main() {
         // A device that cannot register must not fail the sign-in.
         expect(impl, contains('} on AppException catch (e) {'));
         expect(datasource, contains('Future<void> saveDeviceToken({'));
-        expect(datasource, contains("'/auth/device-token'"));
+        expect(datasource, contains('ApiConstants.authDeviceToken'));
       },
     );
 
@@ -270,6 +332,81 @@ void main() {
     expect(without, isNot(contains('authRefresh')));
     // The timeouts are there either way.
     expect(without, contains('connectTimeout'));
+  });
+
+  test('apiConstants declares every endpoint the options call', () {
+    final all = CoreTemplates.apiConstants(
+      withAuthFeature: true,
+      withDeviceToken: true,
+      withMaintenanceGate: true,
+      withUpdateGate: true,
+    );
+
+    expect(
+      all,
+      contains("static const authDeviceToken = '/auth/device-token';"),
+    );
+    expect(
+      all,
+      contains("static const configMaintenance = '/config/maintenance';"),
+    );
+    expect(
+      all,
+      contains("static const configAppVersion = '/config/app-version';"),
+    );
+    expect(
+      CoreTemplates.apiConstants(withAuthFeature: true),
+      isNot(contains('authDeviceToken')),
+    );
+    // The anchor create feature inserts above, with or without options.
+    expect(CoreTemplates.apiConstants(), contains('  // moarch:endpoints\n}'));
+  });
+
+  group('inlineMissingEndpoints', () {
+    test('keeps a constant the project declares', () {
+      final source = AuthTemplates.remoteDatasource(
+        withPushNotifications: true,
+      );
+      final out = CoreTemplates.inlineMissingEndpoints(
+        source,
+        CoreTemplates.declaredEndpoints(
+          CoreTemplates.apiConstants(
+            withAuthFeature: true,
+            withDeviceToken: true,
+          ),
+        ),
+      );
+
+      expect(out, source);
+    });
+
+    test('writes the path for a constant an older project lacks', () {
+      final out = CoreTemplates.inlineMissingEndpoints(
+        AuthTemplates.remoteDatasource(withPushNotifications: true),
+        CoreTemplates.declaredEndpoints(
+          CoreTemplates.apiConstants(withAuthFeature: true),
+        ),
+      );
+
+      expect(out, contains("_dio.post<dynamic>('/auth/device-token'"));
+      expect(out, isNot(contains('ApiConstants.authDeviceToken')));
+      // Still used by the other calls.
+      expect(out, contains('core/constants/api_constants.dart'));
+    });
+
+    test('drops the import once nothing reads ApiConstants', () {
+      const source =
+          "import '../../core/constants/api_constants.dart';\n"
+          "import 'error_view.dart';\n"
+          'final path = ApiConstants.configMaintenance;\n';
+
+      final out = CoreTemplates.inlineMissingEndpoints(source, const {});
+
+      expect(
+        out,
+        "import 'error_view.dart';\nfinal path = '/config/maintenance';\n",
+      );
+    });
   });
 
   group('safeApiCall', () {

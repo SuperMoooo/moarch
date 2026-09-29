@@ -117,10 +117,22 @@ Files moarch does not own are patched, not rewritten, by one util per format:
 `gradle_utils`, `kotlin_utils`, `manifest_utils`, `plist_utils`,
 `podfile_utils`, `swift_utils`, `pubspec_utils`. Generated files that get
 patched later carry an anchor comment — `injector_utils.dart` inserts get_it
-registrations above `// moarch:registrations`, and `router_utils.dart` each
-feature's path and `GoRoute` above `// moarch:routes`; the anchors are
-load-bearing and say so in the generated source. `dart_source.dart` holds the
-import-and-insert helpers both use.
+registrations above `// moarch:registrations`, `router_utils.dart` each
+feature's path and `GoRoute` above `// moarch:routes`, and
+`api_constants_utils.dart` each feature's endpoint above `// moarch:endpoints`;
+the anchors are load-bearing and say so in the generated source.
+`dart_source.dart` holds the import-and-insert helpers they use.
+
+What a service needs declared in `AndroidManifest.xml` / `Info.plist`
+(permissions, receivers, `<queries>`, usage descriptions) is one table,
+`utils/platform_requirements.dart`: `init` applies it per checklist option and
+`doctor --fix` per service found on disk. A new service that needs a
+declaration gets a `PlatformRequirement` there, not a patch in `init`.
+
+Every endpoint lives in `ApiConstants`. A template that names one an older
+project may not declare goes in `CoreTemplates.endpointLiterals`, and its
+refresh is passed through `inlineMissingEndpoints` — the `ApiConstants`
+counterpart of `inlineMissingTokens`.
 
 ### The locator is one file per layer
 

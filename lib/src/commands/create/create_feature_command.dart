@@ -7,6 +7,7 @@ import 'package:moarch/src/templates/core/services_templates.dart';
 import 'package:path/path.dart' as p;
 
 import '../../templates/stack_templates.dart';
+import '../../utils/api_constants_utils.dart';
 import '../../utils/checklist.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/injector_utils.dart';
@@ -256,10 +257,20 @@ class CreateFeatureCommand extends Command<int> {
 
     var injectorPatch = InjectorPatchResult.none;
     var routePatch = RoutePatchResult.noRouter;
+    var endpointPatch = EndpointPatchResult.noConstants;
     var staleActionBase = false;
 
     try {
       if (selected.contains(_kRemoteDatasource)) {
+        // Every path lives in ApiConstants, so the endpoint goes there first
+        // and the datasource names it. Firestore has a collection instead.
+        if (!useFirestore) {
+          endpointPatch = await ApiConstantsUtils.register(
+            libPath,
+            featureName: featureName,
+            varName: varName,
+          );
+        }
         await _writeRemoteDatasource(
           featurePath,
           featureName,
@@ -267,6 +278,7 @@ class CreateFeatureCommand extends Command<int> {
           varName,
           templates,
           useFirestore: useFirestore,
+          withApiConstant: endpointPatch.declared,
         );
         if (useFirestore) {
           // The datasource imports the Firebase wiring and the safe-call
@@ -440,6 +452,28 @@ class CreateFeatureCommand extends Command<int> {
       }
       _logger.info('');
     }
+    switch (endpointPatch) {
+      case EndpointPatchResult.added:
+      case EndpointPatchResult.alreadyThere:
+        _logger.info(
+          '  Endpoint: ApiConstants.$varName → '
+          '${ApiConstantsUtils.pathFor(featureName)} (lib/core/constants/).',
+        );
+        _logger.info('');
+      case EndpointPatchResult.missingAnchor:
+        _logger.warn(
+          '  api_constants.dart has no `${ApiConstantsUtils.anchor}` comment, '
+          'so the',
+        );
+        _logger.info(
+          '  datasource calls ${ApiConstantsUtils.pathFor(featureName)} inline. '
+          'Move it into ApiConstants:',
+        );
+        _logger.info(ApiConstantsUtils.endpointConstant(featureName, varName));
+        _logger.info('');
+      case EndpointPatchResult.noConstants:
+        break;
+    }
     switch (routePatch) {
       case RoutePatchResult.added:
       case RoutePatchResult.alreadyThere:
@@ -598,6 +632,7 @@ class CreateFeatureCommand extends Command<int> {
     String varName,
     StackTemplates templates, {
     bool useFirestore = false,
+    bool withApiConstant = false,
   }) async {
     await FileUtils.writeFile(
       p.join(fp, 'data', 'datasources', '${name}_remote_datasource.dart'),
@@ -606,6 +641,7 @@ class CreateFeatureCommand extends Command<int> {
         cls,
         varName,
         useFirestore: useFirestore,
+        withApiConstant: withApiConstant,
       ),
     );
   }

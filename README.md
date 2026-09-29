@@ -89,7 +89,8 @@ moarch doctor --fix  # ...and apply the ones that don't need a decision
 - Riverpod **or** flutter_bloc (see below) + optional GoRouter setup
 - Envied-based `.env` support
 - secure storage, logger, helpers, and a full shared UI kit / design system (see below)
-- optional services such as notifications (local or Firebase push), URL launcher, media, debounce
+- optional services such as notifications (local or Firebase push), URL launcher, media, debounce — each with what it needs declared in `AndroidManifest.xml` and `Info.plist` (camera and photo permissions for media, the exact-alarm permission and receivers for scheduled notifications, `<queries>` for the URL launcher, `INTERNET` for Dio's release build), since a missing declaration fails at runtime rather than at build time
+- `core/constants/api_constants.dart` — every endpoint path the app calls, never a string at the call site. `moarch create feature` declares each new feature's above a `// moarch:endpoints` anchor, the way it registers the data layer and the route
 - an optional maintenance gate — a backend flag that empties the app (see below)
 - an optional offline screen over the app, and a hook that runs when the connection comes back — for a sync (see below)
 - optional deep links: https links open the app on the matching route, Android App Links and iOS Universal Links (see below)
@@ -362,7 +363,7 @@ names, the same `AppException` reaching the same `AppAsyncView`.
 | model `id` | `int` | `String` — a document id |
 | model shape | freezed + json_serializable | plus `fromDoc`, an id kept out of the body, and dates stored as `Timestamp` |
 | errors mapped by | `AppException.fromDioError` | `fromFirebaseError` + `fromFirebaseAuthError` |
-| auth feature | tokens in secure storage, refresh interceptor | Firebase Auth, email/password + Google |
+| auth feature | tokens in secure storage, refresh interceptor, the user from `GET /auth/me` | Firebase Auth, email/password + Google |
 
 `moarch create feature <name>` follows the same choice. In a Firestore project
 the datasource comes out with `fetchAll` / `fetchOne` / `watchAll` /
@@ -559,7 +560,8 @@ so when the option is on.
 
 `core/utils/extensions.dart` carries the small helpers every screen reaches for:
 `context.theme` / `colorScheme` / `isDarkMode` / `isTablet` / `isKeyboardOpen` /
-`unfocus()`, `formKey.isValid` for a whole form's validators, string helpers (`initials`, `capitalizeWords`, `truncate`,
+`unfocus()`, `formKey.isValid` for a whole form's validators, `controller.trimmed` /
+`trimmedOrNull` for what a text field submits, string helpers (`initials`, `capitalizeWords`, `truncate`,
 `withoutDiacritics`, `searchKey`, `matchesSearch`, `isBlank`, `digitsOnly`),
 date and time helpers (`startOfDay`, `endOfMonth`, `isTomorrow`, `yearsSince`,
 `format(pattern)`, `timeAgo()`, `TimeOfDay.onDate`), `Duration.formatted`, and
@@ -1397,11 +1399,17 @@ those edits. Run `git diff` after any update before committing.
   `google_sign_in` absent from `pubspec.yaml`, or `Info.plist` still carrying
   the placeholder Google client ids — each of which fails at runtime, on the
   first call, with an error that doesn't name the step that was missed
+- a generated service missing its platform declarations — the camera and
+  photo permissions `MediaService` requests, the notification receivers, the
+  URL launcher's `<queries>` — which denies or throws at runtime instead
+- a REST auth feature from before 9.3.0 without the `UserModel` its refreshed
+  files import
 
 Each finding says what to do about it, and `moarch doctor --fix` applies the
 mechanical ones — generating a missing widget dependency, adding a missing
 package, copying `CLIENT_ID` and `REVERSED_CLIENT_ID` out of
-`GoogleService-Info.plist` into `Info.plist`. Anything that's a genuine choice
+`GoogleService-Info.plist` into `Info.plist`, declaring a service's
+permissions, writing the auth `UserModel`. Anything that's a genuine choice
 (which localization package to drop) is reported and left to you.
 
 ## Scopes (bloc)

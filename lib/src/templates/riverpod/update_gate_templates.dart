@@ -28,6 +28,8 @@ class UpdateGateTemplates {
       "import 'package:url_launcher/url_launcher.dart';",
       '',
       if (withFirestore || withDio) "import '../../config/di/injector.dart';",
+      if (withDio && !withFirestore)
+        "import '../../core/constants/api_constants.dart';",
       "import '../../core/constants/app_constants.dart';",
     ].join('\n');
 
@@ -86,8 +88,8 @@ final updatePolicyProvider = StreamProvider<UpdatePolicy>((ref) {
 /// by the minute, and someone returning to the app is who meets it.
 ///
 /// The endpoint must be reachable **without a token**: a signed-out user
-/// still has to be told to update. Add it to `_kPublicEndpoints` in
-/// `dio_client.dart`.
+/// still has to be told to update. Add `ApiConstants.configAppVersion` to
+/// `_kPublicEndpoints` in `dio_client.dart`.
 final updatePolicyProvider = StreamProvider<UpdatePolicy>((ref) {
   final dio = getIt<Dio>();
   final controller = StreamController<UpdatePolicy>();
@@ -112,7 +114,9 @@ final updatePolicyProvider = StreamProvider<UpdatePolicy>((ref) {
 /// [UpdateGate] on why this fails open.
 Future<UpdatePolicy> _fetchPolicy(Dio dio) async {
   try {
-    final response = await dio.get<Map<String, dynamic>>('/config/app-version');
+    final response = await dio.get<Map<String, dynamic>>(
+      ApiConstants.configAppVersion,
+    );
     final data = response.data;
     if (data == null) return const UpdatePolicy.none();
     return UpdatePolicy.fromMap(data);

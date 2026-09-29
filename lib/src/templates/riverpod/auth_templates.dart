@@ -12,27 +12,33 @@ class AuthTemplates {
   static String repositoryInterface({bool withPushNotifications = false}) {
     final syncDeviceToken = withPushNotifications
         ? '''
+
   /// Reads this device's push token and sends it to the backend, so it can
   /// target the signed-in user. Safe to call repeatedly — the token only
   /// changes when the install does.
   Future<void> syncDeviceToken();
-
 '''
         : '';
 
     return '''
+import '../models/user_model.dart';
+
 abstract interface class AuthRepository {
   /// True when a session can be restored: a refresh token is stored and a
   /// new access token could be obtained from it. Called by the auth
   /// notifier's build() when the app starts.
   Future<bool> isLoggedIn();
 
-  /// Authenticates and saves access token, refresh token and user id in
-  /// secure storage.
-  Future<void> login({required String email, required String password});
+  /// Authenticates, saves the access and refresh tokens in secure storage,
+  /// and returns the signed-in user from `GET /auth/me`.
+  Future<UserModel> login({required String email, required String password});
 
-  /// Creates the account and saves the returned session in secure storage.
-  Future<void> register({required String email, required String password});
+  /// Creates the account, saves the returned session in secure storage, and
+  /// returns the new user from `GET /auth/me`.
+  Future<UserModel> register({required String email, required String password});
+
+  /// The signed-in user, as `GET /auth/me` returns it.
+  Future<UserModel> me();
 
   /// Exchanges the stored refresh token for a new access token.
   Future<void> refresh();
@@ -43,10 +49,7 @@ abstract interface class AuthRepository {
 
   /// Deletes the account on the backend and clears the local session.
   Future<void> deleteAccount();
-
-$syncDeviceToken  /// User id extracted from the access token when the session was saved.
-  Future<String?> currentUserId();
-}
+$syncDeviceToken}
 ''';
   }
 
@@ -77,6 +80,37 @@ abstract class AuthTokensModel with _$AuthTokensModel {
 }
 ''';
 
+  /// Returns the generated signed-in user model template — what
+  /// `GET /auth/me` answers with.
+  static String userModel() => r'''
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'user_model.freezed.dart';
+part 'user_model.g.dart';
+
+/// The signed-in user, as `GET /auth/me` returns it. The auth state carries
+/// it, so any screen reads who is signed in from there rather than asking
+/// the API again.
+///
+/// `build.yaml` renames every field to snake_case. Add the fields your API
+/// sends; an `id` your backend sends as a number is `int` here, not `String`.
+@freezed
+abstract class UserModel with _$UserModel {
+  const factory UserModel({
+    required String id,
+    required String email,
+    String? name,
+  }) = _UserModel;
+
+  factory UserModel.fromJson(Map<String, dynamic> json) =>
+      _$UserModelFromJson(json);
+
+  /// A blank user — what a test stubs `me()` with. Freezed does not write this
+  /// one, so it is yours to keep in step with the fields above.
+  factory UserModel.empty() => const UserModel(id: '', email: '');
+}
+''';
+
   // ── Data — Remote datasource ────────────────────────────────────────────────
 
   /// Returns the generated auth remote datasource template.
@@ -95,7 +129,7 @@ abstract class AuthTokensModel with _$AuthTokensModel {
   Future<void> saveDeviceToken({required String token}) {
     return safeApiCall<void>(
       apiCall: () async {
-        await _dio.post<dynamic>('/auth/device-token', data: {
+        await _dio.post<dynamic>(ApiConstants.authDeviceToken, data: {
           'token': token,
         });
       },
@@ -110,6 +144,7 @@ import 'package:dio/dio.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/network/safe_api_call.dart';
 import '../../domain/models/auth_tokens_model.dart';
+import '../../domain/models/user_model.dart';
 
 class AuthRemoteDataSource {
   const AuthRemoteDataSource(this._dio);
@@ -117,8 +152,8 @@ class AuthRemoteDataSource {
   final Dio _dio;
 
   // The paths live in ApiConstants, which is also where dio_client.dart reads
-  // the three that go out without an Authorization header. Adjust the payload
-  // keys below to your API contract.
+  // the three that go out without an Authorization header. Payload keys are
+  // snake_case, like the models' — adjust them to your API contract.
 
   Future<AuthTokensModel> login({
     required String email,
@@ -154,15 +189,26 @@ class AuthRemoteDataSource {
     return safeApiCall<AuthTokensModel>(
       apiCall: () async {
         final response = await _dio.post<dynamic>(ApiConstants.authRefresh, data: {
-          'refreshToken': refreshToken,
+          'refresh_token': refreshToken,
         });
         final data = response.data as Map<String, dynamic>;
         // Backends that don't rotate the refresh token only return a new
         // access token — keep the current one in that case.
         return AuthTokensModel(
-          accessToken: data['accessToken'] as String,
-          refreshToken: data['refreshToken'] as String? ?? refreshToken,
+          accessToken: data['access_token'] as String,
+          refreshToken: data['refresh_token'] as String? ?? refreshToken,
         );
+      },
+    );
+  }
+
+  /// The signed-in user. The access token on the request is what says who
+  /// that is, so this is called once the session is saved.
+  Future<UserModel> me() {
+    return safeApiCall<UserModel>(
+      apiCall: () async {
+        final response = await _dio.get<dynamic>(ApiConstants.authAccount);
+        return UserModel.fromJson(response.data as Map<String, dynamic>);
       },
     );
   }
@@ -173,7 +219,7 @@ class AuthRemoteDataSource {
         // Lets the backend revoke the refresh token; local cleanup happens
         // in the repository even when this call fails.
         await _dio.post<dynamic>(ApiConstants.authLogout, data: {
-          'refreshToken': refreshToken,
+          'refresh_token': refreshToken,
         });
       },
     );
@@ -229,6 +275,8 @@ $saveDeviceToken}
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/security/secure_storage.dart';
 ${pushImport}import '../../../../core/utils/app_logger.dart';
+import '../../domain/models/auth_tokens_model.dart';
+import '../../domain/models/user_model.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_datasource.dart';
 
@@ -258,24 +306,42 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<void> login({required String email, required String password}) async {
+  Future<UserModel> login({
+    required String email,
+    required String password,
+  }) async {
     final tokens = await _remote.login(email: email, password: password);
-    await _tokens.saveSession(
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-    );
+    return _startSession(tokens);
   }
 
   @override
-  Future<void> register({
+  Future<UserModel> register({
     required String email,
     required String password,
   }) async {
     final tokens = await _remote.register(email: email, password: password);
+    return _startSession(tokens);
+  }
+
+  @override
+  Future<UserModel> me() => _remote.me();
+
+  /// Saves [tokens], then asks the backend who they belong to.
+  ///
+  /// A session with no user is not one any screen expects, so a failed
+  /// `GET /auth/me` undoes the save: the error reaches the login screen, and
+  /// the next attempt starts clean.
+  Future<UserModel> _startSession(AuthTokensModel tokens) async {
     await _tokens.saveSession(
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     );
+    try {
+      return await _remote.me();
+    } on AppException {
+      await _tokens.clearSession();
+      rethrow;
+    }
   }
 
   /// The refresh currently in flight, if any.
@@ -320,10 +386,7 @@ class AuthRepositoryImpl implements AuthRepository {
     await _remote.delete();
     await _tokens.clearSession();
   }
-$syncDeviceToken
-  @override
-  Future<String?> currentUserId() => _tokens.userId;
-}
+$syncDeviceToken}
 ''';
   }
 
@@ -332,18 +395,22 @@ $syncDeviceToken
   /// Returns the generated auth state template.
   static String state() => r'''
 import '../../../../core/utils/action_notifier.dart';
+import '../../domain/models/user_model.dart';
 
 class AuthState implements ActionState<AuthState> {
   const AuthState({
     this.authenticated = false,
-    this.userId,
+    this.user,
     this.isLoadingAction = false,
     this.error,
     this.success,
   });
 
   final bool authenticated;
-  final String? userId;
+
+  /// The signed-in user from `GET /auth/me`. Null when signed out — and after
+  /// an offline start on a kept session, until `reloadUser()` succeeds.
+  final UserModel? user;
   final bool isLoadingAction;
 
   /// One-shot UI event fields: any copyWith call that omits them clears
@@ -353,14 +420,14 @@ class AuthState implements ActionState<AuthState> {
 
   AuthState copyWith({
     bool? authenticated,
-    String? userId,
+    UserModel? user,
     bool? isLoadingAction,
     String? error,
     String? success,
   }) {
     return AuthState(
       authenticated: authenticated ?? this.authenticated,
-      userId: userId ?? this.userId,
+      user: user ?? this.user,
       isLoadingAction: isLoadingAction ?? this.isLoadingAction,
       error: error,
       success: success,
@@ -431,7 +498,6 @@ class RegisterView extends StatelessWidget {
     // Opened on a session that was already signed in — the FCM token can have
     // changed since (reinstall, restore, token rotation), so register it again.
     unawaited(_repo.syncDeviceToken());
-
 '''
         : '';
 
@@ -446,7 +512,10 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../config/di/injector.dart';
+import '../../../../core/errors/app_exception.dart';
 import '../../../../core/utils/action_notifier.dart';
+import '../../../../core/utils/app_logger.dart';
+import '../../domain/models/user_model.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../states/auth_state.dart';
 
@@ -466,29 +535,39 @@ class AuthNotifier extends AsyncNotifier<AuthState>
     // (isLoggedIn refreshes the access token when one exists).
     final loggedIn = await _repo.isLoggedIn();
     if (!loggedIn) return const AuthState();
-$syncOnRestore    return AuthState(
-      authenticated: true,
-      userId: await _repo.currentUserId(),
-    );
+$syncOnRestore
+    // The session is what decides signed in or out, and it survived — an
+    // offline start keeps it (see isLoggedIn). So a user that cannot be
+    // fetched yet stays null, for reloadUser() to fill in, rather than
+    // bouncing to login.
+    UserModel? user;
+    try {
+      user = await _repo.me();
+    } on AppException catch (e) {
+      appLogger.w('Signed-in user not loaded', error: e);
+    }
+    return AuthState(authenticated: true, user: user);
   }
 
   Future<void> login({required String email, required String password}) {
     return runAction((_) async {
-      await _repo.login(email: email, password: password);$syncAfterAuth
-      return AuthState(
-        authenticated: true,
-        userId: await _repo.currentUserId(),
-      );
+      final user = await _repo.login(email: email, password: password);$syncAfterAuth
+      return AuthState(authenticated: true, user: user);
     });
   }
 
   Future<void> register({required String email, required String password}) {
     return runAction((_) async {
-      await _repo.register(email: email, password: password);$syncAfterAuth
-      return AuthState(
-        authenticated: true,
-        userId: await _repo.currentUserId(),
-      );
+      final user = await _repo.register(email: email, password: password);$syncAfterAuth
+      return AuthState(authenticated: true, user: user);
+    });
+  }
+
+  /// Fetches the signed-in user again — after the profile changed, or when
+  /// the app started offline and [AuthState.user] is still null.
+  Future<void> reloadUser() {
+    return runAction((current) async {
+      return current.copyWith(user: await _repo.me());
     });
   }
 

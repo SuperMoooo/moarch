@@ -8,7 +8,15 @@ class ManifestUtils {
   ///
   /// Returns [content] unchanged when the `<manifest` tag can't be found (a
   /// customized manifest is left alone rather than risk breaking it).
-  static String ensurePermissions(String content, List<String> permissions) {
+  ///
+  /// A permission in [maxSdkVersions] is declared only up to that API level —
+  /// how a permission Android replaced (`READ_EXTERNAL_STORAGE`, by
+  /// `READ_MEDIA_IMAGES` from 33) is kept for the devices that still ask it.
+  static String ensurePermissions(
+    String content,
+    List<String> permissions, {
+    Map<String, int> maxSdkVersions = const {},
+  }) {
     final eol = _lineEnding(content);
     var result = content;
     for (final permission in permissions) {
@@ -19,13 +27,65 @@ class ManifestUtils {
       final manifestTagEnd = result.indexOf('>', manifestStart);
       if (manifestTagEnd == -1) return result;
 
+      final maxSdk = maxSdkVersions[permission];
+      final attributes = maxSdk == null
+          ? ''
+          : ' android:maxSdkVersion="$maxSdk"';
       result = result.replaceRange(
         manifestTagEnd + 1,
         manifestTagEnd + 1,
-        '$eol    <uses-permission android:name="$permission"/>',
+        '$eol    <uses-permission android:name="$permission"$attributes/>',
       );
     }
     return result;
+  }
+
+  /// Inserts [block] as the last child of `<application>` — where receivers
+  /// and services a plugin needs declared go.
+  ///
+  /// Returns [content] unchanged when it already contains [marker], or when
+  /// there is no `</application>` to put it before.
+  static String ensureApplicationChild(
+    String content, {
+    required String block,
+    required String marker,
+  }) {
+    if (content.contains(marker)) return content;
+    return _insertBeforeLineOf(content, '</application>', block) ?? content;
+  }
+
+  /// Adds [intents] (`<intent>` elements) to the manifest's `<queries>` — the
+  /// apps this one may ask about, which Android 11 on hides otherwise.
+  ///
+  /// Goes into the `<queries>` element `flutter create` writes when there is
+  /// one, or a new one above `<application>`, so [intents] carry the
+  /// indentation of that element's children. Returns [content] unchanged
+  /// when it already contains [marker].
+  static String ensureQueries(
+    String content, {
+    required String intents,
+    required String marker,
+  }) {
+    if (content.contains(marker)) return content;
+    final intoExisting = _insertBeforeLineOf(content, '</queries>', intents);
+    if (intoExisting != null) return intoExisting;
+    return _insertBeforeLineOf(
+          content,
+          '<application',
+          '    <queries>\n$intents\n    </queries>',
+        ) ??
+        content;
+  }
+
+  /// [content] with [block] on its own lines directly above the line holding
+  /// [tag], in [content]'s line endings — or null when there is no [tag].
+  static String? _insertBeforeLineOf(String content, String tag, String block) {
+    final index = content.indexOf(tag);
+    if (index == -1) return null;
+    final lineStart = content.lastIndexOf('\n', index) + 1;
+    final eol = _lineEnding(content);
+    final normalized = block.replaceAll('\r\n', '\n').replaceAll('\n', eol);
+    return content.replaceRange(lineStart, lineStart, '$normalized$eol');
   }
 
   /// Inserts [intentFilter] as the last child of `MainActivity`'s

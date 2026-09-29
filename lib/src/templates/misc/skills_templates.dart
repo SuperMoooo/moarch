@@ -268,7 +268,7 @@ $scaffold
 
    It writes `domain/models/<name>_model.dart`, the repository interface and
    implementation, the datasource(s), $holder and `presentation/views/<name>_view.dart`,
-   and registers the data layer in `lib/config/di/data_module.dart`${o.bloc ? ' and the bloc\n   in `presentation_module.dart`' : ''} above `// moarch:registrations`.${o.withRouter ? '\n   It adds the route too: `AppRoutes.<name>` and a `GoRoute` to the\n   ${o.bloc ? 'page' : 'view'}, above `// moarch:routes`.' : ''}
+   and registers the data layer in `lib/config/di/data_module.dart`${o.bloc ? ' and the bloc\n   in `presentation_module.dart`' : ''} above `// moarch:registrations`.${o.withRouter ? '\n   It adds the route too: `AppRoutes.<name>` and a `GoRoute` to the\n   ${o.bloc ? 'page' : 'view'}, above `// moarch:routes`.' : ''}${o.withDio ? '\n   With a Dio datasource, the endpoint goes into `ApiConstants` above\n   `// moarch:endpoints`.' : ''}
    Read what it printed before going on.
 
 2. **The model** — fields on `domain/models/<name>_model.dart`, then
@@ -299,14 +299,17 @@ ${_done(o)}''';
   static String _addEndpoint(SkillOptions o) {
     final dio = o.withDio
         ? '''
-**Dio.** Wrap the call in `safeApiCall` (`core/network/safe_api_call.dart`),
-which turns every transport error into an `AppException`:
+**Dio.** Declare the path in `ApiConstants`
+(`core/constants/api_constants.dart`) above `// moarch:endpoints` —
+`static const orders = '/orders';` — never as a string in the datasource.
+Wrap the call in `safeApiCall` (`core/network/safe_api_call.dart`), which
+turns every transport error into an `AppException`:
 
 ```dart
 Future<List<OrderModel>> fetchAll() {
   return safeApiCall<List<OrderModel>>(
     apiCall: () async {
-      final response = await _dio.get('/orders');
+      final response = await _dio.get(ApiConstants.orders);
       return (response.data as List)
           .map((json) => OrderModel.fromJson(json as Map<String, dynamic>))
           .toList();

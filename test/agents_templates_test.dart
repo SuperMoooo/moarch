@@ -24,6 +24,26 @@ void main() {
   );
 
   group('AGENTS.md', () {
+    test('keeps endpoints in ApiConstants, with Dio', () {
+      final source = agents(StateManagement.bloc, withDio: true);
+      expect(
+        source,
+        contains('**Every endpoint path lives in `ApiConstants`**'),
+      );
+      expect(source, contains('`// moarch:endpoints`'));
+      expect(
+        agents(StateManagement.bloc, withFirebase: true),
+        isNot(contains('moarch:endpoints')),
+      );
+    });
+
+    test('submits text fields trimmed', () {
+      expect(
+        agents(StateManagement.riverpod),
+        contains('`controller.trimmed`'),
+      );
+    });
+
     test('names the project and runs everything through fvm', () {
       final source = agents(StateManagement.riverpod);
       expect(source, startsWith('# AGENTS.md — demo'));

@@ -197,6 +197,23 @@ extension FormX on GlobalKey<FormState> {
   bool get isValid => currentState?.validate() ?? false;
 }
 
+extension TextEditingControllerX on TextEditingController {
+  /// The text without its surrounding whitespace — what a form submits:
+  /// `login(email: _email.trimmed, password: _password.text)`.
+  ///
+  /// A getter rather than a controller that trims itself: rewriting the
+  /// field while the user types would eat the space between two words and
+  /// jump the cursor. Leave passwords untrimmed — a space can be part of one.
+  String get trimmed => text.trim();
+
+  /// [trimmed], or null when that leaves nothing — for an optional field the
+  /// API wants absent rather than empty.
+  String? get trimmedOrNull {
+    final value = text.trim();
+    return value.isEmpty ? null : value;
+  }
+}
+
 extension StringX on String {
   bool get isValidEmail =>
       RegExp(r'^[\w\-.]+@([\w\-]+\.)+[\w\-]{2,}$').hasMatch(this);
@@ -618,36 +635,120 @@ $darkPalette
     return out;
   }
 
+  /// The comment `moarch create feature` inserts each feature's endpoint
+  /// above. Load-bearing: the generated source says so.
+  static const String endpointsAnchor = '// moarch:endpoints';
+
   /// Returns the generated apiConstants template.
   ///
-  /// [withAuthFeature] adds the `/auth/*` paths. They live here rather than at
-  /// their call sites because two files need the same strings: the datasource
-  /// calls them, and `dio_client.dart` lists the public ones as the routes
-  /// that go out without an `Authorization` header.
-  static String apiConstants({bool withAuthFeature = false}) {
+  /// Every path the app calls is declared here rather than at its call site,
+  /// so a changed route is one edit. [withAuthFeature] adds the `/auth/*`
+  /// paths — `dio_client.dart` also reads the public ones, as the routes that
+  /// go out without an `Authorization` header — and [withDeviceToken] the one
+  /// the push token is registered at. [withMaintenanceGate] and
+  /// [withUpdateGate] add the config paths the Dio-backed gates poll.
+  static String apiConstants({
+    bool withAuthFeature = false,
+    bool withDeviceToken = false,
+    bool withMaintenanceGate = false,
+    bool withUpdateGate = false,
+  }) {
+    final deviceToken = withDeviceToken
+        ? '''
+
+
+  /// Where this device's push token is registered for the signed-in user.
+  static const authDeviceToken = '/auth/device-token';'''
+        : '';
+
     final authEndpoints = withAuthFeature
-        ? r'''
+        ? '''
 
 
-  // ── Auth endpoints ────────────────────────────────────────────────────────
-  // Adjust these to your API contract. Changing one here changes it
-  // everywhere: `auth_remote_datasource.dart` calls them, and
-  // `dio_client.dart` builds its list of routes that never carry an
-  // Authorization header from the three public ones.
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  // Changing one here changes it everywhere: `auth_remote_datasource.dart`
+  // calls them, and `dio_client.dart` builds its list of routes that never
+  // carry an Authorization header from the three public ones.
   static const authLogin = '/auth/login';
   static const authRegister = '/auth/register';
   static const authRefresh = '/auth/refresh';
   static const authLogout = '/auth/logout';
-  static const authAccount = '/auth/me';'''
+
+  /// The signed-in account: GET reads the user, DELETE deletes the account.
+  static const authAccount = '/auth/me';$deviceToken'''
+        : '';
+
+    final maintenance = withMaintenanceGate
+        ? "\n  static const configMaintenance = '/config/maintenance';"
+        : '';
+    final appVersion = withUpdateGate
+        ? "\n  static const configAppVersion = '/config/app-version';"
+        : '';
+    final configEndpoints = withMaintenanceGate || withUpdateGate
+        ? '''
+
+
+  // ── Config ────────────────────────────────────────────────────────────────
+  // Polled by the gates in `shared/widgets/`, signed in or not — add them to
+  // `_kPublicEndpoints` in `dio_client.dart`.$maintenance$appVersion'''
         : '';
 
     return '''
 abstract final class ApiConstants {
   // BASE_URL comes from envied
   static const Duration connectTimeout = Duration(seconds: 30);
-  static const Duration receiveTimeout = Duration(seconds: 30);$authEndpoints
+  static const Duration receiveTimeout = Duration(seconds: 30);$authEndpoints$configEndpoints
+
+  // ── Features ──────────────────────────────────────────────────────────────
+  // Every endpoint lives here, never inline at the call site. Adjust the paths
+  // to your API contract. `moarch create feature` adds each new feature's
+  // path above this anchor — keep it:
+  $endpointsAnchor
 }
 ''';
+  }
+
+  /// The paths a template may reach through `ApiConstants` that an older
+  /// project's `api_constants.dart` does not declare, by constant name.
+  ///
+  /// The same problem [tokenLiterals] solves for `AppConstants`: the
+  /// constants file is edited by every team, so `update` rarely refreshes it,
+  /// while the files reading it are refreshed freely. [inlineMissingEndpoints]
+  /// writes these in place of an undeclared constant.
+  static const Map<String, String> endpointLiterals = {
+    'authDeviceToken': '/auth/device-token',
+    'configMaintenance': '/config/maintenance',
+    'configAppVersion': '/config/app-version',
+  };
+
+  /// The constant names [apiConstants] source declares.
+  static Set<String> declaredEndpoints(String apiConstants) => {
+    for (final match in RegExp(
+      r'static const (?:\w+ )?(\w+)\s*=',
+    ).allMatches(apiConstants))
+      match[1]!,
+  };
+
+  /// [source] with every [endpointLiterals] constant that [declared] lacks
+  /// replaced by its path — and the `api_constants.dart` import dropped when
+  /// nothing uses it any more.
+  static String inlineMissingEndpoints(String source, Set<String> declared) {
+    var out = source;
+    endpointLiterals.forEach((name, path) {
+      if (!declared.contains(name)) {
+        out = out.replaceAll('ApiConstants.$name', "'$path'");
+      }
+    });
+    if (out != source && !out.contains('ApiConstants.')) {
+      out = out.replaceAll(
+        RegExp(
+          r"^import '[./]*core/constants/api_constants\.dart';\n",
+          multiLine: true,
+        ),
+        '',
+      );
+    }
+    return out;
   }
 
   /// Returns the generated safeApiCall template.

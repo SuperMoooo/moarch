@@ -28,6 +28,7 @@ class MaintenanceTemplates {
               "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
               '\n'
               "import '../../config/di/injector.dart';\n"
+              "import '../../core/constants/api_constants.dart';\n"
               "import 'error_view.dart';\n"
         : "import 'package:flutter/material.dart';\n"
               "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
@@ -140,7 +141,8 @@ const _pollInterval = Duration(minutes: 5);
 ///
 /// The endpoint must be reachable **without a token**: a signed-out user, or
 /// one whose session expired during the outage, still has to be told the app
-/// is down. Add it to `_kPublicEndpoints` in `dio_client.dart`.
+/// is down. Add `ApiConstants.configMaintenance` to `_kPublicEndpoints` in
+/// `dio_client.dart`.
 /// A Riverpod provider over a get_it dependency: the status is state, so it
 /// belongs to Riverpod, and the client is a dependency, so it comes out of the
 /// locator.
@@ -170,7 +172,9 @@ final maintenanceStatusProvider = StreamProvider<MaintenanceStatus>((ref) {
 /// [MaintenanceGate] on why this fails open.
 Future<MaintenanceStatus> _fetchStatus(Dio dio) async {
   try {
-    final response = await dio.get<Map<String, dynamic>>('/config/maintenance');
+    final response = await dio.get<Map<String, dynamic>>(
+      ApiConstants.configMaintenance,
+    );
     final data = response.data;
     if (data == null) return const MaintenanceStatus.up();
     return MaintenanceStatus.fromMap(data);

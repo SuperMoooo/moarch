@@ -236,7 +236,8 @@ Authentication logic must be robust and not bypassable on the client side.
       refreshes on a 401, replays the original request once, and signs the user
       out if the refresh itself fails (REST auth feature)
 - [x] Logout clears the stored session — `TokenStorage.clearSession()` drops the
-      access token, refresh token and user id
+      access and refresh tokens; the user comes from `GET /auth/me`, never
+      decoded out of the token
 - [ ] The **server** invalidates the refresh token on logout too — clearing it
       on the device only stops that device from using it
 - [ ] Authentication enforced server-side, never only on the client

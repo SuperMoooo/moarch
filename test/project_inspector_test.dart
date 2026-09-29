@@ -1,7 +1,9 @@
 import 'dart:io';
 
+import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/templates/misc/skills_templates.dart';
+import 'package:moarch/src/utils/api_constants_utils.dart';
 import 'package:moarch/src/utils/file_utils.dart';
 import 'package:moarch/src/utils/injector_utils.dart';
 import 'package:moarch/src/utils/project_inspector.dart';
@@ -702,6 +704,138 @@ dependencies:
         File(p.join(root, SkillsTemplates.all.last.agentsPath)).existsSync(),
         isTrue,
       );
+    });
+  });
+
+  group('auth', () {
+    setUp(scaffoldHealthyProject);
+
+    Future<void> writeRestAuth() => File(
+      p.join(
+        libPath,
+        'features',
+        'auth',
+        'presentation',
+        'notifiers',
+        'auth_notifier.dart',
+      ),
+    ).create(recursive: true);
+
+    test('writes the UserModel a pre-9.3.0 REST auth feature lacks', () async {
+      await writeRestAuth();
+
+      final finding = matching(
+        await ProjectInspector.inspect(root),
+        'no UserModel',
+      ).single;
+      expect(finding.isFixable, isTrue);
+      await finding.fix!();
+
+      final model = File(
+        p.join(
+          libPath,
+          'features',
+          'auth',
+          'domain',
+          'models',
+          'user_model.dart',
+        ),
+      );
+      expect(model.readAsStringSync(), contains('abstract class UserModel'));
+      expect(await ProjectInspector.inspect(root), isEmpty);
+    });
+
+    test('leaves a Firebase auth feature alone', () async {
+      await writeRestAuth();
+      await File(
+        p.join(
+          libPath,
+          'features',
+          'auth',
+          'domain',
+          'models',
+          'auth_user_model.dart',
+        ),
+      ).create(recursive: true);
+
+      expect(await ProjectInspector.inspect(root), isEmpty);
+    });
+  });
+
+  group('endpoints', () {
+    setUp(scaffoldHealthyProject);
+
+    test('notes api_constants.dart without the anchor', () async {
+      await File(ApiConstantsUtils.fileFor(libPath))
+          .create(recursive: true)
+          .then(
+            (file) =>
+                file.writeAsString('abstract final class ApiConstants {}\n'),
+          );
+
+      final finding = matching(
+        await ProjectInspector.inspect(root),
+        ApiConstantsUtils.anchor,
+      ).single;
+      expect(finding.severity, DiagnosticSeverity.info);
+    });
+
+    test('says nothing about the generated file', () async {
+      await File(ApiConstantsUtils.fileFor(libPath))
+          .create(recursive: true)
+          .then((file) => file.writeAsString(CoreTemplates.apiConstants()));
+
+      expect(await ProjectInspector.inspect(root), isEmpty);
+    });
+  });
+
+  group('platform declarations', () {
+    setUp(scaffoldHealthyProject);
+
+    File manifest() => File(
+      p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'),
+    );
+
+    test('declares what the media service needs, on both platforms', () async {
+      await File(
+        p.join(libPath, 'core', 'services', 'media_service.dart'),
+      ).create(recursive: true);
+      await manifest()
+          .create(recursive: true)
+          .then(
+            (file) => file.writeAsString(
+              '<manifest>\n    <application>\n    </application>\n</manifest>\n',
+            ),
+          );
+      final plist = File(p.join(root, 'ios', 'Runner', 'Info.plist'));
+      await plist
+          .create(recursive: true)
+          .then(
+            (file) =>
+                file.writeAsString('<plist>\n<dict>\n</dict>\n</plist>\n'),
+          );
+
+      final finding = matching(
+        await ProjectInspector.inspect(root),
+        'MediaService',
+      ).single;
+      expect(finding.isFixable, isTrue);
+      await finding.fix!();
+
+      expect(
+        manifest().readAsStringSync(),
+        contains('android.permission.CAMERA'),
+      );
+      expect(plist.readAsStringSync(), contains('NSCameraUsageDescription'));
+      expect(await ProjectInspector.inspect(root), isEmpty);
+    });
+
+    test('says nothing without the platform folders', () async {
+      await File(
+        p.join(libPath, 'core', 'services', 'media_service.dart'),
+      ).create(recursive: true);
+
+      expect(await ProjectInspector.inspect(root), isEmpty);
     });
   });
 }

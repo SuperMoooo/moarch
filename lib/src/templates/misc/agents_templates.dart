@@ -193,7 +193,7 @@ test/
   `external_module.dart` (SDK handles), `core_module.dart` (services),
   `data_module.dart` (datasources, repositories)${withFeatureModule ? ', `feature_module.dart`\n  (long-lived services one feature owns — sockets, engines — and `openScope` /\n  `closeScope` for what one flow owns)' : ''}${bloc ? ', `presentation_module.dart`\n  (blocs, as factories)' : ''}. `injector.dart` only calls them.${bloc ? '' : '\n  Notifiers are **not** registered: they stay behind their Riverpod provider\n  and read what they need with `getIt<T>()`.'}
 - The `// moarch:registrations` comments in the modules are anchors
-  `moarch create feature` inserts above. Never move or delete them.
+  `moarch create feature` inserts above. Never move or delete them.${withDio ? '\n- **Every endpoint path lives in `ApiConstants`**\n  (`core/constants/api_constants.dart`), never as a string at the call site.\n  `moarch create feature` adds each feature\'s above `// moarch:endpoints` —\n  an anchor like the ones above.' : ''}
 - Configuration comes from `AppEnv` (`lib/config/env/app_env.dart`). Add a key
   to `.env`, `.env.example` and an `@EnviedField` together; never read `.env`
   any other way, and never commit `.env`.
@@ -273,6 +273,9 @@ test/
   them in `lib/shared/widgets/`, and so does a widget a second feature needs.
   No private widget classes (`_Header`) in a view file and no
   `Widget _buildHeader()` methods. `const` wherever it compiles.
+- Submit what a text field holds as `controller.trimmed` — `trimmedOrNull`
+  for an optional one — from `core/utils/extensions.dart`, never
+  `controller.text.trim()` by hand. Passwords stay `controller.text`.
 ''';
 
   static String _addingAFeature({

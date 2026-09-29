@@ -88,6 +88,15 @@ void main() {
   group('extensions', () {
     final output = CoreTemplates.extensions();
 
+    test('a text controller reads back trimmed', () {
+      expect(
+        output,
+        contains('extension TextEditingControllerX on TextEditingController'),
+      );
+      expect(output, contains('String get trimmed => text.trim();'));
+      expect(output, contains('String? get trimmedOrNull'));
+    });
+
     test('a form key can validate itself', () {
       expect(output, contains('extension FormX on GlobalKey<FormState>'));
       // An unmounted form reads as invalid: a submit must never take a

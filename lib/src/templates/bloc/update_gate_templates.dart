@@ -30,6 +30,8 @@ class UpdateGateTemplates {
       "import 'package:url_launcher/url_launcher.dart';",
       '',
       if (withFirestore || withDio) "import '../../config/di/injector.dart';",
+      if (withDio && !withFirestore)
+        "import '../../core/constants/api_constants.dart';",
       "import '../../core/constants/app_constants.dart';",
     ].join('\n');
 
@@ -127,8 +129,8 @@ UpdateGateCubit _createUpdateGateCubit() =>
 /// minimum — null means the app may run.
 ///
 /// No timer: a minimum version changes with a release, not by the minute. The
-/// endpoint must be reachable **without a token** — add it to
-/// `_kPublicEndpoints` in `dio_client.dart`.
+/// endpoint must be reachable **without a token** — add
+/// `ApiConstants.configAppVersion` to `_kPublicEndpoints` in `dio_client.dart`.
 ///
 /// A Cubit, not a Bloc: it holds one value and has no events. It lives beside
 /// the gate that owns it rather than in an `update_gate_cubit.dart` of its
@@ -152,8 +154,9 @@ class UpdateGateCubit extends Cubit<UpdatePolicy?> {
 
     UpdatePolicy policy;
     try {
-      final response =
-          await _dio.get<Map<String, dynamic>>('/config/app-version');
+      final response = await _dio.get<Map<String, dynamic>>(
+        ApiConstants.configAppVersion,
+      );
       final data = response.data;
       policy =
           data == null ? const UpdatePolicy.none() : UpdatePolicy.fromMap(data);

@@ -1068,18 +1068,22 @@ Future<void> setupInjector() async {
   });
 
   group('AuthFailure carries the session', () {
-    test('the state records the user it failed for', () {
+    test('the state records the session it failed from', () {
       final output = bloc.AuthTemplates.state();
 
       expect(
         output,
-        contains('AuthFailure(this.message, {this.userId}) : id = ++_seq;'),
+        contains('AuthFailure(this.message, {this.session}) : id = ++_seq;'),
       );
-      expect(output, contains('bool get authenticated => userId != null;'));
+      expect(output, contains('bool get authenticated => session != null;'));
+      expect(output, contains('UserModel? get user => session?.user;'));
       expect(
         output,
-        contains('List<Object?> get props => [message, userId, id];'),
+        contains('List<Object?> get props => [message, session, id];'),
       );
+      // The user comes from GET /auth/me, not an id out of the token.
+      expect(output, contains('final UserModel? user;'));
+      expect(output, isNot(contains('userId')));
       // Same reason as a feature's Failure: a second wrong password must not
       // compare equal to the first and be dropped.
       expect(output, isNot(contains('const AuthFailure(')));
@@ -1092,11 +1096,27 @@ Future<void> setupInjector() async {
       // failed: the handler caught the exception and emitted nothing.
       expect(
         output,
-        contains('emit(AuthFailure(e.message, userId: current.userId));'),
+        contains('emit(AuthFailure(e.message, session: current));'),
       );
       expect(
         output,
         isNot(contains('// The account is still there, so the session is.')),
+      );
+    });
+
+    test('the bloc signs in with the user /auth/me returned', () {
+      final output = bloc.AuthTemplates.bloc();
+      final events = bloc.AuthTemplates.event();
+
+      expect(output, contains('emit(AuthAuthenticated(user: user));'));
+      expect(output, contains('user = await _repo.me();'));
+      expect(output, contains('on<AuthUserReloadRequested>(_onUserReload);'));
+      expect(events, contains('final class AuthUserReloadRequested'));
+      expect(output, isNot(contains('currentUserId')));
+      // The guard `create tests` reads to seed the state these start from.
+      expect(
+        'if (current is! AuthAuthenticated) return;'.allMatches(output),
+        hasLength(2),
       );
     });
 

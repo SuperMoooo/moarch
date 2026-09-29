@@ -5,9 +5,11 @@ import 'package:yaml_edit/yaml_edit.dart';
 
 import '../templates/config/config_templates.dart';
 import '../templates/misc/deep_links_templates.dart';
+import 'api_constants_utils.dart';
 import 'file_utils.dart';
 import 'package_versions.dart';
 import 'injector_utils.dart';
+import 'platform_requirements.dart';
 import 'plist_utils.dart';
 import 'project_manifest.dart';
 import 'router_utils.dart';
@@ -93,9 +95,134 @@ abstract final class ProjectInspector {
       if (pubspec != null) ..._localization(libPath, pubspec),
       ..._codegen(libPath),
       ..._theme(root, libPath),
+      ..._auth(root),
+      ..._endpoints(libPath),
+      ..._platforms(root),
       ..._agents(root),
       ..._skills(root),
       ..._widgets(root, libPath, pubspec),
+    ];
+  }
+
+  // ── Auth ────────────────────────────────────────────────────────────────────
+
+  /// A REST auth feature from before 9.3.0, which read the user id out of the
+  /// access token instead of asking `GET /auth/me`.
+  ///
+  /// `update` never adds a file, and the refreshed repository, state and
+  /// holder all import `UserModel` — so the model has to be there first.
+  static List<Diagnostic> _auth(String root) {
+    final context = ScaffoldContext.detect(root);
+    if (!context.hasRestAuthFeature) return const [];
+    final spec = ScaffoldCatalog.byName('auth-me-model')!;
+    if (context.hasFile(spec.path)) return const [];
+
+    return [
+      Diagnostic.warning(
+        'The auth feature has no UserModel — `moarch update auth` would not '
+        'compile without it',
+        hint:
+            'Write it with `moarch doctor --fix`, then `moarch update auth` '
+            'to fetch the user from GET /auth/me.',
+        fix: () async {
+          final result = await _generate(root, [
+            spec.name,
+          ], 'the file already exists');
+          return '$result — run `moarch update auth` to use it';
+        },
+      ),
+    ];
+  }
+
+  // ── Endpoints ───────────────────────────────────────────────────────────────
+
+  /// `api_constants.dart` without the anchor `create feature` inserts
+  /// endpoints above (from before 9.3.0, or removed since). Nothing is
+  /// broken — new features call their path inline — so it is a note.
+  static List<Diagnostic> _endpoints(String libPath) {
+    final file = File(ApiConstantsUtils.fileFor(libPath));
+    if (!file.existsSync() ||
+        file.readAsStringSync().contains(ApiConstantsUtils.anchor)) {
+      return const [];
+    }
+    return const [
+      Diagnostic.info(
+        'api_constants.dart has no `${ApiConstantsUtils.anchor}` line, so '
+        '`create feature` cannot add endpoints',
+        hint:
+            'Run `moarch update api-constants` if you never edited it; '
+            'otherwise add `// moarch:endpoints` as the last line inside '
+            'ApiConstants.',
+      ),
+    ];
+  }
+
+  // ── Platform declarations ───────────────────────────────────────────────────
+
+  /// Services whose permissions, receivers or usage descriptions are missing
+  /// from `AndroidManifest.xml` or `Info.plist` — a project from before
+  /// `init` declared them, or one that added a service by hand. Nothing fails
+  /// to build; the calls fail at runtime instead.
+  static List<Diagnostic> _platforms(String root) {
+    final requirements = PlatformRequirement.forProject(
+      ScaffoldContext.detect(root),
+    );
+    if (requirements.isEmpty) return const [];
+
+    final manifest = File(
+      p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'),
+    );
+    final plist = File(p.join(root, 'ios', 'Runner', 'Info.plist'));
+    final manifestSource = manifest.existsSync()
+        ? manifest.readAsStringSync()
+        : null;
+    final plistSource = plist.existsSync() ? plist.readAsStringSync() : null;
+
+    final missing = [
+      for (final requirement in requirements)
+        if ((manifestSource != null &&
+                !requirement.isDeclaredIn(manifestSource)) ||
+            (plistSource != null && !requirement.isDescribedIn(plistSource)))
+          requirement,
+    ];
+    if (missing.isEmpty) return const [];
+
+    final services = missing.map((r) => r.service).join(', ');
+    return [
+      Diagnostic.warning(
+        '$services ${missing.length == 1 ? 'is' : 'are'} missing platform '
+        'declarations, so ${missing.length == 1 ? 'its' : 'their'} calls fail '
+        'at runtime',
+        hint:
+            'Add the permissions and receivers to AndroidManifest.xml and the '
+            'usage descriptions to Info.plist with `moarch doctor --fix`.',
+        fix: () async {
+          final patched = <String>[];
+          if (manifestSource != null) {
+            var out = manifestSource;
+            for (final requirement in missing) {
+              out = requirement.patchManifest(out);
+            }
+            if (out != manifestSource) {
+              await manifest.writeAsString(out);
+              patched.add('AndroidManifest.xml');
+            }
+          }
+          if (plistSource != null) {
+            var out = plistSource;
+            for (final requirement in missing) {
+              out = requirement.patchPlist(out);
+            }
+            if (out != plistSource) {
+              await plist.writeAsString(out);
+              patched.add('Info.plist');
+            }
+          }
+          return patched.isEmpty
+              ? 'nothing written'
+              : 'declared what $services need in ${patched.join(' and ')}';
+        },
+      ),
     ];
   }
 

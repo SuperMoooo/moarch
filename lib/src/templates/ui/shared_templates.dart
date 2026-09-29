@@ -7788,7 +7788,7 @@ class AppSingleScrollView extends StatelessWidget {
   const AppSingleScrollView({
     super.key,
     required this.child,
-    this.padding = AppConstants.padding12,
+    this.padding = AppConstants.paddingPage,
     this.safeArea = true,
     this.safeAreaTop = true,
     this.safeAreaBottom = true,

@@ -37,6 +37,7 @@ class MaintenanceTemplates {
               "import 'package:flutter_bloc/flutter_bloc.dart';\n"
               '\n'
               "import '../../config/di/injector.dart';\n"
+              "import '../../core/constants/api_constants.dart';\n"
               "import 'error_view.dart';\n"
         : "import 'package:flutter/material.dart';\n"
               "import 'package:flutter_bloc/flutter_bloc.dart';\n"
@@ -178,7 +179,8 @@ const _pollInterval = Duration(minutes: 5);
 ///
 /// The endpoint must be reachable **without a token**: a signed-out user, or
 /// one whose session expired during the outage, still has to be told the app
-/// is down. Add it to `_kPublicEndpoints` in `dio_client.dart`.
+/// is down. Add `ApiConstants.configMaintenance` to `_kPublicEndpoints` in
+/// `dio_client.dart`.
 ///
 /// A Cubit, not a Bloc: it holds one flag and has no events. It lives beside
 /// the gate that owns it rather than in a `maintenance_cubit.dart` of its
@@ -200,8 +202,9 @@ class MaintenanceCubit extends Cubit<MaintenanceStatus> {
   Future<void> refresh() async {
     if (isClosed) return;
     try {
-      final response =
-          await _dio.get<Map<String, dynamic>>('/config/maintenance');
+      final response = await _dio.get<Map<String, dynamic>>(
+        ApiConstants.configMaintenance,
+      );
       final data = response.data;
       if (isClosed) return;
       emit(

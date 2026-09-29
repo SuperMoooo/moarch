@@ -154,13 +154,25 @@ abstract class ${cls}Model with _\$${cls}Model {
     String cls,
     String varName, {
     bool useFirestore = false,
+    bool withApiConstant = false,
   }) {
     if (useFirestore) return _firestoreDatasource(name, cls, varName);
+
+    // The path is `ApiConstants.<varName>` when `create feature` could add it
+    // there, and the literal otherwise.
+    final constantsImport = withApiConstant
+        ? "import '../../../../core/constants/api_constants.dart';\n"
+        : '';
+    final endpoint = withApiConstant ? 'ApiConstants.$varName' : "'/$name'";
+    final todo = withApiConstant
+        ? '// TODO: point ApiConstants.$varName at your endpoint, and add the\n'
+              '  // others beside it in api_constants.dart.'
+        : '// TODO: point this at your endpoint, and add the others beside it.';
 
     return '''
 import 'package:dio/dio.dart';
 
-import '../../../../core/network/safe_api_call.dart';
+${constantsImport}import '../../../../core/network/safe_api_call.dart';
 import '../../domain/models/${name}_model.dart';
 
 class ${cls}RemoteDataSource {
@@ -168,11 +180,11 @@ class ${cls}RemoteDataSource {
 
   final Dio _dio;
 
-  // TODO: point this at your endpoint, and add the others beside it.
+  $todo
   Future<List<${cls}Model>> fetchAll() {
     return safeApiCall<List<${cls}Model>>(
       apiCall: () async {
-        final response = await _dio.get<List<dynamic>>('/$name');
+        final response = await _dio.get<List<dynamic>>($endpoint);
         return [
           for (final json in response.data ?? const <dynamic>[])
             ${cls}Model.fromJson(json as Map<String, dynamic>),

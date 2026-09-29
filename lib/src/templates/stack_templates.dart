@@ -432,18 +432,21 @@ class StackTemplates {
     String cls,
     String varName, {
     bool useFirestore = false,
+    bool withApiConstant = false,
   }) => isBloc
       ? bloc.FeatureTemplates.remoteDatasource(
           name,
           cls,
           varName,
           useFirestore: useFirestore,
+          withApiConstant: withApiConstant,
         )
       : riverpod.FeatureTemplates.remoteDatasource(
           name,
           cls,
           varName,
           useFirestore: useFirestore,
+          withApiConstant: withApiConstant,
         );
 
   /// The local/cache datasource.
@@ -563,6 +566,11 @@ class StackTemplates {
   /// The token-pair model.
   String authModel() =>
       isBloc ? bloc.AuthTemplates.model() : riverpod.AuthTemplates.model();
+
+  /// The signed-in user model — what `GET /auth/me` returns.
+  String authUserModel() => isBloc
+      ? bloc.AuthTemplates.userModel()
+      : riverpod.AuthTemplates.userModel();
 
   /// The auth datasource.
   String authRemoteDatasource({bool withPushNotifications = false}) => isBloc

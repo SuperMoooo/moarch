@@ -2,6 +2,57 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.3.0
+
+- **The REST auth feature asks `GET /auth/me` who is signed in.** Login and
+  register save the tokens, then fetch the user into a new freezed
+  `UserModel` (`features/auth/domain/models/user_model.dart`, catalog entry
+  `auth-me-model`), and the state carries it: `AuthState.user` on Riverpod,
+  `AuthAuthenticated.user` on bloc (and `AuthFailure.session`, replacing
+  `AuthFailure.userId`). A failed `/auth/me` clears the half-saved session, so
+  the login screen shows the error. Session restore fetches it too; offline it
+  keeps the session with no user until `reloadUser()` /
+  `AuthUserReloadRequested` runs. `TokenStorage` no longer decodes a user id
+  out of the access token (it still deletes the old `user_id` key on logout),
+  and `AuthRepository.currentUserId()` is gone.
+- **Auth payloads are snake_case.** The refresh and logout requests sent
+  `refreshToken` and the refresh response was read as `accessToken` /
+  `refreshToken`, while the models were already snake_case through
+  `build.yaml`. All of them are now `refresh_token` / `access_token`.
+- **Every endpoint lives in `ApiConstants`.** `api_constants.dart` gains a
+  `// moarch:endpoints` anchor, and `moarch create feature` declares the new
+  feature's path above it (`static const orderHistory = '/order_history';`),
+  with the datasource calling `ApiConstants.orderHistory`. The FCM device-token
+  path (`authDeviceToken`) and the Dio-backed maintenance and update gates'
+  config paths (`configMaintenance`, `configAppVersion`) moved there too. A
+  refreshed file in a project whose constants lack one writes the path inline
+  instead, so it still compiles.
+- **Services declare what they need on each platform.** `init` now adds to
+  `AndroidManifest.xml`: `CAMERA`, `READ_MEDIA_IMAGES` and
+  `READ_EXTERNAL_STORAGE` (up to API 32) for the media service, without which
+  permission_handler reports them denied without asking; `POST_NOTIFICATIONS`,
+  `RECEIVE_BOOT_COMPLETED`, `SCHEDULE_EXACT_ALARM` and the
+  flutter_local_notifications receivers for scheduled notifications;
+  `POST_NOTIFICATIONS` for FCM; `<queries>` intents for the URL launcher; and
+  `INTERNET` for Dio, which `flutter create` declares only in the debug
+  manifest. The table is `utils/platform_requirements.dart`, shared with
+  `doctor`.
+- **`controller.trimmed`** and `trimmedOrNull` on `TextEditingController`, in
+  `core/utils/extensions.dart`, for what a text field submits. `AGENTS.md`
+  tells agents to use them.
+- `AppSingleScrollView` defaults to `AppConstants.paddingPage` instead of
+  `padding12`. They are the same value today; pages now follow the page token.
+- **`moarch doctor`** reports a service missing its platform declarations, a
+  REST auth feature without `UserModel`, and an `api_constants.dart` without
+  the anchor. `--fix` patches the manifest and `Info.plist`, and writes the
+  model.
+- **Existing REST auth projects:** run `moarch doctor --fix` first (it writes
+  `user_model.dart`, which the refreshed auth files import), then
+  `moarch update auth secure-storage api-constants` together, then
+  `build_runner`. If you edited the auth repository, it still reads
+  `_tokens.userId`, which `TokenStorage` no longer has — switch it to
+  `me()`.
+
 ## 9.2.0
 
 - **`create feature` adds the route.** The new view gets `AppRoutes.<name>`

@@ -427,7 +427,7 @@ void main() {
     final output = SharedTemplates.appSingleScrollView();
 
     test('decides the page defaults so screens stop re-deciding them', () {
-      expect(output, contains('this.padding = AppConstants.padding12'));
+      expect(output, contains('this.padding = AppConstants.paddingPage'));
       expect(
         output,
         contains(
