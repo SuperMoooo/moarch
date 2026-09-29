@@ -218,7 +218,7 @@ class ${cls}RemoteDataSource {
     );
   }
 
-  Future<${cls}Model?> fetchOne(String id) {
+  Future<${cls}Model?> fetchOne({required String id}) {
     return safeFirebaseCall<${cls}Model?>(
       call: () async {
         final doc = await _collection.doc(id).get();
@@ -258,7 +258,7 @@ class ${cls}RemoteDataSource {
     );
   }
 
-  Future<void> delete(String id) {
+  Future<void> delete({required String id}) {
     return safeFirebaseCall<void>(
       call: () => _collection.doc(id).delete(),
     );

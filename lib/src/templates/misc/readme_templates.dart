@@ -793,9 +793,9 @@ class ProfileNotifier extends AsyncNotifier<ProfileState>
     return ProfileState(items: items);
   }
 
-  Future<void> rename(String id, String name) {
+  Future<void> rename({required String id, required String name}) {
     return runAction((current) async {
-      await _repo.rename(id, name);
+      await _repo.rename(id: id, name: name);
       return current.copyWith(success: 'Saved');
     });
   }
@@ -969,7 +969,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState>
     Emitter<ProfileState> emit,
   ) =>
       runAction(emit, (current) async {
-        await _repo.rename(event.id, event.name);
+        await _repo.rename(id: event.id, name: event.name);
         return current.copyWith(successMessage: 'Saved');
       });
 }

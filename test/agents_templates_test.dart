@@ -37,6 +37,15 @@ void main() {
       );
     });
 
+    test('asks for named required parameters, on both stacks', () {
+      for (final stack in StateManagement.values) {
+        final source = agents(stack);
+        expect(source, contains('## Dart style'));
+        expect(source, contains('**Parameters are named and `required`**'));
+        expect(source, contains('Future<void> delete({required int id});'));
+      }
+    });
+
     test('submits text fields trimmed', () {
       expect(
         agents(StateManagement.riverpod),

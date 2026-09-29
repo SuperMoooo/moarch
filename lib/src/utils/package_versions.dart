@@ -33,13 +33,13 @@ abstract final class PackageVersions {
     'flutter_riverpod': '^3.4.2',
     'flutter_bloc': '^9.1.1',
     'bloc': '^9.2.1',
-    'equatable': '^2.1.0',
+    'equatable': '^3.0.0',
     'bloc_concurrency': '^0.3.0',
 
     // ── Core ────────────────────────────────────────────────────────────────
-    'get_it': '^9.2.1',
+    'get_it': '^9.3.0',
     'flutter_native_splash': '^2.4.8',
-    'envied': '^1.3.8',
+    'envied': '^1.3.10',
     'skeletonizer': '^2.1.3',
     // Deliberately unconstrained, and the only one: `flutter_localizations`
     // depends on an exact `intl` from the Flutter SDK, so any caret here
@@ -68,20 +68,20 @@ abstract final class PackageVersions {
 
     // ── Network ─────────────────────────────────────────────────────────────
     'go_router': '^17.5.0',
-    'dio': '^5.11.0',
+    'dio': '^5.11.1',
     'dio_smart_retry': '^7.0.1',
-    'flutter_secure_storage': '^11.0.0',
+    'flutter_secure_storage': '^11.2.0',
 
     // ── Firebase ────────────────────────────────────────────────────────────
-    'firebase_core': '^4.13.0',
-    'firebase_messaging': '^16.5.0',
-    'firebase_crashlytics': '^5.2.7',
-    'firebase_auth': '^6.5.7',
-    'cloud_firestore': '^6.8.0',
+    'firebase_core': '^4.15.0',
+    'firebase_messaging': '^16.7.0',
+    'firebase_crashlytics': '^5.4.0',
+    'firebase_auth': '^6.7.0',
+    'cloud_firestore': '^6.10.0',
     // Floored because the generated Google flow is written against the 7.x
     // API — `GoogleSignIn.instance`, `initialize()` and `authenticate()`
     // replaced the constructor and `signIn()` of 6.x.
-    'google_sign_in': '^7.0.0',
+    'google_sign_in': '^7.2.0',
 
     // ── Device ──────────────────────────────────────────────────────────────
     // Floored at 12, which is where file_picker stopped depending on win32
@@ -113,7 +113,7 @@ abstract final class PackageVersions {
     // pins meta 1.18.0 — a caret at 2.16 simply fails to resolve there.
     // This range still picks the newest build_runner an SDK allows.
     'build_runner': '^2.15.1',
-    'envied_generator': '^1.3.8',
+    'envied_generator': '^1.3.10',
     // See the annotation packages above for why this stops below 4.
     'freezed': '^3.2.5',
     'json_serializable': '^6.14.1',

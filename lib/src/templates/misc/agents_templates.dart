@@ -46,6 +46,7 @@ class AgentsTemplates {
         withFeatureModule: withFeatureModule,
       ),
       bloc ? _blocRules() : _riverpodRules(),
+      _dartStyle(),
       _ui(
         bloc: bloc,
         withDarkTheme: withDarkTheme,
@@ -248,6 +249,25 @@ test/
   `context.show<Name>Sheet(...)` or `extra: <Name>Scope.of(context)` +
   `.provide(child:)` — and never create a second instance of the same bloc.
   For routes nested under a screen, prefer a `ShellRoute` providing the blocs.
+''';
+
+  static String _dartStyle() => '''
+## Dart style
+
+- **Parameters are named and `required`**, in every function and method you
+  write — repository, datasource, state holder and helper alike:
+
+  ```dart
+  Future<void> delete(int id);                   // no
+  Future<void> delete({required int id});        // yes
+  await repository.delete(id: order.id);
+  ```
+
+  An optional parameter is named with a default or a nullable type, never
+  positional in `[...]`. The only positional parameters are the ones a
+  signature you do not own dictates: overrides (`build(BuildContext context)`),
+  callbacks matching a typedef (`onChanged`, `itemBuilder`, bloc handlers),
+  operators and setters.
 ''';
 
   static String _ui({

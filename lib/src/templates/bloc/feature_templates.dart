@@ -224,7 +224,7 @@ class ${cls}RemoteDataSource {
     );
   }
 
-  Future<${cls}Model?> fetchOne(String id) {
+  Future<${cls}Model?> fetchOne({required String id}) {
     return safeFirebaseCall<${cls}Model?>(
       call: () async {
         final doc = await _collection.doc(id).get();
@@ -263,7 +263,7 @@ class ${cls}RemoteDataSource {
     );
   }
 
-  Future<void> delete(String id) {
+  Future<void> delete({required String id}) {
     return safeFirebaseCall<void>(
       call: () => _collection.doc(id).delete(),
     );
@@ -507,7 +507,7 @@ final class ${cls}Started extends ${cls}Event {
     //
     // Future<void> _onDeleted(${cls}Deleted event, Emitter<${cls}State> emit) =>
     //     runAction(emit, (current) async {
-    //       ${hasRepository ? 'await _repo.delete(event.id);' : '// do the work, then'}
+    //       ${hasRepository ? 'await _repo.delete(id: event.id);' : '// do the work, then'}
     //       return current.copyWith(successMessage: 'Deleted');
     //     });''';
 

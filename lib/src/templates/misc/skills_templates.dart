@@ -387,9 +387,9 @@ calling it. The one-shot `error` / `success` fields on the state do the rest.
    `presentation/notifiers/<feature>_notifier.dart`:
 
    ```dart
-   Future<void> deleteOrder(int id) {
+   Future<void> deleteOrder({required int id}) {
      return runAction((current) async {
-       await _repo.delete(id);
+       await _repo.delete(id: id);
        return current.copyWith(
          orders: current.orders.where((o) => o.id != id).toList(),
          success: 'Order deleted',
@@ -413,7 +413,7 @@ calling it. The one-shot `error` / `success` fields on the state do the rest.
      label: 'Delete',
      isLoading: state.isLoadingAction,
      onPressed: () =>
-         ref.read(orderNotifierProvider.notifier).deleteOrder(order.id),
+         ref.read(orderNotifierProvider.notifier).deleteOrder(id: order.id),
    )
    ```
 
@@ -459,7 +459,7 @@ state do the rest.
 
    Future<void> _onDeleted(OrderDeleted event, Emitter<OrderState> emit) =>
        runAction(emit, (current) async {
-         await _repo.delete(event.id);
+         await _repo.delete(id: event.id);
          return current.copyWith(
            orders: current.orders.where((o) => o.id != event.id).toList(),
            successMessage: 'Order deleted',
@@ -813,6 +813,9 @@ to do instead`, most serious first. Do not fix anything unless asked.
       in `.env.example` too.
 - [ ] Files that should come from moarch (`create feature/model/widget/bloc`)
       were not written by hand.
+- [ ] New functions and methods take named `required` parameters
+      (`delete({required int id})`, not `delete(int id)`), except where an
+      override or typedef fixes the signature.
 
 ## State
 

@@ -2,6 +2,22 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.3.1
+
+- **Generated `AGENTS.md` asks for named `required` parameters.** A new
+  "Dart style" section tells agents to write `delete({required int id})`, not
+  `delete(int id)`, in every function and method, keeping positional
+  parameters only where an override or typedef fixes the signature. The
+  review skill checks it, and the examples that show a method — the
+  add-action skills, the README's state walkthroughs and the Firestore
+  datasource `create feature` writes (`fetchOne`, `delete`) — follow it.
+- **Package versions.** `equatable` moves to `^3.0.0` (the templates never
+  used the removed `EquatableMixin`). Raised floors: `firebase_core ^4.15.0`,
+  `firebase_messaging ^16.7.0`, `firebase_crashlytics ^5.4.0`,
+  `firebase_auth ^6.7.0`, `cloud_firestore ^6.10.0`, `google_sign_in ^7.2.0`,
+  `get_it ^9.3.0`, `dio ^5.11.1`, `flutter_secure_storage ^11.2.0`,
+  `envied` / `envied_generator ^1.3.10`.
+
 ## 9.3.0
 
 - **The REST auth feature asks `GET /auth/me` who is signed in.** Login and
