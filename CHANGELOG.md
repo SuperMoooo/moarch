@@ -2,6 +2,30 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.4.0
+
+- **Two new agent skills**, in `.agents/skills/` with their `.claude/skills/`
+  pointers, written for the project's stack and options like the others:
+  - `moarch-plan-feature` — an interview before any code. The agent asks
+    about a feature's data, screens and their states, actions, route and
+    platform needs in rounds, every question with a recommended answer, looks
+    up in the code what the code can answer, never reopens what `AGENTS.md`
+    settles, and ends with the decisions and the skills that build them. It
+    runs only when the user asks to plan or be grilled.
+  - `moarch-fix-bug` — reproduce first. A table from symptom to the layer that
+    owns it, then the loop that makes it fail on command (a state-holder test
+    against a mocked repository, a model test on the real payload, a widget
+    test, an integration test against the API, or a tagged log from a
+    device), the fix in that layer, and the test kept.
+- **Existing projects get them from `moarch doctor --fix`**, which now offers
+  any skill a project that has the others was never given; one it generated
+  and deleted is left alone. Then `moarch update agents` lists them in
+  `AGENTS.md`.
+- `AGENTS.md` names `mattpocock/skills` (`grill-me`, `domain-modeling`,
+  `handoff`) beside `flutter/skills` as generic skills that can be installed
+  next to the project's own, and adds "dropping a repository interface
+  because it has one implementation" to what the project's rules overrule.
+
 ## 9.3.1
 
 - **Generated `AGENTS.md` asks for named `required` parameters.** A new

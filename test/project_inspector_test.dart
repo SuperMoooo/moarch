@@ -27,9 +27,11 @@ void main() {
     await File(p.join(root, '.env')).writeAsString('API_URL=http://x');
     await File(p.join(root, '.fvmrc')).writeAsString('{}');
     await File(p.join(root, 'AGENTS.md')).writeAsString('# AGENTS.md\n');
-    await File(
-      p.join(root, SkillsTemplates.all.first.agentsPath),
-    ).create(recursive: true).then((file) => file.writeAsString('---\n'));
+    for (final skill in SkillsTemplates.all) {
+      await File(
+        p.join(root, skill.agentsPath),
+      ).create(recursive: true).then((file) => file.writeAsString('---\n'));
+    }
     await File(p.join(root, '.vscode', 'settings.json'))
         .create(recursive: true)
         .then((file) => file.writeAsString(DevTemplates.vscodeSettings()));
@@ -703,6 +705,50 @@ dependencies:
       expect(
         File(p.join(root, SkillsTemplates.all.last.agentsPath)).existsSync(),
         isTrue,
+      );
+    });
+
+    File skillFile(String slug) =>
+        File(p.join(root, SkillsTemplates.bySlug(slug)!.agentsPath));
+
+    test('offers the skills added since the project was scaffolded', () async {
+      await scaffoldHealthyProject();
+      await skillFile('plan-feature').parent.delete(recursive: true);
+      await skillFile('fix-bug').parent.delete(recursive: true);
+
+      final finding = matching(
+        await ProjectInspector.inspect(root),
+        'Agent skills added since',
+      ).single;
+      expect(finding.severity, DiagnosticSeverity.info);
+      expect(finding.message, contains('moarch-plan-feature, moarch-fix-bug'));
+
+      await finding.fix!();
+
+      for (final slug in ['plan-feature', 'fix-bug']) {
+        final skill = SkillsTemplates.bySlug(slug)!;
+        expect(skillFile(slug).existsSync(), isTrue);
+        expect(File(p.join(root, skill.claudePath)).existsSync(), isTrue);
+      }
+      // The ones it already had are not rewritten.
+      expect(await skillFile('review').readAsString(), '---\n');
+      expect(await ProjectInspector.inspect(root), isEmpty);
+    });
+
+    test('leaves alone a skill the project generated and deleted', () async {
+      await scaffoldHealthyProject();
+      final skill = SkillsTemplates.bySlug('fix-bug')!;
+      await skillFile('fix-bug').parent.delete(recursive: true);
+      await File(p.join(root, ProjectManifest.fileName)).writeAsString(
+        "version: '9.4.0'\nstack: []\nfiles:\n  '${skill.agentsPath}': 'abc'\n",
+      );
+
+      expect(
+        matching(
+          await ProjectInspector.inspect(root),
+          'Agent skills added since',
+        ),
+        isEmpty,
       );
     });
   });

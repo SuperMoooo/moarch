@@ -192,8 +192,12 @@ for coding agents, in the same form this repo uses for its own:
   files) and `.gemini/settings.json`.
 
 All of it is in the catalog's `ai` group (`moarch update ai`). AGENTS.md
-lists the skills only when `ScaffoldContext.hasAgentSkills` finds them on disk,
-and `doctor` offers them to projects from before 9.1.0. **When a template
+lists the skills only when `ScaffoldContext.hasAgentSkills` finds them on disk
+— it looks for the first entry of `SkillsTemplates.all`, so a new skill goes
+after it — and `doctor` offers them to projects from before 9.1.0. A skill
+added later reaches a project that already has the others the same way:
+`doctor` offers every skill the manifest has no record of, so one a project
+generated and deleted stays deleted. **When a template
 changes a convention an agent follows** (a path, a command, a state pattern),
 update `agents_templates.dart` and `skills_templates.dart` in the same change.
 A skill describes commands and files that exist, so it is tested like any
@@ -244,6 +248,7 @@ starting that kind of change.
 
 | Skill | For |
 |---|---|
+| [`plan-change`](.agents/skills/plan-change/SKILL.md) | Settle a change's decisions with the user before writing it — only when asked to plan |
 | [`add-template`](.agents/skills/add-template/SKILL.md) | A new file `init` generates, or a change to one |
 | [`add-widget`](.agents/skills/add-widget/SKILL.md) | A new widget in the UI kit |
 | [`add-init-option`](.agents/skills/add-init-option/SKILL.md) | A new checklist option in `moarch init` |

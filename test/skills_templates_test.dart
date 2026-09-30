@@ -211,6 +211,83 @@ void main() {
       );
     });
 
+    test('plan-feature asks, and leaves the building to the other skills', () {
+      for (final o in every) {
+        final source = render('plan-feature', o);
+        expect(source, contains('recommended answer'));
+        expect(source, contains('**The architecture is not a question.**'));
+        expect(source, contains('`moarch-add-feature`'));
+        // It writes no code, so it has no checks to pass.
+        expect(source, isNot(contains('## Done when')));
+      }
+    });
+
+    test('plan-feature asks only about what the project has', () {
+      final bare = render('plan-feature', options(StateManagement.riverpod));
+      expect(bare, contains('**Where the data comes from**'));
+      expect(bare, contains('**How the user gets there**'));
+      expect(bare, isNot(contains('ApiConstants')));
+      expect(bare, isNot(contains('moarch create scope')));
+      expect(bare, isNot(contains('**Strings**')));
+      expect(bare, contains('a notifier method through `runAction`'));
+
+      final dio = render(
+        'plan-feature',
+        options(StateManagement.riverpod, withDio: true),
+      );
+      expect(dio, contains('**The endpoints**'));
+      expect(dio, isNot(contains('Firestore')));
+
+      final full = render(
+        'plan-feature',
+        options(
+          StateManagement.bloc,
+          withDio: true,
+          withFirestore: true,
+          withRouter: true,
+          withLocalization: true,
+        ),
+      );
+      expect(full, contains('**Where the data lives**'));
+      expect(full, contains('**The route**'));
+      expect(full, contains('\n- **Who else needs the bloc**'));
+      expect(full, contains('**A second tap while the first runs**'));
+      expect(full, contains('**Strings**'));
+      expect(full, contains('a bloc event and handler through `runAction`'));
+    });
+
+    test('fix-bug reproduces through the stack the project has', () {
+      final riverpod = render('fix-bug', options(StateManagement.riverpod));
+      expect(riverpod, contains('## 2. Make it fail on command'));
+      expect(riverpod, contains('A unit test on the notifier'));
+      expect(riverpod, contains('orderNotifierProvider.notifier'));
+      expect(riverpod, isNot(contains('blocTest')));
+      // No Dio: no integration tests, and the device loop is the fourth.
+      expect(riverpod, isNot(contains('test/integration/')));
+      expect(riverpod, contains('\n4. **On a device**'));
+
+      final bloc = render(
+        'fix-bug',
+        options(StateManagement.bloc, withDio: true),
+      );
+      expect(bloc, contains('A unit test on the bloc'));
+      expect(bloc, contains('blocTest<OrderBloc, OrderState>('));
+      expect(bloc, contains('missing from `props`'));
+      expect(bloc, contains('through `safeApiCall`'));
+      expect(bloc, contains('\n4. **An integration test**'));
+      expect(bloc, contains('\n5. **On a device**'));
+      expect(bloc, isNot(contains('ref.read')));
+    });
+
+    test('fix-bug throws an exception the project declares', () {
+      // `AppException` is sealed: a test can only throw one of its kinds.
+      for (final o in every) {
+        final source = render('fix-bug', o);
+        expect(source, contains("const ServerException(message: '"));
+        expect(source, isNot(contains('const AppException(')));
+      }
+    });
+
     test('the review checks the stack the project has', () {
       expect(
         render('review', options(StateManagement.bloc)),
@@ -276,6 +353,14 @@ void main() {
         expect(source, contains('(${skill.agentsPath})'));
       }
       expect(source, contains('this file wins'));
+      expect(source, contains('`mattpocock/skills`'));
+    });
+
+    test('the marker skill stays first', () {
+      // `ScaffoldContext.hasAgentSkills` looks for the first skill: moving
+      // another one there would make every existing project read as having
+      // none, and its refreshed AGENTS.md would drop the table.
+      expect(SkillsTemplates.all.first.slug, 'add-feature');
     });
 
     test('says nothing about skills a project does not have', () {

@@ -5,6 +5,7 @@ import 'package:yaml_edit/yaml_edit.dart';
 
 import '../templates/config/config_templates.dart';
 import '../templates/misc/deep_links_templates.dart';
+import '../templates/misc/skills_templates.dart';
 import 'api_constants_utils.dart';
 import 'file_utils.dart';
 import 'package_versions.dart';
@@ -100,6 +101,7 @@ abstract final class ProjectInspector {
       ..._platforms(root),
       ..._agents(root),
       ..._skills(root),
+      ..._newSkills(root),
       ..._widgets(root, libPath, pubspec),
     ];
   }
@@ -288,6 +290,48 @@ abstract final class ProjectInspector {
             _aiSpecs,
             'the files already exist',
           );
+          return '$result — run `moarch update agents` to list them in '
+              'AGENTS.md';
+        },
+      ),
+    ];
+  }
+
+  /// A project that has the skills, but not the ones added since it was
+  /// scaffolded (`moarch-plan-feature` and `moarch-fix-bug` came in 9.4.0).
+  ///
+  /// `update` never adds a file, while a refreshed `AGENTS.md` lists every
+  /// skill — so without this its table would link to files that are not
+  /// there. The manifest's version cannot gate it, since every `create` and
+  /// `update` restamps that; its file records can: a skill it has a hash for
+  /// was generated here once and deleted since, which is a choice to respect.
+  static List<Diagnostic> _newSkills(String root) {
+    if (!ScaffoldContext.detect(root).hasAgentSkills) return const [];
+    final manifest = ProjectManifest.load(root);
+    final missing = [
+      for (final skill in SkillsTemplates.all)
+        if (!File(
+              p.joinAll([root, ...p.posix.split(skill.agentsPath)]),
+            ).existsSync() &&
+            manifest?.files[skill.agentsPath] == null)
+          skill,
+    ];
+    if (missing.isEmpty) return const [];
+
+    return [
+      Diagnostic.info(
+        'Agent skills added since this project was scaffolded: '
+        '${missing.map((skill) => skill.name).join(', ')}',
+        hint:
+            'Generate them with `moarch doctor --fix`, then '
+            '`moarch update agents` to list them in AGENTS.md.',
+        fix: () async {
+          final result = await _generate(root, [
+            for (final skill in missing) ...[
+              'skill-${skill.slug}',
+              'claude-skill-${skill.slug}',
+            ],
+          ], 'the files already exist');
           return '$result — run `moarch update agents` to list them in '
               'AGENTS.md';
         },

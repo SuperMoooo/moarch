@@ -15,6 +15,9 @@ import '../../utils/state_management.dart';
 /// imports `AGENTS.md` — rather than a second body that drifts.
 abstract final class SkillsTemplates {
   /// Every skill a project ships, in the order `AGENTS.md` lists them.
+  ///
+  /// The first one is how a project is recognised as having the skills
+  /// (`ScaffoldContext.hasAgentSkills`), so a new skill goes after it.
   static const List<AgentSkill> all = [
     AgentSkill._(
       'add-feature',
@@ -23,6 +26,16 @@ abstract final class SkillsTemplates {
           'then fills in the model, the data layer, the state and the screen. '
           'Use when asked to add a feature, module, section or screen that '
           'needs its own data.',
+    ),
+    AgentSkill._(
+      'plan-feature',
+      'Plan a feature in this moarch project before any code is written, by '
+          'interviewing the user until every decision is settled. Asks about '
+          'the data, the screens and their states, the actions, the route and '
+          'the platform needs in rounds, each question with a recommended '
+          'answer, then lists the moarch commands and skills that build it. '
+          'Use only when the user asks to plan, scope, design or be grilled '
+          'on a feature — never for a change that is already specified.',
     ),
     AgentSkill._(
       'add-endpoint',
@@ -67,6 +80,14 @@ abstract final class SkillsTemplates {
           'a generated test fails.',
     ),
     AgentSkill._(
+      'fix-bug',
+      'Find and fix a bug in this moarch project by reproducing it first. '
+          'Finds the layer that owns the symptom, writes a test or a command '
+          'that fails because of it, fixes the cause there and keeps the '
+          'test. Use when something is broken, throws, shows the wrong data '
+          'or state, or fails for a reason that is not obvious.',
+    ),
+    AgentSkill._(
       'update-scaffold',
       "Refresh this project's moarch-generated files against newer moarch "
           'templates and fix what `moarch doctor` reports, without losing '
@@ -95,12 +116,14 @@ abstract final class SkillsTemplates {
   static String skill(AgentSkill skill, SkillOptions o) {
     final body = switch (skill.slug) {
       'add-feature' => _addFeature(o),
+      'plan-feature' => _planFeature(o),
       'add-endpoint' => _addEndpoint(o),
       'add-action' => o.bloc ? _addActionBloc(o) : _addActionRiverpod(o),
       'add-model' => _addModel(o),
       'build-screen' => _buildScreen(o),
       'add-env-key' => _addEnvKey(o),
       'write-tests' => _writeTests(o),
+      'fix-bug' => _fixBug(o),
       'update-scaffold' => _updateScaffold(),
       'review' => _review(o),
       _ => throw ArgumentError.value(skill.slug, 'skill', 'unknown skill'),
@@ -179,10 +202,13 @@ starting the task.
 |---|---|
 $rows
 
-Generic Flutter skills (for example `flutter-fix-layout-issues` from
-`flutter/skills`) can be installed beside these. Where one disagrees with this
-file — a ViewModel on `ChangeNotifier`, hand-written `fromJson`, `http`
-instead of the project's client, a model-to-entity mapper — this file wins.
+Generic skills can be installed beside these: Flutter ones (for example
+`flutter-fix-layout-issues` from `flutter/skills`) and process ones (for
+example `grill-me`, `domain-modeling` and `handoff` from `mattpocock/skills`).
+Where one disagrees with this file — a ViewModel on `ChangeNotifier`,
+hand-written `fromJson`, `http` instead of the project's client, a
+model-to-entity mapper, dropping a repository interface because it has one
+implementation — this file wins.
 ''';
   }
 
@@ -258,7 +284,8 @@ fvm flutter test
 ${_intro('Add a feature')}
 A feature is one folder under `lib/features/<name>/` with every layer in it.
 If the feature already exists, use `moarch-add-endpoint`, `moarch-add-action`
-or `moarch-build-screen` instead.
+or `moarch-build-screen` instead. If the user asked to plan it first,
+`moarch-plan-feature` comes before this.
 
 ## Steps
 
@@ -292,6 +319,153 @@ $scaffold
 7. **Tests** — `moarch create tests <name>`, then `moarch-write-tests`.
 
 ${_done(o)}''';
+  }
+
+  // ── plan-feature ───────────────────────────────────────────────────────────
+
+  static String _planFeature(SkillOptions o) {
+    final holder = o.bloc ? 'bloc' : 'notifier';
+    final source = o.withDio && o.withFirestore
+        ? '''
+- **Where the data lives** — this project has both a REST client (Dio) and
+  Firestore, and `moarch create feature` asks which one. For REST: each
+  endpoint's method, path and payload. For Firestore: the collection, the
+  document's shape, and whether the screen watches it live or fetches once.'''
+        : o.withDio
+        ? '''
+- **The endpoints** — each call's method, path, parameters and payload. Paths
+  end up in `ApiConstants`.'''
+        : o.withFirestore
+        ? '''
+- **The collection** — its path, the document's shape, and whether the screen
+  watches it live (`watchAll`) or fetches it once.'''
+        : '''
+- **Where the data comes from** — the project has no generated client, so
+  which SDK or API the datasource calls, and what it returns.''';
+    final navigation = o.withRouter
+        ? '''
+- **The route** — its path (`/orders`, `/orders/:id`) and what opens it.
+  `moarch create feature` adds the feature's own route; every other screen
+  needs one added by hand.
+- **What a screen needs to load** — an id in the path, a query. Where
+  `AGENTS.md` says any route can be opened from a link, that is all a screen
+  may load from: never `extra`, never what the previous screen left behind.'''
+        : '''
+- **How the user gets there** — what opens each screen, and what it is
+  passed.''';
+    final scope = o.bloc
+        ? '''
+
+- **Who else needs the bloc** — a sheet, dialog or pushed route that reads
+  the screen's bloc needs a scope (`moarch create scope <feature> <name>`). A
+  second independent screen gets its own bloc (`moarch create bloc`).'''
+        : '';
+    final strings = o.withLocalization || o.withEasyLocalization
+        ? '\n- **Strings** — every label and message is a key in every language '
+              'file; ask\n  for the wording in each language the project ships.'
+        : '';
+    return '''
+${_intro('Plan a feature')}
+An interview that ends in a plan — no code is written here. Use it when the
+user asks to plan, scope or be grilled on a feature. A change that is already
+specified goes straight to `moarch-add-feature`.
+
+## How to ask
+
+The decisions form a tree: some can only be put once others are settled.
+Work it in rounds.
+
+- **A round is every question that can be answered now.** Number them, and
+  give each your recommended answer with its reason in one line, so the user
+  can reply `1 yes, 2 no — …`. A question that hangs off one still open waits
+  for the next round.
+- **Facts are yours to find; decisions are the user's.** What `lib/` already
+  has, how a similar feature did it, what a sample payload in the repo holds:
+  read it, do not ask. What the feature should do: ask, do not assume.
+- **The architecture is not a question.** The layers, the state holder, the
+  locator, the UI kit and the tokens are settled in `AGENTS.md`. Never offer
+  an entity layer, a use case, another state library or a second HTTP client
+  as an option.
+- **Skip what the user already said**, and what does not apply.
+- **Done when no question is left.** Then write the plan and wait for the
+  user to confirm it before building anything.
+
+## The decisions
+
+In the order they unblock each other.
+
+### What it is
+
+- **The name** — snake_case, the folder under `lib/features/`
+  (`order_history`).
+- **New feature, or part of one** — read `lib/features/` first. A feature
+  owns its data; a second screen or a new action on data an existing feature
+  already owns is not a new feature.
+- **What is out** — what this deliberately does not do yet.
+
+### The data
+
+$source
+- **A sample payload** — ask for a real one. The model is generated from it
+  (`moarch-add-model`), which beats guessing the fields.
+- **The model** — which fields can be missing, which are nested objects or
+  lists, which are dates or enums.
+- **A local cache** — whether the data is kept on the device
+  (`moarch create feature --all` adds the local datasource), and what is
+  shown when it is stale.
+
+### The screens
+
+For each screen:
+
+- **What it shows**, and which kit widgets carry it (`docs/UI_KIT.md`).
+- **Its four states** — loading (the skeleton, drawn from the state's
+  `placeholder`), empty (what the text says, and whether there is a call to
+  action), error (retry?), and data.
+- **Refresh and paging** — pull to refresh, load more, or neither.$strings
+
+### The actions
+
+For each button or gesture that changes something:
+
+- **What it calls**, and what changes in the state when it succeeds.
+- **What the user sees** — the success message, the error message if the
+  backend's is not good enough, and whether it needs a confirmation first.
+- **Where it goes after** — stays, closes a sheet, navigates.${o.bloc ? '\n- **A second tap while the first runs** — ignored or restarted.' : ''}
+
+Each one becomes a $holder ${o.bloc ? 'event and handler' : 'method'} through `runAction`.
+
+### Navigation
+
+$navigation$scope
+- **Who may see it** — signed-in users only, a role, everyone.
+
+### Platform and configuration
+
+- **Device capabilities** — camera, photos, location, notifications,
+  biometrics. Each needs a declaration in `AndroidManifest.xml` and a usage
+  description in `Info.plist`, and a decision on what the screen shows when
+  the user refuses.
+- **New packages** — name them; check the project does not already have a
+  service for it in `lib/core/services/`.
+- **Configuration and secrets** — keys, URLs, flags: they go through `AppEnv`
+  (`moarch-add-env-key`), and the user supplies the values.
+- **Offline** — what the feature does without a connection.
+
+## The plan
+
+Reply with it; write it to a file only if the user asks. It holds:
+
+1. **The decisions**, one line each, in the order above.
+2. **What is still unknown** and who can answer it — never a guess dressed
+   as a decision.
+3. **The build order**, as the skills that do each step:
+   `moarch-add-feature` (which runs `moarch create feature <name>`), then
+   `moarch-add-model`, `moarch-add-endpoint`, `moarch-build-screen`,
+   `moarch-add-action` for each action, and `moarch-write-tests`.
+
+Stop there. Building starts when the user says the plan is right.
+''';
   }
 
   // ── add-endpoint ───────────────────────────────────────────────────────────
@@ -714,6 +888,141 @@ it — only when the user agrees).
 ## Widget tests
 
 $widget
+
+${_done(o)}''';
+  }
+
+  // ── fix-bug ────────────────────────────────────────────────────────────────
+
+  static String _fixBug(SkillOptions o) {
+    final holder = o.bloc ? 'bloc' : 'notifier';
+    final boundary = [
+      if (o.withDio) '`safeApiCall`',
+      if (o.withFirestore) '`safeFirebaseCall`',
+    ].join(' / ');
+    final stateRows = o.bloc
+        ? '''
+| An action does nothing, or the screen does not rebuild | The state: a field missing from `props` makes two states equal, and the emit is dropped |
+| A toast fires twice or never; loading never ends | The handler: it must go through `runAction`, and the `listenWhen` on the message fields |
+| `ProviderNotFoundException` for a bloc | A sheet, dialog or pushed route reading the opener's bloc: it needs a scope |'''
+        : '''
+| An action does nothing, or the screen does not rebuild | The notifier: the method must go through `runAction` and return a new state from `copyWith` |
+| A toast fires twice or never; loading never ends | The state's `copyWith` (it clears `error` / `success`) and the view's `ref.listenAction` |
+| The screen rebuilds too often or not at all | `ref.read` in `build`, or `ref.watch` in a callback |''';
+    final holderLoop = o.bloc
+        ? '''
+   ```dart
+   blocTest<OrderBloc, OrderState>(
+     'a failed delete keeps the order',
+     setUp: () => when(() => repository.delete(id: 7))
+         .thenThrow(const ServerException(message: 'Order is locked')),
+     build: () => OrderBloc(repository),
+     seed: () => loaded, // a state holding the order, built in the test
+     act: (bloc) => bloc.add(const OrderDeleted(7)),
+     verify: (bloc) => expect(bloc.state.orders, loaded.orders),
+   );
+   ```'''
+        : '''
+   ```dart
+   test('a failed delete keeps the order', () async {
+     when(() => repository.fetchAll()).thenAnswer((_) async => [order]);
+     when(() => repository.delete(id: 7))
+         .thenThrow(const ServerException(message: 'Order is locked'));
+     await container.read(orderNotifierProvider.future);
+
+     await container.read(orderNotifierProvider.notifier).deleteOrder(id: 7);
+
+     final state = container.read(orderNotifierProvider).requireValue;
+     expect(state.orders, [order]);
+   });
+   ```''';
+    return '''
+${_intro('Fix a bug')}
+Reproduce before you theorise. One command that fails *because of this bug*,
+and will pass once it is fixed, finds the cause faster than reading code —
+and without it a fix is a guess nobody can check.
+
+## 1. Find the layer that owns it
+
+Each layer has one job, so the symptom usually names it:
+
+| Symptom | Look at |
+|---|---|
+| An error toast or error screen with a message | The datasource: the message is the `AppException` it threw${boundary.isEmpty ? '' : ' through $boundary'} |
+| A raw exception on screen, or a crash on a failed request | A call that is not translated into `AppException` in the datasource |
+| `type 'Null' is not a subtype…`, a field that is always null or empty | The model: its field names against the real payload, and `build.yaml`'s `field_rename` |
+| Code that ignores a field you just added | Stale generated code: run `$_buildRunner` |
+$stateRows
+| A skeleton with blank lines where content should be | The state's `placeholder`: a field the view reads has no fake value |
+| An overflow or an unbounded-height error | The view's constraints — `moarch-build-screen`, "Layout errors" |
+| get_it says a type `is not registered` | The module in `lib/config/di/` that should register it |
+| It only happens on a device, after a restart or from a link | Platform setup, permissions or lifecycle — step 2, the last loop |
+
+Read the failing layer's file and the one below it. Do not start changing
+things yet.
+
+## 2. Make it fail on command
+
+Take the first loop that can reach the bug:
+
+1. **A unit test on the $holder** (`test/unit/`) — mock the repository
+   **interface** so it returns the payload, or throws the `AppException`
+   (a concrete one: `ServerException`, `NetworkException`…), that sets the
+   bug off, then assert on the state:
+
+$holderLoop
+
+   The generated tests in `test/unit/` already set up the mocks${o.bloc ? '' : ' and the\n   container'}; add the case beside them, with fixtures built from the
+   model's `.empty()` + `copyWith`. Run only it:
+
+   ```bash
+   fvm flutter test test/unit/<file>_test.dart --plain-name 'a failed delete'
+   ```
+
+2. **A model test** — `OrderModel.fromJson(<the real payload>)` in a plain
+   `test(...)`. Paste the payload that breaks it, with tokens and personal
+   data replaced first.
+
+3. **A widget test** — pump the view with the state that breaks it
+   (`moarch-write-tests` shows how the ${o.bloc ? 'bloc' : 'repository'} is provided). For a layout
+   bug, set the size that shows it:
+   `await tester.binding.setSurfaceSize(const Size(320, 568));`
+${o.withDio ? '''
+
+4. **An integration test** (`test/integration/`) — when the suspicion is that
+   the backend answers something the app does not expect. These call the
+   real API at `BASE_URL`.
+''' : ''}
+${o.withDio ? '5' : '4'}. **On a device** — for what no test reaches: a permission, a platform
+   channel, a notification, a deep link, the app coming back from the
+   background. You cannot run this yourself. Add temporary `debugPrint`
+   lines with one tag (`[bug]`) at each layer's edge, give the user the exact
+   steps, and ask for the log from `fvm flutter run`.
+
+Run it and watch it fail **with the symptom the user described** — a
+different failure nearby is a different bug. If nothing you build makes it
+fail, stop and say so: what you tried, and what you need (a payload, the
+steps, a log). Do not ship a fix you could not see fail.
+
+## 3. Fix the cause, where it lives
+
+- One hypothesis at a time: say what you expect to see, change one thing,
+  run the loop again.
+- Fix it in the layer that owns it. A `try` / `catch` in the $holder, a
+  null check in the view hiding a model that parsed wrong, or a second copy of
+  the data in the widget is the bug moved, not fixed.
+- A wrong `*.g.dart` or `*.freezed.dart` is fixed at its source, then
+  regenerated.
+- When the cause is in a file moarch generated (`lib/core/`, `lib/config/`,
+  `lib/shared/widgets/`), look at
+  `moarch update <name> --dry-run --diff` first: a newer template may already
+  fix it (`moarch-update-scaffold`).
+
+## 4. Keep the proof
+
+The test that failed stays in the suite, now passing. Remove every
+temporary log line. Tell the user the cause in one sentence, and whether the
+same mistake can exist elsewhere.
 
 ${_done(o)}''';
   }
