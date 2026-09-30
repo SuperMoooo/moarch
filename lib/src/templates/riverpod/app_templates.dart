@@ -23,6 +23,7 @@ class AppTemplates {
     bool withDarkTheme = false,
     bool withThemeMode = false,
     bool withOfflineGate = false,
+    bool withSync = false,
   }) {
     if (withEasyLocalization) withLocalization = false;
     // The saved choice only means something with two themes to choose from.
@@ -186,6 +187,10 @@ final locale = ref.watch(languageProvider).locale;
         "\nimport 'core/services/connectivity_service.dart';",
         "\nimport 'shared/widgets/offline_gate.dart';",
       ],
+      if (withSync) ...[
+        "\nimport 'core/sync/background_sync.dart';",
+        "\nimport 'core/sync/sync_service.dart';",
+      ],
     ].join();
 
     final moAdaptImport = [
@@ -220,6 +225,18 @@ final locale = ref.watch(languageProvider).locale;
         ((withMaintenanceGate ? 1 : 0) +
             (withUpdateGate ? 1 : 0) +
             (withOfflineGate ? 1 : 0));
+
+    // Offline sync: the queue is sent now, on every reconnect and resume, and
+    // from the background task.
+    final syncStart = withSync
+        ? '''
+
+  // Sends what was saved offline: now, on reconnect, on resume, and from the
+  // background task (docs/SYNC_SETUP.md).
+  getIt<SyncService>().start();
+  await registerBackgroundSync();
+'''
+        : '';
 
     // The app-wide "back online" hook. The locator is up by now.
     final reconnectHook = withOfflineGate
@@ -272,7 +289,7 @@ $easyLocalizationInit$firebaseInit
   // Registers every repository, datasource and service. Firebase is up by
   // this point, so the locator can hand out its instances.
   await setupInjector();
-$notificationInit$reconnectHook
+$notificationInit$reconnectHook$syncStart
   $runAppCall
 
   // After runApp, so the splash gives way to a painted first frame.
@@ -354,7 +371,7 @@ $easyLocalizationInit$firebaseInit
   // Registers every repository, datasource and service. Firebase is up by
   // this point, so the locator can hand out its instances.
   await setupInjector();
-$notificationInit$reconnectHook
+$notificationInit$reconnectHook$syncStart
   $runAppCall
 
   // After runApp, so the splash gives way to a painted first frame.

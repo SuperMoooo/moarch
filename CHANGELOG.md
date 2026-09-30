@@ -2,6 +2,72 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.6.0
+
+- **Offline-first cache, a new `init` option.** Tick *Offline-first cache
+  (drift)* under *Backend / networking* and the project gets
+  `lib/core/database/app_database.dart` (a drift database with one table of
+  records as JSON, keyed by feature) and `lib/core/database/local_cache.dart`
+  (`readAll`, `watchAll`, `replaceAll`, `clear`, `clearAll`). `AppDatabase` is
+  registered in `external_module.dart`, `LocalCache` in `core_module.dart`, and
+  `drift`, `drift_flutter` and `drift_dev` are added to the pubspec. It needs
+  Dio, and it replaces the offline screen when both are ticked.
+- **`moarch create feature` caches into it.** In a project with the cache, the
+  local datasource is ticked by default and written against `LocalCache`. The
+  repository's `fetchAll()` saves the API's list to the cache and answers from
+  it on a `NetworkException`, and the new `watchAll()` follows the cache. On
+  Riverpod the notifier loads through `fetchAll()`, follows `watchAll()` and
+  gets a `refresh()`. A bloc keeps loading through `fetchAll()`. Firestore
+  features are never cached, since Firestore keeps its own offline copy.
+- **Offline sync, a second new `init` option.** Tick *Offline sync (outbox +
+  background)* with the cache and writes stop needing a connection:
+  - `create feature` gives a cached feature `create` / `update` / `delete`.
+    Each changes the cache at once (a created record gets a temporary
+    negative id) and queues the `SyncRequest` the remote datasource describes
+    (method, path, body) in a new `PendingWrites` table.
+  - `lib/core/sync/sync_service.dart` sends the queue in order: at start-up,
+    after each write, on reconnect and on resume. A 2xx leaves the queue;
+    offline or a 401 stops and keeps it; any other 4xx is dropped and
+    reported on `SyncService.rejected`; a 5xx is retried after 10s, 20s, 40s
+    and 80s, then dropped. Every collection a sync touched is refetched, so
+    the server's answer wins. The pending count is `pendingSyncCountProvider`
+    on Riverpod and `PendingSyncCubit` on bloc.
+  - `lib/core/sync/background_sync.dart` sends it every ~15 minutes while the
+    app is closed, through `workmanager` (added to the pubspec). `init`
+    declares `UIBackgroundModes` (`fetch`) and
+    `BGTaskSchedulerPermittedIdentifiers` in `Info.plist`, merged into an
+    existing array rather than beside it. `doctor` checks them;
+    `AppDelegate.swift` needs no change. `docs/SYNC_SETUP.md` has the rules and
+    how to trigger a background run on Android and iOS.
+  - `LocalCache.clearAll()`, which sign-in and sign-out already call, empties
+    the queue too. `LocalCache` gains `put` and `remove` for single records.
+- **`docs/OFFLINE_FIRST.md`** is generated with the cache: a step-by-step
+  explanation of the tables, the read path, and (with sync) the write path,
+  the queue's rules, the background task and a full timeline, for the
+  project's stack. `AGENTS.md` points agents at it. Refresh with `moarch
+  update offline-doc`.
+- **A schema upgrade rebuilds only the cache table**, never a table holding
+  data the API does not have. `moarch update app-database` brings it to cache
+  projects.
+- **The auth feature empties the cache.** With the cache, `AuthRepositoryImpl`
+  takes `LocalCache` and clears it on logout and account deletion. The REST
+  variant also clears it at every sign-in, which covers a session that expired
+  while the app was away. `data_module.dart` passes it in.
+- **A module with one registration is a plain call, not a cascade.**
+  `getIt..registerX(...)` with a single section tripped
+  `avoid_single_cascade_in_expression_statements`, so `flutter analyze`
+  failed out of the box on, for example, a bloc project with auth and no
+  localization (`presentation_module.dart`) or a core module holding only
+  `PermissionService`. `moarch update di-presentation di-core` fixes existing
+  projects.
+- The generated README, `AGENTS.md` (a new *Offline-first* section) and the
+  `moarch-add-feature` / `moarch-add-endpoint` skills describe the cache when
+  the project has it.
+- Existing projects: nothing changes unless they have
+  `lib/core/database/local_cache.dart`. Both options are init-only; `moarch
+  update app-database local-cache` refreshes the cache files, and `moarch
+  update sync-queue sync-service background-sync sync-setup` the sync ones.
+
 ## 9.5.0
 
 - **`moarch create feature` writes a loading skeleton.** A feature with a

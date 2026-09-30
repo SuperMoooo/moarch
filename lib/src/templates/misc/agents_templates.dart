@@ -33,6 +33,8 @@ class AgentsTemplates {
     bool withEasyLocalization = false,
     bool withFeatureModule = false,
     bool withSkills = false,
+    bool withLocalCache = false,
+    bool withSync = false,
   }) {
     final bloc = stateManagement.isBloc;
     return <String>[
@@ -54,6 +56,12 @@ class AgentsTemplates {
         withStatusColors: withStatusColors,
       ),
       _addingAFeature(bloc: bloc, withRouter: withRouter),
+      if (withLocalCache)
+        _offlineFirst(
+          bloc: bloc,
+          withAuthFeature: withAuthFeature,
+          withSync: withSync,
+        ),
       if (withDeepLinks || withOfflineGate)
         _linksAndConnectivity(
           withDeepLinks: withDeepLinks,
@@ -315,6 +323,53 @@ test/
    skeleton in `presentation/widgets/<x>_skeleton.dart` (the same rows over
    `BoneMock` data).
 ''';
+
+  static String _offlineFirst({
+    required bool bloc,
+    required bool withAuthFeature,
+    required bool withSync,
+  }) =>
+      '''
+## Offline-first
+
+`docs/OFFLINE_FIRST.md` explains the whole flow; read it before changing a
+repository, the cache or the sync.
+
+- `lib/core/database/` is the local cache: `AppDatabase` (drift) and
+  `LocalCache`, which keeps each feature's records as JSON under the feature's
+  collection name. A feature reaches it only through its local datasource.
+- A REST feature's repository saves what `fetchAll()` gets to the cache, and on
+  a `NetworkException` answers from the cache instead; `watchAll()` follows the
+  cache. `moarch create feature` writes it that way, so keep new list reads the
+  same shape rather than calling the remote datasource straight through.
+${bloc ? '- The bloc loads through `fetchAll()`, which is already the cached read.' : '''- The notifier's `build()` loads through `fetchAll()` and then follows
+  `watchAll()`. Refetch with its `refresh()`, not `ref.invalidate`, which
+  swaps the list for a loading screen.'''}
+${withAuthFeature ? '''- The auth repository empties the cache whenever a session starts or ends.
+  Anything else that switches accounts calls
+  `getIt<LocalCache>().clearAll()` itself.''' : '- Clear the cache on sign-out: `getIt<LocalCache>().clearAll()`.'}
+- A changed table in `app_database.dart` bumps `schemaVersion`, then
+  `build_runner`. The cache is rebuilt on upgrade, so a table holding anything
+  the API does not have needs a real migration first.${withSync ? _sync : ''}
+''';
+
+  static const String _sync = '''
+
+### Writes (offline sync)
+
+- A cached feature's `create` / `update` / `delete` change the cache first and
+  then `SyncService.enqueue` the request its remote datasource *describes* as
+  a `SyncRequest` — the datasource never sends a write itself. Keep new writes
+  that shape; never call Dio for a write from a repository.
+- `SyncService` (`lib/core/sync/`) sends the queue in order. After a sync it
+  refetches every collection it touched, so the server's answer wins: do not
+  merge on the client.
+- A record created offline has a temporary negative id until that refetch;
+  do not let the UI edit or delete it before then.
+- Refused writes arrive on `SyncService.rejected` — surface them.
+- `PendingWrites` (in `app_database.dart`) is never dropped on a schema
+  upgrade: changing it needs a real migration. `docs/SYNC_SETUP.md` covers the
+  rules and the iOS background setup.''';
 
   static String _linksAndConnectivity({
     required bool withDeepLinks,

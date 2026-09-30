@@ -1,3 +1,4 @@
+import '../templates/core/sync_templates.dart';
 import 'manifest_utils.dart';
 import 'plist_utils.dart';
 import 'scaffold_catalog.dart';
@@ -21,6 +22,7 @@ class PlatformRequirement {
     this.queryIntents,
     this.queriesMarker,
     this.usageDescriptions = const {},
+    this.plistArrays = const {},
   });
 
   /// What needs it, as `doctor` names it.
@@ -48,6 +50,10 @@ class PlatformRequirement {
 
   /// iOS `Info.plist` usage descriptions, by key.
   final Map<String, String> usageDescriptions;
+
+  /// iOS `Info.plist` array values, by key. Added to an existing array rather
+  /// than replacing it: `UIBackgroundModes` is shared between services.
+  final Map<String, List<String>> plistArrays;
 
   /// Dio's calls. `flutter create` declares `INTERNET` only in the debug and
   /// profile manifests, so a release build without it cannot reach the API.
@@ -146,6 +152,17 @@ class PlatformRequirement {
     },
   );
 
+  /// The background sync task: an iOS background app refresh, which only
+  /// runs for an identifier `Info.plist` permits. Android's WorkManager needs
+  /// no declaration.
+  static const backgroundSync = PlatformRequirement(
+    service: 'Background sync',
+    plistArrays: {
+      'UIBackgroundModes': ['fetch'],
+      'BGTaskSchedulerPermittedIdentifiers': [SyncTemplates.taskId],
+    },
+  );
+
   /// The requirements of the services [context] has on disk.
   static List<PlatformRequirement> forProject(ScaffoldContext context) => [
     if (context.hasDio) internet,
@@ -155,6 +172,7 @@ class PlatformRequirement {
     if (context.hasFile('lib/core/services/url_launcher_service.dart'))
       urlLauncher,
     if (context.hasBiometric) biometric,
+    if (context.hasSync) backgroundSync,
   ];
 
   /// [manifest] with everything this declares on Android.
@@ -184,10 +202,16 @@ class PlatformRequirement {
   /// Whether [manifest] already declares everything this needs.
   bool isDeclaredIn(String manifest) => patchManifest(manifest) == manifest;
 
-  /// [plist] with this requirement's usage descriptions.
-  String patchPlist(String plist) => usageDescriptions.isEmpty
-      ? plist
-      : PlistUtils.ensureEntries(plist, usageDescriptions);
+  /// [plist] with this requirement's usage descriptions and array values.
+  String patchPlist(String plist) {
+    var out = usageDescriptions.isEmpty
+        ? plist
+        : PlistUtils.ensureEntries(plist, usageDescriptions);
+    for (final MapEntry(:key, :value) in plistArrays.entries) {
+      out = PlistUtils.ensureArrayValues(out, key, value);
+    }
+    return out;
+  }
 
   /// Whether [plist] already has every usage description this needs.
   bool isDescribedIn(String plist) => patchPlist(plist) == plist;

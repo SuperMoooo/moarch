@@ -11,6 +11,7 @@ import 'package:moarch/src/templates/misc/skills_templates.dart';
 import 'package:moarch/src/templates/misc/android_templates.dart';
 import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/templates/misc/docs_templates.dart';
+import 'package:moarch/src/templates/misc/offline_docs_templates.dart';
 import 'package:moarch/src/templates/misc/ios_templates.dart';
 import 'package:moarch/src/templates/misc/readme_templates.dart';
 import 'package:moarch/src/templates/misc/workflow_templates.dart';
@@ -18,7 +19,9 @@ import 'package:moarch/src/utils/checklist.dart';
 import 'package:path/path.dart' as p;
 
 import '../templates/config/config_templates.dart';
+import '../templates/core/cache_templates.dart';
 import '../templates/core/core_templates.dart';
+import '../templates/core/sync_templates.dart';
 import '../templates/stack_templates.dart';
 import '../utils/file_utils.dart';
 import '../utils/gradle_utils.dart';
@@ -49,6 +52,8 @@ const _kDio = 'Dio (REST API)';
 const _kFirestore = 'Firebase Firestore';
 const _kFirebaseAuth = 'Firebase Auth';
 const _kCrashlytics = 'Firebase Crashlytics';
+const _kOfflineFirst = 'Offline-first cache (drift)';
+const _kSync = 'Offline sync (outbox + background)';
 
 // ── Feature options ───────────────────────────────────────────────────────────
 // What gets generated into lib/ beyond the bare minimum.
@@ -214,6 +219,21 @@ class InitCommand extends Command<int> {
               defaultOn: false,
               description:
                   'Crash reporting wired into the error handlers (requires Firebase setup).',
+            ),
+            const ChecklistItem(
+              _kOfflineFirst,
+              defaultOn: false,
+              description:
+                  'A drift database the REST features cache into: screens '
+                  'follow the cache, and read it offline (needs Dio).',
+            ),
+            const ChecklistItem(
+              _kSync,
+              defaultOn: false,
+              description:
+                  'Writes land in the cache at once and are queued; sent on '
+                  'reconnect, resume and every ~15 min in the background '
+                  '(needs the cache above).',
             ),
           ],
         );
@@ -397,6 +417,32 @@ class InitCommand extends Command<int> {
         '  Note: flutter_localizations dropped — easy_localization selected.',
       );
     }
+    // The cache is filled from the REST client. Firestore keeps its own
+    // offline copy, so a project without Dio has nothing to cache.
+    if (stack.contains(_kOfflineFirst) && !stack.contains(_kDio)) {
+      stack.remove(_kOfflineFirst);
+      _logger.info(
+        '  Note: offline-first cache skipped — it caches the Dio features '
+        '(Firestore caches on its own).',
+      );
+    }
+    // The queue lives in the cache's database, and a write lands in the
+    // cache before it is sent.
+    if (stack.contains(_kSync) && !stack.contains(_kOfflineFirst)) {
+      stack.remove(_kSync);
+      _logger.info(
+        '  Note: offline sync skipped — it needs the offline-first cache.',
+      );
+    }
+    // An app that works offline has no business covering itself when the
+    // connection drops.
+    if (stack.contains(_kOfflineFirst) && stack.contains(_kOfflineGate)) {
+      stack.remove(_kOfflineGate);
+      _logger.info(
+        '  Note: offline screen skipped — the offline-first app keeps '
+        'working without a connection.',
+      );
+    }
     // A link opens a route, so without the router there is nothing to open.
     if (stack.contains(_kDeepLinks) && !stack.contains(_kRouter)) {
       stack.remove(_kDeepLinks);
@@ -533,6 +579,10 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kRouter)) PackageVersions.entry('go_router'),
       if (stack.contains(_kDio)) PackageVersions.entry('dio'),
       if (stack.contains(_kDio)) PackageVersions.entry('dio_smart_retry'),
+      if (stack.contains(_kOfflineFirst)) PackageVersions.entry('drift'),
+      if (stack.contains(_kOfflineFirst))
+        PackageVersions.entry('drift_flutter'),
+      if (stack.contains(_kSync)) PackageVersions.entry('workmanager'),
       PackageVersions.entry('flutter_secure_storage'),
       if (stack.contains(_kDarkTheme))
         PackageVersions.entry('shared_preferences'),
@@ -582,6 +632,8 @@ class InitCommand extends Command<int> {
       // `build_runner build` before `analyze`.
       PackageVersions.entry('freezed'),
       PackageVersions.entry('json_serializable'),
+      // The database's generator; `build_runner` runs it with the others.
+      if (stack.contains(_kOfflineFirst)) PackageVersions.entry('drift_dev'),
       // What `moarch create tests` writes against: mocktail for every
       // generated unit test, bloc_test for a bloc's. The generator itself is
       // part of moarch, so nothing of it lands in the app's pubspec.
@@ -611,12 +663,14 @@ class InitCommand extends Command<int> {
             templates,
             withFirestore: stack.contains(_kFirestore),
             withPushNotifications: stack.contains(_kFirebaseNotifications),
+            withLocalCache: stack.contains(_kOfflineFirst),
           );
         } else {
           await _buildAuthFeature(
             libPath,
             templates,
             withPushNotifications: stack.contains(_kFirebaseNotifications),
+            withLocalCache: stack.contains(_kOfflineFirst),
           );
         }
       }
@@ -660,6 +714,7 @@ class InitCommand extends Command<int> {
           withOfflineGate: stack.contains(_kOfflineGate),
           withAuthFeature: stack.contains(_kAuthFeature),
           withBlocObserver: templates.hasBlocObserver,
+          withSync: stack.contains(_kSync),
         ),
         overwriteWhen: _isFlutterCounterDemo,
       );
@@ -750,6 +805,8 @@ class InitCommand extends Command<int> {
           withBiometric: stack.contains(_kBiometricAuth),
           withDarkTheme: stack.contains(_kDarkTheme),
           withWorkflows: stack.contains(_kWorkflows),
+          withLocalCache: stack.contains(_kOfflineFirst),
+          withSync: stack.contains(_kSync),
         ),
         overwriteWhen: _isFlutterStockReadme,
       );
@@ -774,6 +831,8 @@ class InitCommand extends Command<int> {
             withThemeMode: stack.contains(_kDarkTheme),
             withDeepLinks: stack.contains(_kDeepLinks),
             withOfflineGate: stack.contains(_kOfflineGate),
+            withLocalCache: stack.contains(_kOfflineFirst),
+            withSync: stack.contains(_kSync),
             withStatusColors: true,
             withLocalization: stack.contains(_kLocalizations),
             withEasyLocalization: stack.contains(_kEasyLocalization),
@@ -800,6 +859,8 @@ class InitCommand extends Command<int> {
           withStatusColors: true,
           withWorkflows: stack.contains(_kWorkflows),
           blocConcurrency: stateManagement.isBloc,
+          withLocalCache: stack.contains(_kOfflineFirst),
+          withSync: stack.contains(_kSync),
         );
         String at(String path) =>
             p.joinAll([p.absolute(targetPath), ...p.posix.split(path)]);
@@ -845,6 +906,28 @@ class InitCommand extends Command<int> {
         p.join(p.absolute(targetPath), 'docs', 'STEPS_FOR_WORKFLOW.md'),
         DocsTemplates.stepsForWorkflow(),
       );
+
+      if (stack.contains(_kOfflineFirst)) {
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'docs', 'OFFLINE_FIRST.md'),
+          OfflineDocsTemplates.doc(
+            withSync: stack.contains(_kSync),
+            bloc: stateManagement.isBloc,
+            withAuthFeature: stack.contains(_kAuthFeature),
+          ),
+        );
+      }
+
+      if (stack.contains(_kSync)) {
+        await FileUtils.writeFile(
+          p.join(p.absolute(targetPath), 'docs', 'SYNC_SETUP.md'),
+          SyncTemplates.setupDoc(
+            androidApplicationId: ScaffoldContext.detect(
+              p.absolute(targetPath),
+            ).androidApplicationId,
+          ),
+        );
+      }
 
       if (stack.contains(_kDeepLinks)) {
         final context = ScaffoldContext.detect(p.absolute(targetPath));
@@ -1038,7 +1121,8 @@ class InitCommand extends Command<int> {
         );
       }
 
-      if (stack.contains(_kOfflineGate)) {
+      // The sync's reconnect trigger reads the connection too.
+      if (stack.contains(_kOfflineGate) || stack.contains(_kSync)) {
         final lib = p.join(p.absolute(targetPath), 'lib');
         await FileUtils.writeFile(
           p.join(lib, 'core', 'services', 'connectivity_service.dart'),
@@ -1046,10 +1130,12 @@ class InitCommand extends Command<int> {
             stateManagement: stateManagement,
           ),
         );
-        await FileUtils.writeFile(
-          p.join(lib, 'shared', 'widgets', 'offline_gate.dart'),
-          templates.offlineGate(),
-        );
+        if (stack.contains(_kOfflineGate)) {
+          await FileUtils.writeFile(
+            p.join(lib, 'shared', 'widgets', 'offline_gate.dart'),
+            templates.offlineGate(),
+          );
+        }
       }
 
       // Two themes are worth choosing between, so the dark theme brings the
@@ -1370,6 +1456,7 @@ class InitCommand extends Command<int> {
     final wantsUrlLauncher = stack.contains(_kLaunchUrlService);
     final wantsFcm = stack.contains(_kFirebaseNotifications);
     final wantsBiometrics = stack.contains(_kBiometricAuth);
+    final wantsSync = stack.contains(_kSync);
     final wantsGoogleSignIn =
         stack.contains(_kFirebaseAuth) && stack.contains(_kAuthFeature);
     if (!wantsLocales &&
@@ -1377,6 +1464,7 @@ class InitCommand extends Command<int> {
         !wantsUrlLauncher &&
         !wantsFcm &&
         !wantsBiometrics &&
+        !wantsSync &&
         !wantsGoogleSignIn) {
       return;
     }
@@ -1387,6 +1475,8 @@ class InitCommand extends Command<int> {
       if (wantsUrlLauncher) 'LSApplicationQueriesSchemes',
       if (wantsFcm) 'UIBackgroundModes (remote-notification)',
       if (wantsBiometrics) 'NSFaceIDUsageDescription',
+      if (wantsSync)
+        'UIBackgroundModes (fetch) and BGTaskSchedulerPermittedIdentifiers',
       if (wantsGoogleSignIn) 'GIDClientID + the Google sign-in URL scheme',
     ].join(' and ');
 
@@ -1432,6 +1522,10 @@ class InitCommand extends Command<int> {
         'fetch',
         'remote-notification',
       ]);
+    }
+    if (wantsSync) {
+      // A background app refresh only runs for an identifier listed here.
+      content = PlatformRequirement.backgroundSync.patchPlist(content);
     }
     if (wantsGoogleSignIn) {
       content = _patchGoogleSignInPlist(plistFile, content);
@@ -1617,6 +1711,7 @@ class InitCommand extends Command<int> {
         PlatformRequirement.pushNotifications,
       if (stack.contains(_kLaunchUrlService)) PlatformRequirement.urlLauncher,
       if (stack.contains(_kBiometricAuth)) PlatformRequirement.biometric,
+      if (stack.contains(_kSync)) PlatformRequirement.backgroundSync,
     ];
     final deepLinks = stack.contains(_kDeepLinks);
     if (requirements.isEmpty && !deepLinks) return;
@@ -1786,6 +1881,33 @@ class InitCommand extends Command<int> {
       p.join(c, 'utils', 'extensions.dart'),
       CoreTemplates.extensions(),
     );
+
+    // The offline-first cache. `create feature` finds local_cache.dart and
+    // writes each feature's local datasource and repository against it.
+    if (stack.contains(_kOfflineFirst)) {
+      await FileUtils.writeFile(
+        p.join(c, 'database', 'app_database.dart'),
+        CacheTemplates.appDatabase(withSync: stack.contains(_kSync)),
+      );
+      await FileUtils.writeFile(
+        p.join(c, 'database', 'local_cache.dart'),
+        CacheTemplates.localCache(withSync: stack.contains(_kSync)),
+      );
+    }
+    if (stack.contains(_kSync)) {
+      await FileUtils.writeFile(
+        p.join(c, 'sync', 'sync_queue.dart'),
+        SyncTemplates.syncQueue(),
+      );
+      await FileUtils.writeFile(
+        p.join(c, 'sync', 'sync_service.dart'),
+        SyncTemplates.syncService(stateManagement: templates.stateManagement),
+      );
+      await FileUtils.writeFile(
+        p.join(c, 'sync', 'background_sync.dart'),
+        SyncTemplates.backgroundSync(withRestAuth: restAuthFeature),
+      );
+    }
     await FileUtils.writeFile(
       p.join(c, 'utils', 'app_logger.dart'),
       CoreTemplates.appLogger(withCrashlytics: stack.contains(_kCrashlytics)),
@@ -1919,6 +2041,7 @@ class InitCommand extends Command<int> {
     String libPath,
     StackTemplates templates, {
     required bool withPushNotifications,
+    required bool withLocalCache,
   }) async {
     final f = p.join(libPath, 'features', 'auth');
 
@@ -1946,6 +2069,7 @@ class InitCommand extends Command<int> {
       p.join(f, 'data', 'repositories', 'auth_repository_impl.dart'),
       templates.authRepositoryImpl(
         withPushNotifications: withPushNotifications,
+        withLocalCache: withLocalCache,
       ),
     );
     await FileUtils.writeFile(
@@ -1991,6 +2115,7 @@ class InitCommand extends Command<int> {
     StackTemplates templates, {
     required bool withFirestore,
     required bool withPushNotifications,
+    required bool withLocalCache,
   }) async {
     final f = p.join(libPath, 'features', 'auth');
 
@@ -2016,6 +2141,7 @@ class InitCommand extends Command<int> {
       templates.firebaseAuthRepositoryImpl(
         withFirestore: withFirestore,
         withPushNotifications: withPushNotifications,
+        withLocalCache: withLocalCache,
       ),
     );
     await FileUtils.writeFile(
@@ -2113,6 +2239,7 @@ class InitCommand extends Command<int> {
         withAuthFeature: stack.contains(_kAuthFeature),
         withFirebaseAuthFeature:
             stack.contains(_kAuthFeature) && stack.contains(_kFirebaseAuth),
+        withLocalCache: stack.contains(_kOfflineFirst),
       ),
     );
     await FileUtils.writeFile(
@@ -2125,8 +2252,11 @@ class InitCommand extends Command<int> {
         withDebouncer: stack.contains(_kDebouncerService),
         withBiometric: stack.contains(_kBiometricAuth),
         withAppLifecycle: stack.contains(_kAppLifecycle),
-        withConnectivity: stack.contains(_kOfflineGate),
+        withConnectivity:
+            stack.contains(_kOfflineGate) || stack.contains(_kSync),
         withPreferences: stack.contains(_kDarkTheme),
+        withLocalCache: stack.contains(_kOfflineFirst),
+        withSync: stack.contains(_kSync),
       ),
     );
     await FileUtils.writeFile(
@@ -2138,6 +2268,7 @@ class InitCommand extends Command<int> {
         withFirebaseAuthFeature:
             stack.contains(_kAuthFeature) && stack.contains(_kFirebaseAuth),
         withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
+        withLocalCache: stack.contains(_kOfflineFirst),
       ),
     );
     if (templates.hasPresentationModule) {

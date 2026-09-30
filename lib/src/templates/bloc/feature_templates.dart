@@ -1,3 +1,5 @@
+import '../core/cache_templates.dart';
+
 /// Generates feature scaffold templates for the flutter_bloc stack.
 ///
 /// The mirror of `templates/riverpod/feature_templates.dart`: same layers,
@@ -18,10 +20,14 @@ class FeatureTemplates {
   /// built on when the data is in Firestore, with `fetchAll` left for the
   /// one-off cases (an export, a background job) that do not want a
   /// subscription.
+  ///
+  /// [withWrites] declares the queued `create` / `update` / `delete` of a
+  /// synced feature.
   static String repositoryInterface(
     String name,
     String cls, {
     bool useFirestore = false,
+    bool withWrites = false,
   }) =>
       '''
 import '../models/${name}_model.dart';
@@ -32,7 +38,7 @@ ${useFirestore ? '''
 
   /// A live view of the collection: emits now, and again on every change.
   Stream<List<${cls}Model>> watchAll();
-''' : ''}
+''' : ''}${withWrites ? CacheTemplates.interfaceWrites(cls) : ''}
   // TODO: add your other methods
 }
 ''';
@@ -125,6 +131,7 @@ abstract class ${cls}Model with _\$${cls}Model {
     String varName, {
     bool useFirestore = false,
     bool withApiConstant = false,
+    bool withSync = false,
   }) {
     if (useFirestore) return _firestoreDatasource(name, cls, varName);
 
@@ -143,7 +150,7 @@ abstract class ${cls}Model with _\$${cls}Model {
 import 'package:dio/dio.dart';
 
 ${constantsImport}import '../../../../core/network/safe_api_call.dart';
-import '../../domain/models/${name}_model.dart';
+${withSync ? "import '../../../../core/sync/sync_queue.dart';\n" : ''}import '../../domain/models/${name}_model.dart';
 
 class ${cls}RemoteDataSource {
   const ${cls}RemoteDataSource(this._dio);
@@ -161,7 +168,7 @@ class ${cls}RemoteDataSource {
         ];
       },
     );
-  }
+  }${withSync ? CacheTemplates.remoteWrites(cls, endpoint) : ''}
 }
 ''';
   }

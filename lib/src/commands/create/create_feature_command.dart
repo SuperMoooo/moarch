@@ -149,6 +149,9 @@ class CreateFeatureCommand extends Command<int> {
     // detected → Dio, which is what every project scaffolded so far used.
     final bothBackends = hasDio && hasFirestore;
     var useFirestore = hasFirestore && !hasDio;
+    // The offline-first cache: a REST feature's local datasource is written
+    // against it and asked for by default.
+    final hasLocalCache = context.hasLocalCache;
 
     // Layer checklist
     final skipChecklist = argResults?['all'] as bool? ?? false;
@@ -190,10 +193,13 @@ class CreateFeatureCommand extends Command<int> {
                     ? 'Reads, writes and watches a Firestore collection.'
                     : 'Fetches data from an API via the Dio client.',
               ),
-            const ChecklistItem(
+            ChecklistItem(
               _kLocalDatasource,
-              defaultOn: false,
-              description: 'Cache fallback used when there is no connectivity.',
+              defaultOn: hasLocalCache,
+              description: hasLocalCache
+                  ? 'Caches the API data in the local database; the screen '
+                        'reads it offline.'
+                  : 'Cache fallback used when there is no connectivity.',
             ),
             const ChecklistItem(
               _kRepository,
@@ -237,9 +243,20 @@ class CreateFeatureCommand extends Command<int> {
     // repository is generated without one — it loads nothing and says so in a
     // TODO — rather than pulling in a data layer that was declined.
     final hasRepository = selected.contains(_kRepository);
+    // Firestore keeps its own offline copy, so only a REST feature is cached,
+    // and only one with a local datasource to cache into.
+    final withCache = hasLocalCache && !useFirestore;
+    final offlineFirst =
+        withCache &&
+        hasRepository &&
+        selected.contains(_kRemoteDatasource) &&
+        selected.contains(_kLocalDatasource);
+    // With offline sync, the cached feature's writes are queued: the
+    // datasource describes them, the repository applies and enqueues them.
+    final synced = offlineFirst && context.hasSync;
     // Riverpod's live variant is built on the repository's `watchAll()`, so a
     // feature without one gets the plain state holder whatever the backend is.
-    final liveQuery = useFirestore && hasRepository;
+    final liveQuery = (useFirestore || offlineFirst) && hasRepository;
 
     _logger.info('');
     _logger.info('🧱 Creating feature: $className');
@@ -279,6 +296,7 @@ class CreateFeatureCommand extends Command<int> {
           templates,
           useFirestore: useFirestore,
           withApiConstant: endpointPatch.declared,
+          withSync: synced,
         );
         if (useFirestore) {
           // The datasource imports the Firebase wiring and the safe-call
@@ -295,6 +313,7 @@ class CreateFeatureCommand extends Command<int> {
           varName,
           libPath,
           templates,
+          withCache: withCache,
         );
       }
       if (selected.contains(_kRepository)) {
@@ -307,6 +326,8 @@ class CreateFeatureCommand extends Command<int> {
           hasRemote: selected.contains(_kRemoteDatasource),
           hasLocal: selected.contains(_kLocalDatasource),
           useFirestore: useFirestore,
+          offlineFirst: offlineFirst,
+          withSync: synced,
         );
       }
       if (needsDataLayer) {
@@ -332,7 +353,8 @@ class CreateFeatureCommand extends Command<int> {
           className,
           varName,
           templates,
-          useFirestore: liveQuery,
+          useFirestore: liveQuery && !offlineFirst,
+          offlineFirst: offlineFirst,
           hasRepository: hasRepository,
         );
         // Both stacks' state/holder depend on the shared runAction helper —
@@ -361,6 +383,7 @@ class CreateFeatureCommand extends Command<int> {
           templates,
           hasHolder: selected.contains(holderItem),
           useFirestore: liveQuery,
+          offlineFirst: offlineFirst,
           hasModel: needsDataLayer,
         );
         if (selected.contains(holderItem)) {
@@ -385,6 +408,8 @@ class CreateFeatureCommand extends Command<int> {
           hasRepository: selected.contains(_kRepository),
           hasBloc: hasBloc,
           useFirestore: useFirestore,
+          withLocalCache: withCache,
+          withSync: synced,
         ),
       );
 
@@ -424,6 +449,23 @@ class CreateFeatureCommand extends Command<int> {
         '  Firestore-backed — point `collectionPath` in ${featureName}_remote_datasource.dart',
       );
       _logger.info('  at your collection, and check your security rules.');
+      _logger.info('');
+    }
+    if (offlineFirst) {
+      _logger.info(
+        '  Offline-first — the repository saves what fetchAll() gets to the '
+        'local',
+      );
+      _logger.info('  cache, and answers from it when there is no connection.');
+      if (synced) {
+        _logger.info(
+          '  Synced — create/update/delete change the cache now and are '
+          'queued;',
+        );
+        _logger.info(
+          '  point the SyncRequests in the remote datasource at your API.',
+        );
+      }
       _logger.info('');
     }
     // Nothing was asked for that the locator holds, so nothing was expected
@@ -634,6 +676,7 @@ class CreateFeatureCommand extends Command<int> {
     StackTemplates templates, {
     bool useFirestore = false,
     bool withApiConstant = false,
+    bool withSync = false,
   }) async {
     await FileUtils.writeFile(
       p.join(fp, 'data', 'datasources', '${name}_remote_datasource.dart'),
@@ -643,6 +686,7 @@ class CreateFeatureCommand extends Command<int> {
         varName,
         useFirestore: useFirestore,
         withApiConstant: withApiConstant,
+        withSync: withSync,
       ),
     );
   }
@@ -653,12 +697,21 @@ class CreateFeatureCommand extends Command<int> {
     String cls,
     String varName,
     String libPath,
-    StackTemplates templates,
-  ) async {
+    StackTemplates templates, {
+    bool withCache = false,
+  }) async {
     await FileUtils.writeFile(
       p.join(fp, 'data', 'datasources', '${name}_local_datasource.dart'),
-      templates.featureLocalDatasource(name, cls, varName),
+      templates.featureLocalDatasource(
+        name,
+        cls,
+        varName,
+        withCache: withCache,
+      ),
     );
+    // The cache has what it needs; the stub is left to reach for the
+    // connection itself.
+    if (withCache) return;
     // CONN SERVICE
     final c = p.join(libPath, 'core');
     await FileUtils.writeFile(
@@ -678,13 +731,18 @@ class CreateFeatureCommand extends Command<int> {
     required bool hasRemote,
     required bool hasLocal,
     bool useFirestore = false,
+    bool offlineFirst = false,
+    bool withSync = false,
   }) async {
     await FileUtils.writeFile(
       p.join(fp, 'domain', 'repositories', '${name}_repository.dart'),
+      // `watchAll` is the live read in both cases: the collection, or the
+      // cache.
       templates.featureRepositoryInterface(
         name,
         cls,
-        useFirestore: useFirestore,
+        useFirestore: useFirestore || offlineFirst,
+        withWrites: withSync,
       ),
     );
     await FileUtils.writeFile(
@@ -696,6 +754,8 @@ class CreateFeatureCommand extends Command<int> {
         hasRemote: hasRemote,
         hasLocal: hasLocal,
         useFirestore: useFirestore,
+        offlineFirst: offlineFirst,
+        withSync: withSync,
       ),
     );
   }
@@ -734,6 +794,7 @@ class CreateFeatureCommand extends Command<int> {
     String varName,
     StackTemplates templates, {
     bool useFirestore = false,
+    bool offlineFirst = false,
     bool hasRepository = true,
   }) async {
     final eventFile = templates.eventFile(name);
@@ -755,6 +816,7 @@ class CreateFeatureCommand extends Command<int> {
         cls,
         varName,
         useFirestore: useFirestore,
+        offlineFirst: offlineFirst,
         hasRepository: hasRepository,
       ),
     );
@@ -770,6 +832,7 @@ class CreateFeatureCommand extends Command<int> {
     StackTemplates templates, {
     required bool hasHolder,
     bool useFirestore = false,
+    bool offlineFirst = false,
     bool hasModel = true,
   }) async {
     await FileUtils.writeFile(
@@ -780,6 +843,7 @@ class CreateFeatureCommand extends Command<int> {
         varName,
         hasHolder: hasHolder,
         useFirestore: useFirestore,
+        offlineFirst: offlineFirst,
       ),
     );
     // Only a view with a holder draws a loading state.

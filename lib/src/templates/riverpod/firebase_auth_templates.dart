@@ -427,7 +427,32 @@ $firestoreMethods$deviceTokenMethod}
   static String repositoryImpl({
     bool withFirestore = false,
     bool withPushNotifications = false,
+    bool withLocalCache = false,
   }) {
+    // The offline-first cache holds the signed-in account's data, so signing
+    // out or deleting the account empties it.
+    final cacheImport = withLocalCache
+        ? '''import '../../../../core/database/local_cache.dart';
+'''
+        : '';
+    final cacheCtorParam = withLocalCache ? ', this._cache' : '';
+    final cacheField = withLocalCache
+        ? '''
+
+  final LocalCache _cache;'''
+        : '';
+    final logout = withLocalCache
+        ? '''Future<void> logout() async {
+    await _remote.logout();
+    await _cache.clearAll();
+  }'''
+        : 'Future<void> logout() => _remote.logout();';
+    final clearCacheOnDelete = withLocalCache
+        ? '''
+
+    await _cache.clearAll();'''
+        : '';
+
     final pushImports = withPushNotifications
         ? "import '../../../../core/errors/app_exception.dart';\n"
               "import '../../../../core/services/firebase_notifications_service.dart';\n"
@@ -480,14 +505,14 @@ $firestoreMethods$deviceTokenMethod}
         : '';
 
     return '''
-${pushImports}import '../../domain/repositories/auth_repository.dart';
+$cacheImport${pushImports}import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_datasource.dart';
 import '../../domain/models/auth_user_model.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
-  const AuthRepositoryImpl(this._remote$pushCtorParam);
+  const AuthRepositoryImpl(this._remote$pushCtorParam$cacheCtorParam);
 
-  final AuthRemoteDataSource _remote;$pushField
+  final AuthRemoteDataSource _remote;$pushField$cacheField
 
   @override
   Stream<AuthUserModel?> authStateChanges() => _remote.authStateChanges();
@@ -531,11 +556,11 @@ class AuthRepositoryImpl implements AuthRepository {
       _remote.sendPasswordResetEmail(email: email);
 
   @override
-  Future<void> logout() => _remote.logout();
+  $logout
 
   @override
   Future<void> deleteAccount() async {
-$deleteProfile    await _remote.delete();
+$deleteProfile    await _remote.delete();$clearCacheOnDelete
   }
 $syncDeviceToken
   @override

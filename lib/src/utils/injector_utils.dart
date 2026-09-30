@@ -185,6 +185,11 @@ abstract final class InjectorUtils {
   /// [blocFileName] is the bloc's own file stem, for the same case: a second
   /// bloc in a feature is `<blocFileName>_bloc.dart` under the feature the
   /// registrations are otherwise named for. Left null it is [featureName].
+  ///
+  /// [withLocalCache] constructs the local datasource over the offline-first
+  /// `LocalCache`, which is what `create feature` writes it against when the
+  /// project has one. [withSync] hands the repository the `SyncService` its
+  /// queued writes go through.
   static InjectorRegistrations registrationsFor({
     required String featureName,
     required String className,
@@ -193,6 +198,8 @@ abstract final class InjectorUtils {
     required bool hasRepository,
     required bool hasBloc,
     required bool useFirestore,
+    bool withLocalCache = false,
+    bool withSync = false,
     String? blocRepositoryClass,
     String? blocFileName,
   }) {
@@ -203,14 +210,18 @@ abstract final class InjectorUtils {
         '''  getIt.registerLazySingleton<${className}RemoteDataSource>(
     () => ${className}RemoteDataSource(getIt<${useFirestore ? 'FirebaseFirestore' : 'Dio'}>()),
   );''',
-      if (hasLocal)
+      if (hasLocal && withLocalCache)
+        '''  getIt.registerLazySingleton<${className}LocalDataSource>(
+    () => ${className}LocalDataSource(getIt<LocalCache>()),
+  );'''
+      else if (hasLocal)
         '''  getIt.registerLazySingleton<${className}LocalDataSource>(
     ${className}LocalDataSource.new,
   );''',
       if (hasRepository)
         '''  getIt.registerLazySingleton<${className}Repository>(
     () => ${className}RepositoryImpl(
-${[if (hasRemote) '      getIt<${className}RemoteDataSource>(),', if (hasLocal) '      getIt<${className}LocalDataSource>(),'].join('\n')}
+${[if (hasRemote) '      getIt<${className}RemoteDataSource>(),', if (hasLocal) '      getIt<${className}LocalDataSource>(),', if (withSync) '      getIt<SyncService>(),'].join('\n')}
     ),
   );''',
     ];
@@ -233,6 +244,8 @@ ${blocRepo == null ? '  getIt.registerFactory<${className}Bloc>(${className}Bloc
         hasLocal: hasLocal,
         hasRepository: hasRepository,
         useFirestore: useFirestore,
+        withLocalCache: withLocalCache,
+        withSync: withSync,
       ),
       holders: holders.join('\n'),
       holderImports: hasBloc
@@ -258,7 +271,12 @@ ${blocRepo == null ? '  getIt.registerFactory<${className}Bloc>(${className}Bloc
     required bool hasLocal,
     required bool hasRepository,
     required bool useFirestore,
+    required bool withLocalCache,
+    required bool withSync,
   }) => <String>[
+    if (hasLocal && withLocalCache)
+      "import '../../core/database/local_cache.dart';",
+    if (withSync) "import '../../core/sync/sync_service.dart';",
     if (hasRemote && useFirestore)
       "import 'package:cloud_firestore/cloud_firestore.dart';",
     if (hasRemote && !useFirestore) "import 'package:dio/dio.dart';",

@@ -39,6 +39,8 @@ class ReadmeTemplates {
     bool withBiometric = false,
     bool withDarkTheme = false,
     bool withWorkflows = false,
+    bool withLocalCache = false,
+    bool withSync = false,
   }) {
     final bloc = stateManagement.isBloc;
     return <String>[
@@ -64,6 +66,8 @@ class ReadmeTemplates {
         withBiometric: withBiometric,
         withFirebaseAuthFeature: withFirebaseAuthFeature,
         withFlavors: flavors.isNotEmpty,
+        withLocalCache: withLocalCache,
+        withSync: withSync,
       ),
       _structure(
         bloc: bloc,
@@ -346,6 +350,8 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
     required bool withBiometric,
     required bool withFirebaseAuthFeature,
     required bool withFlavors,
+    required bool withLocalCache,
+    required bool withSync,
   }) {
     final packages = StringBuffer();
     void row(String name, String what) => packages.writeln(
@@ -384,6 +390,18 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
         'The HTTP client. Configured in `lib/core/network/dio_client.dart`.',
       );
       row('dio_smart_retry', 'Retries failed requests on transient errors.');
+    }
+    if (withLocalCache) {
+      row(
+        'drift',
+        "The offline-first cache — `lib/core/database/`. A feature's repository saves what it fetches there, the screen follows it, and offline it answers from it. `drift_dev` (dev) generates the database.",
+      );
+    }
+    if (withSync) {
+      row(
+        'workmanager',
+        'Sends the queue of offline writes (`lib/core/sync/`) every ~15 minutes while the app is closed — see `docs/SYNC_SETUP.md`.',
+      );
     }
     row(
       'flutter_secure_storage',

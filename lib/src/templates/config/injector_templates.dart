@@ -99,12 +99,16 @@ Future<void> setupInjector() async {
 
   /// `lib/config/di/external_module.dart` — the third-party instances the
   /// rest of the app is built on.
+  ///
+  /// [withLocalCache] registers the offline-first cache's drift database,
+  /// closed when the locator is reset.
   static String externalModule({
     bool withDio = false,
     bool withFirestore = false,
     bool withFirebaseAuth = false,
     bool withAuthFeature = false,
     bool withFirebaseAuthFeature = false,
+    bool withLocalCache = false,
   }) {
     final imports = <String>[
       if (withFirestore)
@@ -116,6 +120,7 @@ Future<void> setupInjector() async {
       if (withFirebaseAuthFeature)
         "import 'package:google_sign_in/google_sign_in.dart';",
       '',
+      if (withLocalCache) "import '../../core/database/app_database.dart';",
       if (withDio) "import '../../core/network/dio_client.dart';",
       "import '../../core/security/secure_storage.dart';",
       if (withDio && withAuthFeature && !withFirebaseAuthFeature)
@@ -147,20 +152,26 @@ Future<void> setupInjector() async {
         '''
     // One client for the whole app, so the auth interceptor sees every call.
     ..registerLazySingleton<Dio>(() => buildDioClient(getIt<TokenStorage>()))''',
+      if (withLocalCache)
+        '    ..registerLazySingleton<AppDatabase>(\n'
+            '        AppDatabase.new,\n'
+            '        dispose: (db) => db.close())',
     ];
 
     return '''
 $imports
 
-/// Third-party instances: the HTTP client, Firebase, the keystore.
+/// Third-party instances: the HTTP client, Firebase, the keystore${withLocalCache ? ', the\n/// local database' : ''}.
 void registerExternals() {
-  getIt
-${entries.join('\n')};
-}
+${_cascade(entries)}}
 ''';
   }
 
   /// `lib/config/di/core_module.dart` — the services under `lib/core`.
+  ///
+  /// [withLocalCache] registers `LocalCache` over the database the external
+  /// module holds. [withSync] registers the sync queue and the service that
+  /// sends it; it needs [withConnectivity] and [withLocalCache] too.
   static String coreModule({
     bool withMedia = false,
     bool withUrlLauncher = false,
@@ -171,9 +182,20 @@ ${entries.join('\n')};
     bool withConnectivity = false,
     bool withAppLifecycle = false,
     bool withPreferences = false,
+    bool withLocalCache = false,
+    bool withSync = false,
   }) {
     final imports = <String>[
+      if (withSync) "import 'package:dio/dio.dart';\n",
+      if (withLocalCache) ...[
+        "import '../../core/database/app_database.dart';",
+        "import '../../core/database/local_cache.dart';",
+      ],
       if (withBiometric) "import '../../core/security/biometric_service.dart';",
+      if (withSync) ...[
+        "import '../../core/sync/sync_queue.dart';",
+        "import '../../core/sync/sync_service.dart';",
+      ],
       if (withAppLifecycle)
         "import '../../core/services/app_lifecycle_service.dart';",
       if (withConnectivity)
@@ -195,6 +217,9 @@ ${entries.join('\n')};
     final entries = <String>[
       '    ..registerLazySingleton<PermissionService>(PermissionService.new)',
       if (withPreferences) _preferencesEntry,
+      if (withLocalCache)
+        '    ..registerLazySingleton<LocalCache>(\n'
+            '        () => LocalCache(getIt<AppDatabase>()))',
       if (withMedia)
         '    ..registerLazySingleton<MediaService>(\n        () => MediaService(getIt<PermissionService>()))',
       if (withUrlLauncher)
@@ -213,6 +238,17 @@ ${entries.join('\n')};
         '    ..registerLazySingleton<AppLifecycleService>(\n'
             '        AppLifecycleService.new,\n'
             '        dispose: (service) => service.dispose())',
+      if (withSync) ...[
+        '    ..registerLazySingleton<SyncQueue>(\n'
+            '        () => SyncQueue(getIt<AppDatabase>()))',
+        '    ..registerLazySingleton<SyncService>(\n'
+            '        () => SyncService(\n'
+            '              getIt<SyncQueue>(),\n'
+            '              getIt<Dio>(),\n'
+            '              getIt<ConnectivityService>(),\n'
+            '            ),\n'
+            '        dispose: (service) => service.dispose())',
+      ],
     ];
 
     return '''
@@ -220,9 +256,7 @@ $imports
 
 /// The app's cross-cutting services, under `lib/core`.
 void registerCoreServices() {
-  getIt
-${entries.join('\n')};
-}
+${_cascade(entries)}}
 ''';
   }
 
@@ -294,6 +328,7 @@ Future<void> closeScope(String name) async {
     bool withAuthFeature = false,
     bool withFirebaseAuthFeature = false,
     bool withFirebaseNotifications = false,
+    bool withLocalCache = false,
   }) {
     // Every `getIt<T>()` below needs T in scope, so the imports follow what
     // the auth registrations actually name rather than what the project has.
@@ -307,6 +342,8 @@ Future<void> closeScope(String name) async {
         "import 'package:google_sign_in/google_sign_in.dart';",
       ],
       '',
+      if (withAuthFeature && withLocalCache)
+        "import '../../core/database/local_cache.dart';",
       if (withAuthFeature && !withFirebaseAuthFeature)
         "import '../../core/security/secure_storage.dart';",
       if (withAuthFeature && withFirebaseNotifications)
@@ -330,16 +367,22 @@ Future<void> closeScope(String name) async {
       () => AuthRemoteDataSource(getIt<Dio>()),
     )''';
 
+    // The auth repository empties the cache when a session ends.
+    final cacheArgument = withLocalCache
+        ? '''
+
+        getIt<LocalCache>(),'''
+        : '';
     final authRepository = withFirebaseAuthFeature
         ? '''    ..registerLazySingleton<AuthRepository>(
       () => AuthRepositoryImpl(
-        getIt<AuthRemoteDataSource>(),${withFirebaseNotifications ? '\n        getIt<FirebaseNotificationsService>(),' : ''}
+        getIt<AuthRemoteDataSource>(),${withFirebaseNotifications ? '\n        getIt<FirebaseNotificationsService>(),' : ''}$cacheArgument
       ),
     )'''
         : '''    ..registerLazySingleton<AuthRepository>(
       () => AuthRepositoryImpl(
         getIt<AuthRemoteDataSource>(),
-        getIt<TokenStorage>(),${withFirebaseNotifications ? '\n        getIt<FirebaseNotificationsService>(),' : ''}
+        getIt<TokenStorage>(),${withFirebaseNotifications ? '\n        getIt<FirebaseNotificationsService>(),' : ''}$cacheArgument
       ),
     )''';
 
@@ -400,10 +443,26 @@ ${_body(entries, _holderAnchor)}}
   /// feature has no data layer yet — and a `getIt` with no cascade after it
   /// would not compile, so the cascade is dropped rather than left empty.
   static String _body(List<String> entries, String anchor) {
-    final cascade = entries.isEmpty
-        ? ''
-        : '  getIt\n${entries.join('\n')};\n\n';
+    final cascade = entries.isEmpty ? '' : '${_cascade(entries)}\n';
     return '$cascade$anchor\n';
+  }
+
+  /// The `getIt` statement registering [entries], each written as a cascade
+  /// section (`    ..registerX(...)`), ending in a newline.
+  ///
+  /// A lone entry becomes a plain call: a one-section cascade is what the
+  /// `avoid_single_cascade_in_expression_statements` lint flags, and
+  /// `flutter analyze` fails on it.
+  static String _cascade(List<String> entries) {
+    if (entries.length != 1) return '  getIt\n${entries.join('\n')};\n';
+    final lines = entries.single.split('\n');
+    final call = [
+      '  getIt.${lines.first.trimLeft().substring(2)}',
+      // Continuation lines lose the cascade's extra indent.
+      for (final line in lines.skip(1))
+        line.startsWith('  ') ? line.substring(2) : line,
+    ].join('\n');
+    return '$call;\n';
   }
 
   /// The anchor comment written into `data_module.dart`.

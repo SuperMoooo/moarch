@@ -223,7 +223,7 @@ What the templates produce, since most changes here are about it:
 lib/config/di/{injector,external_module,core_module,data_module,feature_module,
                presentation_module}.dart
 lib/config/{env,theme,router,firebase}
-lib/core/{constants,errors,network,security,services,utils}
+lib/core/{constants,database,errors,network,security,services,sync,utils}
 lib/features/<feature>/{data/{datasources,models,repositories},
                         domain/{models,repositories},
                         presentation/{notifiers|blocs,states,views,pages}}

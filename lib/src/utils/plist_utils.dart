@@ -42,6 +42,42 @@ class PlistUtils {
     return content.replaceRange(insertAt, insertAt, block);
   }
 
+  /// Ensures the `<key>[key]</key>` array holds every one of [values]: added
+  /// to the existing array when there is one, which keeps what another
+  /// service declared there, or created as [ensureArray] does when there is
+  /// not.
+  ///
+  /// Returns the content unchanged when every value is already there, or when
+  /// the key holds something other than an array.
+  static String ensureArrayValues(
+    String content,
+    String key,
+    List<String> values,
+  ) {
+    final keyTag = '<key>$key</key>';
+    final keyAt = content.indexOf(keyTag);
+    if (keyAt == -1) return ensureArray(content, key, values);
+
+    final open = RegExp(
+      r'\s*<array>',
+    ).matchAsPrefix(content, keyAt + keyTag.length);
+    if (open == null) return content;
+    final close = content.indexOf('</array>', open.end);
+    if (close == -1) return content;
+
+    final existing = content.substring(open.end, close);
+    final missing = [
+      for (final value in values)
+        if (!existing.contains('<string>$value</string>')) value,
+    ];
+    if (missing.isEmpty) return content;
+
+    final strings = missing.map((v) => '\t\t<string>$v</string>\n').join();
+    // Before the closing tag's own indentation, so it stays on its line.
+    final lineStart = content.lastIndexOf('\n', close) + 1;
+    return content.replaceRange(lineStart, lineStart, strings);
+  }
+
   /// Ensures [scheme] is registered as a `CFBundleURLSchemes` entry in the
   /// plist [content].
   ///

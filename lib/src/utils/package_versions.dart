@@ -72,6 +72,19 @@ abstract final class PackageVersions {
     'dio_smart_retry': '^7.0.1',
     'flutter_secure_storage': '^11.2.0',
 
+    // ── Offline-first cache ─────────────────────────────────────────────────
+    // Floored at the first drift_dev that takes analyzer 10, the one version
+    // freezed 3.x (<11) and json_serializable 6.14 (>=10) agree on; pub then
+    // stops at 2.34.0, the last before drift_dev moved to analyzer 13. Raise
+    // it with freezed's floor.
+    'drift': '^2.30.0',
+    'drift_flutter': '^0.3.0',
+    'drift_dev': '^2.32.0',
+    // Floored at the 0.10 line, where the plugin registers the iOS task
+    // handler itself: background_sync.dart and SYNC_SETUP.md rely on
+    // AppDelegate.swift needing no change. Needs Flutter 3.38+.
+    'workmanager': '^0.10.10',
+
     // ── Firebase ────────────────────────────────────────────────────────────
     'firebase_core': '^4.15.0',
     'firebase_messaging': '^16.7.0',

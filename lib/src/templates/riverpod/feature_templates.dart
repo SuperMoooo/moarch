@@ -1,3 +1,5 @@
+import '../core/cache_templates.dart';
+
 /// Generates feature scaffold templates.
 class FeatureTemplates {
   FeatureTemplates._();
@@ -10,10 +12,14 @@ class FeatureTemplates {
   /// built on when the data is in Firestore, with `fetchAll` left for the
   /// one-off cases (an export, a background job) that do not want a
   /// subscription.
+  ///
+  /// [withWrites] declares the queued `create` / `update` / `delete` of a
+  /// synced feature.
   static String repositoryInterface(
     String name,
     String cls, {
     bool useFirestore = false,
+    bool withWrites = false,
   }) =>
       '''
 import '../models/${name}_model.dart';
@@ -24,7 +30,7 @@ ${useFirestore ? '''
 
   /// A live view of the collection: emits now, and again on every change.
   Stream<List<${cls}Model>> watchAll();
-''' : ''}
+''' : ''}${withWrites ? CacheTemplates.interfaceWrites(cls) : ''}
   // TODO: add your other methods
 }
 ''';
@@ -117,6 +123,7 @@ abstract class ${cls}Model with _\$${cls}Model {
     String varName, {
     bool useFirestore = false,
     bool withApiConstant = false,
+    bool withSync = false,
   }) {
     if (useFirestore) return _firestoreDatasource(name, cls, varName);
 
@@ -135,7 +142,7 @@ abstract class ${cls}Model with _\$${cls}Model {
 import 'package:dio/dio.dart';
 
 ${constantsImport}import '../../../../core/network/safe_api_call.dart';
-import '../../domain/models/${name}_model.dart';
+${withSync ? "import '../../../../core/sync/sync_queue.dart';\n" : ''}import '../../domain/models/${name}_model.dart';
 
 class ${cls}RemoteDataSource {
   const ${cls}RemoteDataSource(this._dio);
@@ -153,7 +160,7 @@ class ${cls}RemoteDataSource {
         ];
       },
     );
-  }
+  }${withSync ? CacheTemplates.remoteWrites(cls, endpoint) : ''}
 }
 ''';
   }
@@ -376,11 +383,18 @@ class ${cls}State implements ActionState<${cls}State> {
   /// [hasRepository] is false when the feature was scaffolded without a data
   /// layer: `build()` is then a TODO returning an empty state, rather than
   /// resolving a repository that was never generated.
+  ///
+  /// [offlineFirst] is the cached REST feature, with the same `items` state as
+  /// [useFirestore]: `build()` loads through `fetchAll()` — the API's list,
+  /// or the cache's offline — then follows `watchAll()`, so every save to
+  /// the cache redraws the screen. `refresh()` refetches without dropping the
+  /// list for a loading screen.
   static String notifier(
     String name,
     String cls,
     String varName, {
     bool useFirestore = false,
+    bool offlineFirst = false,
     bool hasRepository = true,
   }) {
     final dependency =
@@ -439,7 +453,37 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State>
 
 $dependency
 
-${useFirestore ? '''  @override
+${offlineFirst
+        ? '''  @override
+  FutureOr<${cls}State> build() async {
+    // The cache is what the screen follows: each save to it redraws the list.
+    final subscription = _repo.watchAll().listen((items) {
+      final current = state.value;
+      if (current != null) state = AsyncData(current.copyWith(items: items));
+    });
+    ref.onDispose(subscription.cancel);
+
+    // The API's list, saved to the cache. Offline, the cached one.
+    return ${cls}State(items: await _repo.fetchAll());
+  }
+
+  /// Refetches, keeping the list on screen (pull-to-refresh, a retry banner).
+  Future<void> refresh() {
+    return runAction((current) async {
+      return current.copyWith(items: await _repo.fetchAll());
+    });
+  }
+
+  // TODO: one method per action, each wrapped in runAction:
+  //
+  // Future<void> doSomething() {
+  //   return runAction((current) async {
+  //     await _repo.doSomething();
+  //     return current.copyWith(success: 'Done!');
+  //   });
+  // }'''
+        : useFirestore
+        ? '''  @override
   FutureOr<${cls}State> build() {
     // One subscription serves the first frame and every change after it.
     final firstSnapshot = Completer<${cls}State>();
@@ -476,7 +520,8 @@ ${useFirestore ? '''  @override
   //     await _repo.doSomething();
   //     return current.copyWith(success: 'Done!');
   //   });
-  // }''' : '''  @override
+  // }'''
+        : '''  @override
   FutureOr<${cls}State> build() async {
     // TODO: put the result on the state.
     await _repo.fetchAll();
@@ -510,6 +555,7 @@ ${useFirestore ? '''  @override
     String varName, {
     required bool hasNotifier,
     bool useFirestore = false,
+    bool offlineFirst = false,
   }) {
     if (!hasNotifier) {
       return '''
@@ -575,7 +621,7 @@ ${useFirestore ? '''
       itemBuilder: (context, index) {
         final $varName = state.items[index];
         return ListTile(
-          title: Text($varName.id),
+          title: Text(${offlineFirst ? "'\${$varName.id}'" : '$varName.id'}),
         );
       },
     );

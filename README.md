@@ -528,6 +528,73 @@ subscription in `close()` / `dispose()`. Screens can watch the connection too:
 (the gate provides it above the navigator). If parts of your app work offline,
 take the gate out of `main.dart` and show an `AppBanner` there instead.
 
+### Offline-first cache
+
+Tick **Offline-first cache (drift)** under *Backend / networking* in `init` and
+the project gets a local database the REST features cache into:
+
+```text
+lib/core/database/app_database.dart   # drift: one table of records as JSON
+lib/core/database/local_cache.dart    # readAll / watchAll / replaceAll / clearAll
+```
+
+Both are registered in the locator (`AppDatabase` in `external_module.dart`,
+`LocalCache` in `core_module.dart`), and `drift` / `drift_dev` run with the
+same `build_runner` as the models. From then on `moarch create feature` ticks the
+local datasource by default and writes the data layer against the cache:
+
+- `<name>_local_datasource.dart` keeps the feature's records in `LocalCache`,
+  under the feature's name. It stores the freezed model's own JSON, so a new
+  feature needs no table and no migration.
+- `<name>_repository_impl.dart`: `fetchAll()` saves the API's list to the
+  cache and, on a `NetworkException`, answers from the cache instead. It
+  rethrows only when nothing is cached yet. `watchAll()` follows the cache.
+- On Riverpod the notifier loads through `fetchAll()` and then follows
+  `watchAll()`, so every save redraws the screen, and `refresh()` refetches
+  without dropping the list. A bloc loads through `fetchAll()`, which already
+  answers offline.
+
+It needs Dio: Firestore keeps its own offline copy, so a Firestore feature is
+never cached twice, and the option is skipped without Dio. It also replaces
+the offline screen, since an app that works offline has no business covering
+itself. The generated auth feature empties the cache on logout and account
+deletion, and the REST variant also empties it at every sign-in, which covers a
+session that expired while the app was away. Anything else that switches
+accounts calls `getIt<LocalCache>().clearAll()`.
+
+### Offline sync
+
+Tick **Offline sync (outbox + background)** as well, and writes stop needing a
+connection. A cached feature's repository gets `create`, `update` and `delete`:
+each changes the cache at once, so the screen redraws, and queues the request
+the remote datasource *describes*:
+
+```dart
+// orders_remote_datasource.dart — describes the call, never sends it
+SyncRequest update(OrdersModel item) =>
+    SyncRequest.put('${ApiConstants.orders}/${item.id}', item.toJson());
+
+// orders_repository_impl.dart
+Future<void> update(OrdersModel item) async {
+  await _local.save(item);                                   // the screen, now
+  await _sync.enqueue(OrdersLocalDataSource.collection, _remote.update(item));
+}
+```
+
+`SyncService` (`lib/core/sync/`) sends the queue in order at start-up, after each
+write, on reconnect and on resume. A 2xx leaves the queue; offline or a 401
+stops and waits; any other 4xx is dropped and reported on
+`SyncService.rejected`; a 5xx is retried with a growing wait. Afterwards it
+refetches every collection it touched, so the server's version wins, and a
+record created offline swaps its temporary negative id for the real one.
+
+A `workmanager` task sends the queue every ~15 minutes while the app is closed.
+Android needs nothing; `init` adds the two `Info.plist` keys iOS needs, and
+`docs/SYNC_SETUP.md` in the generated project covers the rules and how to
+trigger a background run on each platform, and `docs/OFFLINE_FIRST.md` (written
+with the cache, sync or not) explains the whole flow step by step, with a
+timeline.
+
 A connection is a network interface, not a working internet: a captive portal
 reads as online. The gate decides what to show; requests still handle
 `NetworkException`.

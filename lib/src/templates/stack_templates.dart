@@ -3,6 +3,7 @@ import 'bloc/app_templates.dart' as bloc;
 import 'bloc/async_templates.dart' as bloc;
 import 'config/config_templates.dart';
 import 'config/injector_templates.dart';
+import 'core/cache_templates.dart';
 import 'core/core_templates.dart';
 import 'misc/skeleton_templates.dart';
 import 'bloc/auth_templates.dart' as bloc;
@@ -131,6 +132,7 @@ class StackTemplates {
     bool withOfflineGate = false,
     bool withAuthFeature = false,
     bool withBlocObserver = false,
+    bool withSync = false,
   }) => isBloc
       ? bloc.AppTemplates.mainDart(
           withRouter: withRouter,
@@ -148,6 +150,7 @@ class StackTemplates {
           withOfflineGate: withOfflineGate,
           withAuthFeature: withAuthFeature,
           withBlocObserver: withBlocObserver,
+          withSync: withSync,
         )
       : riverpod.AppTemplates.mainDart(
           withRouter: withRouter,
@@ -163,6 +166,7 @@ class StackTemplates {
           withDarkTheme: withDarkTheme,
           withThemeMode: withThemeMode,
           withOfflineGate: withOfflineGate,
+          withSync: withSync,
         );
 
   /// The stack's shared state vocabulary: bloc's `AppStatus` enum with the
@@ -248,8 +252,10 @@ class StackTemplates {
     bool withFirebaseAuth = false,
     bool withAuthFeature = false,
     bool withFirebaseAuthFeature = false,
+    bool withLocalCache = false,
   }) => InjectorTemplates.externalModule(
     withDio: withDio,
+    withLocalCache: withLocalCache,
     withFirestore: withFirestore,
     withFirebaseAuth: withFirebaseAuth,
     withAuthFeature: withAuthFeature,
@@ -267,7 +273,11 @@ class StackTemplates {
     bool withConnectivity = false,
     bool withAppLifecycle = false,
     bool withPreferences = false,
+    bool withLocalCache = false,
+    bool withSync = false,
   }) => InjectorTemplates.coreModule(
+    withLocalCache: withLocalCache,
+    withSync: withSync,
     withMedia: withMedia,
     withUrlLauncher: withUrlLauncher,
     withNotifications: withNotifications,
@@ -291,8 +301,10 @@ class StackTemplates {
     bool withAuthFeature = false,
     bool withFirebaseAuthFeature = false,
     bool withFirebaseNotifications = false,
+    bool withLocalCache = false,
   }) => InjectorTemplates.dataModule(
     withDio: withDio,
+    withLocalCache: withLocalCache,
     withFirestore: withFirestore,
     withAuthFeature: withAuthFeature,
     withFirebaseAuthFeature: withFirebaseAuthFeature,
@@ -404,20 +416,25 @@ class StackTemplates {
   // ── Feature ─────────────────────────────────────────────────────────────────
 
   /// The repository contract.
+  ///
+  /// [withWrites] declares a synced feature's queued writes.
   String featureRepositoryInterface(
     String name,
     String cls, {
     bool useFirestore = false,
+    bool withWrites = false,
   }) => isBloc
       ? bloc.FeatureTemplates.repositoryInterface(
           name,
           cls,
           useFirestore: useFirestore,
+          withWrites: withWrites,
         )
       : riverpod.FeatureTemplates.repositoryInterface(
           name,
           cls,
           useFirestore: useFirestore,
+          withWrites: withWrites,
         );
 
   /// The data model — the one class a feature passes from datasource to
@@ -427,13 +444,15 @@ class StackTemplates {
       ? bloc.FeatureTemplates.model(name, cls, useFirestore: useFirestore)
       : riverpod.FeatureTemplates.model(name, cls, useFirestore: useFirestore);
 
-  /// The remote datasource.
+  /// The remote datasource. [withSync] adds the write requests the sync
+  /// queue sends (REST only).
   String featureRemoteDatasource(
     String name,
     String cls,
     String varName, {
     bool useFirestore = false,
     bool withApiConstant = false,
+    bool withSync = false,
   }) => isBloc
       ? bloc.FeatureTemplates.remoteDatasource(
           name,
@@ -441,6 +460,7 @@ class StackTemplates {
           varName,
           useFirestore: useFirestore,
           withApiConstant: withApiConstant,
+          withSync: withSync,
         )
       : riverpod.FeatureTemplates.remoteDatasource(
           name,
@@ -448,15 +468,30 @@ class StackTemplates {
           varName,
           useFirestore: useFirestore,
           withApiConstant: withApiConstant,
+          withSync: withSync,
         );
 
   /// The local/cache datasource.
-  String featureLocalDatasource(String name, String cls, String varName) =>
-      isBloc
+  ///
+  /// [withCache] when the project has the offline-first cache
+  /// (`ScaffoldContext.hasLocalCache`): the datasource is then written
+  /// against it, the same in both stacks, rather than left as a stub.
+  String featureLocalDatasource(
+    String name,
+    String cls,
+    String varName, {
+    bool withCache = false,
+  }) => withCache
+      ? CacheTemplates.localDatasource(name, cls)
+      : isBloc
       ? bloc.FeatureTemplates.localDatasource(name, cls, varName)
       : riverpod.FeatureTemplates.localDatasource(name, cls, varName);
 
   /// The repository implementation.
+  ///
+  /// [offlineFirst] is a REST datasource and the cache together: the
+  /// repository saves the API's list to the cache and answers from it
+  /// offline. The same in both stacks.
   String featureRepositoryImpl(
     String name,
     String cls,
@@ -464,7 +499,11 @@ class StackTemplates {
     required bool hasRemote,
     required bool hasLocal,
     bool useFirestore = false,
-  }) => isBloc
+    bool offlineFirst = false,
+    bool withSync = false,
+  }) => offlineFirst
+      ? CacheTemplates.repositoryImpl(name, cls, withSync: withSync)
+      : isBloc
       ? bloc.FeatureTemplates.repositoryImpl(
           name,
           cls,
@@ -502,6 +541,10 @@ class StackTemplates {
   /// layer: the holder then loads nothing and leaves a TODO, rather than
   /// importing a repository that was never generated.
   ///
+  /// [offlineFirst] is Riverpod's alone, like [useFirestore]: the notifier
+  /// loads through `fetchAll()` and then follows the cache. A bloc loads
+  /// through `fetchAll()` either way, which answers from the cache offline.
+  ///
   /// [repositoryName] / [repositoryClass] point the holder at a repository
   /// other than the one named after it — what `moarch create bloc` needs when
   /// adding a second bloc to an existing feature. Bloc-only; the Riverpod
@@ -511,6 +554,7 @@ class StackTemplates {
     String cls,
     String varName, {
     bool useFirestore = false,
+    bool offlineFirst = false,
     bool hasRepository = true,
     String? repositoryName,
     String? repositoryClass,
@@ -528,6 +572,7 @@ class StackTemplates {
           cls,
           varName,
           useFirestore: useFirestore,
+          offlineFirst: offlineFirst,
           hasRepository: hasRepository,
         );
 
@@ -543,6 +588,7 @@ class StackTemplates {
     String varName, {
     required bool hasHolder,
     bool useFirestore = false,
+    bool offlineFirst = false,
   }) => isBloc
       ? bloc.FeatureTemplates.view(name, cls, varName, hasBloc: hasHolder)
       : riverpod.FeatureTemplates.view(
@@ -551,6 +597,7 @@ class StackTemplates {
           varName,
           hasNotifier: hasHolder,
           useFirestore: useFirestore,
+          offlineFirst: offlineFirst,
         );
 
   /// The loading skeleton the view hands to `skeleton:`. The same on both
@@ -587,13 +634,19 @@ class StackTemplates {
           withPushNotifications: withPushNotifications,
         );
 
-  /// The auth repository implementation.
-  String authRepositoryImpl({bool withPushNotifications = false}) => isBloc
+  /// The auth repository implementation. [withLocalCache] empties the
+  /// offline-first cache whenever a session starts or ends.
+  String authRepositoryImpl({
+    bool withPushNotifications = false,
+    bool withLocalCache = false,
+  }) => isBloc
       ? bloc.AuthTemplates.repositoryImpl(
           withPushNotifications: withPushNotifications,
+          withLocalCache: withLocalCache,
         )
       : riverpod.AuthTemplates.repositoryImpl(
           withPushNotifications: withPushNotifications,
+          withLocalCache: withLocalCache,
         );
 
   /// The auth state.
@@ -660,18 +713,22 @@ class StackTemplates {
           withPushNotifications: withPushNotifications,
         );
 
-  /// The Firebase auth repository implementation.
+  /// The Firebase auth repository implementation. [withLocalCache] empties
+  /// the offline-first cache on sign-out and account deletion.
   String firebaseAuthRepositoryImpl({
     bool withFirestore = false,
     bool withPushNotifications = false,
+    bool withLocalCache = false,
   }) => isBloc
       ? bloc.FirebaseAuthTemplates.repositoryImpl(
           withFirestore: withFirestore,
           withPushNotifications: withPushNotifications,
+          withLocalCache: withLocalCache,
         )
       : riverpod.FirebaseAuthTemplates.repositoryImpl(
           withFirestore: withFirestore,
           withPushNotifications: withPushNotifications,
+          withLocalCache: withLocalCache,
         );
 
   /// The Firebase auth state.

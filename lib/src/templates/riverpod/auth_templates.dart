@@ -229,7 +229,39 @@ $saveDeviceToken}
   ///
   /// [withPushNotifications] hands the FCM service to the repository, so a
   /// signed-in session can register the device with the backend.
-  static String repositoryImpl({bool withPushNotifications = false}) {
+  static String repositoryImpl({
+    bool withPushNotifications = false,
+    bool withLocalCache = false,
+  }) {
+    // The offline-first cache holds the signed-in account's data, so every
+    // way a session ends or changes hands empties it.
+    final cacheImport = withLocalCache
+        ? '''import '../../../../core/database/local_cache.dart';
+'''
+        : '';
+    final cacheCtorParam = withLocalCache ? ', this._cache' : '';
+    final cacheField = withLocalCache
+        ? '''
+
+  final LocalCache _cache;'''
+        : '';
+    final clearCache = withLocalCache
+        ? '''
+
+      await _cache.clearAll();'''
+        : '';
+    final clearCacheOnDelete = withLocalCache
+        ? '''
+
+    await _cache.clearAll();'''
+        : '';
+    final clearCacheOnStart = withLocalCache
+        ? '''
+
+    // Whoever was signed in before, their cached data goes.
+    await _cache.clearAll();'''
+        : '';
+
     final pushImport = withPushNotifications
         ? "import '../../../../core/services/firebase_notifications_service.dart';\n"
         : '';
@@ -259,7 +291,7 @@ $saveDeviceToken}
         : '';
 
     return '''
-import '../../../../core/errors/app_exception.dart';
+${cacheImport}import '../../../../core/errors/app_exception.dart';
 import '../../../../core/security/secure_storage.dart';
 ${pushImport}import '../../../../core/utils/app_logger.dart';
 import '../../domain/models/auth_tokens_model.dart';
@@ -268,10 +300,10 @@ import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_datasource.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
-  AuthRepositoryImpl(this._remote, this._tokens$pushCtorParam);
+  AuthRepositoryImpl(this._remote, this._tokens$pushCtorParam$cacheCtorParam);
 
   final AuthRemoteDataSource _remote;
-  final TokenStorage _tokens;$pushField
+  final TokenStorage _tokens;$pushField$cacheField
 
   @override
   Future<bool> isLoggedIn() async {
@@ -314,7 +346,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
   /// Saves [tokens], then fetches their user. A failed `GET /auth/me` undoes
   /// the save.
-  Future<UserModel> _startSession(AuthTokensModel tokens) async {
+  Future<UserModel> _startSession(AuthTokensModel tokens) async {$clearCacheOnStart
     await _tokens.saveSession(
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
@@ -357,14 +389,14 @@ class AuthRepositoryImpl implements AuthRepository {
       // Logout must always succeed locally, even if revocation fails.
       appLogger.w('Remote logout failed', error: e);
     } finally {
-      await _tokens.clearSession();
+      await _tokens.clearSession();$clearCache
     }
   }
 
   @override
   Future<void> deleteAccount() async {
     await _remote.delete();
-    await _tokens.clearSession();
+    await _tokens.clearSession();$clearCacheOnDelete
   }
 $syncDeviceToken}
 ''';

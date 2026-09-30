@@ -3,15 +3,18 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../templates/config/config_templates.dart';
+import '../templates/core/cache_templates.dart';
 import '../templates/core/core_templates.dart';
 import '../templates/core/error_templates.dart';
 import '../templates/core/security_templates.dart';
 import '../templates/core/services_templates.dart';
+import '../templates/core/sync_templates.dart';
 import '../templates/misc/agents_templates.dart';
 import '../templates/misc/deep_links_templates.dart';
 import '../templates/misc/android_templates.dart';
 import '../templates/misc/dev_templates.dart';
 import '../templates/misc/docs_templates.dart';
+import '../templates/misc/offline_docs_templates.dart';
 import '../templates/misc/ios_templates.dart';
 import '../templates/misc/readme_templates.dart';
 import '../templates/misc/skills_templates.dart';
@@ -138,6 +141,16 @@ class ScaffoldContext {
   /// refreshing main without checking would silently drop the proportional
   /// scaling every screen was built against.
   bool get hasMoAdapt => hasFile('lib/shared/widgets/mo_adapt.dart');
+
+  /// The offline-first cache was generated: the drift database and the
+  /// `LocalCache` over it. The locator registers both, and `create feature`
+  /// writes a feature's local datasource and repository against it.
+  bool get hasLocalCache => hasFile('lib/core/database/local_cache.dart');
+
+  /// Offline sync was generated: the queue in the database, the service that
+  /// sends it and the background task. Repositories queue their writes, and
+  /// `main.dart` starts it.
+  bool get hasSync => hasFile('lib/core/sync/sync_service.dart');
 
   /// The offline screen over the app, with the reconnect hook in main.dart.
   bool get hasOfflineGate => hasFile('lib/shared/widgets/offline_gate.dart');
@@ -407,6 +420,58 @@ abstract final class ScaffoldCatalog {
           'One exception type every layer throws, mapped from Dio, Firebase and platform errors.',
     ),
     ScaffoldSpec(
+      name: 'app-database',
+      title: 'AppDatabase',
+      path: 'lib/core/database/app_database.dart',
+      category: 'Core',
+      template: (c) => CacheTemplates.appDatabase(withSync: c.hasSync),
+      description:
+          'The drift database behind the offline-first cache: one table of '
+          'records as JSON, keyed by feature.',
+    ),
+    ScaffoldSpec(
+      name: 'local-cache',
+      title: 'LocalCache',
+      path: 'lib/core/database/local_cache.dart',
+      category: 'Core',
+      template: (c) => CacheTemplates.localCache(withSync: c.hasSync),
+      description:
+          "Read, watch and replace a feature's cached records — what every "
+          "local datasource calls.",
+    ),
+    ScaffoldSpec(
+      name: 'sync-queue',
+      title: 'SyncQueue',
+      path: 'lib/core/sync/sync_queue.dart',
+      category: 'Core',
+      template: (_) => SyncTemplates.syncQueue(),
+      description:
+          'Writes waiting for the server, oldest first, and the SyncRequest '
+          'a datasource describes them with.',
+    ),
+    ScaffoldSpec(
+      name: 'sync-service',
+      title: 'SyncService',
+      path: 'lib/core/sync/sync_service.dart',
+      category: 'Core',
+      template: (c) =>
+          SyncTemplates.syncService(stateManagement: c.stateManagement),
+      description:
+          'Sends the queue on start, reconnect and resume; retries, drops '
+          'refusals, refetches what it touched.',
+    ),
+    ScaffoldSpec(
+      name: 'background-sync',
+      title: 'Background sync',
+      path: 'lib/core/sync/background_sync.dart',
+      category: 'Core',
+      template: (c) =>
+          SyncTemplates.backgroundSync(withRestAuth: c.hasRestAuthFeature),
+      description:
+          'The workmanager task that sends the queue every ~15 minutes while '
+          'the app is closed.',
+    ),
+    ScaffoldSpec(
       name: 'extensions',
       title: 'Extensions',
       path: 'lib/core/utils/extensions.dart',
@@ -502,6 +567,7 @@ abstract final class ScaffoldCatalog {
         withOfflineGate: c.hasOfflineGate,
         withAuthFeature: c.hasAuthFeature,
         withBlocObserver: c.hasBlocObserver,
+        withSync: c.hasSync,
       ),
       description:
           'The entry point: the root scope, theme, router and the services the project selected.',
@@ -809,6 +875,7 @@ abstract final class ScaffoldCatalog {
         withFirebaseAuth: c.hasFirebaseAuth,
         withAuthFeature: c.hasAuthFeature,
         withFirebaseAuthFeature: c.hasFirebaseAuthFeature,
+        withLocalCache: c.hasLocalCache,
       ),
       description:
           'External layer of the locator: Dio, the Firebase handles, secure storage.',
@@ -832,6 +899,8 @@ abstract final class ScaffoldCatalog {
         ),
         withAppLifecycle: c.hasAppLifecycle,
         withPreferences: c.hasPreferences,
+        withLocalCache: c.hasLocalCache,
+        withSync: c.hasSync,
       ),
       description: 'Core layer of the locator: the services under lib/core.',
     ),
@@ -856,6 +925,7 @@ abstract final class ScaffoldCatalog {
         withAuthFeature: c.hasAuthFeature,
         withFirebaseAuthFeature: c.hasFirebaseAuthFeature,
         withFirebaseNotifications: c.hasFirebaseNotifications,
+        withLocalCache: c.hasLocalCache,
       ),
       description:
           'Data layer of the locator: datasources and repositories. `create feature` writes here.',
@@ -947,9 +1017,11 @@ abstract final class ScaffoldCatalog {
           ? c.stack.firebaseAuthRepositoryImpl(
               withFirestore: c.hasFirestore,
               withPushNotifications: c.hasFirebaseNotifications,
+              withLocalCache: c.hasLocalCache,
             )
           : c.stack.authRepositoryImpl(
               withPushNotifications: c.hasFirebaseNotifications,
+              withLocalCache: c.hasLocalCache,
             ),
       description:
           'Datasource + secure storage behind the repository contract.',
@@ -1056,6 +1128,8 @@ abstract final class ScaffoldCatalog {
         withBiometric: c.hasBiometric,
         withDarkTheme: c.hasDarkTheme,
         withWorkflows: c.hasWorkflows,
+        withLocalCache: c.hasLocalCache,
+        withSync: c.hasSync,
       ),
       description:
           'The onboarding guide: how to run the project, how it is laid out, '
@@ -1077,6 +1151,8 @@ abstract final class ScaffoldCatalog {
         withThemeMode: c.hasThemeMode,
         withDeepLinks: c.hasDeepLinks,
         withOfflineGate: c.hasOfflineGate,
+        withLocalCache: c.hasLocalCache,
+        withSync: c.hasSync,
         withStatusColors: c.hasStatusColors,
         withLocalization: c.hasLocalization,
         withEasyLocalization: c.hasEasyLocalization,
@@ -1129,6 +1205,31 @@ abstract final class ScaffoldCatalog {
       category: 'Docs',
       template: (_) => DocsTemplates.generateJKS(),
       description: 'How to generate and wire up the Android signing key.',
+    ),
+    ScaffoldSpec(
+      name: 'offline-doc',
+      title: 'Offline-first guide',
+      path: 'docs/OFFLINE_FIRST.md',
+      category: 'Docs',
+      template: (c) => OfflineDocsTemplates.doc(
+        withSync: c.hasSync,
+        bloc: c.hasBloc,
+        withAuthFeature: c.hasAuthFeature,
+      ),
+      description:
+          'How the cache (and the sync queue) work at runtime: the tables, '
+          'the read and write paths, a full timeline.',
+    ),
+    ScaffoldSpec(
+      name: 'sync-setup',
+      title: 'Offline sync guide',
+      path: 'docs/SYNC_SETUP.md',
+      category: 'Docs',
+      template: (c) =>
+          SyncTemplates.setupDoc(androidApplicationId: c.androidApplicationId),
+      description:
+          'How the queue behaves, the iOS Info.plist keys, and how to see a '
+          'background sync run.',
     ),
     ScaffoldSpec(
       name: 'deep-links-doc',
@@ -1398,4 +1499,6 @@ SkillOptions _skillOptions(ScaffoldContext c) => SkillOptions(
   withStatusColors: c.hasStatusColors,
   withWorkflows: c.hasWorkflows,
   blocConcurrency: c.hasBlocConcurrency,
+  withLocalCache: c.hasLocalCache,
+  withSync: c.hasSync,
 );

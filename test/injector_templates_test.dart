@@ -380,4 +380,47 @@ void main() {
       expect(output, isNot(contains('GetOrders')));
     });
   });
+
+  group('a module with one registration', () {
+    // A one-section cascade trips avoid_single_cascade_in_expression_statements,
+    // which fails `flutter analyze` in the generated project.
+    test('the presentation module calls getIt directly', () {
+      final output = InjectorTemplates.presentationModule(
+        withAuthFeature: true,
+      );
+
+      expect(
+        output,
+        contains(
+          '  getIt.registerLazySingleton<AuthBloc>(\n'
+          '    () => AuthBloc(getIt<AuthRepository>()),\n'
+          '  );\n',
+        ),
+      );
+      expect(output, isNot(contains('..register')));
+    });
+
+    test('the core module calls getIt directly', () {
+      expect(
+        InjectorTemplates.coreModule(),
+        contains(
+          '  getIt.registerLazySingleton<PermissionService>('
+          'PermissionService.new);\n',
+        ),
+      );
+    });
+
+    test('two or more stay a cascade', () {
+      final output = InjectorTemplates.presentationModule(
+        withAuthFeature: true,
+        withLocalization: true,
+      );
+
+      expect(
+        output,
+        contains('  getIt\n    ..registerLazySingleton<AuthBloc>('),
+      );
+      expect(output, contains('    ..registerLazySingleton<LanguageCubit>('));
+    });
+  });
 }

@@ -270,13 +270,18 @@ fvm flutter test
         : '''
 
    It asks which layers to generate on stdin; an empty line takes the
-   defaults (remote datasource, repository, ${o.bloc ? 'bloc' : 'notifier'}, view):
+   defaults (remote datasource, ${o.withLocalCache ? 'local cache datasource, ' : ''}repository, ${o.bloc ? 'bloc' : 'notifier'}, view):
 
    ```bash
    echo | moarch create feature <name>
    ```
-
-   `--all` also adds a local cache datasource.''';
+${o.withLocalCache ? '''
+   With the local datasource, the repository caches: `fetchAll` saves the
+   API's list to `LocalCache` and answers from it offline, and `watchAll`
+   follows it.${o.withSync ? """ Its `create` / `update` / `delete` change the cache and queue
+   the `SyncRequest` the remote datasource describes; point those at the
+   real API.""" : ''}''' : '''
+   `--all` also adds a local cache datasource.'''}''';
     final stateFields = o.bloc
         ? 'the constructor, `copyWith` and `props`'
         : 'the constructor and `copyWith` (with `?? this.x`)';
@@ -531,7 +536,16 @@ Add the method signature. `domain/` imports nothing from `data/`, no Flutter${o.
 ## 3. The implementation — `data/repositories/<feature>_repository_impl.dart`
 
 Delegate to the datasource. If the feature has a local datasource, this is
-where cache-then-network is decided. Do **not** catch here: the
+where cache-then-network is decided.${o.withLocalCache ? '''
+
+A read the screen should have offline follows `fetchAll`: save the result
+through the local datasource, and on `NetworkException` read it back from
+there.${o.withSync ? '''
+
+A write goes through the queue: the remote datasource returns a
+`SyncRequest` (method, path, body) instead of calling Dio, and the repository
+changes the cache (`_local.save` / `_local.remove`) then calls
+`_sync.enqueue(collection, request)`. `SyncService` sends it and refetches.''' : ''} Otherwise, do **not** catch here: the''' : ''' Do **not** catch here: the'''}
 `AppException` the datasource throws goes up to `runAction`, which shows it.
 
 ## After
@@ -1187,6 +1201,8 @@ class SkillOptions {
     this.withStatusColors = false,
     this.withWorkflows = false,
     this.blocConcurrency = false,
+    this.withLocalCache = false,
+    this.withSync = false,
   });
 
   /// Riverpod or bloc.
@@ -1218,6 +1234,12 @@ class SkillOptions {
 
   /// `bloc_concurrency` is installed, so a handler may use `droppable()`.
   final bool blocConcurrency;
+
+  /// The offline-first cache (`lib/core/database/`) was generated.
+  final bool withLocalCache;
+
+  /// Offline sync (`lib/core/sync/`) was generated: writes are queued.
+  final bool withSync;
 
   /// Whether the project uses flutter_bloc.
   bool get bloc => stateManagement.isBloc;
