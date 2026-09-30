@@ -9583,6 +9583,25 @@ $toggleAction              const SizedBox(width: AppConstants.space8),
                       ),
                     ),
                     const SizedBox(height: AppConstants.space16),
+                    // Material's own bar hugs too, by a width worked out from
+                    // its labels rather than one it reports.
+                    const Text('material / floating / hug:'),
+                    const SizedBox(height: AppConstants.space8),
+                    ColoredBox(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerLowest,
+                      child: AppBottomNav(
+                        index: _navIndex,
+                        floating: true,
+                        floatingShape: AppBottomNavShape.rounded,
+                        floatingWidth: AppBottomNavWidth.hug,
+                        onDestinationSelected: (i) =>
+                            setState(() => _navIndex = i),
+                        destinations: _navDestinations,
+                      ),
+                    ),
+                    const SizedBox(height: AppConstants.space16),
                     // A capped bar is centered in what it was given — the width
                     // a fill bar takes on a tablet, where the whole window is
                     // too far for a thumb to travel.

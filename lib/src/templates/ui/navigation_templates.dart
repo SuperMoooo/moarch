@@ -220,6 +220,10 @@ class AppBottomNav extends StatelessWidget {
   /// Material's own bar measures itself and is left alone.
   static const double _height = 64;
 
+  /// The width of the indicator Material's [NavigationBar] slides behind its
+  /// selected icon — the least a destination of that bar can be.
+  static const double _indicatorWidth = 64;
+
   static BorderRadius _radiusOf(AppBottomNavShape shape) => switch (shape) {
         AppBottomNavShape.full => AppConstants.borderRadiusFull,
         AppBottomNavShape.rounded => AppConstants.borderRadius16,
@@ -323,9 +327,12 @@ class AppBottomNav extends StatelessWidget {
 
     // NavigationBar divides whatever width it is handed between its
     // destinations, so it is the one style that cannot shrink to them by
-    // itself. IntrinsicWidth measures what they would take and hands that back
-    // as the width — one extra layout pass over a handful of icons.
-    final sized = _hug ? IntrinsicWidth(child: bar) : bar;
+    // itself — and it cannot be asked either: it lays each destination out
+    // with a custom delegate, which answers an IntrinsicWidth with zero. So
+    // the width is worked out here, and the card's loose constraints still cap
+    // it at the room there is.
+    final sized =
+        _hug ? SizedBox(width: _materialWidth(context), child: bar) : bar;
 
     final border = borderColor;
     if (floating || border == null) return sized;
@@ -339,6 +346,37 @@ class AppBottomNav extends StatelessWidget {
       ),
       child: sized,
     );
+  }
+
+  /// How wide Material's bar is when it hugs. It hands every destination the
+  /// same share, so the widest one — its label, or the indicator where that is
+  /// wider or no label is written — sets the share for all of them.
+  double _materialWidth(BuildContext context) {
+    var widest = _indicatorWidth;
+
+    if (labels != AppBottomNavLabels.none) {
+      // The selected label is the one a theme makes heavier, so it is the one
+      // that has to fit.
+      final labelStyle = NavigationBarTheme.of(context)
+              .labelTextStyle
+              ?.resolve(const {WidgetState.selected}) ??
+          context.textTheme.labelMedium;
+      final textDirection = Directionality.of(context);
+      final textScaler = MediaQuery.textScalerOf(context);
+
+      for (final destination in destinations) {
+        final painter = TextPainter(
+          text: TextSpan(text: destination.label, style: labelStyle),
+          textDirection: textDirection,
+          textScaler: textScaler,
+          maxLines: 1,
+        )..layout();
+        if (painter.width > widest) widest = painter.width;
+        painter.dispose();
+      }
+    }
+
+    return destinations.length * (widest + AppConstants.space16);
   }
 
   /// The three styles Material does not ship: one row of items over the bar's

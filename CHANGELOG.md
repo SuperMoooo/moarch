@@ -2,6 +2,22 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.4.1
+
+- **A hugging Material `AppBottomNav` is no longer an empty card.** With the
+  default `style` and `floatingWidth: AppBottomNavWidth.hug`, the bar was
+  measured with an `IntrinsicWidth` — and `NavigationBar` answers that with
+  zero, so the card shrank to its padding with no destinations in it. The
+  widget now works the width out itself: every destination gets the share the
+  widest label needs, never less than the indicator, which is all that is
+  counted with `labels: AppBottomNavLabels.none`. The styles the widget draws
+  itself were not affected. `AppAdaptiveNav(bottomNavWidth: …)` gets the fix
+  through the same widget.
+- The design-system screen previews a hugging Material bar, which is the look
+  that would have shown this.
+- Existing projects: `moarch update bottom-nav`, and `moarch update
+  design-system` for the preview.
+
 ## 9.4.0
 
 - **Two new agent skills**, in `.agents/skills/` with their `.claude/skills/`

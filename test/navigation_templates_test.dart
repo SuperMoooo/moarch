@@ -381,12 +381,28 @@ void main() {
       );
     });
 
-    test('Material\'s own bar is measured, since it cannot shrink itself', () {
-      // NavigationBar divides whatever width it is handed, so the only way to
-      // ask it for its content's width is to measure it.
+    test('Material\'s own bar is given a width, since it reports none', () {
+      // NavigationBar divides whatever width it is handed and answers an
+      // IntrinsicWidth with zero, which is a hugging card with no bar in it.
+      expect(output, isNot(contains('IntrinsicWidth(')));
       expect(
         output,
-        contains('final sized = _hug ? IntrinsicWidth(child: bar) : bar;'),
+        contains(
+          '    final sized =\n'
+          '        _hug ? SizedBox(width: _materialWidth(context), child: bar) '
+          ': bar;',
+        ),
+      );
+      // Every destination gets the same share, so the widest sets it — and
+      // never less than the indicator, which is all a bar without labels has.
+      expect(output, contains('static const double _indicatorWidth = 64;'));
+      expect(output, contains('var widest = _indicatorWidth;'));
+      expect(output, contains('if (labels != AppBottomNavLabels.none) {'));
+      expect(
+        output,
+        contains(
+          '    return destinations.length * (widest + AppConstants.space16);',
+        ),
       );
     });
 
