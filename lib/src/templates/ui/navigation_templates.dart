@@ -376,7 +376,7 @@ class AppBottomNav extends StatelessWidget {
       }
     }
 
-    return destinations.length * (widest + AppConstants.space16);
+    return destinations.length * (widest + AppConstants.space32);
   }
 
   /// The three styles Material does not ship: one row of items over the bar's

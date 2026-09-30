@@ -2,6 +2,16 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.4.3
+
+- **A hugging Material `AppBottomNav` is roomier.** Each destination now gets
+  the widest label plus 32px rather than plus 16px, so an icon-only tab is
+  96px wide instead of 80px and the longest labels sit 32px apart. 80px is the
+  share a tab gets in a crowded five-tab bar, which is not what a card sized
+  to two or three destinations should look like. The bar is still capped by
+  the screen and by `floatingMaxWidth`.
+- Existing projects: `moarch update bottom-nav`.
+
 ## 9.4.2
 
 - **A hugging `AppBottomNav` gives each labelled tab room of its own.** With

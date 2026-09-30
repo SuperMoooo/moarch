@@ -422,7 +422,7 @@ void main() {
       expect(
         output,
         contains(
-          '    return destinations.length * (widest + AppConstants.space16);',
+          '    return destinations.length * (widest + AppConstants.space32);',
         ),
       );
     });
