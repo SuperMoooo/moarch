@@ -361,6 +361,7 @@ class CreateFeatureCommand extends Command<int> {
           templates,
           hasHolder: selected.contains(holderItem),
           useFirestore: liveQuery,
+          hasModel: needsDataLayer,
         );
         if (selected.contains(holderItem)) {
           await _ensureViewWidgets(libPath);
@@ -769,6 +770,7 @@ class CreateFeatureCommand extends Command<int> {
     StackTemplates templates, {
     required bool hasHolder,
     bool useFirestore = false,
+    bool hasModel = true,
   }) async {
     await FileUtils.writeFile(
       p.join(fp, 'presentation', 'views', '${name}_view.dart'),
@@ -780,6 +782,13 @@ class CreateFeatureCommand extends Command<int> {
         useFirestore: useFirestore,
       ),
     );
+    // Only a view with a holder draws a loading state.
+    if (hasHolder) {
+      await FileUtils.writeFile(
+        p.join(fp, 'presentation', 'widgets', '${name}_skeleton.dart'),
+        templates.featureSkeleton(name, cls, withModel: hasModel),
+      );
+    }
     if (hasHolder && templates.hasPage) {
       await FileUtils.writeFile(
         p.join(fp, 'presentation', 'pages', templates.pageFile(name)),
@@ -842,6 +851,7 @@ class CreateFeatureCommand extends Command<int> {
           if (hasHolder && templates.hasPage)
             'pages/${templates.pageFile(name)}',
           'views/${name}_view.dart',
+          if (hasHolder) 'widgets/${name}_skeleton.dart',
         ],
       ];
 

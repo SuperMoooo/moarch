@@ -162,8 +162,7 @@ class AppTextButton extends StatelessWidget {
           ),
       };
 
-  /// The variant's color, plus the color that reads on top of it. Single
-  /// source for every color the button paints.
+  /// The variant's color and the color that reads on top of it.
   (Color, Color) _colorsOf(ThemeData theme) {
     final override = color;
     if (override != null) {

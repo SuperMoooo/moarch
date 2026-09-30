@@ -172,7 +172,7 @@ void main() {
       // cannot do; the config only says how strongly they are applied.
       expect(output, isNot(contains(RegExp(r'final Color'))));
       expect(output, isNot(contains(RegExp(r'\bColorScheme\b(?!`)'))));
-      expect(output, contains('they come from `ColorScheme`'));
+      expect(output, contains("Colors come from the theme's `ColorScheme`"));
     });
   });
 

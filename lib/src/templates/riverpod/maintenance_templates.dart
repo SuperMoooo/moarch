@@ -59,19 +59,14 @@ class MaintenanceTemplates {
 class MaintenanceStatus {
   const MaintenanceStatus({required this.isActive, this.title, this.message});
 
-  /// The app is available. Also what an unreadable flag resolves to — see
-  /// [MaintenanceGate] on why this fails open.
+  /// The app is available. Also what an unreadable flag resolves to.
   const MaintenanceStatus.up()
       : isActive = false,
         title = null,
         message = null;
 
-  /// Reads the flag, defaulting every field. A malformed payload must not be
-  /// able to gate the app, so anything unparseable reads as `active: false`.
-  ///
-  /// Blank copy is read as absent rather than as text: a document seeded with
-  /// `"title": ""` is the normal starting state, and it has to fall back to
-  /// [MaintenanceView]'s defaults instead of rendering an empty heading.
+  /// Reads the flag, failing open: anything unparseable is `active: false`, and
+  /// blank copy falls back to [MaintenanceView]'s defaults.
   factory MaintenanceStatus.fromMap(Map<String, dynamic> map) =>
       MaintenanceStatus(
         isActive: map['active'] as bool? ?? false,
@@ -135,17 +130,11 @@ final maintenanceStatusProvider = StreamProvider<MaintenanceStatus>((ref) {
 /// How often the flag is re-read while the app stays in the foreground.
 const _pollInterval = Duration(minutes: 5);
 
-/// Polls the availability endpoint, and again whenever the app returns to the
-/// foreground — the moment that matters most, since someone coming back after
-/// an hour away is the likeliest to meet a deploy.
+/// Polls the availability endpoint, and again when the app returns to the
+/// foreground.
 ///
-/// The endpoint must be reachable **without a token**: a signed-out user, or
-/// one whose session expired during the outage, still has to be told the app
-/// is down. Add `ApiConstants.configMaintenance` to `_kPublicEndpoints` in
-/// `dio_client.dart`.
-/// A Riverpod provider over a get_it dependency: the status is state, so it
-/// belongs to Riverpod, and the client is a dependency, so it comes out of the
-/// locator.
+/// The endpoint must work **without a token**: add
+/// `ApiConstants.configMaintenance` to `_kPublicEndpoints` in `dio_client.dart`.
 final maintenanceStatusProvider = StreamProvider<MaintenanceStatus>((ref) {
   final dio = getIt<Dio>();
   final controller = StreamController<MaintenanceStatus>();
@@ -229,26 +218,18 @@ class MaintenanceGate extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // `.value` rather than `when`: loading and error both read as null, and
-    // null reads as "up". That single `??` is the fail-open rule.
+    // Loading and error read as null, and null as "up" (fail open).
     final status = ref.watch(maintenanceStatusProvider).value ??
         const MaintenanceStatus.up();
 
     if (!status.isActive) return child;
 
-    // Replaced, not covered. With no Navigator mounted there is nothing left
-    // to tap, nothing for the back button to pop, and no route that can push
-    // itself on top of the gate. In-memory state goes with it, which is the
-    // point — everyone is meant to be out.
+    // Replaces the Navigator, so nothing underneath can be reached.
     return MaintenanceView(status: status);
   }
 }
 
-/// The screen shown in place of the app.
-///
-/// Public so your own route can reuse it, and so the gate stays one `if`. It
-/// is [ErrorView] in a [Scaffold] — restyle it here rather than teaching the
-/// gate about layout.
+/// The screen shown in place of the app. Restyle it here.
 class MaintenanceView extends ConsumerWidget {
   /// Renders [status] full-screen.
   const MaintenanceView({required this.status, super.key});
@@ -266,8 +247,7 @@ class MaintenanceView extends ConsumerWidget {
           message: status.message ??
               'The app is unavailable for a moment while we finish some work. '
               'Please try again shortly.',
-          // Re-reads the flag. Harmless on a live listener, and the only way
-          // out for a source that is polled.
+          // Re-reads the flag.
           onRetry: () => ref.invalidate(maintenanceStatusProvider),
         ),
       ),

@@ -3,14 +3,11 @@
 abstract final class AdaptTemplates {
   /// Returns the `shared/widgets/mo_adapt.dart` source.
   static String moAdapt() => r'''
-/// Proportional UI scaling for an entire Flutter app from a single wrapper
-/// widget.
+/// Proportional UI scaling for a whole app from one wrapper widget.
 ///
-/// Wrap your root widget (typically [WidgetsApp]/`MaterialApp`) in a [MoAdapt]
-/// and every logical dimension in the subtree — text, padding, margins, icon
-/// sizes, border radii, widget widths and heights — is scaled proportionally
-/// to the screen, relative to a reference design size. No `.w`/`.h`/`.sp`
-/// accessors and no changes to child widgets are required.
+/// Wrap the root widget in a [MoAdapt] and every logical dimension in the
+/// subtree scales to the screen, relative to a reference design size. No
+/// `.w`/`.h`/`.sp` accessors needed.
 library;
 
 import 'dart:math' as math;
@@ -21,29 +18,21 @@ import 'package:flutter/widgets.dart';
 /// How [MoAdapt] derives its scale factor from the screen size and
 /// [MoAdapt.designSize].
 enum MoAdaptScaleMode {
-  /// `screenWidth / designWidth`.
-  ///
-  /// The default. Ideal for portrait phone apps: the layout always spans the
-  /// full width exactly as designed, and vertical content scrolls as usual.
+  /// `screenWidth / designWidth`. The default; suits portrait phone apps.
   width,
 
   /// `screenHeight / designHeight`.
   height,
 
-  /// The smaller of the width and height ratios.
-  ///
-  /// The whole design area always fits on screen. Recommended for apps that
-  /// support landscape or tablets, where pure width scaling would magnify the
-  /// UI too much.
+  /// The smaller of the width and height ratios, so the whole design fits.
+  /// Suits landscape and tablets.
   min,
 
   /// The larger of the width and height ratios.
   max,
 }
 
-/// Information about the scaling currently applied by a [MoAdapt] ancestor.
-///
-/// Obtain it with [MoAdapt.of] or [MoAdapt.maybeOf].
+/// The scaling applied by a [MoAdapt] ancestor. See [MoAdapt.of].
 @immutable
 class MoAdaptData {
   /// Creates scaling information. Used internally by [MoAdapt].
@@ -54,10 +43,7 @@ class MoAdaptData {
     required this.adaptedSize,
   });
 
-  /// The factor by which every logical pixel in the subtree is magnified.
-  ///
-  /// A value of `2.0` means a `SizedBox(width: 10)` occupies 20 real logical
-  /// pixels on screen.
+  /// How much every logical pixel in the subtree is magnified.
   final double scale;
 
   /// The reference design size this scaling is based on.
@@ -71,12 +57,8 @@ class MoAdaptData {
   /// [scale]). This is what `MediaQuery.sizeOf` reports inside [MoAdapt].
   final Size adaptedSize;
 
-  /// Converts [value] so that it occupies `value` real logical pixels on
-  /// screen despite the ambient scaling.
-  ///
-  /// Useful for the rare widget that should *not* scale, e.g.
-  /// `SizedBox(width: MoAdapt.of(context).unscale(48))` renders exactly 48
-  /// real logical pixels wide.
+  /// Converts [value] so it occupies `value` real logical pixels despite the
+  /// scaling, for a widget that should not scale.
   double unscale(double value) => value / scale;
 
   @override
@@ -154,21 +136,13 @@ class MoAdapt extends StatelessWidget {
   /// If non-null, the scale factor never goes below this value.
   final double? minScale;
 
-  /// If non-null, the scale factor never goes above this value.
-  ///
-  /// Useful to keep the UI from becoming oversized on tablets and desktop
-  /// windows, e.g. `maxScale: 1.3`.
+  /// Caps the scale factor, e.g. `maxScale: 1.3` for tablets.
   final double? maxScale;
 
-  /// Whether scaling is applied. When false the subtree renders 1:1, which is
-  /// handy for A/B-ing the effect. The widget tree structure is identical in
-  /// both states, so toggling it does not lose any state.
+  /// Whether scaling is applied. Toggling it keeps the subtree's state.
   final bool enabled;
 
-  /// The [MoAdaptData] from the closest [MoAdapt] ancestor.
-  ///
-  /// Throws in debug mode if there is no [MoAdapt] above [context]; see
-  /// [maybeOf] for a null-safe variant.
+  /// The [MoAdaptData] of the closest [MoAdapt]. See [maybeOf].
   static MoAdaptData of(BuildContext context) {
     final MoAdaptData? data = maybeOf(context);
     assert(data != null,
@@ -215,9 +189,8 @@ class MoAdapt extends StatelessWidget {
         'maxScale must be greater than zero.');
     assert(minScale == null || maxScale == null || minScale! <= maxScale!,
         'minScale must not exceed maxScale.');
-    // Derive metrics directly from the FlutterView so MoAdapt works whether
-    // or not an ambient MediaQuery exists, and rebuilds on metric changes
-    // (resize, rotation, keyboard).
+    // Metrics from the FlutterView, so this works without a MediaQuery and
+    // rebuilds on resize, rotation and keyboard.
     return MediaQuery.fromView(
       view: View.of(context),
       child: Builder(builder: _buildScaled),
@@ -232,9 +205,8 @@ class MoAdapt extends StatelessWidget {
         Size(screenSize.width / scale, screenSize.height / scale);
 
     return MediaQuery(
-      // Present all metrics in design-space units so that SafeArea, dialogs,
-      // scaffold keyboard avoidance, and MediaQuery-driven layouts agree with
-      // the scaled coordinate system.
+      // Metrics in design-space units, so SafeArea, dialogs and keyboard avoidance
+      // agree with the scaled coordinates.
       data: mediaQuery.copyWith(
         size: adaptedSize,
         devicePixelRatio: mediaQuery.devicePixelRatio * scale,
@@ -263,10 +235,8 @@ class MoAdapt extends StatelessWidget {
           screenSize: screenSize,
           adaptedSize: adaptedSize,
         ),
-        // Lay the subtree out at the design-space size, then scale it to fill
-        // the screen exactly. Both axes use the same factor, so the transform
-        // is uniform (no distortion), and FittedBox transforms pointer events
-        // so taps land where they visually appear.
+        // Lay out at the design size, then scale uniformly to fill the screen.
+        // FittedBox also maps pointer events.
         child: FittedBox(
           fit: BoxFit.fill,
           alignment: Alignment.topLeft,

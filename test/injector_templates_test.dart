@@ -60,7 +60,7 @@ void main() {
       // and nothing to call.
       expect(riverpodRoot, isNot(contains('registerBlocs')));
       expect(riverpodRoot, isNot(contains('presentation_module.dart')));
-      expect(riverpodRoot, contains('There is no presentation module'));
+      expect(riverpodRoot, contains('Notifiers are not registered here'));
     });
 
     test('every module resolves getIt from injector.dart', () {
@@ -296,7 +296,7 @@ void main() {
       expect(riverpodOutput, isNot(contains('AuthBloc')));
       expect(riverpodOutput, isNot(contains('LanguageCubit')));
       expect(riverpodOutput, isNot(contains('language_service.dart')));
-      expect(riverpodOutput, contains('Notifiers are not here'));
+      expect(riverpodOutput, contains('Notifiers are not registered here'));
     });
   });
 

@@ -16,21 +16,11 @@ import '../../config/di/injector.dart';
 import '../../core/services/connectivity_service.dart';
 import 'error_view.dart';
 
-/// Covers the app with [OfflineView] while the device has no connection, and
-/// lifts it the moment the connection is back.
+/// Covers the app with [OfflineView] while there is no connection. The app
+/// stays mounted underneath, so nothing is lost.
 ///
-/// Mounted in `MaterialApp.builder`, around the Navigator, so it covers every
-/// route — and provides the [ConnectivityCubit] it reads, so any screen can
-/// `context.watch<ConnectivityCubit>()` as well. It covers rather than
-/// replaces: the app underneath stays mounted, so the screen the user was
-/// on — a half-filled form — is still there when the connection returns.
-/// What runs on that return is `ConnectivityService.onReconnect`, in
-/// `main.dart`.
-///
-/// It fails open: the cubit starts online, and only a reading says
-/// otherwise. For an app whose screens work offline, drop the offline screen
-/// below and keep the provider, so screens can show an `AppBanner` or
-/// disable a send button instead.
+/// Also provides [ConnectivityCubit], so any screen can watch it. For screens
+/// that work offline, drop the overlay and keep the provider.
 class OfflineGate extends StatelessWidget {
   /// Wraps [child], which is the app.
   const OfflineGate({required this.child, super.key});
@@ -55,10 +45,7 @@ class OfflineGate extends StatelessWidget {
   }
 }
 
-/// The screen shown over the app while offline.
-///
-/// Public so a route can reuse it. It is [ErrorView] in a [Scaffold] —
-/// restyle it here rather than teaching the gate about layout.
+/// The screen shown over the app while offline. Restyle it here.
 class OfflineView extends StatelessWidget {
   const OfflineView({super.key});
 

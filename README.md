@@ -167,7 +167,7 @@ builder: (context, state) => AppStatusView(
   message: state.errorMessage,
   onRetry: () => context.read<OrdersBloc>().add(const OrdersStarted()),
   isEmpty: state.items.isEmpty,
-  skeleton: (context) => _body(context, OrdersState.placeholder),
+  skeleton: (context) => const OrdersSkeleton(),
   builder: (context) => _body(context, state),
 ),
 
@@ -251,9 +251,9 @@ BlocConsumer<OrdersBloc, OrdersState>(
     status: state.status,
     message: state.errorMessage,
     onRetry: () => context.read<OrdersBloc>().add(const OrdersStarted()),
-    // Skeletonizer shimmers the tree it is handed, so loading draws the same
-    // body over `placeholder` — give its fields fake values as you add them.
-    skeleton: (context) => _body(context, OrdersState.placeholder),
+    // presentation/widgets/orders_skeleton.dart — the same rows over
+    // BoneMock data, shimmered while the first load runs.
+    skeleton: (context) => const OrdersSkeleton(),
     builder: (context) => _body(context, state),
   ),
 )
@@ -613,7 +613,7 @@ Widget build(BuildContext context) {
       value: ref.watch(ordersNotifierProvider),
       onRetry: () => ref.invalidate(ordersNotifierProvider),
       isEmpty: (state) => state.orders.isEmpty,
-      skeleton: (context) => _body(context, OrdersState.placeholder),
+      skeleton: (context) => const OrdersSkeleton(),
       builder: _body,
     ),
   );
@@ -627,19 +627,31 @@ builds inline, so the `Scaffold` keeps its app bar throughout. An error that
 carries no message of its own shows no detail — a stringified exception tells the
 user nothing and leaks how the app is put together.
 
-The skeleton is the screen's own body, shimmered — which means it has to be
-handed **fake data, not an empty state**. Skeletonizer traces the widget tree it
-is given, so `_body(context, const OrdersState())` is a `ListView.builder` over
-nothing and shimmers as a blank screen. Every generated Riverpod state carries a
-`placeholder` for this, holding a few stand-in rows whose text length is the
-width of the bones drawn over them (that is what skeletonizer's `BoneMock` is
-for). Keep it in step with `_body` and the loading state stays the real layout
-arriving rather than a spinner interrupting:
+The skeleton is its own widget, `presentation/widgets/<name>_skeleton.dart`,
+which `moarch create feature` writes beside the view. Skeletonizer shimmers the
+widget tree it is given, so the skeleton draws **real rows over fake data**: a
+list of stand-in models whose text comes from skeletonizer's `BoneMock`, whose
+length is the width of the bone drawn over it. Keep its rows in step with
+`_body` and the loading state stays the real layout arriving rather than a
+spinner interrupting:
 
 ```dart
-static final placeholder = OrdersState(
-  orders: List.filled(3, OrderModel(id: BoneMock.name)),
-);
+class OrdersSkeleton extends StatelessWidget {
+  const OrdersSkeleton({super.key});
+
+  static final _items = List.generate(
+    8,
+    (_) => OrdersModel.empty().copyWith(name: BoneMock.name),
+  );
+
+  @override
+  Widget build(BuildContext context) => ListView.separated(
+    physics: const NeverScrollableScrollPhysics(),
+    itemCount: _items.length,
+    separatorBuilder: (context, index) => const Divider(height: 1),
+    itemBuilder: (context, index) => OrderTile(_items[index]),
+  );
+}
 ```
 
 The value can come from anywhere. A notifier, a `FutureProvider` and a

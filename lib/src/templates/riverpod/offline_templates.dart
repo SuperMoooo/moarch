@@ -14,19 +14,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/services/connectivity_service.dart';
 import 'error_view.dart';
 
-/// Covers the app with [OfflineView] while the device has no connection, and
-/// lifts it the moment the connection is back.
+/// Covers the app with [OfflineView] while there is no connection. The app
+/// stays mounted underneath, so nothing is lost.
 ///
-/// Mounted in `MaterialApp.builder`, around the Navigator, so it covers every
-/// route. It covers rather than replaces: the app underneath stays mounted,
-/// so the screen the user was on — a half-filled form — is still there when
-/// the connection returns. What runs on that return is
-/// `ConnectivityService.onReconnect`, in `main.dart`.
-///
-/// It fails open: until the first reading arrives, and if reading fails, the
-/// app shows. For an app whose screens work offline, take the gate out of
-/// `main.dart` and watch `hasInternetProvider` where it matters instead — an
-/// `AppBanner` saying so, a disabled send button.
+/// For screens that work offline, remove the gate from `main.dart` and watch
+/// `hasInternetProvider` instead.
 class OfflineGate extends ConsumerWidget {
   /// Wraps [child], which is the app.
   const OfflineGate({required this.child, super.key});
@@ -47,10 +39,7 @@ class OfflineGate extends ConsumerWidget {
   }
 }
 
-/// The screen shown over the app while offline.
-///
-/// Public so a route can reuse it. It is [ErrorView] in a [Scaffold] —
-/// restyle it here rather than teaching the gate about layout.
+/// The screen shown over the app while offline. Restyle it here.
 class OfflineView extends ConsumerWidget {
   const OfflineView({super.key});
 

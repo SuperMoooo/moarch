@@ -606,10 +606,7 @@ final class AuthUnauthenticated extends AuthState {
 /// bounced — and the screen that asked for it shows [message] without the
 /// user being bounced to login.
 final class AuthFailure extends AuthState {
-  /// Not const, and not value-equal: every failure gets its own [id] off
-  /// [_seq], so two failures with the same message are two different states.
-  /// Without that, a second wrong password equals the current state, the
-  /// emit is dropped, and the screen never shows the error again.
+  /// Each failure gets its own [id], so a repeated error is still emitted.
   AuthFailure(this.message, {this.userId}) : id = ++_seq;
 
   static int _seq = 0;
@@ -622,8 +619,7 @@ final class AuthFailure extends AuthState {
   /// signed out.
   final String? userId;
 
-  /// Whether the session outlived the failure. The router redirect reads
-  /// this — see `config/router/app_router.dart`.
+  /// Whether the session outlived the failure. Read by the router redirect.
   bool get authenticated => userId != null;
 
   @override
@@ -769,10 +765,7 @@ import '../../domain/repositories/auth_repository.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
 
-/// The session, as the whole app sees it.
-///
-/// Registered as a **singleton** in `config/di/injector.dart`, unlike feature
-/// blocs: the router's redirect and every screen have to read the same one.
+/// The session, as the whole app sees it. A singleton, unlike feature blocs.
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc(this._repo) : super(const AuthInitial()) {
     on<AuthStarted>(_onStarted);

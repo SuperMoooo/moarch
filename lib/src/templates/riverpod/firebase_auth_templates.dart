@@ -569,8 +569,7 @@ class AuthState implements ActionState<AuthState> {
   final String? photoUrl;
   final bool isLoadingAction;
 
-  /// One-shot UI event fields: any copyWith call that omits them clears
-  /// them, so a message is only surfaced once.
+  /// One-shot: cleared by any copyWith that omits them.
   final String? error;
   final String? success;
 
@@ -648,9 +647,6 @@ final authNotifierProvider =
 
 class AuthNotifier extends AsyncNotifier<AuthState>
     with ActionNotifierMixin<AuthState> {
-  // Out of the locator, not off another provider: the data layer is wired in
-  // `config/di/injector.dart`, and this notifier is the seam between it and
-  // Riverpod.
   AuthRepository get _repo => getIt<AuthRepository>();
 
   @override

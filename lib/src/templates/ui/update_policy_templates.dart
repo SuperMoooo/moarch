@@ -35,17 +35,15 @@ class UpdatePolicy {
     this.message,
   });
 
-  /// No minimum — every installed version may run. Also what an unreadable
-  /// policy resolves to: see [UpdateGate] on why this fails open.
+  /// No minimum. Also what an unreadable policy resolves to.
   const UpdatePolicy.none()
       : minVersion = null,
         storeUrl = null,
         title = null,
         message = null;
 
-  /// Reads the policy for the platform the app is running on, defaulting
-  /// every field. Anything unparseable reads as "no minimum", so a malformed
-  /// payload cannot lock anyone out.
+  /// Reads this platform's policy, failing open: anything unparseable is "no
+  /// minimum".
   factory UpdatePolicy.fromMap(Map<String, dynamic> map) {
     final platform = switch (defaultTargetPlatform) {
       TargetPlatform.iOS || TargetPlatform.macOS => 'ios',
@@ -83,10 +81,8 @@ class UpdatePolicy {
   /// Body text on the blocking screen, or null for the default.
   final String? message;
 
-  /// Whether [installed] is older than [minVersion].
-  ///
-  /// False when either side is not a version — the same fail-open rule: a
-  /// typo in the backend must not block every user.
+  /// Whether [installed] is older than [minVersion]. False when either is not a
+  /// version.
   bool requiresUpdate(String installed) {
     final minimum = minVersion;
     if (minimum == null) return false;
@@ -95,11 +91,9 @@ class UpdatePolicy {
   }
 }
 
-/// Orders two `major.minor.patch` versions: negative when [a] is older, zero
-/// when equal, positive when newer — or null when either is not a version.
-///
-/// A build number (`+42`) or pre-release tag (`-beta`) is ignored, and a
-/// missing part counts as zero, so `2.4` equals `2.4.0`.
+/// Compares two `major.minor.patch` versions (negative when [a] is older), or
+/// null when either is not one. Build numbers and pre-release tags are
+/// ignored; `2.4` equals `2.4.0`.
 int? compareVersions(String a, String b) {
   List<int>? parse(String version) {
     final core = version.trim().split(RegExp('[+-]')).first;
@@ -129,10 +123,6 @@ int? compareVersions(String a, String b) {
   static const view = r'''
 
 /// The screen shown in place of the app while it is below the minimum.
-///
-/// Public so a route of your own can reuse it. There is no way past it but
-/// the store: no back button to pop, no route under it to reach — the gate
-/// has replaced the Navigator — which is the point of a minimum version.
 class UpdateRequiredView extends StatelessWidget {
   /// Renders [policy] full-screen.
   const UpdateRequiredView({required this.policy, super.key});

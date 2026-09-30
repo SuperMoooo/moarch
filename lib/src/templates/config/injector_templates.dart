@@ -68,49 +68,30 @@ abstract final class InjectorTemplates {
     // same thing in the two stacks.
     final holderNote = isBloc
         ? '''
-/// Blocs are the exception worth knowing: a feature bloc is registered as a
-/// **factory**, so each screen gets its own and closing the route disposes
-/// it. Only session-wide blocs (auth) are singletons.'''
+/// Feature blocs are factories (one per screen); session-wide ones are
+/// singletons.'''
         : '''
-/// There is no presentation module: an `AsyncNotifier` needs the `Ref`
-/// Riverpod hands it, so it stays behind its provider and reads what it
-/// depends on out of this locator — `getIt<OrdersRepository>()` rather than
-/// `ref.watch(ordersRepositoryProvider)`. Riverpod holds the state; get_it
-/// holds everything the state is built from.''';
+/// Notifiers are not registered here: they read their dependencies with
+/// `getIt<OrdersRepository>()`.''';
 
     return '''
 $imports
 
-/// The service locator. Everything long-lived is registered through
-/// `setupInjector` and pulled out with `getIt<Thing>()`.
-///
-/// The registrations themselves are one file per layer, so this one does not
-/// grow with the app:
+/// The service locator. Registrations live in one file per layer:
 ///
 $layers
-///
-/// Each of those imports this file back for [getIt]. That is a cycle on paper
-/// and nothing at all in practice — Dart resolves it fine, and it is what
-/// lets every other file in the project go on importing one well-known path
-/// for the locator.
 ///
 $holderNote
 final getIt = GetIt.instance;
 
-/// Wires the app up. Called from `main()` after `Firebase.initializeApp()`
-/// and before `runApp`.
-///
-/// In a widget test, call `getIt.reset()` first and register fakes for the
-/// pieces under test — nothing here reaches for a real service on its own.
+/// Called from `main()` before `runApp`. In tests, `getIt.reset()` and
+/// register fakes instead.
 Future<void> setupInjector() async {
-  // The order is a readability choice, not a requirement: every registration
-  // is lazy, so a layer may depend on one registered after it.
   registerExternals();
   registerCoreServices();
   registerDataLayer();${withFeatureModule ? '\n  registerFeatureServices();' : ''}${isBloc ? '\n  registerBlocs();' : ''}
 
-  // Everything above is lazy, so nothing has been constructed yet. Await this
-  // if you later register an async singleton (registerSingletonAsync).
+  // Needed once you register an async singleton.
   await getIt.allReady();
 }
 ''';
@@ -145,8 +126,6 @@ Future<void> setupInjector() async {
     final entries = <String>[
       if (withFirebaseAuth)
         '''
-    // Firebase.initializeApp() has already run in main(), so reading
-    // `.instance` here is safe.
     ..registerLazySingleton<FirebaseAuth>(() => FirebaseAuth.instance)''',
       if (withFirestore)
         '    ..registerLazySingleton<FirebaseFirestore>(() => FirebaseFirestore.instance)',
@@ -156,34 +135,24 @@ Future<void> setupInjector() async {
       '    ..registerLazySingleton<TokenStorage>(\n        () => TokenStorage(getIt<FlutterSecureStorage>()))',
       if (withDio && withAuthFeature && !withFirebaseAuthFeature)
         '''
-    // One client for the whole app: the auth interceptor only works if
-    // everyone shares it.
+    // One client for the whole app, so the auth interceptor sees every call.
     ..registerLazySingleton<Dio>(
       () => buildDioClient(
         getIt<TokenStorage>(),
-        // Looked up when a 401 actually happens, not now — the repository is
-        // built on this very client, so resolving it here would be a cycle.
-        // One repository singleton is also what makes the refresh
-        // single-flight: concurrent 401s wait on the same call instead of
-        // racing each other with the same refresh token.
+        // Resolved on a 401, not now: the repository is built on this client.
         refreshSession: () => getIt<AuthRepository>().refresh(),
       ),
     )'''
       else if (withDio)
         '''
-    // One client for the whole app: the auth interceptor only works if
-    // everyone shares it.
+    // One client for the whole app, so the auth interceptor sees every call.
     ..registerLazySingleton<Dio>(() => buildDioClient(getIt<TokenStorage>()))''',
     ];
 
     return '''
 $imports
 
-/// The instances that are not ours: the HTTP client, the Firebase handles,
-/// the platform keystore.
-///
-/// Swapping one of these packages out is a change to this file and to the
-/// wrappers under `lib/core` — nowhere else.
+/// Third-party instances: the HTTP client, Firebase, the keystore.
 void registerExternals() {
   getIt
 ${entries.join('\n')};
@@ -235,16 +204,12 @@ ${entries.join('\n')};
       if (withFirebaseNotifications)
         '    ..registerLazySingleton<FirebaseNotificationsService>(\n        FirebaseNotificationsService.new)',
       if (withDebouncer)
-        // Not a singleton: two screens sharing one debouncer would cancel
-        // each other's pending action.
         '    ..registerFactory<DebouncerService>(DebouncerService.new)',
       if (withBiometric)
         '    ..registerLazySingleton<BiometricService>(BiometricService.new)',
       if (withConnectivity)
         '    ..registerLazySingleton<ConnectivityService>(ConnectivityService.new)',
       if (withAppLifecycle)
-        // Disposed with the locator, so a `getIt.reset()` in a test does not
-        // leave its binding observer behind.
         '    ..registerLazySingleton<AppLifecycleService>(\n'
             '        AppLifecycleService.new,\n'
             '        dispose: (service) => service.dispose())',
@@ -253,12 +218,7 @@ ${entries.join('\n')};
     return '''
 $imports
 
-/// The app's own cross-cutting services — what lives under `lib/core` because
-/// no single feature owns it.
-///
-/// A service you write by hand belongs here too. Nothing regenerates this
-/// file once the project exists; `moarch update` only refreshes it, and tells
-/// you first if you have edited it.
+/// The app's cross-cutting services, under `lib/core`.
 void registerCoreServices() {
   getIt
 ${entries.join('\n')};
@@ -269,8 +229,7 @@ ${entries.join('\n')};
   /// [PreferencesService] is the one async registration: it reads the stored
   /// values once, and `setupInjector()` waits for that through `allReady()`.
   static const String _preferencesEntry =
-      '    // Loaded before runApp, so the first frame already has the saved\n'
-      '    // values (the theme mode among them) — setupInjector() waits for it.\n'
+      '    // Async: loaded before runApp, so the first frame has saved values.\n'
       '    ..registerSingletonAsync<PreferencesService>(PreferencesService.create)';
 
   /// `lib/config/di/feature_module.dart` — the long-lived services a feature
@@ -285,15 +244,9 @@ import 'package:get_it/get_it.dart';
 
 import 'injector.dart';
 
-/// The long-lived services that belong to one feature rather than to
-/// `lib/core`: a socket the chat feature keeps open, a call engine, a sync
-/// worker. They live under `lib/features/<feature>/data/services/` and are
-/// registered here — not in `core_module.dart`, since no other feature uses
-/// them, and not in `data_module.dart`, which is datasources and
-/// repositories.
-///
-/// Give anything that holds a connection a `dispose`, so `getIt.reset()`
-/// closes it:
+/// Long-lived services owned by one feature (a chat socket, a sync worker),
+/// from `lib/features/<feature>/data/services/`. Give anything holding a
+/// connection a `dispose`:
 ///
 /// ```dart
 /// getIt.registerLazySingleton<ChatSocket>(
@@ -306,13 +259,9 @@ void registerFeatureServices() {
 }
 
 // ── Scopes ────────────────────────────────────────────────────────────────────
-// For what one flow owns rather than the whole app: a call's audio engine, a
-// checkout's cart. A singleton would outlive the flow and hold the resource
-// for the rest of the session; a factory would build a second one for every
-// screen of the same flow. A scope is opened when the flow starts, shared by
-// every screen inside it, and disposed when it ends:
+// For what one flow owns (a call's audio engine, a checkout's cart): opened
+// when the flow starts, shared by its screens, disposed when it ends.
 //
-//   // The first screen of the flow (a bloc's constructor, a page's initState):
 //   openScope('call', (scope) {
 //     scope.registerSingleton<CallEngine>(
 //       CallEngine(),
@@ -320,20 +269,15 @@ void registerFeatureServices() {
 //     );
 //   });
 //
-//   // When the flow ends (the bloc's close(), the page's dispose):
 //   await closeScope('call');
 
-/// Opens the get_it scope [name] and registers what the flow owns in [init].
-///
-/// A no-op when the scope is already open, so a screen rebuilt or re-entered
-/// mid-flow does not stack a second one on top.
+/// Opens the scope [name] with what [init] registers. No-op if already open.
 void openScope(String name, void Function(GetIt scope) init) {
   if (getIt.hasScope(name)) return;
   getIt.pushNewScope(scopeName: name, init: init);
 }
 
-/// Drops the scope [name], disposing everything registered in it. A no-op
-/// when it is not open.
+/// Drops the scope [name] and disposes what is in it. No-op if not open.
 Future<void> closeScope(String name) async {
   if (!getIt.hasScope(name)) return;
   await getIt.dropScope(name);
@@ -406,11 +350,7 @@ Future<void> closeScope(String name) async {
     return '''
 $imports
 
-/// The data layer: each feature's datasources, and the repository
-/// implementation bound to the interface its domain layer declares.
-///
-/// Lazy singletons throughout — one connection's worth of state, shared by
-/// every screen that reads it.
+/// Each feature's datasources and repositories, as lazy singletons.
 void registerDataLayer() {
 ${_body(entries, _dataAnchor)}}
 ''';
@@ -446,12 +386,8 @@ ${_body(entries, _dataAnchor)}}
     return '''
 $imports
 
-/// The state holders.
-///
-/// A feature bloc is a **factory**: each screen's `BlocProvider` creates its
-/// own and closing the route closes it. Only the session-wide ones — auth,
-/// the locale — are singletons, because the router's redirect and every
-/// screen have to be reading the same instance.
+/// The blocs. Feature blocs are factories (one per screen); session-wide ones
+/// (auth, locale) are singletons.
 void registerBlocs() {
 ${_body(entries, _holderAnchor)}}
 ''';
@@ -472,16 +408,13 @@ ${_body(entries, _holderAnchor)}}
 
   /// The anchor comment written into `data_module.dart`.
   static const String _dataAnchor =
-      '  ${InjectorUtils.anchor} — `moarch create feature` inserts each new\n'
-      "  // feature's datasource and repository directly above this line. Move\n"
-      '  // them up into the cascade if you prefer; only the comment has to stay.';
+      '  ${InjectorUtils.anchor} — `moarch create feature` inserts above this\n'
+      '  // line. Keep it.';
 
   /// The anchor comment written into `presentation_module.dart`.
   static const String _holderAnchor =
-      '  ${InjectorUtils.anchor} — `moarch create feature` and\n'
-      '  // `moarch create bloc` insert each new bloc directly above this line.\n'
-      '  // Move them up into the cascade if you prefer; only the comment has to\n'
-      '  // stay.';
+      '  ${InjectorUtils.anchor} — `moarch create feature` / `create bloc`\n'
+      '  // insert above this line. Keep it.';
 
   /// The pre-split `lib/config/di/injector.dart`: every registration in one
   /// file.
@@ -555,8 +488,6 @@ ${_body(entries, _holderAnchor)}}
     final externals = <String>[
       if (withFirebaseAuth)
         '''
-    // Firebase.initializeApp() has already run in main(), so reading
-    // `.instance` here is safe.
     ..registerLazySingleton<FirebaseAuth>(() => FirebaseAuth.instance)''',
       if (withFirestore)
         '    ..registerLazySingleton<FirebaseFirestore>(() => FirebaseFirestore.instance)',
@@ -566,23 +497,17 @@ ${_body(entries, _holderAnchor)}}
       '    ..registerLazySingleton<TokenStorage>(\n        () => TokenStorage(getIt<FlutterSecureStorage>()))',
       if (withDio && withAuthFeature && !withFirebaseAuthFeature)
         '''
-    // One client for the whole app: the auth interceptor only works if
-    // everyone shares it.
+    // One client for the whole app, so the auth interceptor sees every call.
     ..registerLazySingleton<Dio>(
       () => buildDioClient(
         getIt<TokenStorage>(),
-        // Looked up when a 401 actually happens, not now — the repository is
-        // built on this very client, so resolving it here would be a cycle.
-        // One repository singleton is also what makes the refresh
-        // single-flight: concurrent 401s wait on the same call instead of
-        // racing each other with the same refresh token.
+        // Resolved on a 401, not now: the repository is built on this client.
         refreshSession: () => getIt<AuthRepository>().refresh(),
       ),
     )'''
       else if (withDio)
         '''
-    // One client for the whole app: the auth interceptor only works if
-    // everyone shares it.
+    // One client for the whole app, so the auth interceptor sees every call.
     ..registerLazySingleton<Dio>(() => buildDioClient(getIt<TokenStorage>()))''',
     ];
 
@@ -598,8 +523,6 @@ ${_body(entries, _holderAnchor)}}
       if (withFirebaseNotifications)
         '    ..registerLazySingleton<FirebaseNotificationsService>(\n        FirebaseNotificationsService.new)',
       if (withDebouncer)
-        // Not a singleton: two screens sharing one debouncer would cancel
-        // each other's pending action.
         '    ..registerFactory<DebouncerService>(DebouncerService.new)',
       if (withBiometric)
         '    ..registerLazySingleton<BiometricService>(BiometricService.new)',
@@ -655,38 +578,28 @@ ${_body(entries, _holderAnchor)}}
     // same thing in the two stacks.
     final holderNote = isBloc
         ? '''///
-/// Blocs are the exception worth knowing: a feature bloc is registered as a
-/// **factory**, so each screen gets its own and closing the route disposes
-/// it. Only session-wide blocs (auth) are singletons.'''
+/// Feature blocs are factories (one per screen); session-wide ones are
+/// singletons.'''
         : '''///
-/// Notifiers are not here: an `AsyncNotifier` needs the `Ref` Riverpod hands
-/// it, so it stays behind its provider and reads what it depends on out of
-/// this locator — `getIt<OrdersRepository>()` rather than
-/// `ref.watch(ordersRepositoryProvider)`. Riverpod holds the state; get_it
-/// holds everything the state is built from.''';
+/// Notifiers are not registered here: they read their dependencies with
+/// `getIt<OrdersRepository>()`.''';
 
     return '''
 $imports
 
-/// The service locator. Everything long-lived is registered in
-/// [setupInjector] and pulled out with `getIt<Thing>()`.
+/// The service locator.
 $holderNote
 final getIt = GetIt.instance;
 
-/// Wires the app up. Called from `main()` after `Firebase.initializeApp()`
-/// and before `runApp`.
-///
-/// In a widget test, call `getIt.reset()` first and register fakes for the
-/// pieces under test — nothing here reaches for a real service on its own.
+/// Called from `main()` before `runApp`. In tests, `getIt.reset()` and
+/// register fakes instead.
 Future<void> setupInjector() async {
   getIt${section('Externals', externals)}${section('Services', services)}${section('Features', auth)};
 
-  ${InjectorUtils.anchor} — `moarch create feature` inserts new registrations
-  // directly above this line. Move them into the block above if you prefer;
-  // only the comment itself has to stay.
+  ${InjectorUtils.anchor} — `moarch create feature` inserts above this
+  // line. Keep it.
 
-  // Everything above is lazy, so nothing has been constructed yet. Await this
-  // if you later register an async singleton (registerSingletonAsync).
+  // Needed once you register an async singleton.
   await getIt.allReady();
 }
 ''';

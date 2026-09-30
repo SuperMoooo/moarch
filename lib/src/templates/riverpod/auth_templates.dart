@@ -62,12 +62,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'auth_tokens_model.freezed.dart';
 part 'auth_tokens_model.g.dart';
 
-/// The token pair as the API sends it. Freezed writes the constructor,
-/// `copyWith` and an equality covering both tokens.
-///
-/// `build.yaml` renames every field to snake_case, so these read `access_token`
-/// and `refresh_token`. A key your API spells otherwise gets a
-/// `@JsonKey(name: …)` on the field, rather than a hand-written parse.
+/// The token pair as the API sends it. Keys are snake_case (`build.yaml`).
 @freezed
 abstract class AuthTokensModel with _$AuthTokensModel {
   const factory AuthTokensModel({
@@ -88,12 +83,8 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'user_model.freezed.dart';
 part 'user_model.g.dart';
 
-/// The signed-in user, as `GET /auth/me` returns it. The auth state carries
-/// it, so any screen reads who is signed in from there rather than asking
-/// the API again.
-///
-/// `build.yaml` renames every field to snake_case. Add the fields your API
-/// sends; an `id` your backend sends as a number is `int` here, not `String`.
+/// The signed-in user, as `GET /auth/me` returns it. Keys are snake_case
+/// (`build.yaml`); add the fields your API sends.
 @freezed
 abstract class UserModel with _$UserModel {
   const factory UserModel({
@@ -105,8 +96,7 @@ abstract class UserModel with _$UserModel {
   factory UserModel.fromJson(Map<String, dynamic> json) =>
       _$UserModelFromJson(json);
 
-  /// A blank user — what a test stubs `me()` with. Freezed does not write this
-  /// one, so it is yours to keep in step with the fields above.
+  /// A blank user, e.g. for test stubs. Keep it in step with the fields.
   factory UserModel.empty() => const UserModel(id: '', email: '');
 }
 ''';
@@ -192,8 +182,7 @@ class AuthRemoteDataSource {
           'refresh_token': refreshToken,
         });
         final data = response.data as Map<String, dynamic>;
-        // Backends that don't rotate the refresh token only return a new
-        // access token — keep the current one in that case.
+        // Without a rotated refresh token, keep the current one.
         return AuthTokensModel(
           accessToken: data['access_token'] as String,
           refreshToken: data['refresh_token'] as String? ?? refreshToken,
@@ -202,8 +191,7 @@ class AuthRemoteDataSource {
     );
   }
 
-  /// The signed-in user. The access token on the request is what says who
-  /// that is, so this is called once the session is saved.
+  /// The signed-in user, identified by the request's access token.
   Future<UserModel> me() {
     return safeApiCall<UserModel>(
       apiCall: () async {
@@ -216,8 +204,7 @@ class AuthRemoteDataSource {
   Future<void> logout({required String refreshToken}) {
     return safeApiCall<void>(
       apiCall: () async {
-        // Lets the backend revoke the refresh token; local cleanup happens
-        // in the repository even when this call fails.
+        // Lets the backend revoke the refresh token; local cleanup happens anyway.
         await _dio.post<dynamic>(ApiConstants.authLogout, data: {
           'refresh_token': refreshToken,
         });
@@ -295,8 +282,7 @@ class AuthRepositoryImpl implements AuthRepository {
       await refresh();
       return true;
     } on NetworkException {
-      // Offline says nothing about the session, so keep it rather than
-      // logging the user out.
+      // Offline says nothing about the session: keep it.
       return true;
     } on AppException catch (e) {
       appLogger.w('Stored session is no longer valid', error: e);
@@ -326,11 +312,8 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<UserModel> me() => _remote.me();
 
-  /// Saves [tokens], then asks the backend who they belong to.
-  ///
-  /// A session with no user is not one any screen expects, so a failed
-  /// `GET /auth/me` undoes the save: the error reaches the login screen, and
-  /// the next attempt starts clean.
+  /// Saves [tokens], then fetches their user. A failed `GET /auth/me` undoes
+  /// the save.
   Future<UserModel> _startSession(AuthTokensModel tokens) async {
     await _tokens.saveSession(
       accessToken: tokens.accessToken,
@@ -344,11 +327,8 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
-  /// The refresh currently in flight, if any.
-  ///
-  /// Single-flight guard: the Dio interceptor calls this on every 401, so a
-  /// screen that fires three requests at once would otherwise burn the
-  /// refresh token three times over. They share this one call instead.
+  /// The refresh in flight, shared by concurrent 401s so the refresh token is
+  /// spent once.
   Future<void>? _refreshing;
 
   @override
@@ -413,8 +393,7 @@ class AuthState implements ActionState<AuthState> {
   final UserModel? user;
   final bool isLoadingAction;
 
-  /// One-shot UI event fields: any copyWith call that omits them clears
-  /// them, so a message is only surfaced once.
+  /// One-shot: cleared by any copyWith that omits them.
   final String? error;
   final String? success;
 
@@ -524,9 +503,6 @@ final authNotifierProvider =
 
 class AuthNotifier extends AsyncNotifier<AuthState>
     with ActionNotifierMixin<AuthState> {
-  // Out of the locator, not off another provider: the data layer is wired in
-  // `config/di/injector.dart`, and this notifier is the seam between it and
-  // Riverpod.
   AuthRepository get _repo => getIt<AuthRepository>();
 
   @override
@@ -536,10 +512,8 @@ class AuthNotifier extends AsyncNotifier<AuthState>
     final loggedIn = await _repo.isLoggedIn();
     if (!loggedIn) return const AuthState();
 $syncOnRestore
-    // The session is what decides signed in or out, and it survived — an
-    // offline start keeps it (see isLoggedIn). So a user that cannot be
-    // fetched yet stays null, for reloadUser() to fill in, rather than
-    // bouncing to login.
+    // The session survived (e.g. an offline start): the user stays null until
+    // reloadUser() fills it in.
     UserModel? user;
     try {
       user = await _repo.me();

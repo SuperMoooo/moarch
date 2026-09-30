@@ -45,8 +45,7 @@ class UpdateGateTemplates {
   }
 
   static const _installedProvider = r'''
-/// The version the device is running, from the platform's own record of it
-/// (`version` in pubspec.yaml, as built).
+/// The installed version (`version` in pubspec.yaml, as built).
 final installedVersionProvider = FutureProvider<String>((ref) async {
   final info = await PackageInfo.fromPlatform();
   return info.version;
@@ -83,13 +82,11 @@ final updatePolicyProvider = StreamProvider<UpdatePolicy>((ref) {
 ''';
 
   static const _dioProvider = r'''
-/// Fetches the version policy at launch and whenever the app comes back to
-/// the foreground — no timer: a minimum version changes with a release, not
-/// by the minute, and someone returning to the app is who meets it.
+/// Fetches the version policy at launch and on every return to the
+/// foreground.
 ///
-/// The endpoint must be reachable **without a token**: a signed-out user
-/// still has to be told to update. Add `ApiConstants.configAppVersion` to
-/// `_kPublicEndpoints` in `dio_client.dart`.
+/// The endpoint must work **without a token**: add
+/// `ApiConstants.configAppVersion` to `_kPublicEndpoints` in `dio_client.dart`.
 final updatePolicyProvider = StreamProvider<UpdatePolicy>((ref) {
   final dio = getIt<Dio>();
   final controller = StreamController<UpdatePolicy>();

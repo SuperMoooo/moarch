@@ -1118,7 +1118,8 @@ abstract final class ProjectInspector {
       return [
         const Diagnostic.error(
           'config/env/app_env.g.dart has not been generated',
-          hint: 'Run: dart run build_runner build --delete-conflicting-outputs',
+          hint:
+              'Run: fvm dart run build_runner build --delete-conflicting-outputs',
         ),
       ];
     }

@@ -60,13 +60,8 @@ class AppTemplates {
 
     final notificationsBootstrap = withAnyNotifications
         ? '''
-/// Notifications are not worth blocking the boot on, so a failure is logged
-/// and the app carries on without them — better than a throw past runApp()
-/// stranding it on the preserved splash.
-///
-/// Permission is deliberately not asked here: on iOS a first-launch denial can
-/// only be undone in Settings, so call `requestPermissions()` once onboarding
-/// has explained what the notifications are for.${withFirebaseNotifications ? '\n/// On iOS FCM has no device token to hand out until that ask is accepted.' : ''}
+/// Failures are logged and the app carries on without notifications.
+/// Permission is asked later, via `requestPermissions()` after onboarding.${withFirebaseNotifications ? '\n/// On iOS FCM has no token until that is accepted.' : ''}
 Future<void> _initNotifications() async {
 ${[if (withNotificationsService) _guardedInit('NotificationService', 'Notifications'), if (withFirebaseNotifications) _guardedInit('FirebaseNotificationsService', 'FCM')].join('\n\n')}
 }
@@ -186,9 +181,8 @@ ${[if (withNotificationsService) _guardedInit('NotificationService', 'Notificati
     final reconnectHook = withOfflineGate
         ? '''
 
-  // Runs each time the device comes back online (not on start). Sync what
-  // was saved while offline, retry what failed — or subscribe from the
-  // feature that owns the sync; see ConnectivityService.onReconnect.
+  // Runs each time the device comes back online (not on start): sync what was
+  // saved offline, retry what failed.
   getIt<ConnectivityService>().onReconnect(() async {
     // TODO: sync what changed while offline.
   });
@@ -201,12 +195,8 @@ ${[if (withNotificationsService) _guardedInit('NotificationService', 'Notificati
     final appBlocs = <String>[
       if (withAuthFeature)
         '''        BlocProvider<AuthBloc>(
-          // ..add(AuthStarted()) here, not in the constructor: a bloc that
-          // emits during its own construction has no listener yet.
           create: (_) => getIt<AuthBloc>()..add(const AuthStarted()),
-          // Built with the tree rather than on first read: the router's
-          // redirect reads the bloc out of the locator, so nothing would ever
-          // touch this provider and session restore would never start.
+          // Eager, so session restore starts on launch.
           lazy: false,
         ),''',
       if (withLocalization)
@@ -237,8 +227,8 @@ ${[if (withNotificationsService) _guardedInit('NotificationService', 'Notificati
       runAppCall =
           '''runApp(
     MoAdapt(
-      // The frame the UI is designed against; every fixed dimension scales
-      // proportionally from it. Tune with scaleMode / minScale / maxScale.
+      // The design frame every dimension scales from. Tune with scaleMode /
+      // minScale / maxScale.
       designSize: const Size(412, 924),
       child: EasyLocalization(
         supportedLocales: const [Locale('en'), Locale('pt')],
@@ -261,8 +251,8 @@ ${[if (withNotificationsService) _guardedInit('NotificationService', 'Notificati
     } else if (withMoAdapt) {
       runAppCall = '''runApp(
     const MoAdapt(
-      // The frame the UI is designed against; every fixed dimension scales
-      // proportionally from it. Tune with scaleMode / minScale / maxScale.
+      // The design frame every dimension scales from. Tune with scaleMode /
+      // minScale / maxScale.
       designSize: Size(412, 924),
       child: App(),
     ),
@@ -293,8 +283,8 @@ class App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Provided above the router so a redirect can read them, and so they
-    // survive every route change. Feature blocs belong in their own route.
+    // Above the router, so the redirect can read them. Feature blocs belong in
+    // their own route.
     return MultiBlocProvider(
       providers: [
 ${appBlocs.join('\n')}
@@ -327,8 +317,7 @@ ${_materialApp(withRouter: withRouter, themeConfig: themeConfig, localizationCon
     final blocObserverInit = withBlocObserver
         ? '''
 
-  // What a bloc hands to addError — runAction does, for anything that is not
-  // an AppException — reaches the logger instead of vanishing.
+  // Errors a bloc hands to addError reach the logger.
   Bloc.observer = const AppBlocObserver();
 '''
         : '';
@@ -348,8 +337,7 @@ Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 $easyLocalizationInit$firebaseInit
-  // Installed before the first await that can fail, so nothing on the way to
-  // runApp() dies unreported.
+  // Installed first, so nothing on the way to runApp() dies unreported.
   PlatformDispatcher.instance.onError = (error, st) {
     appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught
     if (kDebugMode) return false; // false = let Flutter crash normally in dev
@@ -368,16 +356,12 @@ $easyLocalizationInit$firebaseInit
     return const Scaffold(body: ErrorView());
   };
 $blocObserverInit
-  // Registers every repository, datasource, service and bloc. Firebase is up
-  // by this point, so the locator can hand out its instances.
+  // Registers every repository, datasource, service and bloc.
   await setupInjector();
 $notificationInit$reconnectHook
   $runAppCall
 
-  // After runApp, so the native splash gives way to a painted first frame
-  // rather than a blank window. Push it later still — into your own async
-  // init, or a post-frame callback — if something has to land before the app
-  // is on screen.
+  // After runApp, so the splash gives way to a painted first frame.
   FlutterNativeSplash.remove();
 }
 
@@ -397,12 +381,8 @@ import 'app_logger.dart';
 
 final _log = appLogger.scoped('Bloc');
 
-/// Logs what a bloc hands to `addError` — `runAction` does so for anything
-/// that is not an `AppException`, so an unexpected failure is not lost behind
-/// the generic message it shows. An error thrown out of an event handler
-/// lands here too.
-///
-/// Installed once, in `main.dart`: `Bloc.observer = const AppBlocObserver();`
+/// Logs what a bloc hands to `addError`, including errors thrown out of event
+/// handlers. Installed in `main.dart`.
 class AppBlocObserver extends BlocObserver {
   const AppBlocObserver();
 
@@ -450,10 +430,7 @@ $localizationConfig$routerConfig      debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            // Follow the system font size. The cap keeps fixed-height rows
-            // and buttons from breaking; it also overrides an accessibility
-            // setting, so raise it as far as your layouts survive rather
-            // than lowering it.
+            // Follows the system font size, capped so fixed-height rows don't break.
             textScaler: MediaQuery.textScalerOf(
               context,
             ).clamp(maxScaleFactor: 1.3),
@@ -492,8 +469,7 @@ $localizationConfig$routerConfig      debugShowCheckedModeBanner: false,
 
     final options = withAuth
         ? '''  initialLocation: AppRoutes.splash,
-  // The bloc is a singleton in the locator, so this is the same instance the
-  // MultiBlocProvider in main.dart hands to the widget tree.
+  // The same singleton main.dart provides to the tree.
   refreshListenable: GoRouterRefreshStream(getIt<AuthBloc>().stream),
   redirect: _redirect,'''
         : '  initialLocation: AppRoutes.home,';
@@ -521,19 +497,15 @@ $localizationConfig$routerConfig      debugShowCheckedModeBanner: false,
 String? _redirect(BuildContext context, GoRouterState state) {
   final auth = getIt<AuthBloc>().state;
   final onSplash = state.matchedLocation == AppRoutes.splash;
-  // Where the user was headed — a deep link, a notification tap — carried
-  // through splash and login as `?from=`, so they land there, not on home.
+  // Where the user was headed (a deep link), carried through login as `?from=`.
   final from = _fromOf(state);
 
-  // Session restore is still running — hold on splash so nothing flashes.
-  // The refreshListenable re-runs this once it completes.
+  // Session restore still running: hold on splash.
   if (auth is AuthInitial) {
     return onSplash ? null : _withFrom(AppRoutes.splash, state.uri.toString());
   }
 
-  // AuthFailure carries the session it failed from: a delete or a password
-  // reset the backend refused leaves the user signed in, and bouncing them to
-  // login over it would be a worse lie than the error itself.
+  // A failure that kept the session keeps the user signed in.
   final isAuthenticated =
       auth is AuthAuthenticated || (auth is AuthFailure && auth.authenticated);
   if (onSplash) {
@@ -556,8 +528,7 @@ String _withFrom(String path, String? from) =>
     ? path
     : Uri(path: path, queryParameters: {'from': from}).toString();
 
-/// The `from` the redirect was handed, if it is a path inside the app. A
-/// link can put anything in a query, and only an app path is followed.
+/// The `from` query, if it is a path inside the app.
 String? _fromOf(GoRouterState state) {
   final from = state.uri.queryParameters['from'];
   if (from == null || !from.startsWith('/') || from.startsWith('//')) {
@@ -567,9 +538,7 @@ String? _fromOf(GoRouterState state) {
 }
 
 /// Bridges a bloc's `Stream` to the `Listenable` GoRouter refreshes on.
-///
-/// It notifies once up front, because the stream only emits on *changes* —
-/// a router built after the first state would otherwise never hear about it.
+/// Notifies once up front, since the stream only emits changes.
 class GoRouterRefreshStream extends ChangeNotifier {
   GoRouterRefreshStream(Stream<Object?> stream) {
     notifyListeners();
@@ -594,14 +563,11 @@ $asyncImport$imports
 /// Navigate without a BuildContext: `appRouter.go(...)`.
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
-/// The app's router. A plain top-level value rather than something resolved
-/// from the locator: `MaterialApp.router` needs the same instance for the
-/// life of the app, and rebuilding it would drop the navigation stack.
+/// The app's router. Top-level, so `MaterialApp.router` keeps one instance.
 final GoRouter appRouter = GoRouter(
   navigatorKey: rootNavigatorKey,
 $options
-  // Debug builds only: the route log is noise in release, and the locations
-  // it prints can carry path parameters worth not logging.
+  // Debug only: locations can carry path parameters.
   debugLogDiagnostics: kDebugMode,
   routes: [
 $authRoutes    GoRoute(
@@ -611,9 +577,8 @@ $authRoutes    GoRoute(
       ),
     ),
 
-    // A screen with its own bloc points at its page, which creates the bloc —
-    // so closing the route closes it. `moarch create feature` adds each
-    // feature's route above the next line — keep it.
+    // A bloc screen points at its page, which owns the bloc. `moarch create
+    // feature` adds each feature's route above the next line — keep it.
     // moarch:routes
 
     // Path parameter — build the location with AppRoutes.featureDetailOf(id).
@@ -636,10 +601,7 @@ import 'package:flutter/material.dart';
 
 import 'preferences_service.dart';
 
-/// The user's light / dark / system choice, saved across launches.
-///
-/// Provided by `main.dart`, which watches it for `MaterialApp.themeMode`.
-/// Change it from a settings screen with
+/// The user's light / dark / system choice, saved across launches:
 /// `context.read<ThemeModeCubit>().setMode(ThemeMode.dark)`.
 class ThemeModeCubit extends Cubit<ThemeMode> {
   /// Starts from the saved choice, or the system's until the user makes one.
@@ -673,10 +635,7 @@ class LanguageState {
   final Locale locale;
 }
 
-/// One value and no vocabulary of events, so a Cubit rather than a Bloc.
-///
-/// The file keeps the name its Riverpod counterpart has, so the two layouts
-/// line up — which is the naming rule this waives.
+/// The app's locale.
 // ignore: prefer_file_naming_conventions
 class LanguageCubit extends Cubit<LanguageState> {
   // TODO: load the saved locale (e.g. from secure storage) if you persist it.

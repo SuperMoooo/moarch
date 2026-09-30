@@ -2,7 +2,7 @@
 ///
 /// The mirror of `templates/riverpod/feature_templates.dart`: same layers,
 /// same file names, and — since the status enum landed — the same one state
-/// class per screen, carrying its data, its `placeholder` and the one-shot
+/// class per screen, carrying its data and the one-shot
 /// `errorMessage` / `successMessage` the other stack keeps on `ActionState`.
 /// What differs is the presentation layer — an event per action and a `Bloc`
 /// handling them, instead of an `AsyncNotifier` with methods — and the wiring,
@@ -60,34 +60,23 @@ part '${name}_model.g.dart';
 $_modelDoc
 @freezed
 abstract class ${cls}Model with _\$${cls}Model {
-  /// Freezed needs a private constructor before a class may declare members
-  /// of its own — a getter, or a method that reads the fields.
   const ${cls}Model._();
 
   const factory ${cls}Model({
-    /// The document's own name rather than one of its fields.
-    ///
-    /// `includeToJson: false` keeps it out of the body: `add()` assigns the id
-    /// only once the write lands, so a copy stored beside the data is stale
-    /// from the moment it is written.
+    /// The document id, kept out of `toJson` so it is not stored twice.
     @JsonKey(includeToJson: false) required String id,
-    // TODO: add your other fields. A DateTime belongs
-    // on the wire as a Firestore Timestamp — annotate it `@TimestampConverter()`
-    // (core/network/timestamp_converter.dart) so it stays queryable
-    // server-side; an ISO string sorts as text.
+    // TODO: add your fields. Annotate a DateTime with `@TimestampConverter()`
+    // (core/network/timestamp_converter.dart).
   }) = _${cls}Model;
 
   factory ${cls}Model.fromJson(Map<String, dynamic> json) =>
       _\$${cls}ModelFromJson(json);
 
-  /// The id lives on the document, so it is folded into the payload before
-  /// parsing.
+  /// Folds the document id into the payload.
   factory ${cls}Model.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) =>
       ${cls}Model.fromJson({...?doc.data(), 'id': doc.id});
 
-  /// A blank $cls — what a create form starts from before anything is filled
-  /// in. Freezed does not write this one, so it is yours to keep in step with
-  /// the fields above.
+  /// A blank $cls for create forms. Keep it in step with the fields.
   factory ${cls}Model.empty() => const ${cls}Model(id: '');
 }
 ''';
@@ -103,23 +92,17 @@ part '${name}_model.g.dart';
 $_modelDoc
 @freezed
 abstract class ${cls}Model with _\$${cls}Model {
-  /// Freezed needs a private constructor before a class may declare members
-  /// of its own — a getter, or a method that reads the fields.
   const ${cls}Model._();
 
   const factory ${cls}Model({
     required int id,
-    // TODO: add your other fields. build.yaml maps `createdAt` to
-    // `created_at`; only a key that is not snake_case needs saying:
-    // `@JsonKey(name: 'createdAt') DateTime? createdAt,`.
+    // TODO: add your fields. Keys are snake_case on the wire (build.yaml).
   }) = _${cls}Model;
 
   factory ${cls}Model.fromJson(Map<String, dynamic> json) =>
       _\$${cls}ModelFromJson(json);
 
-  /// A blank $cls — what a create form starts from before anything is filled
-  /// in. Freezed does not write this one, so it is yours to keep in step with
-  /// the fields above.
+  /// A blank $cls for create forms. Keep it in step with the fields.
   factory ${cls}Model.empty() => const ${cls}Model(id: 0);
 }
 ''';
@@ -127,19 +110,6 @@ abstract class ${cls}Model with _\$${cls}Model {
   /// The header both model variants carry: the one class a feature uses, on
   /// the wire and on the screen.
   static const String _modelDoc = '''
-/// What the feature reasons about, and the shape it has on the wire.
-///
-/// Freezed writes the constructor, `copyWith`, `==` and `hashCode` from the
-/// field list below, so equality covers every field you add — which is what a
-/// bloc state depends on: `emit` drops a state that compares equal to the
-/// current one, so a hand-written `==` that misses a field silently loses the
-/// change. Its `copyWith` also tells "not passed" from "passed null", which
-/// `?? this.x` cannot.
-///
-/// json_serializable writes `fromJson` / `toJson` from the same field list.
-/// The repository hands this class to the presentation layer as it is, so
-/// every field is declared once.
-///
 /// Run `fvm dart run build_runner build --delete-conflicting-outputs` after
 /// editing this file.''';
 
@@ -378,15 +348,6 @@ import 'package:equatable/equatable.dart';
 
 import '../../../../core/utils/app_status.dart';
 
-/// Everything the $cls screen draws from, in one place.
-///
-/// A status field rather than a sealed state per phase: `_body` in the view is
-/// handed this same class whatever the status is, so a field added here is
-/// added once and every phase can draw it. Showing a spinner over the list
-/// already on screen is a `copyWith` with the status moved to `loading` —
-/// there is nothing to re-declare. The status itself is [AppStatus], shared by
-/// every screen, which is what lets `AppStatusView` draw it — and being a
-/// [StatusState] is what lets the bloc's `runAction` handle its errors.
 class ${cls}State extends Equatable implements StatusState<${cls}State> {
   const ${cls}State({
     this.status = AppStatus.initial,
@@ -394,34 +355,17 @@ class ${cls}State extends Equatable implements StatusState<${cls}State> {
     this.successMessage,
   });
 
-  /// The state the loading skeleton is traced from.
-  ///
-  /// TODO: as you add fields, give them fake values here — Skeletonizer
-  /// shimmers the tree it is handed, and a body drawn from an empty state
-  /// traces to a blank screen. `BoneMock.name` / `BoneMock.words(3)`
-  /// (skeletonizer) hand out strings whose length becomes the width of the
-  /// bone.
-  static const placeholder = ${cls}State(status: AppStatus.success);
-
   @override
   final AppStatus status;
 
-  /// Why the last attempt failed — and only the last one: [copyWith] drops
-  /// this unless it is passed again, so the next emit clears it. That is what
-  /// makes it safe to both draw it (the failure screen) and fire it once (a
-  /// toast), and it means an action that fails without blanking the screen is
-  /// `copyWith(errorMessage: e.message)` with the status left on success.
+  /// One-shot: [copyWith] clears it unless it is passed again.
   final String? errorMessage;
 
-  /// What went right, for the screen to say once — 'Saved', 'Sent'. Dropped
-  /// by [copyWith] like [errorMessage], so the toast fires on the emit that
-  /// sets it and not on the next one.
+  /// One-shot, like [errorMessage].
   final String? successMessage;
 
-  // TODO: add what the screen shows, e.g.
-  // `final List<${cls}Model> items;`. A field has to reach four places: the
-  // constructor, `copyWith`, `props` — without which two states compare equal
-  // and the second emit is dropped — and `placeholder`.
+  // TODO: add the screen's fields, e.g. `final List<${cls}Model> items;`,
+  // and add each one to the constructor, `copyWith` and `props`.
 
   ${cls}State copyWith({
     AppStatus? status,
@@ -430,8 +374,6 @@ class ${cls}State extends Equatable implements StatusState<${cls}State> {
   }) {
     return ${cls}State(
       status: status ?? this.status,
-      // Not `?? this.errorMessage`: see the two fields above. A message not
-      // passed here is a message already shown.
       errorMessage: errorMessage,
       successMessage: successMessage,
     );
@@ -456,8 +398,6 @@ class ${cls}State extends Equatable implements StatusState<${cls}State> {
       '''
 import 'package:equatable/equatable.dart';
 
-/// Everything that can happen to $cls, as values. Sealed, so the `on<...>`
-/// registrations are checked for completeness when a new one is added.
 sealed class ${cls}Event extends Equatable {
   const ${cls}Event();
 
@@ -498,12 +438,10 @@ final class ${cls}Started extends ${cls}Event {
 
     final handlerTodo =
         '''
-    // TODO: one handler per action, e.g.
+    // TODO: one handler per action, each wrapped in runAction (transformers
+    // come from bloc_concurrency):
+    //
     // on<${cls}Deleted>(_onDeleted, transformer: droppable());
-    // `transformer:` is how events queue before the handler sees them —
-    // droppable, restartable, sequential, concurrent, from bloc_concurrency.
-    // Wrap each handler's body in runAction (from ActionBlocMixin), which
-    // handles loading and AppException for you:
     //
     // Future<void> _onDeleted(${cls}Deleted event, Emitter<${cls}State> emit) =>
     //     runAction(emit, (current) async {
@@ -561,8 +499,7 @@ $handlerTodo
     Emitter<${cls}State> emit,
   ) =>
       runAction(emit, (current) async {
-        // TODO: put what this returns onto the state — add a field for it in
-        // ${cls}State, and pass it in the copyWith below.
+        // TODO: put the result on the state.
         await _repo.fetchAll();
         return current.copyWith(status: AppStatus.success);
       });
@@ -588,19 +525,13 @@ import '../blocs/${name}_bloc.dart';
 import '../blocs/${name}_event.dart';
 import '../views/${name}_view.dart';
 
-/// Creates the bloc and owns it: leaving the route closes it.
-///
-/// Put this in your `GoRoute` builder. If the screen is pushed from another
-/// that already has the bloc, use `BlocProvider.value` instead — creating a
-/// second one would give the two screens separate states.
+/// Owns the bloc: leaving the route closes it.
 class ${cls}Page extends StatelessWidget {
   const ${cls}Page({super.key});
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      // ..add(...) here rather than in the constructor: a bloc that emits
-      // during its own construction has no listener yet.
       create: (_) => getIt<${cls}Bloc>()..add(const ${cls}Started()),
       child: const ${cls}View(),
     );
@@ -652,9 +583,8 @@ import '../../../../shared/widgets/overlays/app_toast.dart';
 import '../blocs/${name}_bloc.dart';
 import '../blocs/${name}_event.dart';
 import '../blocs/${name}_state.dart';
+import '../widgets/${name}_skeleton.dart';
 
-/// The bloc is provided by `${cls}Page`, so this only reads it — which is what
-/// lets a widget test pump it with a bloc of its own.
 class ${cls}View extends StatelessWidget {
   const ${cls}View({super.key});
 
@@ -662,12 +592,7 @@ class ${cls}View extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('$cls')),
-      // `listener` is for what happens *once* on a new state — a toast, a
-      // dialog, a push — and `builder` for what is drawn.
       body: BlocConsumer<${cls}Bloc, ${cls}State>(
-        // Both messages are one-shot: the state that sets one is the only
-        // state that carries it, so this fires once per message and never
-        // replays it on the next rebuild.
         listenWhen: (previous, current) =>
             previous.errorMessage != current.errorMessage ||
             previous.successMessage != current.successMessage,
@@ -677,31 +602,21 @@ class ${cls}View extends StatelessWidget {
 
           final success = state.successMessage;
           if (success != null) AppToast.success(context, success);
-          // TODO: what else should happen once — a pop, a dialog, a push.
+          // TODO: other one-shot reactions (a pop, a dialog).
         },
-        // AppStatusView owns the three shells every screen has — skeleton,
-        // failure, empty — so all this has to name is the body.
         builder: (context, state) => AppStatusView(
           status: state.status,
           message: state.errorMessage,
           onRetry: () => context.read<${cls}Bloc>().add(const ${cls}Started()),
-          // TODO: once the state has a list, say when it counts as empty:
-          // `isEmpty: state.items.isEmpty,`.
-          skeleton: (context) => _body(context, ${cls}State.placeholder),
+          // TODO: `isEmpty: state.items.isEmpty,` once the state has a list.
+          skeleton: (context) => const ${cls}Skeleton(),
           builder: (context) => _body(context, state),
         ),
       ),
     );
   }
 
-  // Handed the whole state whatever the status is, so drawing over data
-  // already loaded needs nothing here.
-  //
-  // TODO: build the screen from `state`. It is also what the skeleton is
-  // traced from, so every field you draw needs a fake value in
-  // `${cls}State.placeholder` — Skeletonizer shimmers the tree it is handed,
-  // and a field left empty shimmers as a blank line. `BoneMock` (skeletonizer)
-  // hands out fake strings, names and dates.
+  // TODO: build the screen from `state`.
   Widget _body(BuildContext context, ${cls}State state) {
     return const SizedBox.shrink();
   }

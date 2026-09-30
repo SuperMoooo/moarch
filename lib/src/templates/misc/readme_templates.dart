@@ -901,8 +901,6 @@ class ProfileState extends Equatable implements StatusState<ProfileState> {
     this.items = const [],           // ← you add this
   });
 
-  static const placeholder = ProfileState(status: AppStatus.success);
-
   final AppStatus status;
   final String? errorMessage;
   final String? successMessage;
@@ -940,8 +938,8 @@ fails without blanking the screen is
 **Equatable is not decoration here.** Bloc drops an `emit` whose state equals
 the current one, and `BlocBuilder` rebuilds on the same test. A field left out
 of `props` makes two different states compare equal, and the second emit is
-dropped — so a new field has to reach four places: the constructor, `copyWith`,
-`props`, and `placeholder` (the fake data the loading skeleton is traced from).
+dropped — so a new field has to reach three places: the constructor,
+`copyWith` and `props`.
 
 ### The bloc
 
@@ -1015,7 +1013,7 @@ BlocBuilder<ProfileBloc, ProfileState>(
     message: state.errorMessage,
     onRetry: () => context.read<ProfileBloc>().add(const ProfileStarted()),
     isEmpty: state.items.isEmpty,
-    skeleton: (context) => _body(context, ProfileState.placeholder),
+    skeleton: (context) => const ProfileSkeleton(),
     builder: (context) => _body(context, state),
   ),
 )
@@ -1036,12 +1034,18 @@ in every feature you will ever scaffold:
 // what AppStatusView does for you
 switch (state.status) {
   AppStatus.initial || AppStatus.loading =>
-    Skeletonizer(child: _body(context, ProfileState.placeholder)),
+    Skeletonizer(child: const ProfileSkeleton()),
   AppStatus.failure => ErrorView(message: state.errorMessage, onRetry: ...),
   AppStatus.success when state.items.isEmpty => const EmptyView(),
   AppStatus.success => _body(context, state),
 }
 ```
+
+The skeleton is `presentation/widgets/profile_skeleton.dart`, written by
+`moarch create feature`: real widgets over fake data, since Skeletonizer
+shimmers whatever it is handed. `BoneMock` (`BoneMock.name`,
+`BoneMock.words(3)`, `BoneMock.date`…) gives fake strings whose length sets
+each bone's width.
 
 > ⚠️ A **refresh** should not set `AppStatus.loading` — that trades the body
 > for a skeleton and the screen flickers. Leave it on `success` and emit the
@@ -1096,7 +1100,7 @@ state. The ruleset is in `analysis_options.yaml`.
   }) {
     final stateStep = bloc
         ? '''3. **Hold the screen's state.** Add the fields to `profile_state.dart`
-   (and to `copyWith`, `props` and `placeholder`), add an event to
+   (and to `copyWith` and `props`), add an event to
    `profile_event.dart`, register it with `on<ProfileSomething>(...)` in the
    bloc's constructor, and wrap the handler's body in `runAction` so loading
    and errors are handled for you.'''

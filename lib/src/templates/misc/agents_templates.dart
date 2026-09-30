@@ -153,7 +153,8 @@ lib/
       repositories/  # the interface the presentation layer depends on
     presentation/
       $holder      views/        # <x>_view.dart — the screen
-      widgets/      # the screens' pieces, one widget per file
+      widgets/      # the screens' pieces, one widget per file, and
+                    # <x>_skeleton.dart — the loading state (BoneMock data)
   shared/
     widgets/       # the UI kit — catalogued in docs/UI_KIT.md
     views/         # screens that belong to no feature
@@ -230,7 +231,7 @@ test/
 - The state is **one** `Equatable` class with an `AppStatus status` field plus
   one-shot `errorMessage` / `successMessage` fields that every `copyWith`
   drops. Do not split it into a sealed class per phase. Every field goes into
-  `props`, `copyWith` and the `placeholder` the skeleton draws.
+  `props` and `copyWith`.
 - Every handler runs through `runAction(emit, (current) async { ... })`, which
   handles loading and `AppException`. Do not hand-write
   `try` / `on AppException` in a handler.
@@ -309,8 +310,10 @@ test/
 2. Fields on `domain/models/<name>_model.dart`, then run `build_runner`.
 3. Methods on the repository interface, implemented in the `_impl`, with the
    call itself in the datasource.
-4. ${bloc ? 'An event per action, a handler through `runAction`, and the fields on the state\n   (`copyWith`, `props`, `placeholder`).' : 'A notifier method per action through `runAction`, and the fields on the state\n   (`copyWith`).'}
-5. The screen in `presentation/views/`, from the UI kit.
+4. ${bloc ? 'An event per action, a handler through `runAction`, and the fields on the state\n   (`copyWith`, `props`).' : 'A notifier method per action through `runAction`, and the fields on the state\n   (`copyWith`).'}
+5. The screen in `presentation/views/`, from the UI kit, and its loading
+   skeleton in `presentation/widgets/<x>_skeleton.dart` (the same rows over
+   `BoneMock` data).
 ''';
 
   static String _linksAndConnectivity({

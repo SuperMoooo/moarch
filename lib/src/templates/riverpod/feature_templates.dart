@@ -22,9 +22,7 @@ abstract interface class ${cls}Repository {
   Future<List<${cls}Model>> fetchAll();
 ${useFirestore ? '''
 
-  /// A live view of the collection: emits now with what Firestore has, and
-  /// again on every change — including the ones made on this device, which
-  /// land straight from the local cache before the server confirms them.
+  /// A live view of the collection: emits now, and again on every change.
   Stream<List<${cls}Model>> watchAll();
 ''' : ''}
   // TODO: add your other methods
@@ -54,34 +52,23 @@ part '${name}_model.g.dart';
 $_modelDoc
 @freezed
 abstract class ${cls}Model with _\$${cls}Model {
-  /// Freezed needs a private constructor before a class may declare members
-  /// of its own — a getter, or a method that reads the fields.
   const ${cls}Model._();
 
   const factory ${cls}Model({
-    /// The document's own name rather than one of its fields.
-    ///
-    /// `includeToJson: false` keeps it out of the body: `add()` assigns the id
-    /// only once the write lands, so a copy stored beside the data is stale
-    /// from the moment it is written.
+    /// The document id, kept out of `toJson` so it is not stored twice.
     @JsonKey(includeToJson: false) required String id,
-    // TODO: add your other fields. A DateTime belongs
-    // on the wire as a Firestore Timestamp — annotate it `@TimestampConverter()`
-    // (core/network/timestamp_converter.dart) so it stays queryable
-    // server-side; an ISO string sorts as text.
+    // TODO: add your fields. Annotate a DateTime with `@TimestampConverter()`
+    // (core/network/timestamp_converter.dart).
   }) = _${cls}Model;
 
   factory ${cls}Model.fromJson(Map<String, dynamic> json) =>
       _\$${cls}ModelFromJson(json);
 
-  /// The id lives on the document, so it is folded into the payload before
-  /// parsing.
+  /// Folds the document id into the payload.
   factory ${cls}Model.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) =>
       ${cls}Model.fromJson({...?doc.data(), 'id': doc.id});
 
-  /// A blank $cls — what a create form starts from before anything is filled
-  /// in. Freezed does not write this one, so it is yours to keep in step with
-  /// the fields above.
+  /// A blank $cls for create forms. Keep it in step with the fields.
   factory ${cls}Model.empty() => const ${cls}Model(id: '');
 }
 ''';
@@ -97,23 +84,17 @@ part '${name}_model.g.dart';
 $_modelDoc
 @freezed
 abstract class ${cls}Model with _\$${cls}Model {
-  /// Freezed needs a private constructor before a class may declare members
-  /// of its own — a getter, or a method that reads the fields.
   const ${cls}Model._();
 
   const factory ${cls}Model({
     required int id,
-    // TODO: add your other fields. build.yaml maps `createdAt` to
-    // `created_at`; only a key that is not snake_case needs saying:
-    // `@JsonKey(name: 'createdAt') DateTime? createdAt,`.
+    // TODO: add your fields. Keys are snake_case on the wire (build.yaml).
   }) = _${cls}Model;
 
   factory ${cls}Model.fromJson(Map<String, dynamic> json) =>
       _\$${cls}ModelFromJson(json);
 
-  /// A blank $cls — what a create form starts from before anything is filled
-  /// in. Freezed does not write this one, so it is yours to keep in step with
-  /// the fields above.
+  /// A blank $cls for create forms. Keep it in step with the fields.
   factory ${cls}Model.empty() => const ${cls}Model(id: 0);
 }
 ''';
@@ -121,19 +102,6 @@ abstract class ${cls}Model with _\$${cls}Model {
   /// The header both model variants carry: the one class a feature uses, on
   /// the wire and on the screen.
   static const String _modelDoc = '''
-/// What the feature reasons about, and the shape it has on the wire.
-///
-/// Freezed writes the constructor, `copyWith`, `==` and `hashCode` from the
-/// field list below, so equality covers every field you add — which is what a
-/// notifier depends on: Riverpod only rebuilds listeners when the new state
-/// differs from the old one, so a hand-written `==` that misses a field
-/// silently loses the change. Its `copyWith` also tells "not passed" from
-/// "passed null", which `?? this.x` cannot.
-///
-/// json_serializable writes `fromJson` / `toJson` from the same field list.
-/// The repository hands this class to the presentation layer as it is, so
-/// every field is declared once.
-///
 /// Run `fvm dart run build_runner build --delete-conflicting-outputs` after
 /// editing this file.''';
 
@@ -228,8 +196,7 @@ class ${cls}RemoteDataSource {
     );
   }
 
-  /// Live updates — the reason to be on Firestore at all. Errors arrive as
-  /// AppException, so AppAsyncView renders them like any other failure.
+  /// Live updates. Errors arrive as AppException, like every other call here.
   Stream<List<${cls}Model>> watchAll() {
     return safeFirebaseStream(
       () => _collection.snapshots().map(
@@ -354,48 +321,20 @@ $methods
 
   /// Returns the generated state template.
   ///
-  /// [useFirestore] adds the `items` the live query fills in. Both variants
-  /// carry the `placeholder` the loading skeleton is traced from.
+  /// [useFirestore] adds the `items` the live query fills in.
   static String state(String name, String cls, {bool useFirestore = false}) =>
       '''
-${useFirestore ? "import 'package:skeletonizer/skeletonizer.dart';\n\n" : ''}import '../../../../core/utils/action_notifier.dart';${useFirestore ? "\nimport '../../domain/models/${name}_model.dart';" : ''}
+import '../../../../core/utils/action_notifier.dart';${useFirestore ? "\nimport '../../domain/models/${name}_model.dart';" : ''}
 
 class ${cls}State implements ActionState<${cls}State> {
   const ${cls}State({${useFirestore ? '\n    this.items = const [],' : ''}
     this.isLoadingAction = false,
     this.error,
     this.success,
-  });
-${useFirestore ? '''
+  });${useFirestore ? '''
 
-  /// The state the loading skeleton is traced from — rows that exist only to
-  /// be the right size.
-  ///
-  /// Skeletonizer shimmers the tree it is handed, so this has to hold
-  /// something: a body built from an empty state traces to a blank screen.
-  /// The *length* of the text sets the width of the bone, which is what
-  /// `BoneMock` is for. `List.generate`, not `List.filled`, so each row is its
-  /// own instance with its own id and a keyed list stays valid.
-  static final placeholder = ${cls}State(
-    items: List.generate(
-      3,
-      (index) => ${cls}Model(id: '\${BoneMock.name}\$index'),
-    ),
-  );
-
-  /// The collection as Firestore last reported it, replaced whole on every
-  /// snapshot so it never drifts from the server.
-  final List<${cls}Model> items;
-''' : '''
-
-  /// The state the loading skeleton is traced from.
-  ///
-  /// TODO: as you add fields, give them fake values here — Skeletonizer
-  /// shimmers the tree it is handed, and an empty state traces to a blank
-  /// screen. `BoneMock.name` / `BoneMock.words(3)` hand out strings whose
-  /// length becomes the width of the bone.
-  static const placeholder = ${cls}State();
-'''}
+  /// The collection as of the last snapshot.
+  final List<${cls}Model> items;''' : ''}
 
   final bool isLoadingAction;
   final String? error;
@@ -471,10 +410,8 @@ class ${cls}Notifier extends AsyncNotifier<${cls}State>
     return const ${cls}State();
   }
 
-  // TODO: add your methods — runAction (from ActionNotifierMixin) handles
-  // loading, AppException and unknown errors for you. It passes you the
-  // pre-action state (loading off): build the next state from it.
-  // Example:
+  // TODO: one method per action, each wrapped in runAction:
+  //
   // Future<void> doSomething() {
   //   return runAction((current) async {
   //     return current.copyWith(success: 'Done!');
@@ -504,10 +441,7 @@ $dependency
 
 ${useFirestore ? '''  @override
   FutureOr<${cls}State> build() {
-    // One subscription answers both the first frame and every change after
-    // it. Awaiting `.first` for the initial load and then listening would
-    // register the query twice — twice the billed reads, and a gap between
-    // the two where a change goes unseen.
+    // One subscription serves the first frame and every change after it.
     final firstSnapshot = Completer<${cls}State>();
 
     final subscription = _repo.watchAll().listen(
@@ -516,8 +450,6 @@ ${useFirestore ? '''  @override
           firstSnapshot.complete(${cls}State(items: items));
           return;
         }
-        // Read back off `state`, not off a captured value: an action may have
-        // run since the last snapshot.
         state = AsyncData(
           (state.value ?? const ${cls}State()).copyWith(items: items),
         );
@@ -531,18 +463,14 @@ ${useFirestore ? '''  @override
       },
     );
 
-    // Firestore keeps the listener open until this is called; without it the
-    // query outlives the screen and goes on billing reads.
     ref.onDispose(subscription.cancel);
 
     return firstSnapshot.future;
   }
 
-  // TODO: add your methods — runAction (from ActionNotifierMixin) handles
-  // loading, AppException and unknown errors for you. A write does not need
-  // to touch `items`: the subscription above re-emits with the change, and
-  // Firestore applies it to the local cache before the server confirms it.
-  // Example:
+  // TODO: one method per action, each wrapped in runAction. A write need not
+  // touch `items`: the subscription re-emits with the change.
+  //
   // Future<void> doSomething() {
   //   return runAction((current) async {
   //     await _repo.doSomething();
@@ -550,19 +478,13 @@ ${useFirestore ? '''  @override
   //   });
   // }''' : '''  @override
   FutureOr<${cls}State> build() async {
-    // Until the data layer is real (the datasource's placeholder endpoint, or
-    // the repository itself), this fails on the first run rather than
-    // showing an empty screen.
-    // TODO: put what it returns into ${cls}State — add a field for it, give
-    // that field a fake value in `placeholder`, and draw it in the view.
+    // TODO: put the result on the state.
     await _repo.fetchAll();
     return const ${cls}State();
   }
 
-  // TODO: add your methods — runAction (from ActionNotifierMixin) handles
-  // loading, AppException and unknown errors for you. It passes you the
-  // pre-action state (loading off): build the next state from it.
-  // Example:
+  // TODO: one method per action, each wrapped in runAction:
+  //
   // Future<void> doSomething() {
   //   return runAction((current) async {
   //     await _repo.doSomething();
@@ -615,6 +537,7 @@ import '../../../../shared/widgets/app_async_view.dart';
 import '../../../../shared/widgets/feedback/action_listener.dart';
 import '../notifiers/${name}_notifier.dart';
 import '../states/${name}_state.dart';
+import '../widgets/${name}_skeleton.dart';
 
 class ${cls}View extends ConsumerStatefulWidget {
   const ${cls}View({super.key});
@@ -626,8 +549,6 @@ class ${cls}View extends ConsumerStatefulWidget {
 class _${cls}ViewState extends ConsumerState<${cls}View> {
   @override
   Widget build(BuildContext context) {
-    // The notifier's one-shot messages, surfaced once each. Pass onError /
-    // onSuccess to navigate or log instead of toasting.
     ref.listenAction<${cls}State>(
       context,
       ${varName}NotifierProvider,
@@ -640,22 +561,14 @@ class _${cls}ViewState extends ConsumerState<${cls}View> {
       body: AppAsyncView<${cls}State>(
         value: ref.watch(${varName}NotifierProvider),
         onRetry: () => ref.invalidate(${varName}NotifierProvider),
-${useFirestore ? '        isEmpty: (state) => state.items.isEmpty,\n' : ''}        // Shimmered while the first load runs: the same body, traced from
-        // `${cls}State.placeholder`. That has to be *fake data* — Skeletonizer
-        // shimmers the tree it is handed, and a body drawn from an empty state
-        // has nothing in it to shimmer.
-        skeleton: (context) => _body(context, ${cls}State.placeholder),
+${useFirestore ? '        isEmpty: (state) => state.items.isEmpty,\n' : ''}        skeleton: (context) => const ${cls}Skeleton(),
         builder: _body,
       ),
     );
   }
 ${useFirestore ? '''
 
-  // Rebuilt on every Firestore snapshot — `state.items` is whatever the
-  // collection says right now, so nothing here has to refresh it.
-  //
-  // TODO: build the row. It is also what the skeleton above is traced from, so
-  // every field you draw here needs a fake value in `${cls}State.placeholder`.
+  // TODO: build the row.
   Widget _body(BuildContext context, ${cls}State state) {
     return ListView.builder(
       itemCount: state.items.length,
@@ -668,9 +581,7 @@ ${useFirestore ? '''
     );
   }''' : '''
 
-  // TODO: build the screen. It is handed the loaded state, and it is also what
-  // the skeleton above is traced from — so every field you draw here needs a
-  // fake value in `${cls}State.placeholder`.
+  // TODO: build the screen from `state`.
   Widget _body(BuildContext context, ${cls}State state) {
     return const SizedBox.shrink();
   }'''}

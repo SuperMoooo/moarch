@@ -23,31 +23,19 @@ import 'package:bloc/bloc.dart';
 
 import '../errors/app_exception.dart';
 
-/// Where a screen is, as one value.
-///
-/// Every state from `moarch create feature` carries one of these, so the four
-/// screens a load can be on are named the same way across the whole app and
-/// `AppStatusView` can draw them without knowing which feature it is looking
-/// at.
-///
-/// A phase that belongs to one screen alone — submitting, reordering,
-/// uploading — is a field on that screen's state, not a value here. Adding one
-/// here would ask every other feature to handle a case it will never emit.
+/// Where a screen's load is. Shared by every screen so `AppStatusView` can
+/// draw it; a phase one screen alone has (submitting…) is a field on its state.
 enum AppStatus {
-  /// Nothing has been asked for yet. The first frame, before the bloc's
-  /// `Started` event is handled.
+  /// Nothing asked for yet.
   initial,
 
-  /// A load is in flight and there is nothing on screen to keep.
-  ///
-  /// A *refresh* over data already shown is not this: leave the status on
-  /// [success] and the body stays put instead of collapsing to a skeleton.
+  /// A first load is in flight. A refresh over shown data stays on [success].
   loading,
 
-  /// The screen has what it needs and can draw.
+  /// The screen has what it needs.
   success,
 
-  /// The load failed. The state's `errorMessage` says why.
+  /// The load failed; the state's `errorMessage` says why.
   failure;
 
   /// Whether nothing has been asked for yet.
@@ -63,10 +51,7 @@ enum AppStatus {
   bool get isFailure => this == AppStatus.failure;
 }
 
-/// Contract for states usable with [ActionBlocMixin.runAction].
-///
-/// Every state from `moarch create feature` implements it with one line:
-/// `copyWith(status: status, errorMessage: errorMessage)`.
+/// A state [ActionBlocMixin.runAction] can move between statuses.
 abstract interface class StatusState<S> {
   AppStatus get status;
   S withStatus(AppStatus status, {String? errorMessage});
@@ -85,25 +70,15 @@ abstract interface class StatusState<S> {
 /// }
 /// ```
 mixin ActionBlocMixin<E, S extends StatusState<S>> on Bloc<E, S> {
-  /// Runs [action] with shared loading/error handling.
+  /// Runs [action], which gets the current state and returns the next one.
   ///
-  /// Where the screen already is decides what a run looks like:
+  /// - Nothing on screen yet: emits [AppStatus.loading] first, and a failure
+  ///   lands on [AppStatus.failure]. A first load returns `status: success`.
+  /// - Data on screen: no loading is emitted, and a failure stays on
+  ///   [AppStatus.success] with only `errorMessage` set (a toast).
   ///
-  /// - **Nothing on screen yet** (initial, or a retry after a failure): emits
-  ///   [AppStatus.loading] first, and a failure lands on [AppStatus.failure] —
-  ///   the error screen with its retry button.
-  /// - **Data on screen** ([AppStatus.success]): no loading is emitted, so the
-  ///   body stays put, and a failure keeps [AppStatus.success] with only
-  ///   `errorMessage` set — a toast, not a blank screen. Show an action's
-  ///   progress through a field of the screen's own, e.g. `isSubmitting`.
-  ///
-  /// [action] receives the pre-action state and returns the next one. A first
-  /// load has to return it with `status: AppStatus.success`; an action over
-  /// loaded data inherits that status from `current`.
-  ///
-  /// Anything that is not an [AppException] is still shown as a generic
-  /// message, and handed to [addError] so `onError` and the `BlocObserver`
-  /// see it rather than it vanishing.
+  /// Errors that are not an [AppException] show a generic message and go to
+  /// [addError].
   Future<void> runAction(
     Emitter<S> emit,
     Future<S> Function(S current) action,
@@ -137,32 +112,22 @@ import './empty_view.dart';
 import './error_view.dart';
 import '../../core/utils/app_status.dart';
 
-/// Draws one screen's [AppStatus] as a skeleton, a failure, an empty state or
+/// Draws a screen's [AppStatus] as a skeleton, a failure, an empty state or
 /// the body.
 ///
 /// ```dart
-/// BlocBuilder<HomeBloc, HomeState>(
-///   builder: (context, state) => AppStatusView(
-///     status: state.status,
-///     message: state.errorMessage,
-///     onRetry: () => context.read<HomeBloc>().add(const HomeStarted()),
-///     isEmpty: state.items.isEmpty,
-///     skeleton: (context) => _body(context, HomeState.placeholder),
-///     builder: (context) => _body(context, state),
-///   ),
+/// AppStatusView(
+///   status: state.status,
+///   message: state.errorMessage,
+///   onRetry: () => context.read<HomeBloc>().add(const HomeStarted()),
+///   isEmpty: state.items.isEmpty,
+///   skeleton: (context) => const HomeSkeleton(),
+///   builder: (context) => _body(context, state),
 /// )
 /// ```
 ///
-/// It takes no type parameter and no data: the caller has the state in hand
-/// and closes over it, so both builders are plain [WidgetBuilder]s and there
-/// is nothing to thread through. It builds inline rather than as a route, so a
-/// [Scaffold] keeps its app bar while the content loads.
-///
-/// **A refresh should not pass [AppStatus.loading].** Doing so trades the body
-/// for a skeleton and the screen flickers. Leave the status on
-/// [AppStatus.success] and emit the new data when it lands — with one state
-/// class per screen the old data is still there to draw, which is the reason
-/// the state is shaped that way.
+/// A refresh should stay on [AppStatus.success], or the body flickers to the
+/// skeleton.
 class AppStatusView extends StatelessWidget {
   /// Creates the shell around a screen's [builder].
   const AppStatusView({
@@ -181,25 +146,16 @@ class AppStatusView extends StatelessWidget {
     this.onRetry,
   });
 
-  /// Which of the four screens to draw. Usually `state.status`.
+  /// Which screen to draw. Usually `state.status`.
   final AppStatus status;
 
   /// The body, drawn on [AppStatus.success].
   final WidgetBuilder builder;
 
-  /// The shape to shimmer while the first load runs, e.g.
-  /// `(context) => _body(context, HomeState.placeholder)`. Null shows a
-  /// centered spinner instead.
-  ///
-  /// It has to be built from *fake* data, not an empty state — Skeletonizer
-  /// traces the tree it is handed, so a `ListView.builder` over nothing traces
-  /// to a blank screen. States from `moarch create feature` carry a
-  /// `placeholder` for exactly this.
+  /// Shimmered while the first load runs. Null shows a spinner.
   final WidgetBuilder? skeleton;
 
-  /// Whether a loaded screen has nothing worth drawing, e.g.
-  /// `state.items.isEmpty`. A plain bool rather than a callback: the caller
-  /// already has the state.
+  /// Whether a loaded screen has nothing to draw, e.g. `state.items.isEmpty`.
   final bool isEmpty;
 
   /// Copy for the empty state. Null keeps [EmptyView]'s own wording.
@@ -213,8 +169,7 @@ class AppStatusView extends StatelessWidget {
   final String? errorTitle;
   final String? message;
 
-  /// Passing this is what puts the retry button in [ErrorView]. Usually
-  /// re-dispatching the event that loaded the screen.
+  /// Shows a retry button on failure. Usually re-dispatches the load event.
   final VoidCallback? onRetry;
 
   @override

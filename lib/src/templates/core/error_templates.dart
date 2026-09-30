@@ -15,9 +15,8 @@ class ErrorTemplates {
     // firebase_auth brings firebase_core with it.
     final withFirebase = hasFirebase || hasFirebaseAuth;
 
-    const catchError = r'''
-    appLogger.e('[AppException] — $message', error: error, stackTrace: stackTrace);
-    ''';
+    const catchError =
+        r"    appLogger.e('[AppException] — $message', error: error, stackTrace: stackTrace);";
     final imports = [
       if (hasDio) "import 'package:dio/dio.dart';",
       if (withFirebase) "import 'package:firebase_core/firebase_core.dart';",
@@ -86,7 +85,6 @@ class ErrorTemplates {
         return const ServerException(message: 'That record already exists');
       case 'unavailable':
       case 'deadline-exceeded':
-        // Firestore reports both when it cannot reach the backend.
         return const NetworkException(
           message: 'Could not reach the server. Check your connection',
         );
@@ -104,8 +102,8 @@ class ErrorTemplates {
 
     final firebaseAuthFactory =
         '''
-  /// FirebaseAuth failures mapped to messages you can show as-is. Must be
-  /// caught *before* [AppException.fromFirebaseError].
+  /// FirebaseAuth failures as user-facing messages. Catch these before
+  /// [AppException.fromFirebaseError].
   factory AppException.fromFirebaseAuthError(FirebaseAuthException error) {
     appLogger.e(
       '[AppException] — auth/\${error.code}',
@@ -114,8 +112,7 @@ class ErrorTemplates {
     );$crashlyticsFirebase
 
     switch (error.code) {
-      // Recent Firebase versions collapse user-not-found and wrong-password
-      // into invalid-credential. The older codes still arrive from some SDKs.
+      // Older SDKs still send user-not-found / wrong-password.
       case 'invalid-credential':
       case 'user-not-found':
       case 'wrong-password':
@@ -131,8 +128,7 @@ class ErrorTemplates {
       case 'weak-password':
         return const AuthException(message: 'Password is too weak');
       case 'operation-not-allowed':
-        // The provider is off in Firebase console → Authentication →
-        // Sign-in method.
+        // Enable the provider in Firebase console → Authentication.
         return const AuthException(
           message: 'This sign-in method is not enabled',
         );
@@ -142,7 +138,6 @@ class ErrorTemplates {
           message: 'That account is already linked to another sign-in method',
         );
       case 'requires-recent-login':
-        // Deleting an account or changing an email needs a fresh session.
         return const AuthException(
           message: 'Please sign in again to finish this action',
         );
@@ -172,56 +167,26 @@ class ErrorTemplates {
 $imports
 import '../../core/utils/app_logger.dart';
 
-/// The kind of a failure, as a value rather than a type.
-///
-/// [AppException.type] is what hands it out. Switching on the exception itself
-/// is exhaustive and reads better, so new code rarely needs this — it is here
-/// for code written before [AppException] was sealed. If nothing in the
-/// project reads `.type`, delete this enum and the getter with it.
+/// The kind of a failure as a value. Prefer switching on the exception itself;
+/// delete this and [AppException.type] if nothing reads `.type`.
 enum AppExceptionType { network, server, notFound, auth, cancelled, unknown }
 
-/// Every failure worth showing a user, as one closed family.
+/// Every failure worth showing a user. `safeApiCall` / `safeFirebaseCall`
+/// build these at the datasource boundary, so the layers above see nothing
+/// else.
 ///
-/// Sealed, so the subclasses below are the whole list: a `switch` over an
-/// AppException is checked for completeness, and a kind added later cannot be
-/// silently missed at the places that branch on one. Nothing outside this file
-/// can join the family, which is what makes that hold.
-///
-/// Catch the base class wherever all you do is show [message] — which is most
-/// places, and what your stack's shell already does for you — `runAction` and
-/// `AppAsyncView` on Riverpod, `runAction` and `AppStatusView` on bloc. Catch a
-/// subclass where one failure needs its own path:
-///
-/// ```dart
-/// try {
-///   await _repo.refresh();
-/// } on NetworkException {
-///   // Offline says nothing about the session — keep it.
-///   return true;
-/// } on AppException {
-///   await _tokens.clearSession();
-///   return false;
-/// }
-/// ```
-///
-/// Nothing constructs these by hand: the factories below are the way in, and
-/// `safeApiCall` / `safeFirebaseCall` call them at the boundary so that every
-/// layer above the datasource sees an AppException and nothing else.
+/// Catch the base class to show [message]; catch a subclass where one failure
+/// needs its own path (`on NetworkException { ... }`).
 sealed class AppException implements Exception {
   const AppException({required this.message, this.statusCode});
 
-  /// Safe to show as-is: each factory below either writes this message itself
-  /// or takes one the backend meant for a user.
+  /// Safe to show as-is.
   final String message;
 
   /// The HTTP status behind the failure, where there was one.
   final int? statusCode;
 
   /// Which kind this is, as a value.
-  ///
-  /// A `switch` on the exception itself is exhaustive and needs none of this.
-  /// Adding a subclass makes the switch below incomplete — that is the
-  /// compiler asking you to give the new kind an enum value too.
   AppExceptionType get type => switch (this) {
         NetworkException() => AppExceptionType.network,
         ServerException() => AppExceptionType.server,
@@ -247,15 +212,14 @@ sealed class AppException implements Exception {
 
   factory AppException.fromError(Object error, StackTrace stackTrace) {
     final message = error.toString();
-    $catchError$crashlyticsFromError
+$catchError$crashlyticsFromError
     return UnknownException(message: message);
   }
 
 $factories
 }
 
-/// The request never reached the server — no connection, or it dropped before
-/// anything came back. No status code, because there was no response.
+/// The request never reached the server.
 final class NetworkException extends AppException {
   const NetworkException({required super.message});
 }
@@ -265,27 +229,22 @@ final class ServerException extends AppException {
   const ServerException({required super.message, super.statusCode});
 }
 
-/// What was asked for is not there — a 404, or a document that does not
-/// exist. Its own kind because a screen usually draws that as empty rather
-/// than as broken.
+/// A 404, or a document that does not exist.
 final class NotFoundException extends AppException {
   const NotFoundException({required super.message, super.statusCode});
 }
 
-/// Not signed in, not allowed, or refused credentials — usually the cue to
-/// send the user back to login.
+/// Not signed in, not allowed, or refused credentials.
 final class AuthException extends AppException {
   const AuthException({required super.message, super.statusCode});
 }
 
-/// The user backed out: a dismissed sheet, a closed OAuth popup. Nothing
-/// failed, so this is the one kind normally shown as nothing at all.
+/// The user backed out (a dismissed sheet, a closed popup).
 final class CancelledException extends AppException {
   const CancelledException({required super.message});
 }
 
-/// Everything the boundary could not identify. [message] is the raw error, so
-/// prefer wording of your own over showing it.
+/// Anything else. [message] is the raw error, so prefer your own wording.
 final class UnknownException extends AppException {
   const UnknownException({required super.message});
 }

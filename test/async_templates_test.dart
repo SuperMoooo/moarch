@@ -235,15 +235,12 @@ void main() {
       expect(output, contains('successOf: (state) => state.success,'));
     });
 
-    test('traces its skeleton from the body it already builds', () {
-      // From fake data, not from an empty state: Skeletonizer shimmers the
-      // tree it is handed, and a body drawn from nothing traces to nothing.
+    test('draws the feature skeleton while loading', () {
       expect(
         output,
-        contains(
-          'skeleton: (context) => _body(context, OrdersState.placeholder),',
-        ),
+        contains('skeleton: (context) => const OrdersSkeleton(),'),
       );
+      expect(output, contains("import '../widgets/orders_skeleton.dart';"));
       expect(output, contains('builder: _body,'));
       expect(
         output,

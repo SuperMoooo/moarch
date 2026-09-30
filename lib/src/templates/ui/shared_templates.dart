@@ -294,19 +294,14 @@ import 'package:flutter/services.dart';$biometricImports
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
-/// Color role of [AppButton] — what the button is *about*, never how it is
-/// filled. Every color the button paints derives from this, so a
-/// [AppButtonVariant.danger] button is danger-colored whatever its type.
+/// Color role of [AppButton]; every color it paints derives from it.
 enum AppButtonVariant { primary, secondary, tertiary, danger }
 
-/// Fill treatment of [AppButton] — how the [AppButtonVariant] color is applied.
+/// Fill treatment of [AppButton].
 ///
 /// - [filled]: solid variant background, contrasting label.
 /// - [outlined]: transparent background, variant-colored border + label.
 /// - [ghost]: transparent background, no border, variant-colored label.
-///
-/// Orthogonal to [AppButtonVariant] and [AppButtonShape]: any color combines
-/// with any fill and any shape.
 enum AppButtonType { filled, outlined, ghost }
 
 /// Corner shape of [AppButton].
@@ -344,20 +339,11 @@ $classDeclaration
   /// Tap handler. Null disables the button, same as [isDisabled].
   final VoidCallback? onPressed;
 
-  /// When true, the label is replaced by a spinner and taps are ignored, while
-  /// the button keeps its size so the surrounding layout doesn't jump.
-  ///
-  /// A loading button keeps its full color: it is busy, not unavailable. Only
-  /// a disabled one fades.
+  /// Replaces the label with a spinner and ignores taps, keeping the button's
+  /// size and color.
   final bool isLoading;
 
-  /// When true, the button is greyed out and ignores taps, whatever
-  /// [onPressed] is.
-  ///
-  /// The same end state as `onPressed: null`, said the other way round:
-  /// `isDisabled: !form.isValid` rather than
-  /// `onPressed: form.isValid ? _submit : null`. Both work, and they compose —
-  /// this one keeps the handler visible at the call site.
+  /// Greys the button out and ignores taps, like `onPressed: null`.
   final bool isDisabled;
 
   final AppButtonType type;
@@ -367,8 +353,7 @@ $classDeclaration
   final double? width;
   final AppButtonSize size;
 
-  /// A line centered above the button — what the action will do, or what it
-  /// costs, said before the user commits to it. Omit for a plain button.
+  /// A line centered above the button, e.g. what the action costs.
   final String? hint;$requireAuthField
 
   _ButtonSizeConfig _getSizeConfig() => switch (size) {
@@ -392,8 +377,7 @@ $classDeclaration
           ),
       };
 
-  /// The variant's color, plus the color that reads on top of it. Single
-  /// source for every color the button paints.
+  /// The variant's color and the color that reads on top of it.
   (Color, Color) _colorsOf(ThemeData theme) => switch (variant) {
         AppButtonVariant.primary => (
             theme.colorScheme.primary,
@@ -428,8 +412,7 @@ $classDeclaration
         ),
     };
 
-    // Faded versions of the same colors for the disabled state, so a disabled
-    // button still reads as its variant rather than a generic grey.
+    // Faded, so a disabled button still reads as its variant.
     final (disabledBackground, disabledForeground) = switch (type) {
       AppButtonType.filled => (
           accent.withValues(alpha: 0.35),
@@ -441,10 +424,7 @@ $classDeclaration
         ),
     };
 
-    // Busy is not the same as unavailable: a loading button keeps its full
-    // color and only stops responding, while one that is actually disabled —
-    // [isDisabled], or a null [onPressed] — fades, and stays faded even if it
-    // is loading too.
+    // Loading keeps full color; only disabled fades.
     final showsBusy = isLoading && !isDisabled && onPressed != null;
 
     final button = SizedBox(
@@ -478,9 +458,7 @@ $classDeclaration
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
                   color: foregroundColor,
-                  // The spinner replaces the label on screen, not in the
-                  // semantics tree: a loading button still names itself
-                  // instead of announcing a bare "button".
+                  // Keeps the label in the semantics tree while the spinner shows.
                   semanticsLabel: label,
                 ),
               )
@@ -518,14 +496,11 @@ $classDeclaration
 
     if (hint == null) return button;
 
-    // Merged so the hint is read as part of the button, not as a stray
-    // paragraph that happens to sit above one.
+    // Merged so the hint is read as part of the button.
     return MergeSemantics(
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        // Centered rather than stretched: stretch would hand the button a
-        // tight width and override an explicit [width], so a 220px button
-        // would come out full-bleed the moment it was given a hint.
+        // Centered, not stretched, so an explicit [width] is kept.
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Padding(
@@ -558,13 +533,12 @@ import '../../../core/utils/extensions.dart';
 /// icon, a button and an input all speak the same color vocabulary.
 enum AppLeadingIconVariant { primary, secondary, tertiary, danger }
 
-/// Fill treatment of [AppLeadingIcon] — how the [AppLeadingIconVariant] color
-/// is applied to the container.
+/// Fill treatment of [AppLeadingIcon].
 ///
 /// - [filled]: solid variant background, contrasting icon.
 /// - [tonal]: soft variant-tinted background, variant-colored icon.
 /// - [outlined]: transparent background, variant-colored border + icon.
-/// - [plain]: no container at all — just the variant-colored icon.
+/// - [plain]: no container, just the variant-colored icon.
 enum AppLeadingIconType { filled, tonal, outlined, plain }
 
 /// Corner shape of the container.
@@ -574,9 +548,8 @@ enum AppLeadingIconSize { small, medium, large }
 
 typedef _LeadingIconSizeConfig = ({double container, double icon});
 
-/// A Material-style icon container: a colored, rounded (or circular) box
-/// with a single icon centered in it. Meant as a leading visual for list
-/// tiles, cards and dialogs — not a tappable control on its own.
+/// A colored, rounded box with one centered icon: a leading visual for tiles,
+/// cards and dialogs. Not tappable.
 class AppLeadingIcon extends StatelessWidget {
   const AppLeadingIcon({
     super.key,
@@ -683,20 +656,15 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_constants.dart';
 
-/// Color role of an input. Every color the input paints — border, focus ring,
-/// cursor, icons, fill tint and the required marker — is derived from the
-/// variant, so an [AppInputVariant.secondary] input is secondary all over.
-///
-/// Mirrors [AppButtonVariant] so the two widgets share one vocabulary.
+/// Color role of an input; every color it paints derives from it. Mirrors
+/// [AppButtonVariant].
 enum AppInputVariant { primary, secondary, tertiary, danger }
 
-/// Fill treatment of an input — how the [AppInputVariant] color is applied.
+/// Fill treatment of an input.
 ///
 /// - [filled]: filled, borderless until focused.
 /// - [outlined]: transparent with a visible border at rest.
 /// - [underline]: bottom border only, no fill.
-///
-/// Orthogonal to [AppInputVariant] and [AppInputShape].
 enum AppInputType { filled, outlined, underline }
 
 /// Corner shape of an input. Ignored by [AppInputType.underline], which has no
@@ -710,9 +678,9 @@ enum AppInputSize { small, medium, large }
 /// Where a field's label goes.
 ///
 /// - [above]: its own line over the field, with the required marker.
-/// - [floating]: inside the field, rising into the border on focus (Material).
-/// - [placeholder]: no label; it is used as the hint until the user types.
-/// - [none]: no label at all — the field is described by something else.
+/// - [floating]: inside the field, rising into the border on focus.
+/// - [placeholder]: used as the hint until the user types.
+/// - [none]: no label.
 enum AppInputLabelMode { above, floating, placeholder, none }
 
 /// Font, icon and padding metrics for one [AppInputSize].
@@ -722,11 +690,8 @@ typedef InputSizeConfig = ({
   double verticalPadding,
 });
 
-/// The one place the input family's look and behaviour is decided.
-///
-/// Every input in the kit reads [defaults] at build time for anything the call
-/// site left unset. **Edit the [defaults] literal below** — that is the whole
-/// point of this file, and nothing else in the app needs touching:
+/// The input family's look and behaviour. **Edit the [defaults] literal
+/// below** to restyle every input:
 ///
 ///   static AppInputConfig defaults = const AppInputConfig(
 ///     labelMode: AppInputLabelMode.floating,
@@ -734,16 +699,11 @@ typedef InputSizeConfig = ({
 ///     shape: AppInputShape.pill,
 ///   );
 ///
-/// A single field still wins over the config when it says so:
+/// A single field still overrides it:
+/// `AppInput(label: 'Email', labelMode: AppInputLabelMode.above)`.
 ///
-///   AppInput(label: 'Email', labelMode: AppInputLabelMode.above)
-///
-/// **What belongs here and what does not.** Colors are not here on purpose:
-/// they come from `ColorScheme` so they can differ between light and dark, and
-/// the fill tint blends into `inputDecorationTheme.fillColor` from the theme.
-/// The raw sizes are not here either — they are tokens in [AppConstants]. What
-/// this file owns is how the inputs *use* those two: which token each size
-/// picks, how strong the borders and tints are, and how a field is labelled.
+/// Colors come from the theme's `ColorScheme`; raw sizes are [AppConstants]
+/// tokens.
 class AppInputConfig {
   const AppInputConfig({
     this.labelMode = AppInputLabelMode.above,
@@ -782,18 +742,8 @@ class AppInputConfig {
     ),
   });
 
-  /// The config every input falls back to — edit this literal to restyle the
-  /// app's inputs. Every argument is optional; what you leave out keeps the
-  /// default shown in the constructor below.
-  ///
-  ///   static AppInputConfig defaults = const AppInputConfig(
-  ///     labelMode: AppInputLabelMode.floating,
-  ///   );
-  ///
-  /// It stays assignable for the cases a literal cannot cover — a flavor or a
-  /// white-label build choosing at startup, or a test swapping it out. Do that
-  /// before `runApp`: it is read during build, not watched, so a later change
-  /// will not rebuild inputs already on screen.
+  /// The config every input falls back to. Edit this literal to restyle the
+  /// app's inputs; to swap it at runtime, assign it before `runApp`.
   static AppInputConfig defaults = const AppInputConfig();
 
   // ── Labels ─────────────────────────────────────────────────────────────────
@@ -807,39 +757,24 @@ class AppInputConfig {
   /// What marks a required field — `' *'`, `' (required)'`, anything.
   final String requiredMarker;
 
-  /// What every input in the kit says when a required field is left empty.
-  ///
-  /// Each `validate` writes this message rather than its own copy, so the
-  /// wording is one edit here — including translating it:
+  /// The message a required field shows when left empty. Assign [defaults]
+  /// with a translated one to localize it:
   ///
   ///   AppInputConfig.defaults = AppInputConfig(
   ///     requiredMessage: AppLocalizations.of(context).fieldRequired,
   ///   );
-  ///
-  /// It is read at validate time, so assigning [defaults] after a locale
-  /// change re-words errors raised from then on.
   final String requiredMessage;
 
   /// Space between an [AppInputLabelMode.above] label and its field.
   final double labelGap;
 
-  /// Whether an [AppInputLabelMode.floating] label starts inside the field and
-  /// rises on focus ([FloatingLabelBehavior.auto]), sits above it always
-  /// ([FloatingLabelBehavior.always]), or never floats.
+  /// How an [AppInputLabelMode.floating] label floats.
   final FloatingLabelBehavior floatingLabelBehavior;
 
   // ── Defaults every input starts from ───────────────────────────────────────
 
-  /// The color role every input takes when the call site names none.
-  ///
-  /// **Null — the default — means the theme paints them.** An input with no
-  /// variant hands its colors back to `inputDecorationTheme`, `checkboxTheme`,
-  /// `switchTheme` and the rest, so editing `config/theme/app_theme.dart` is
-  /// what restyles the kit. Naming one here paints every input in that role
-  /// instead, and the theme's own input colors stop being consulted.
-  ///
-  /// A single field still overrides either way:
-  /// `AppInput(label: 'Amount', variant: AppInputVariant.danger)`.
+  /// The color role inputs take when the call site names none. Null (the
+  /// default) leaves colors to the theme, so `app_theme.dart` restyles the kit.
   final AppInputVariant? variant;
 
   final AppInputType type;
@@ -849,16 +784,11 @@ class AppInputConfig {
   /// Whether a field with a `maxLength` shows its counter.
   final bool showCounter;
 
-  /// When fields validate themselves. Null keeps Flutter's default — validate
-  /// on submit only. [AutovalidateMode.onUserInteraction] is the usual choice
-  /// for a form that should correct itself as it is filled in.
+  /// When fields validate themselves. Null validates on submit only.
   final AutovalidateMode? autovalidateMode;
 
-  /// How many options an [AppDropdownInput] shows in a menu before it switches
-  /// to a searchable sheet. A menu stops being usable somewhere around thirty
-  /// rows; raise this for a list that stays scannable longer, or set it to 0 to
-  /// make every dropdown searchable. A field can still answer for itself with
-  /// `searchable: true` or `false`.
+  /// How many options an [AppDropdownInput] shows in a menu before switching to
+  /// a searchable sheet. 0 makes every dropdown searchable.
   final int searchableThreshold;
 
   // ── Border and fill ────────────────────────────────────────────────────────
@@ -869,9 +799,8 @@ class AppInputConfig {
   /// How visible a resting border is, as a fraction of the variant color.
   final double idleBorderOpacity;
 
-  /// How much of the variant color tints a filled input's background. If light
-  /// and dark need different strengths, set `inputDecorationTheme.fillColor`
-  /// per theme instead — this tint is blended into it.
+  /// How much of the variant color tints a filled input's background, blended
+  /// into `inputDecorationTheme.fillColor`.
   final double fillOpacity;
 
   final double disabledOpacity;
@@ -951,18 +880,13 @@ import './app_input_config.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
-// The vocabulary (variant, type, shape, size, label mode) lives with the config
-// it configures, but every input reaches for it through this file — so one
-// import still brings the whole set.
+// Re-exports the input vocabulary, so one import brings the whole set.
 export './app_input_config.dart';
 
-/// Resolves [AppInputVariant] + [AppInputType] into a concrete
-/// [InputDecoration].
+/// Resolves [AppInputVariant] + [AppInputType] into an [InputDecoration].
 ///
-/// This overrides the global `inputDecorationTheme` on purpose: the theme can
-/// only describe one variant, and inputs need all four. Colors come from the
-/// [ColorScheme] so they follow light and dark; everything else — border
-/// weights, tint strength, size metrics, where the label goes — comes from
+/// Overrides `inputDecorationTheme` on purpose: the theme describes one
+/// variant, inputs need four. Colors come from the [ColorScheme]; metrics from
 /// [AppInputConfig.defaults].
 class AppInputStyle {
   const AppInputStyle._();
@@ -970,21 +894,12 @@ class AppInputStyle {
   /// The app-wide input config. Every number below is read from it.
   static AppInputConfig get config => AppInputConfig.defaults;
 
-  /// The variant in force: the field's, else [AppInputConfig.variant].
-  ///
-  /// Null means no variant is in play at all — the field never named one and
-  /// the config does not either — and the widget should leave its colors to
+  /// The field's variant, else [AppInputConfig.variant]. Null leaves colors to
   /// the theme.
   static AppInputVariant? variantOf(AppInputVariant? variant) =>
       variant ?? config.variant;
 
-  /// The variant's color, or null when there is no variant to derive one from.
-  ///
-  /// **Null is the signal to hand a color slot back to the theme.** Passed
-  /// straight into `Checkbox.activeColor`, `InputDecoration.prefixIconColor`
-  /// or a `copyWith`, it leaves whatever `config/theme/app_theme.dart` set in
-  /// place. Every widget in the kit paints through this, which is what makes
-  /// editing the theme enough to restyle an app that names no variant.
+  /// The variant's color, or null to leave the slot to the theme.
   static Color? accentOrNull(BuildContext context, AppInputVariant? variant) {
     final resolved = variantOf(variant);
     if (resolved == null) return null;
@@ -997,24 +912,17 @@ class AppInputStyle {
     };
   }
 
-  /// The variant's color, falling back to [ColorScheme.primary] where the
-  /// slot has no themed default to fall through to — a cursor, a focus ring,
-  /// a spinner. Prefer [accentOrNull] anywhere null can be passed on.
+  /// The variant's color, else [ColorScheme.primary]. Prefer [accentOrNull]
+  /// wherever null can be passed on.
   static Color accentOf(BuildContext context, AppInputVariant? variant) =>
       accentOrNull(context, variant) ?? context.theme.colorScheme.primary;
 
-  /// The color that reads on top of [accentOf] — what a checked box, a selected
-  /// segment or a filled chip puts its glyph and label in.
-  ///
-  /// Every control that fills itself with the accent needs this, and each one
-  /// guessing separately is how a selected segment ends up unreadable: the
-  /// surface color is only the right answer in a light theme.
+  /// The color that reads on top of [accentOf] (a checked box's glyph, a
+  /// selected segment's label).
   static Color onAccentOf(BuildContext context, AppInputVariant? variant) =>
       onAccentOrNull(context, variant) ?? context.theme.colorScheme.onPrimary;
 
-  /// [onAccentOf], null when no variant is in play — the companion to
-  /// [accentOrNull], so a control fills and letters itself from the theme or
-  /// from the variant as one decision rather than two.
+  /// [onAccentOf], or null when no variant is in play.
   static Color? onAccentOrNull(BuildContext context, AppInputVariant? variant) {
     final resolved = variantOf(variant);
     if (resolved == null) return null;
@@ -1027,9 +935,7 @@ class AppInputStyle {
     };
   }
 
-  /// The colour a field's trailing icon takes: the variant's, else whatever
-  /// `inputDecorationTheme` gives every other field's suffix — so a control
-  /// that draws its own chevron matches the ones that let the decoration do it.
+  /// A field's trailing icon color: the variant's, else the theme's suffix color.
   static Color? suffixIconColorOf(
     BuildContext context,
     AppInputVariant? variant,
@@ -1048,14 +954,8 @@ class AppInputStyle {
         fontSize: configOf(size).fontSize,
       );
 
-  /// Style for the value a field is holding — what was typed into it, or the
-  /// label of whatever was picked in it.
-  ///
-  /// A field with a variant puts its value in that variant's color and weights
-  /// it, so the content reads louder than the chrome around it. **Without one,
-  /// the theme's own body style is handed back untouched** — `copyWith`
-  /// ignores a null, so nothing is overpainted with a guess and
-  /// `app_theme.dart`'s `textTheme` is what styles the value.
+  /// Style for a field's value. With a variant it takes the variant's color and
+  /// weight; without one the theme's body style is returned untouched.
   static TextStyle? valueStyle(
     BuildContext context, {
     AppInputSize? size,
@@ -1082,9 +982,7 @@ class AppInputStyle {
         _ => AlignmentDirectional.centerStart,
       };
 
-  /// The label with its required marker appended, when the config shows one.
-  /// Used by the label modes that render inside the field; an above-label is
-  /// drawn by `InputTitle`, which styles the marker instead of inlining it.
+  /// The label with its required marker, for the in-field label modes.
   static String? markedLabel(String? label, {bool required = false}) {
     if (label == null) return null;
     return required && config.showRequiredMarker
@@ -1097,18 +995,11 @@ class AppInputStyle {
   static TextStyle? errorStyle(BuildContext context) =>
       context.textTheme.bodySmall?.copyWith(color: context.colorScheme.error);
 
-  /// The message an [InputDecoration] shows when a field fails validation,
-  /// pulled back into line with the field's own left edge.
+  /// A field's validation message, aligned with the field's left edge instead
+  /// of its `contentPadding`.
   ///
-  /// Flutter lays that line out at the decoration's `contentPadding`, so by
-  /// default it sits indented under a field whose [AppInputLabelMode.above]
-  /// label is flush with the edge — the label starts at one x and the error
-  /// explaining it at another. That slot has no padding of its own to set, so
-  /// the message is shifted back by the indent instead.
-  ///
-  /// Hand it to `TextFormField.errorBuilder`, or to [InputDecoration.error] on
-  /// a field built from a bare [FormField]. Never to `errorText` — an
-  /// [InputDecoration] refuses to hold both.
+  /// Pass it to `TextFormField.errorBuilder` or [InputDecoration.error], never
+  /// alongside `errorText`.
   static Widget decorationError(
     BuildContext context,
     String errorText, {
@@ -1132,10 +1023,8 @@ class AppInputStyle {
       ? null
       : decorationError(context, errorText, type: type);
 
-  /// Where a decoration starts the line under a field: the horizontal
-  /// `contentPadding` [decoration] sets, plus the gap an outlined border
-  /// reserves for its floating label. An underline field pads neither, so its
-  /// message is already flush.
+  /// Where a decoration starts the line under a field: its horizontal
+  /// `contentPadding`, plus an outlined border's label gap.
   static double _subtextIndentOf(AppInputType type) =>
       type == AppInputType.underline
       ? 0
@@ -1155,10 +1044,8 @@ class AppInputStyle {
         },
       };
 
-  /// The color the theme drew a border in — what a field with no variant to
-  /// derive one from should use. [fallback] covers a theme that left the slot
-  /// alone, and a [BorderSide.none], which is a width of zero rather than a
-  /// color worth reusing.
+  /// The theme's border color, or [fallback] when it set none (or
+  /// [BorderSide.none]).
   static Color _themedBorderColor(InputBorder? border, Color fallback) {
     final side = border?.borderSide;
     if (side == null || side.style == BorderStyle.none) return fallback;
@@ -1181,12 +1068,9 @@ class AppInputStyle {
     );
   }
 
-  /// Builds the decoration for an input.
-  ///
-  /// Anything left null falls back to [AppInputConfig.defaults], so a field
-  /// that says nothing looks like the rest of the app. [label] is only painted
-  /// here for the label modes that live inside the field —
-  /// [AppInputLabelMode.floating] and [AppInputLabelMode.placeholder].
+  /// Builds the decoration for an input. Nulls fall back to
+  /// [AppInputConfig.defaults]; [label] is painted only for the in-field label
+  /// modes.
   static InputDecoration decoration(
     BuildContext context, {
     AppInputVariant? variant,
@@ -1224,9 +1108,7 @@ class AppInputStyle {
             child: icon,
           );
 
-    // Filled inputs carry their color in the fill, so they stay borderless
-    // until focused. Outlined and underline inputs need a visible resting edge
-    // — which, with no variant to draw it from, is the one the theme drew.
+    // Filled inputs stay borderless until focused; the others need a resting edge.
     final idleColor = filled
         ? Colors.transparent
         : accent?.withValues(alpha: config.idleBorderOpacity) ??
@@ -1261,9 +1143,7 @@ class AppInputStyle {
       suffixIcon: sized(suffixIcon),
       enabled: enabled,
       filled: filled,
-      // A variant tints that fill rather than replacing it, so the field still
-      // sits correctly on the surface in light and dark alike. With no variant
-      // there is nothing to tint with, and the theme's fill is already right.
+      // A variant tints the fill rather than replacing it.
       fillColor: !filled
           ? Colors.transparent
           : accent == null
@@ -1310,10 +1190,8 @@ class AppInputStyle {
       ),
       prefixIconColor: enabled ? accent : disabledColor,
       suffixIconColor: enabled ? accent : disabledColor,
-      // At rest a floating label sits where the hint would, so it reads like
-      // one; once it floats it becomes the field's accent. With no variant in
-      // play the color is left null, and the theme's own label and hint styles
-      // come through underneath — only the size is imposed on top.
+      // A resting floating label reads like the hint; once floated it takes the
+      // accent.
       labelStyle: (decorationTheme.labelStyle ?? theme.textTheme.bodyMedium)
           ?.copyWith(
             color: enabled
@@ -1342,26 +1220,11 @@ class AppInputStyle {
   }
 }
 
-/// Renders [child] exactly as it looks when live, but inert.
+/// Renders [child] as it looks when live, but inert: read-only, not disabled.
 ///
-/// This is what separates read-only from disabled across the kit. A disabled
-/// control greys itself out because its value is not the user's to set — the
-/// form is waiting on something else first. A read-only one keeps every color
-/// it would have had, because the value it is showing is real and worth
-/// reading; it simply cannot be changed from here. Greying it out would say
-/// the wrong thing about the data.
-///
-/// Which is why the controls behind this gate hand Material a callback even
-/// when the caller gave them none. A `Checkbox`, a `Switch` or a `Slider` greys
-/// itself out the moment its callback goes null, and not greying out is the
-/// whole point of read-only — so they pass one that is never reached, this gate
-/// having already taken the pointer and the focus away. `readOnly: true` is the
-/// entire thing a caller has to write; nobody should have to invent an
-/// `onChanged: (_) {}` to keep a frozen control from looking disabled.
-///
-/// [AppInput] and the fields built on it hand `readOnly` to Flutter's own.
-/// Every other control in the kit — from [AppCheckbox] to a whole calendar —
-/// wraps itself in this instead and goes on painting as if enabled.
+/// A read-only control keeps its colors because its value is real. Controls
+/// behind this gate pass Material a no-op callback so they do not grey out;
+/// `readOnly: true` is all a caller writes.
 class ReadOnlyGate extends StatelessWidget {
   const ReadOnlyGate({super.key, required this.readOnly, required this.child});
 
@@ -1371,9 +1234,7 @@ class ReadOnlyGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!readOnly) return child;
-    // Focus is excluded as well as pointers: a control the finger cannot reach
-    // must not be reachable by keyboard either, or a tab lands on something
-    // that then refuses to answer.
+    // Focus too, or a tab lands on a control that will not answer.
     return Semantics(
       readOnly: true,
       child: ExcludeFocus(child: IgnorePointer(child: child)),
@@ -1389,11 +1250,7 @@ import './app_input_style.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
-/// The label an [AppInputLabelMode.above] field wears, with its required
-/// marker styled in the field's own accent.
-///
-/// The other label modes never build this — they hand the label to the
-/// decoration instead, so it can sit inside the field.
+/// The label of an [AppInputLabelMode.above] field, with its required marker.
 class InputTitle extends StatelessWidget {
   const InputTitle({
     super.key,
@@ -1443,12 +1300,8 @@ class InputTitle extends StatelessWidget {
   }
 }
 
-/// Puts a field under its [InputTitle] when labels go [AppInputLabelMode.above],
-/// and returns the field untouched for every other mode — where the label is
-/// already part of the decoration, or gone.
-///
-/// Every labeled input in the kit lays itself out through this, so the label
-/// mode is decided in exactly one place.
+/// Puts a field under its [InputTitle] in [AppInputLabelMode.above]; returns it
+/// untouched otherwise.
 class InputFieldLayout extends StatelessWidget {
   const InputFieldLayout({
     super.key,
@@ -1521,9 +1374,7 @@ class SelectionFormField<T> extends StatelessWidget {
     this.autovalidateMode,
   });
 
-  /// The control's current selection, read from the caller on every validate
-  /// rather than stored — the caller owns it, so its answer is the true one
-  /// even before a rebuild has reached this field.
+  /// The control's current selection, read from the caller on every validate.
   final T value;
 
   /// Null leaves the control out of validation altogether, and no error line is
@@ -1576,22 +1427,14 @@ import 'package:flutter/services.dart';
 
 import '../../../core/security/validation_service.dart';
 
-/// Separators the money formatter inserts. Both [MoneyInputFormatter] and
-/// [AppInputFormat.unformat] read them, so switching an app to another locale
-/// is a two-line edit here.
+/// Separators the money formatter inserts. Change them for another locale.
 const String moneyGroupSeparator = ',';
 const String moneyDecimalSeparator = '.';
 
-/// What a field holds — the one knob that decides how it behaves.
-///
-/// A format resolves to a keyboard, the [TextInputFormatter]s that keep junk
-/// out while the user types, autofill hints and the [InputType] the value is
-/// validated against. Set it once and the rest follows:
+/// What a field holds: picks its keyboard, formatters, autofill hints and
+/// validation in one go.
 ///
 ///   AppInput(label: 'Amount', format: AppInputFormat.money)
-///
-/// Everything it decides is a plain getter, so a hand-rolled [TextField] can
-/// borrow the same behaviour without going through `AppInput`.
 enum AppInputFormat {
   /// Free text, unfiltered.
   text,
@@ -1653,8 +1496,7 @@ enum AppInputFormat {
     AppInputFormat.username => TextInputType.text,
   };
 
-  /// Formatters applied on every keystroke, so the field can only ever hold
-  /// something shaped like its format. Passing `inputFormatters` to an input
+  /// Formatters applied on every keystroke. An input's `inputFormatters`
   /// replaces this list.
   List<TextInputFormatter> get formatters => switch (this) {
     AppInputFormat.email => [_noSpaces, const LowerCaseInputFormatter()],
@@ -1727,13 +1569,10 @@ enum AppInputFormat {
     _ => null,
   };
 
-  /// The value with the punctuation this format added stripped back out — what
-  /// you send to an API or hand to `num.parse`.
+  /// The value without this format's punctuation, for an API or `num.parse`.
   ///
   ///   AppInputFormat.money.unformat('1,234.50')            // 1234.50
   ///   AppInputFormat.creditCard.unformat('4111 1111 ...')  // 41111111...
-  ///
-  /// Formats that add nothing return the value untouched.
   String unformat(String value) => switch (this) {
     AppInputFormat.money =>
       value
@@ -1765,12 +1604,8 @@ enum AppInputFormat {
   }
 }
 
-/// Keeps a decimal number well-formed as it is typed: digits, one separator,
-/// and at most [decimalDigits] after it. An edit that would break the shape is
-/// rejected rather than corrected, so the caret never jumps.
-///
-/// Whichever separator key the keyboard offers produces [separator], so the
-/// field behaves the same on a comma keyboard as on a dot one.
+/// Keeps a decimal number well-formed as it is typed: digits, one [separator],
+/// at most [decimalDigits] after it. Invalid edits are rejected.
 class DecimalInputFormatter extends TextInputFormatter {
   const DecimalInputFormatter({
     this.decimalDigits = 2,
@@ -1801,14 +1636,8 @@ class DecimalInputFormatter extends TextInputFormatter {
   }
 }
 
-/// Groups the whole part of an amount as it is typed — `1234.5` shows as
-/// `1,234.5` — and puts the caret back where the user left it.
-///
-/// [decimalSeparator] is the only key that opens the decimal part; the
-/// grouping punctuation is this formatter's own and is ignored on the way in.
-/// Flip the two for a locale that writes `1.234,50`.
-///
-/// Read the plain number back with `AppInputFormat.money.unformat(text)`.
+/// Groups an amount as it is typed (`1234.5` → `1,234.5`), keeping the caret
+/// in place. Read it back with `AppInputFormat.money.unformat(text)`.
 class MoneyInputFormatter extends TextInputFormatter {
   const MoneyInputFormatter({
     this.decimalDigits = 2,
@@ -1876,14 +1705,12 @@ class MoneyInputFormatter extends TextInputFormatter {
   }
 }
 
-/// Types the punctuation for the user: `#` is a digit slot, every other
-/// character is a literal the field fills in as the slots around it fill.
+/// Fills in punctuation as the user types: `#` is a digit slot, anything else
+/// is a literal. The mask is also the length cap.
 ///
 ///   MaskedInputFormatter('#### #### #### ####')  // 4111 1111 1111 1111
 ///   MaskedInputFormatter('##/##')                // 12/25
 ///   MaskedInputFormatter('(###) ###-####')       // (555) 010-9999
-///
-/// Digits past the last slot are dropped, so the mask is also the length cap.
 class MaskedInputFormatter extends TextInputFormatter {
   const MaskedInputFormatter(this.mask, {this.slot = '#'});
 
@@ -2006,26 +1833,14 @@ import './app_input_style.dart';
 import './input_title.dart';
 import '../../../core/security/validation_service.dart';
 
-/// A labeled text field — the kit's default way to collect a value.
-///
-/// [format] is the knob that matters: it picks the keyboard, the formatters
-/// that keep junk out while typing, the autofill hints and the validation rule
-/// in one go, so a money field only ever holds money.
+/// A labeled text field. [format] picks the keyboard, formatters, autofill
+/// hints and validation; each can still be overridden on the field.
 ///
 ///   AppInput(label: 'Email', format: AppInputFormat.email, required: true)
 ///   AppInput(label: 'Amount', format: AppInputFormat.money)
-///   AppInput(label: 'Card', format: AppInputFormat.creditCard)
 ///
-/// A formatted field still reads back as a plain value:
-/// `AppInputFormat.money.unformat(controller.text)`.
-///
-/// Every decision the format makes can be overridden on the field —
-/// [keyboardType], [inputFormatters], [autofillHints], [textCapitalization],
-/// [obscureText], [maxLength], [validator].
-///
-/// How it *looks* — where the label goes, which variant, type, shape and size —
-/// comes from [AppInputConfig.defaults] unless this field says otherwise, so
-/// the app has one place to change its mind.
+/// Its look comes from [AppInputConfig.defaults] unless the field says
+/// otherwise.
 class AppInput extends StatefulWidget {
   const AppInput({
     super.key,
@@ -2073,8 +1888,7 @@ class AppInput extends StatefulWidget {
 
   final TextEditingController? controller;
 
-  /// Seeds the field. With a [controller] it is only used while the controller
-  /// is still empty, so an already-populated controller is never clobbered.
+  /// Seeds the field. With a [controller], only while it is empty.
   final String? initialValue;
 
   final String? hint;
@@ -2085,32 +1899,26 @@ class AppInput extends StatefulWidget {
   /// A disabled field is greyed out and cannot be focused.
   final bool enabled;
 
-  /// A read-only field is styled normally but cannot be edited. Without an
-  /// [onTap] it ignores pointers entirely; with one it stays tappable, which is
-  /// how the picker-backed inputs are built.
+  /// Styled normally but not editable. With an [onTap] it stays tappable.
   final bool readOnly;
 
   final bool autoFocus;
   final FocusNode? focusNode;
 
-  /// Lines the field shows. An [AppInputFormat.multiline] field opens at five
-  /// unless you say otherwise; `null` grows without limit.
+  /// Lines shown. Multiline fields default to five; `null` grows without limit.
   final int? maxLines;
   final int? minLines;
 
-  /// Character cap. Defaults to the format's own where it has one (a card
-  /// number, an expiry).
+  /// Character cap. Defaults to the format's own (a card number, an expiry).
   final int? maxLength;
 
   /// Whether [maxLength] shows its counter. Null follows the config.
   final bool? showCounter;
 
-  /// Hides the value. Defaults to the format's own answer — only
-  /// [AppInputFormat.password] hides by default.
+  /// Hides the value. Defaults to true only for [AppInputFormat.password].
   final bool? obscureText;
 
-  /// Shows the eye that reveals an obscured value, unless [suffixIcon] takes
-  /// the slot. Turn it off for a value that should never be revealed.
+  /// Shows the reveal eye on an obscured field, unless [suffixIcon] is set.
   final bool showPasswordToggle;
 
   /// Overrides [AppInputFormat.keyboardType].
@@ -2156,11 +1964,8 @@ class AppInput extends StatefulWidget {
   final AppInputShape? shape;
   final AppInputSize? size;
 
-  /// The rule an [AppInput] applies when no [validator] is given: required
-  /// first, then the format's own [ValidationService] check on the unformatted
-  /// value. Empty optional fields pass.
-  ///
-  /// Exposed so a custom [validator] can layer on top of it:
+  /// The default rule when no [validator] is given: required, then the
+  /// format's check. Layer a custom one on top:
   ///
   ///   validator: (v) =>
   ///       AppInput.validate(v, format: AppInputFormat.email, required: true) ??
@@ -2190,16 +1995,13 @@ class AppInput extends StatefulWidget {
 class _AppInputState extends State<AppInput> {
   late bool _obscured;
 
-  /// The format actually in force: an explicit [AppInput.format] wins, then the
-  /// one a bare `keyboardType:` implies — so fields written before formats
-  /// existed keep validating the way they did.
+  /// The format in force: [AppInput.format], else the one `keyboardType` implies.
   AppInputFormat get _format => widget.format != AppInputFormat.text
       ? widget.format
       : AppInputFormat.forKeyboardType(widget.keyboardType) ??
             AppInputFormat.text;
 
-  /// Whether this field hides its value at all — the eye shows for the whole
-  /// life of such a field, not only while the value is hidden.
+  /// Whether this field hides its value at all.
   bool get _obscurable => widget.obscureText ?? _format.isObscured;
 
   /// Where this field's label goes: its own answer, else the app's.
@@ -2228,8 +2030,7 @@ class _AppInputState extends State<AppInput> {
     }
   }
 
-  /// An obscured field is single-line by force; a multiline one opens at five
-  /// lines unless the caller pinned a value.
+  /// Obscured fields are single-line; multiline ones default to five lines.
   int? get _maxLines {
     if (_obscured) return 1;
     if (_format.isMultiline && widget.maxLines == 1) return 5;
@@ -5280,9 +5081,7 @@ class AppToast {
   /// stretched across the screen, and the eye has to travel to read six words.
   static const double _maxWidth = 480;
 
-  /// Arriving is slower than leaving. Coming in, the card has to be noticed and
-  /// read, and easing it over a third of a second is what makes it look placed
-  /// rather than popped; going out it has already done its job.
+  /// Arriving is slower than leaving.
   static const Duration _enterDuration = Duration(milliseconds: 320);
   static const Duration _exitDuration = Duration(milliseconds: 200);
 
@@ -5327,9 +5126,7 @@ class AppToast {
       showClose: showClose,
     );
 
-    // A toast already on screen takes the new content where it stands. Playing
-    // its exit first would make the user watch 200ms of a message they have
-    // been replaced out of before the one they asked for starts arriving.
+    // A toast already on screen takes the new content in place.
     final live = _live;
     if (_entry != null && live != null) {
       live.value = spec;
@@ -5357,9 +5154,7 @@ class AppToast {
   static void info(BuildContext context, String message, {String? title}) =>
       show(context, message, title: title, type: AppToastType.info);
 
-  /// Takes the current toast off screen early — for a screen that is about to
-  /// be popped, or an action whose result has already been shown another way.
-  /// It animates out; nothing happens if there is no toast up.
+  /// Dismisses the current toast early, animated. No-op if none is up.
   static void dismiss() => _hideCurrent?.call();
 
   /// Called by the overlay once the card is off screen. Pulling the entry any
@@ -5375,23 +5170,15 @@ class AppToast {
     entry?.remove();
   }
 
-  /// Called when the overlay goes away without the exit ever running: the route
-  /// under it popped, the navigator replaced, a hot restart. The entry died
-  /// with its Overlay, so there is nothing to remove — but left pointing at a
-  /// disposed notifier, [show] would treat every later toast as a replacement
-  /// for a card that no longer exists and quietly do nothing.
-  ///
-  /// Identity-checked because the exit path nulls these fields a frame before
-  /// the widget is disposed, and a toast shown in that gap owns them by then.
+  /// Clears the fields when the overlay dies without the exit running (a popped
+  /// route, a hot restart). Identity-checked, since a newer toast may own them.
   static void _forget(ValueNotifier<_ToastSpec> spec) {
     if (!identical(_live, spec)) return;
     _entry = null;
     _live = null;
   }
 
-  /// A toast usually lands while the user is looking somewhere else, so it
-  /// says what happened by feel as well as by color — the worse the news, the
-  /// heavier the tap.
+  /// Haptics by severity: the worse the news, the heavier the tap.
   static void _feedback(AppToastType type) => switch (type) {
         AppToastType.success => HapticFeedback.lightImpact(),
         AppToastType.warning => HapticFeedback.mediumImpact(),
@@ -5484,9 +5271,7 @@ class _ToastOverlayState extends State<_ToastOverlay>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Durations are settled here and not in initState because "reduce motion"
-    // is a MediaQuery — and a controller ignores a duration changed mid-flight,
-    // so they have to be right before the first forward() rather than after it.
+    // Set here, not in initState: "reduce motion" comes from MediaQuery.
     final reduced = MediaQuery.disableAnimationsOf(context);
     _controller
       ..duration = reduced ? Duration.zero : AppToast._enterDuration
@@ -5562,9 +5347,7 @@ class _ToastOverlayState extends State<_ToastOverlay>
           AppConstants.space12,
           bottomInset + AppConstants.space12,
         ),
-        // Bottom-center on a wide window rather than pinned to one corner. The
-        // strip around the card paints nothing and so absorbs nothing: taps
-        // beside the toast reach the screen underneath it.
+        // Bottom-center on wide windows; taps beside the card pass through.
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: AppToast._maxWidth),
@@ -5581,9 +5364,7 @@ class _ToastOverlayState extends State<_ToastOverlay>
                   // Grows out of the edge it rose from, not out of its middle.
                   alignment: Alignment.bottomCenter,
                   child: Dismissible(
-                    // New content is a new card as far as the drag is
-                    // concerned; rekeying clears an offset left by a swipe the
-                    // user started and abandoned.
+                    // Rekeyed per content, clearing any abandoned swipe offset.
                     key: ObjectKey(spec),
                     // Flick it away sideways, which is what a card at the edge
                     // of the screen invites; down would be into the bezel.
@@ -5598,11 +5379,7 @@ class _ToastOverlayState extends State<_ToastOverlay>
                         // The overlay is outside the app's Material, and the
                         // action button wants one to ink into.
                         type: MaterialType.transparency,
-                        // The card resolves its own colors from the context it
-                        // is built in. Passing them down from show() looks
-                        // equivalent and is not: it builds a frame later, and a
-                        // theme that changed in between would leave a
-                        // light-palette green on a dark card.
+                        // Colors resolve here, so a theme change is picked up.
                         child: _ToastCard(
                           message: spec.message,
                           title: spec.title,
@@ -5773,18 +5550,12 @@ import 'package:flutter/services.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
-/// Fill treatment of the sheet's close button.
-///
-/// Mirrors `AppIconButtonType`'s naming so it reads like the rest of the kit.
-/// It is redeclared here rather than imported because this widget ships with
-/// `moarch init` and AppIconButton does not — an init widget can only lean on
-/// other init widgets.
+/// Fill treatment of the sheet's close button. Mirrors `AppIconButtonType`.
 enum AppSheetCloseType { filled, tonal, outlined, ghost }
 
-/// The standard inside of a bottom sheet: a rounded surface panel with a drag
-/// handle (grabber) at the top, an optional [title], an optional close button,
-/// and your [child].
-/// Pass this as the `child` to `AppBottomModals.showAppBottomModal`.
+/// The standard inside of a bottom sheet: a rounded panel with a drag handle,
+/// an optional [title] and close button, and your [child]. Pass it to
+/// `AppBottomModals.showAppBottomModal`.
 class AppBottomSheetScaffold extends StatelessWidget {
   const AppBottomSheetScaffold({
     super.key,
@@ -5819,9 +5590,7 @@ class AppBottomSheetScaffold extends StatelessWidget {
   /// sheet sits on a colored surface.
   final Color? handleColor;
 
-  /// Shows a close button in the sheet's top corner. The drag handle already
-  /// says "dismissable" — add this when the sheet is tall enough that the
-  /// handle scrolls out of reach, or when dismissal needs to be obvious.
+  /// Shows a close button in the sheet's top corner, for tall sheets.
   final bool showClose;
 
   /// Overrides the default `Navigator.maybePop` — e.g. to confirm unsaved work.
@@ -5930,9 +5699,7 @@ class AppBottomSheetScaffold extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (title != null || showClose) ...[
-                    // A Stack rather than a Row: it keeps a centered title
-                    // centered on the sheet instead of on the space left over
-                    // beside the close button.
+                    // A Stack, so the title stays centered on the sheet.
                     Stack(
                       alignment: AlignmentDirectional.centerEnd,
                       children: [

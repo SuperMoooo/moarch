@@ -278,8 +278,8 @@ fvm flutter test
 
    `--all` also adds a local cache datasource.''';
     final stateFields = o.bloc
-        ? 'the constructor, `copyWith`, `props` and `placeholder`'
-        : 'the constructor, `copyWith` (with `?? this.x`) and `placeholder`';
+        ? 'the constructor, `copyWith` and `props`'
+        : 'the constructor and `copyWith` (with `?? this.x`)';
     return '''
 ${_intro('Add a feature')}
 A feature is one folder under `lib/features/<name>/` with every layer in it.
@@ -309,9 +309,9 @@ $scaffold
 
 4. **The state** — add what the screen draws to the state class: $stateFields.
    ${o.bloc ? 'Set it in `_onStarted`.' : 'Return it from `build()`.'}
-   `placeholder` needs *fake* values — it is what the skeleton is traced from.
 
-5. **The screen** — `_body` in the view, from the UI kit. Follow
+5. **The screen** — `_body` in the view, from the UI kit, and the loading
+   skeleton in `presentation/widgets/<name>_skeleton.dart`. Follow
    `moarch-build-screen`.
 
 6. **Actions** — every button that does something: `moarch-add-action`.
@@ -419,9 +419,9 @@ $source
 For each screen:
 
 - **What it shows**, and which kit widgets carry it (`docs/UI_KIT.md`).
-- **Its four states** — loading (the skeleton, drawn from the state's
-  `placeholder`), empty (what the text says, and whether there is a call to
-  action), error (retry?), and data.
+- **Its four states** — loading (the skeleton in
+  `presentation/widgets/<name>_skeleton.dart`), empty (what the text says,
+  and whether there is a call to action), error (retry?), and data.
 - **Refresh and paging** — pull to refresh, load more, or neither.$strings
 
 ### The actions
@@ -576,8 +576,8 @@ calling it. The one-shot `error` / `success` fields on the state do the rest.
    `AppException` into `error`, and hands you the state as it was before the
    action. Never write `try` / `catch` or `state = AsyncError(...)` here.
 
-3. **The state** — a new field goes in the constructor, `copyWith` (with
-   `?? this.x`) and `placeholder`. `error` and `success` are cleared by every
+3. **The state** — a new field goes in the constructor and `copyWith` (with
+   `?? this.x`). `error` and `success` are cleared by every
    `copyWith` on purpose: that is what makes a toast fire once.
 
 4. **The view** — call it from a callback, never from `build`:
@@ -647,8 +647,7 @@ state do the rest.
 
 4. **The state** — one `Equatable` class; a new field goes in the
    constructor, `copyWith`, `props` (or two states compare equal and the
-   emit is dropped) and `placeholder`. Never split it into a sealed class per
-   phase.
+   emit is dropped). Never split it into a sealed class per phase.
 
 5. **The view** — add the event from a callback:
 
@@ -714,7 +713,7 @@ $_buildRunner
 ```
 
 Never edit `*.freezed.dart` or `*.g.dart`; they are gitignored and
-regenerated. Fix every state `placeholder` and test fixture the change broke.
+regenerated. Fix every skeleton and test fixture the change broke.
 
 ${_done(o)}''';
 
@@ -777,10 +776,11 @@ A screen is `presentation/views/<name>_view.dart` in its feature — or
   screen in `lib/shared/views/`, or once a second feature needs it. Never a
   private `_Header` class in the view file, never a `Widget _buildHeader()`
   method. `const` wherever it compiles.
-- **The skeleton.** The view draws `_body` from the real state and, while
-  loading, from `XState.placeholder`. Every field `_body` reads needs a
-  *fake* value there (`BoneMock.name`, `BoneMock.words(3)`) or it shimmers as
-  a blank line.
+- **The skeleton.** While loading, the view draws
+  `presentation/widgets/<name>_skeleton.dart`: the same rows as `_body`, over
+  fake models whose fields come from `BoneMock` (`BoneMock.name`,
+  `BoneMock.words(3)`, `BoneMock.date`). A text's length sets its bone's width;
+  an empty field shimmers as nothing.
 - **Side effects** — toasts, navigation, dialogs — go in the ${o.bloc ? '`BlocConsumer`\n  `listener`' : '`ref.listenAction`\n  callbacks'}, never in `build`.$strings
 - **Sheets and dialogs** use the kit's helpers.${o.bloc ? ' One that needs the screen\'s\n  bloc gets it through a scope (`moarch create scope <feature> <name>`), not\n  `context.read` and not a second instance.' : ''}
 $route
@@ -953,7 +953,7 @@ Each layer has one job, so the symptom usually names it:
 | `type 'Null' is not a subtype…`, a field that is always null or empty | The model: its field names against the real payload, and `build.yaml`'s `field_rename` |
 | Code that ignores a field you just added | Stale generated code: run `$_buildRunner` |
 $stateRows
-| A skeleton with blank lines where content should be | The state's `placeholder`: a field the view reads has no fake value |
+| A skeleton with blank lines where content should be | The feature's `<name>_skeleton.dart`: a field its rows read has no `BoneMock` value |
 | An overflow or an unbounded-height error | The view's constraints — `moarch-build-screen`, "Layout errors" |
 | get_it says a type `is not registered` | The module in `lib/config/di/` that should register it |
 | It only happens on a device, after a restart or from a link | Platform setup, permissions or lifecycle — step 2, the last loop |
@@ -1083,7 +1083,7 @@ fvm flutter test
 - [ ] Blocs import `package:bloc/bloc.dart`, never Flutter.
 - [ ] Events are `final class`es in the sealed family, one per action.
 - [ ] One `Equatable` state class with `AppStatus`; every field in the
-      constructor, `copyWith`, `props` and `placeholder`.
+      constructor, `copyWith` and `props`.
 - [ ] Every handler goes through `runAction`; no hand-written
       `try` / `on AppException`.
 - [ ] Only pages touch `getIt`; views read the bloc from context.
@@ -1096,7 +1096,7 @@ fvm flutter test
 - [ ] State holders are `AsyncNotifier`s with `ActionNotifierMixin`; every
       action goes through `runAction`; no `try` / `catch` or
       `state = AsyncError(...)`.
-- [ ] Every state field in the constructor, `copyWith` and `placeholder`.
+- [ ] Every state field in the constructor and `copyWith`.
 - [ ] `ref.watch` in `build`, `ref.read` in callbacks.
 - [ ] Views draw through `AppAsyncView`; side effects in `ref.listenAction`,
       not in `build`.
@@ -1136,7 +1136,8 @@ $state
 - [ ] No magic numbers — `AppConstants` tokens; no literal `Color`s.
 - [ ] Private widget classes, not `_buildX()` methods; `const` where it
       compiles.
-- [ ] Every field the view draws has a fake value in `placeholder`.${o.withLocalization || o.withEasyLocalization ? '\n- [ ] No hard-coded user-facing strings; every new key in every language.' : ''}
+- [ ] The skeleton draws the same rows as the view, with a `BoneMock` value
+      for every field.${o.withLocalization || o.withEasyLocalization ? '\n- [ ] No hard-coded user-facing strings; every new key in every language.' : ''}
 
 ## Hygiene
 

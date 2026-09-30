@@ -94,8 +94,7 @@ class AppLogger {
 }
 
 final _logger = Logger(
-  // One line per record in release — it is headed for Crashlytics breadcrumbs
-  // and device logs, where PrettyPrinter's box art is only noise.
+  // One line per record in release, for breadcrumbs and device logs.
   printer: kReleaseMode
       ? SimplePrinter(printTime: true, colors: false)
       : PrettyPrinter(
@@ -110,8 +109,7 @@ final _logger = Logger(
   level: kReleaseMode ? Level.warning : Level.trace,
 );
 
-/// Writes through `dart:developer`, so DevTools' Logging view gets one
-/// filterable record per event instead of a wall of console text.
+/// Writes through `dart:developer`, for DevTools' Logging view.
 class _DeveloperOutput extends LogOutput {
   @override
   void output(OutputEvent event) {
@@ -124,8 +122,7 @@ class _DeveloperOutput extends LogOutput {
   }
 }
 
-/// `dart:developer` grades severity on package:logging's scale, which [Level]
-/// does not line up with.
+/// Maps [Level] to package:logging's severity scale.
 const _developerLevels = <Level, int>{
   Level.trace: 300,
   Level.debug: 500,
@@ -135,8 +132,7 @@ const _developerLevels = <Level, int>{
   Level.fatal: 1200,
 };
 
-/// Every sink runs this, so a stray `appLogger.d(response.data.toString())`
-/// cannot put a credential in the logs.
+/// Redacts credentials; every sink runs this.
 final _sensitiveKeyPattern = RegExp(
   r'("?(?:password|newPassword|token|authorization|refreshToken|accessToken)"?\s*:\s*)'
   r'("[^"]*"|[^,}\]\n]+)',
@@ -170,8 +166,7 @@ extension ContextX on BuildContext {
   double get screenHeight => MediaQuery.sizeOf(this).height;
   Orientation get orientation => MediaQuery.orientationOf(this);
 
-  /// Notch, status bar and home indicator — what a full-bleed layout has to
-  /// keep clear of.
+  /// Notch, status bar and home indicator insets.
   EdgeInsets get safeInsets => MediaQuery.viewPaddingOf(this);
 
   /// How much of the screen the keyboard is covering right now.
@@ -180,8 +175,7 @@ extension ContextX on BuildContext {
 
   bool get isDarkMode => Theme.of(this).brightness == Brightness.dark;
 
-  /// The 600dp Material breakpoint, measured on the short side so it survives
-  /// rotation.
+  /// The 600dp breakpoint, on the short side so it survives rotation.
   bool get isTablet => MediaQuery.sizeOf(this).shortestSide >= 600;
 
   /// Drops focus and closes the keyboard.
@@ -189,25 +183,18 @@ extension ContextX on BuildContext {
 }
 
 extension FormX on GlobalKey<FormState> {
-  /// Runs every validator under the form and reports whether they all passed:
-  /// `if (_formKey.isValid) submit();`.
-  ///
-  /// False when the form is not mounted, so a submit can never read a
-  /// validation that did not run as a pass.
+  /// Runs every validator under the form: `if (_formKey.isValid) submit();`.
+  /// False when the form is not mounted.
   bool get isValid => currentState?.validate() ?? false;
 }
 
 extension TextEditingControllerX on TextEditingController {
-  /// The text without its surrounding whitespace — what a form submits:
-  /// `login(email: _email.trimmed, password: _password.text)`.
-  ///
-  /// A getter rather than a controller that trims itself: rewriting the
-  /// field while the user types would eat the space between two words and
-  /// jump the cursor. Leave passwords untrimmed — a space can be part of one.
+  /// The text without surrounding whitespace:
+  /// `login(email: _email.trimmed, password: _password.text)`. Leave passwords
+  /// untrimmed.
   String get trimmed => text.trim();
 
-  /// [trimmed], or null when that leaves nothing — for an optional field the
-  /// API wants absent rather than empty.
+  /// [trimmed], or null when blank.
   String? get trimmedOrNull {
     final value = text.trim();
     return value.isEmpty ? null : value;
@@ -248,8 +235,7 @@ extension StringX on String {
     return '${words.first[0]}${words.last[0]}'.toUpperCase();
   }
 
-  /// Cuts to [max] characters, ellipsis included, so the result never exceeds
-  /// [max]. Returns the string untouched when it already fits.
+  /// Cuts to at most [max] characters, ellipsis included.
   String truncate(int max, {String ellipsis = '…'}) {
     if (length <= max) return this;
     if (max <= ellipsis.length) return substring(0, max);
@@ -480,7 +466,7 @@ const _unaccented = 'AAAAAAaaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuNnCc';
         ? r'''
 
   // ── Palette (dark) ────────────────────────────────────────────────────────
-  // Every token above has a counterpart here; AppTheme.dark reads this half.
+  // Counterparts of the tokens above; AppTheme.dark reads these.
   static const Color primaryDark   = Color(0xFFFFFFFF);
   static const Color secondaryDark = Color(0xFFFFFFFF);
   static const Color tertiaryDark  = Color(0xFFFFFFFF);
@@ -518,15 +504,13 @@ abstract final class AppConstants {
   static const Color surfaceContainerHighest = Color(0xFF000000);
 
   // ── Status colors ─────────────────────────────────────────────────────────
-  // Kept out of the palette so they read the same whatever the brand becomes.
+  // Outside the palette, so they survive a rebrand.
   static const Color success = Color(0xFF2E7D32);
   static const Color warning = Color(0xFFED6C02);
   static const Color info    = Color(0xFF0288D1);
 $darkPalette
   // ── Type ──────────────────────────────────────────────────────────────────
-  // Null uses the platform default. Declare a font under `flutter: fonts:` in
-  // pubspec.yaml and name it here, or add google_fonts and swap AppTheme's
-  // textTheme for GoogleFonts.interTextTheme(...).
+  // Null uses the platform default. Name a font declared in pubspec.yaml here.
   static const String? fontFamily = null;
 
   // ── Avatar background fallbacks ───────────────────────────────────────────
@@ -600,9 +584,6 @@ $darkPalette
   static const Duration duration500 = Duration(milliseconds: 500);
 
   // ── Motion curves ─────────────────────────────────────────────────────────
-  // Standard for anything that moves within the screen — a page, a fade.
-  // Enter decelerates into place and exit accelerates away, so an arrival
-  // settles quickly and a departure does not linger.
   static const Curve curveStandard = Curves.easeInOut;
   static const Curve curveEnter = Curves.easeOutCubic;
   static const Curve curveExit = Curves.easeInCubic;
@@ -666,9 +647,7 @@ $darkPalette
 
 
   // ── Auth ──────────────────────────────────────────────────────────────────
-  // Changing one here changes it everywhere: `auth_remote_datasource.dart`
-  // calls them, and `dio_client.dart` builds its list of routes that never
-  // carry an Authorization header from the three public ones.
+  // Also used by `dio_client.dart` for its public (no token) routes.
   static const authLogin = '/auth/login';
   static const authRegister = '/auth/register';
   static const authRefresh = '/auth/refresh';
@@ -700,8 +679,7 @@ abstract final class ApiConstants {
   static const Duration receiveTimeout = Duration(seconds: 30);$authEndpoints$configEndpoints
 
   // ── Features ──────────────────────────────────────────────────────────────
-  // Every endpoint lives here, never inline at the call site. Adjust the paths
-  // to your API contract. `moarch create feature` adds each new feature's
+  // Every endpoint lives here. `moarch create feature` adds each new feature's
   // path above this anchor — keep it:
   $endpointsAnchor
 }
@@ -807,14 +785,9 @@ Future<T> safeApiCall<T>({
   /// Written whenever Dio is, alongside `safeApiCall`. Nothing generated
   /// consumes it yet; a project that does not paginate can delete it.
   static String paginated() => r'''
-/// A page of [T] as the API returned it.
-///
-/// Shaped for the common `{page, limit, total, data}` envelope. If yours names
-/// things differently, [Paginated.fromJson] takes the item key as an argument
-/// and the rest is three field renames — this file is meant to be edited.
-///
-/// Cursor APIs (`next_cursor` / `has_more`) do not fit here: page arithmetic
-/// means nothing without an offset. Give those a type of their own.
+/// A page of [T] as the API returned it, for the common
+/// `{page, limit, total, data}` envelope. Edit the keys to match yours; cursor
+/// APIs need a type of their own.
 class Paginated<T> {
   const Paginated({
     required this.page,
@@ -876,10 +849,7 @@ class Paginated<T> {
   /// The items on this page.
   final List<T> items;
 
-  /// How many pages the server needs to return everything, at [limit] each.
-  ///
-  /// A [limit] of zero means the envelope carried no page size, so there is
-  /// nothing to divide by and what arrived is all there is.
+  /// How many pages hold everything. 1 when the envelope had no page size.
   int get pageCount => limit <= 0 ? 1 : (total / limit).ceil();
 
   /// Whether a page exists after this one.
@@ -892,8 +862,7 @@ class Paginated<T> {
 
   bool get isNotEmpty => items.isNotEmpty;
 
-  /// The same page with every item mapped — how a repository turns a page of
-  /// models into a page of something else without unpacking the envelope.
+  /// The same page with every item mapped.
   Paginated<R> map<R>(R Function(T item) toItem) => Paginated<R>(
     page: page,
     limit: limit,
@@ -901,10 +870,7 @@ class Paginated<T> {
     items: items.map(toItem).toList(),
   );
 
-  /// [next] appended to this page, carrying [next]'s position forward.
-  ///
-  /// This is the whole of "load more": the state holds one [Paginated], and
-  /// every page that arrives replaces it with `state.append(page)`.
+  /// [next] appended to this page. "Load more" is `state.append(page)`.
   Paginated<T> append(Paginated<T> next) => Paginated<T>(
     page: next.page,
     limit: next.limit,
@@ -913,8 +879,7 @@ class Paginated<T> {
   );
 }
 
-/// Reads a count that may arrive as a number, as a numeric string, or not at
-/// all.
+/// Reads a count sent as a number, a numeric string, or not at all.
 int? _asInt(Object? value) => switch (value) {
   final int v => v,
   final num v => v.toInt(),
@@ -1083,9 +1048,7 @@ class NullableTimestampConverter implements JsonConverter<DateTime?, Object?> {
   static String dioClient({bool withAuthFeature = false}) {
     final publicEndpoints = withAuthFeature
         ? r'''
-  // Routes that never receive the Authorization header (and are never
-  // retried after a token refresh). The paths live in ApiConstants, which is
-  // also what the auth datasource calls — one contract, one place.
+  // Routes that never get the Authorization header or a refresh retry.
   ApiConstants.authLogin,
   ApiConstants.authRegister,
   ApiConstants.authRefresh,'''
@@ -1099,11 +1062,8 @@ class NullableTimestampConverter implements JsonConverter<DateTime?, Object?> {
         ? r'''
 Dio buildDioClient(
   TokenStorage storage, {
-  // Trades the stored refresh token for a new session, throwing an
-  // AppException when it cannot. injector.dart passes the auth repository's
-  // `refresh` — as a callback rather than the repository itself, because that
-  // repository is built on this very client, and resolving it eagerly here
-  // would be a cycle.
+  // Trades the refresh token for a new session; throws an AppException when it
+  // cannot. A callback, since the auth repository is built on this client.
   required Future<void> Function() refreshSession,
 }) {'''
         : 'Dio buildDioClient(TokenStorage storage) {';
@@ -1124,20 +1084,14 @@ Dio buildDioClient(
             return handler.next(error);
           }
 
-          // Session expired — refresh the access token, then retry once. The
-          // refresh goes to a public path, so a 401 on the refresh itself
-          // lands in the branch above instead of looping back into here.
+          // Session expired: refresh, then retry once.
           try {
             await refreshSession();
           } on NetworkException {
-            // A refresh that failed because the network dropped says nothing
-            // about the session, so the tokens stay: the next attempt can
-            // still use them.
+            // Offline says nothing about the session: keep the tokens.
             return handler.next(error);
           } catch (_) {
-            // Anything else means the refresh token is gone or rejected —
-            // clear the session so the auth state holder and the router
-            // redirect send the user back to login.
+            // Refresh token gone or rejected: clear the session (back to login).
             await storage.clearSession();
             return handler.next(error);
           }
@@ -1185,9 +1139,7 @@ bool _isPublicPath(String path) {
   );
 }
 
-/// Builds the app's one Dio client. Registered as a lazy singleton in
-/// `config/di/injector.dart` — the auth interceptor only works if every call
-/// shares the same instance.
+/// Builds the app's one Dio client (a lazy singleton in the injector).
 $refreshParam
   final dio = Dio(
     BaseOptions(
@@ -1223,11 +1175,8 @@ $refreshOnError
       RetryInterceptor(dio: dio, logPrint: (msg) => _log.d(msg.toString())),
     );
 
-  // Debug builds only. `appLogger` drops anything below a warning in release,
-  // so these records would be thrown away anyway — but `msg.toString()` runs
-  // at the call site, which means every response body in the app would still
-  // be serialised in full first. Bodies and headers are safe to hand over
-  // whole: app_logger.dart redacts credentials at the sink.
+  // Debug only, so release builds never serialise bodies. Credentials are
+  // redacted by app_logger.dart.
   if (kDebugMode) {
     dio.interceptors.add(
       LogInterceptor(

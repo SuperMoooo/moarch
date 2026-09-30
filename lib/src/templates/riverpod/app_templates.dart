@@ -55,8 +55,8 @@ class AppTemplates {
       runAppCall =
           '''runApp(
     MoAdapt(
-      // The frame the UI is designed against; every fixed dimension scales
-      // proportionally from it. Tune with scaleMode / minScale / maxScale.
+      // The design frame every dimension scales from. Tune with scaleMode /
+      // minScale / maxScale.
       designSize: const Size(412, 924),
       child: EasyLocalization(
         supportedLocales: const [Locale('en'), Locale('pt')],
@@ -80,8 +80,8 @@ class AppTemplates {
       // The whole tree is const, so the const keyword moves to MoAdapt.
       runAppCall = '''runApp(
     const MoAdapt(
-      // The frame the UI is designed against; every fixed dimension scales
-      // proportionally from it. Tune with scaleMode / minScale / maxScale.
+      // The design frame every dimension scales from. Tune with scaleMode /
+      // minScale / maxScale.
       designSize: Size(412, 924),
       child: ProviderScope(child: App()),
     ),
@@ -109,13 +109,8 @@ class AppTemplates {
 
     final notificationsBootstrap = withAnyNotifications
         ? '''
-/// Notifications are not worth blocking the boot on, so a failure is logged
-/// and the app carries on without them — better than a throw past runApp()
-/// stranding it on the preserved splash.
-///
-/// Permission is deliberately not asked here: on iOS a first-launch denial can
-/// only be undone in Settings, so call `requestPermissions()` once onboarding
-/// has explained what the notifications are for.${withFirebaseNotifications ? '\n/// On iOS FCM has no device token to hand out until that ask is accepted.' : ''}
+/// Failures are logged and the app carries on without notifications.
+/// Permission is asked later, via `requestPermissions()` after onboarding.${withFirebaseNotifications ? '\n/// On iOS FCM has no token until that is accepted.' : ''}
 Future<void> _initNotifications() async {
 ${[if (withNotificationsService) _guardedInit('NotificationService', 'Notifications'), if (withFirebaseNotifications) _guardedInit('FirebaseNotificationsService', 'FCM')].join('\n\n')}
 }
@@ -230,9 +225,8 @@ final locale = ref.watch(languageProvider).locale;
     final reconnectHook = withOfflineGate
         ? '''
 
-  // Runs each time the device comes back online (not on start). Sync what
-  // was saved while offline, retry what failed — or subscribe from the
-  // feature that owns the sync; see ConnectivityService.onReconnect.
+  // Runs each time the device comes back online (not on start): sync what was
+  // saved offline, retry what failed.
   getIt<ConnectivityService>().onReconnect(() async {
     // TODO: sync what changed while offline.
   });
@@ -256,8 +250,7 @@ Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 $easyLocalizationInit$firebaseInit
-  // Installed before the first await that can fail, so nothing on the way to
-  // runApp() dies unreported.
+  // Installed first, so nothing on the way to runApp() dies unreported.
   PlatformDispatcher.instance.onError = (error, st) {
     appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught
     if (kDebugMode) return false; // false = let Flutter crash normally in dev
@@ -282,10 +275,7 @@ $easyLocalizationInit$firebaseInit
 $notificationInit$reconnectHook
   $runAppCall
 
-  // After runApp, so the native splash gives way to a painted first frame
-  // rather than a blank window. Push it later still — into your own async
-  // init, or a post-frame callback — if something has to land before the app
-  // is on screen.
+  // After runApp, so the splash gives way to a painted first frame.
   FlutterNativeSplash.remove();
 }
 
@@ -310,10 +300,8 @@ $localizationConfig      routerConfig: router,
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-                  // Follow the system font size. The cap keeps fixed-height
-                  // rows and buttons from breaking; it also overrides an
-                  // accessibility setting, so raise it as far as your
-                  // layouts survive rather than lowering it.
+                  // Follows the system font size, capped so fixed-height rows don't break.
+                  // Raise the cap as far as your layouts allow.
                   textScaler: MediaQuery.textScalerOf(
                     context,
                   ).clamp(maxScaleFactor: 1.3),
@@ -344,8 +332,7 @@ Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 $easyLocalizationInit$firebaseInit
-  // Installed before the first await that can fail, so nothing on the way to
-  // runApp() dies unreported.
+  // Installed first, so nothing on the way to runApp() dies unreported.
   PlatformDispatcher.instance.onError = (error, st) {
     appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught
     if (kDebugMode) return false; // false = let Flutter crash normally in dev
@@ -370,10 +357,7 @@ $easyLocalizationInit$firebaseInit
 $notificationInit$reconnectHook
   $runAppCall
 
-  // After runApp, so the native splash gives way to a painted first frame
-  // rather than a blank window. Push it later still — into your own async
-  // init, or a post-frame callback — if something has to land before the app
-  // is on screen.
+  // After runApp, so the splash gives way to a painted first frame.
   FlutterNativeSplash.remove();
 }
 
@@ -396,10 +380,7 @@ $localizationConfig      debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            // Follow the system font size. The cap keeps fixed-height rows
-            // and buttons from breaking; it also overrides an accessibility
-            // setting, so raise it as far as your layouts survive rather
-            // than lowering it.
+            // Follows the system font size, capped so fixed-height rows don't break.
             textScaler: MediaQuery.textScalerOf(
               context,
             ).clamp(maxScaleFactor: 1.3),
@@ -524,12 +505,10 @@ class _AuthRefresh extends ChangeNotifier {
 String? _redirect(Ref ref, GoRouterState state) {
   final auth = ref.read(authNotifierProvider);
   final onSplash = state.matchedLocation == AppRoutes.splash;
-  // Where the user was headed — a deep link, a notification tap — carried
-  // through splash and login as `?from=`, so they land there, not on home.
+  // Where the user was headed (a deep link), carried through login as `?from=`.
   final from = _fromOf(state);
 
-  // Session restore is still running — hold on splash so nothing flashes.
-  // The refreshListenable re-runs this once it completes.
+  // Session restore still running: hold on splash.
   if (auth.isLoading) {
     return onSplash ? null : _withFrom(AppRoutes.splash, state.uri.toString());
   }
@@ -555,8 +534,7 @@ String _withFrom(String path, String? from) =>
     ? path
     : Uri(path: path, queryParameters: {'from': from}).toString();
 
-/// The `from` the redirect was handed, if it is a path inside the app. A
-/// link can put anything in a query, and only an app path is followed.
+/// The `from` query, if it is a path inside the app.
 String? _fromOf(GoRouterState state) {
   final from = state.uri.queryParameters['from'];
   if (from == null || !from.startsWith('/') || from.startsWith('//')) {
@@ -629,10 +607,7 @@ final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(
   ThemeModeNotifier.new,
 );
 
-/// The user's light / dark / system choice, saved across launches.
-///
-/// `main.dart` watches it for `MaterialApp.themeMode`. Change it from a
-/// settings screen with
+/// The user's light / dark / system choice, saved across launches:
 /// `ref.read(themeModeProvider.notifier).setMode(ThemeMode.dark)`.
 class ThemeModeNotifier extends Notifier<ThemeMode> {
   static const _key = 'theme_mode';

@@ -47,8 +47,8 @@ class UpdateGateTemplates {
   }
 
   static const _installedVersion = r'''
-/// The version the device is running (`version` in pubspec.yaml, as built),
-/// or null when the platform cannot say — which lets the app through.
+/// The installed version, or null when the platform cannot say (lets the app
+/// through).
 Future<String?> _installedVersion() async {
   try {
     final info = await PackageInfo.fromPlatform();
@@ -124,17 +124,11 @@ UpdateGateCubit _createUpdateGateCubit() =>
 ''';
 
   static const _dioCubit = r'''
-/// Fetches the version policy at launch and whenever the app comes back to
-/// the foreground, and emits it only while the installed version is below its
-/// minimum — null means the app may run.
+/// Fetches the version policy at launch and on every return to the
+/// foreground, emitting it only while the app is below the minimum.
 ///
-/// No timer: a minimum version changes with a release, not by the minute. The
-/// endpoint must be reachable **without a token** — add
+/// The endpoint must work **without a token**: add
 /// `ApiConstants.configAppVersion` to `_kPublicEndpoints` in `dio_client.dart`.
-///
-/// A Cubit, not a Bloc: it holds one value and has no events. It lives beside
-/// the gate that owns it rather than in an `update_gate_cubit.dart` of its
-/// own — which is the naming rule waived below.
 // ignore: prefer_file_naming_conventions
 class UpdateGateCubit extends Cubit<UpdatePolicy?> {
   UpdateGateCubit(this._dio) : super(null) {
@@ -146,8 +140,7 @@ class UpdateGateCubit extends Cubit<UpdatePolicy?> {
   late final AppLifecycleListener _lifecycle;
   String? _installed;
 
-  /// Never throws. A policy that cannot be read is "no minimum" — see
-  /// [UpdateGate] on why this fails open.
+  /// Never throws; an unreadable policy is "no minimum".
   Future<void> check() async {
     final installed = _installed ??= await _installedVersion();
     if (installed == null || isClosed) return;

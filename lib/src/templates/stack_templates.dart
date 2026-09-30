@@ -4,6 +4,7 @@ import 'bloc/async_templates.dart' as bloc;
 import 'config/config_templates.dart';
 import 'config/injector_templates.dart';
 import 'core/core_templates.dart';
+import 'misc/skeleton_templates.dart';
 import 'bloc/auth_templates.dart' as bloc;
 import 'bloc/feature_templates.dart' as bloc;
 import 'bloc/firebase_auth_templates.dart' as bloc;
@@ -551,6 +552,11 @@ class StackTemplates {
           hasNotifier: hasHolder,
           useFirestore: useFirestore,
         );
+
+  /// The loading skeleton the view hands to `skeleton:`. The same on both
+  /// stacks. [withModel] is false for a feature without a data layer.
+  String featureSkeleton(String name, String cls, {bool withModel = true}) =>
+      SkeletonTemplates.feature(name, cls, withModel: withModel);
 
   // ── Auth feature (REST) ─────────────────────────────────────────────────────
 

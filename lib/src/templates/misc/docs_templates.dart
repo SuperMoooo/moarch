@@ -103,7 +103,7 @@ as it has run.
       deliberately generic
 - [ ] `.env` filled in for production (`BASE_URL`, …), and the matching GitHub
       secrets set for CI
-- [ ] `dart run build_runner build --delete-conflicting-outputs` run wherever
+- [ ] `fvm dart run build_runner build --delete-conflicting-outputs` run wherever
       you build — `config/env/app_env.g.dart` is gitignored by design, so it
       does not travel with a clone
 - [ ] All `TODO` comments resolved — the REST datasources ship with them where
@@ -188,7 +188,7 @@ abstract final class AppEnv {
 
 ```bash
 # Regenerate app_env.g.dart after every .env change
-dart run build_runner build --delete-conflicting-outputs
+fvm dart run build_runner build --delete-conflicting-outputs
 ```
 
 > ⚠️ `app_env.g.dart` holds the compiled values and is gitignored, so it does

@@ -16,12 +16,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 $_tokenStorageBody''';
 
   static const String _tokenStorageBody =
-      r'''/// Single owner of the auth session kept in secure storage — used by the Dio
-/// client and by the auth repository.
-///
-/// It holds the tokens and nothing about who they belong to: the auth
-/// feature asks `GET /auth/me` for the user instead of reading it out of the
-/// access token.
+      r'''/// Owns the auth tokens in secure storage, for the Dio client and the auth
+/// repository.
 class TokenStorage {
   const TokenStorage(this._storage);
 
@@ -30,9 +26,7 @@ class TokenStorage {
   static const accessTokenKey = 'access_token';
   static const refreshTokenKey = 'refresh_token';
 
-  /// Written by moarch before 9.3.0, which read the user id out of the
-  /// access token. Only ever deleted now, so a session saved by an older
-  /// build leaves nothing behind.
+  /// Written by moarch before 9.3.0; only deleted now.
   static const _legacyUserIdKey = 'user_id';
 
   Future<String?> get accessToken => _storage.read(key: accessTokenKey);
@@ -92,8 +86,7 @@ class BiometricService {
     );
   }
 
-  /// Runs local authentication, reporting failure as a snackbar rather than
-  /// throwing, so callers only need the bool.
+  /// Runs local authentication; failures show a snackbar instead of throwing.
   Future<bool> verifyUserLocalAuth(BuildContext context) async {
     // Resolved before any await — the prompt can outlive the calling widget.
     final messenger = ScaffoldMessenger.of(context);
@@ -107,8 +100,7 @@ class BiometricService {
       return true;
     } on LocalAuthException catch (e) {
       appLogger.e('LocalAuthException: ${e.code.name} - ${e.description}');
-      // Device has neither biometrics nor a PIN/pattern/password set up, so
-      // there is no local credential to fall back to.
+      // No biometrics and no device PIN to fall back to.
       final message = e.code == LocalAuthExceptionCode.noCredentialsSet
           ? 'Device has no lock method configured'
           : e.description ?? 'Authentication error';
@@ -179,8 +171,7 @@ class ValidationResult {
 
   final bool isValid;
 
-  /// Trimmed and normalised for its type — what you store. Untouched on
-  /// failure.
+  /// Trimmed and normalised for its type. Untouched on failure.
   final String sanitizedValue;
 
   /// A message to show under the field, or null when [isValid].
@@ -214,12 +205,8 @@ class PasswordPolicy {
   );
 }
 
-/// Validates and cleans user input.
-///
-/// It does not screen for SQL keywords — a blocklist rejects real input like
-/// "O'Brien" and buys no safety, since parameterised queries stop injection.
-/// It does not HTML-escape either: Flutter renders text, so escaping on the
-/// way in corrupts stored values. Use [escapeHtml] where you build HTML.
+/// Validates and cleans user input. No SQL-keyword blocklist or HTML escaping
+/// on the way in; use [escapeHtml] where you build HTML.
 class ValidationService {
   const ValidationService._();
 
@@ -241,8 +228,7 @@ class ValidationService {
   static final _nonDigits = RegExp(r'\D');
   static final _whitespace = RegExp(r'\s');
 
-  /// Stripped rather than rejected — they arrive by paste accident, and there
-  /// is nothing a user can do about an error naming them.
+  /// Stripped rather than rejected: they arrive by accidental paste.
   static final _controlChars = RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]');
 
   static final _markupPatterns = [
@@ -254,10 +240,8 @@ class ValidationService {
 
   static final _pathTraversalPatterns = [RegExp(r'\.\./|\.\.\\|%2e%2e')];
 
-  /// Checks [value] against the rule for [inputType].
-  ///
-  /// An empty value passes — whether a field is required is the form's call.
-  /// Order is clean, length, safety, shape; the first failure is returned.
+  /// Checks [value] against the rule for [inputType]; returns the first failure.
+  /// An empty value passes (required is the form's call).
   static ValidationResult validate(
     String value, {
     required InputType inputType,
@@ -294,8 +278,7 @@ class ValidationService {
     return ValidationResult.valid(cleaned);
   }
 
-  /// Tidying only — it never removes characters that would have made the value
-  /// invalid, so a bad value still fails instead of being repaired.
+  /// Tidying only: a bad value still fails instead of being repaired.
   static String _clean(String value, InputType type, {required bool trim}) {
     final withoutControls = value.replaceAll(_controlChars, '');
 
@@ -322,8 +305,7 @@ class ValidationService {
       }
     }
 
-    // Markup matters for values that end up inside a WebView or an HTML mail.
-    // The false-positive rate on prose is near zero, so free text keeps it.
+    // Markup matters for values that end up in a WebView or HTML mail.
     if (type == InputType.text) {
       for (final pattern in _markupPatterns) {
         if (pattern.hasMatch(value)) return 'Contains scripts or markup';
@@ -333,8 +315,7 @@ class ValidationService {
     return null;
   }
 
-  /// Whether the value is shaped like its type. Returns the message, or null
-  /// when it is fine.
+  /// Whether the value is shaped like its type: the message, or null.
   static String? _shapeError(String value, InputType type) => switch (type) {
     InputType.email =>
       value.length <= 254 && _emailRegex.hasMatch(value)
@@ -362,8 +343,7 @@ class ValidationService {
     final uri = Uri.tryParse(value);
     if (uri == null || !uri.hasScheme) return 'Invalid URL';
 
-    // Checked before the host so a `javascript:` or `file:` URL is reported as
-    // the scheme problem it is. The allowlist is the point of validating a URL.
+    // Scheme before host, so `javascript:` / `file:` is reported as such.
     if (uri.scheme != 'http' && uri.scheme != 'https') {
       return 'Only http and https links are allowed';
     }
@@ -422,14 +402,12 @@ class ValidationService {
         ? 2000 + int.parse(digits.substring(2))
         : int.parse(digits.substring(2));
 
-    // Day 0 of the next month is the last day of this one — a card is good
-    // through the end of the month it names.
+    // Day 0 of next month: a card is good through the month it names.
     final expiresAt = DateTime(year, month + 1, 0, 23, 59, 59);
     return expiresAt.isBefore(DateTime.now()) ? 'Card has expired' : null;
   }
 
-  /// The Luhn checksum every card number carries. Public so a payment form can
-  /// use it while typing.
+  /// The Luhn checksum of a card number.
   static bool luhnCheck(String cardNumber) {
     var sum = 0;
     var isEven = false;
@@ -450,8 +428,8 @@ class ValidationService {
     return sum % 10 == 0;
   }
 
-  /// Escapes the five characters that matter in HTML. Call it where you build
-  /// HTML, not on the way into your database, or you will store the escapes.
+  /// Escapes the five HTML-significant characters. Use where you build HTML,
+  /// not on the way into storage.
   static String escapeHtml(String text) => text
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
@@ -459,8 +437,8 @@ class ValidationService {
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
 
-  /// Validates a whole form at once, keyed the same way as [inputs]. A key
-  /// missing from [types] is invalid, so an unwired field cannot pass.
+  /// Validates a whole form, keyed like [inputs]. A key missing from [types]
+  /// is invalid.
   static Map<String, ValidationResult> validateMultiple(
     Map<String, String> inputs,
     Map<String, InputType> types, {

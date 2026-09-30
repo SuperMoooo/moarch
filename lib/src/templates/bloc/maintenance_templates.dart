@@ -68,19 +68,14 @@ class MaintenanceTemplates {
 class MaintenanceStatus {
   const MaintenanceStatus({required this.isActive, this.title, this.message});
 
-  /// The app is available. Also what an unreadable flag resolves to — see
-  /// [MaintenanceGate] on why this fails open.
+  /// The app is available. Also what an unreadable flag resolves to.
   const MaintenanceStatus.up()
       : isActive = false,
         title = null,
         message = null;
 
-  /// Reads the flag, defaulting every field. A malformed payload must not be
-  /// able to gate the app, so anything unparseable reads as `active: false`.
-  ///
-  /// Blank copy is read as absent rather than as text: a document seeded with
-  /// `"title": ""` is the normal starting state, and it has to fall back to
-  /// [MaintenanceView]'s defaults instead of rendering an empty heading.
+  /// Reads the flag, failing open: anything unparseable is `active: false`, and
+  /// blank copy falls back to [MaintenanceView]'s defaults.
   factory MaintenanceStatus.fromMap(Map<String, dynamic> map) =>
       MaintenanceStatus(
         isActive: map['active'] as bool? ?? false,
@@ -173,18 +168,11 @@ MaintenanceCubit _createMaintenanceCubit() =>
 /// How often the flag is re-read while the app stays in the foreground.
 const _pollInterval = Duration(minutes: 5);
 
-/// Polls the availability endpoint, and again whenever the app returns to the
-/// foreground — the moment that matters most, since someone coming back after
-/// an hour away is the likeliest to meet a deploy.
+/// Polls the availability endpoint, and again when the app returns to the
+/// foreground.
 ///
-/// The endpoint must be reachable **without a token**: a signed-out user, or
-/// one whose session expired during the outage, still has to be told the app
-/// is down. Add `ApiConstants.configMaintenance` to `_kPublicEndpoints` in
-/// `dio_client.dart`.
-///
-/// A Cubit, not a Bloc: it holds one flag and has no events. It lives beside
-/// the gate that owns it rather than in a `maintenance_cubit.dart` of its
-/// own — which is the naming rule waived below.
+/// The endpoint must work **without a token**: add
+/// `ApiConstants.configMaintenance` to `_kPublicEndpoints` in `dio_client.dart`.
 // ignore: prefer_file_naming_conventions
 class MaintenanceCubit extends Cubit<MaintenanceStatus> {
   MaintenanceCubit(this._dio) : super(const MaintenanceStatus.up()) {
@@ -197,8 +185,7 @@ class MaintenanceCubit extends Cubit<MaintenanceStatus> {
   late final Timer _timer;
   late final AppLifecycleListener _lifecycle;
 
-  /// Never throws. A status that cannot be read is reported as "up" — see
-  /// [MaintenanceGate] on why this fails open.
+  /// Never throws; an unreadable status is "up".
   Future<void> refresh() async {
     if (isClosed) return;
     try {
@@ -292,14 +279,10 @@ class MaintenanceGate extends StatelessWidget {
       create: (_) => _createMaintenanceCubit(),
       child: BlocBuilder<MaintenanceCubit, MaintenanceStatus>(
         builder: (context, status) {
-          // The cubit starts at `up` and only ever leaves it on a flag it
-          // actually read. That default is the fail-open rule.
+          // Starts at `up` and leaves it only on a flag it read (fail open).
           if (!status.isActive) return child;
 
-          // Replaced, not covered. With no Navigator mounted there is nothing
-          // left to tap, nothing for the back button to pop, and no route
-          // that can push itself on top of the gate. In-memory state goes
-          // with it, which is the point — everyone is meant to be out.
+          // Replaces the Navigator, so nothing underneath can be reached.
           return MaintenanceView(status: status);
         },
       ),
@@ -307,11 +290,7 @@ class MaintenanceGate extends StatelessWidget {
   }
 }
 
-/// The screen shown in place of the app.
-///
-/// Public so your own route can reuse it, and so the gate stays one `if`. It
-/// is [ErrorView] in a [Scaffold] — restyle it here rather than teaching the
-/// gate about layout.
+/// The screen shown in place of the app. Restyle it here.
 class MaintenanceView extends StatelessWidget {
   /// Renders [status] full-screen.
   const MaintenanceView({required this.status, super.key});
@@ -329,8 +308,7 @@ class MaintenanceView extends StatelessWidget {
           message: status.message ??
               'The app is unavailable for a moment while we finish some work. '
               'Please try again shortly.',
-          // Re-reads the flag. Harmless on a live listener, and the only way
-          // out for a source that is polled.
+          // Re-reads the flag.
           onRetry: () => context.read<MaintenanceCubit>().refresh(),
         ),
       ),

@@ -12,7 +12,7 @@ void main() {
       // injection is stopped by parameterised queries, not by the client.
       expect(output, isNot(contains('_sqlInjectionPatterns')));
       expect(output.toLowerCase(), isNot(contains('union|select')));
-      expect(output, contains('does not screen for SQL keywords'));
+      expect(output, contains('No SQL-keyword blocklist'));
     });
 
     test('does not HTML-escape values on the way in', () {

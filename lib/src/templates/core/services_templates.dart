@@ -43,13 +43,9 @@ $_notificationsPreamble${_notificationsBody(constructor, ensureInitHint)}''';
   /// Everything above the class: the platform notes, the logger and the
   /// top-level background handler.
   static const String _notificationsPreamble = r'''
-// Android: `moarch init` declares POST_NOTIFICATIONS, RECEIVE_BOOT_COMPLETED,
-// SCHEDULE_EXACT_ALARM and the plugin's receivers in AndroidManifest.xml
-// (`moarch doctor --fix` adds them to an older project). USE_EXACT_ALARM is
-// left out on purpose: Google Play allows it only for alarm and calendar apps.
-// iOS: `moarch init` sets UNUserNotificationCenter.current().delegate in
-// AppDelegate.swift. Never override userNotificationCenter(_:didReceive:)
-// without calling super — that blocks the plugins from receiving taps.
+// Platform setup is done by `moarch init` (older projects: `moarch doctor
+// --fix`). On iOS, never override userNotificationCenter(_:didReceive:)
+// without calling super, or taps stop reaching the plugins.
 
 final _log = appLogger.scoped('Notifications');
 
@@ -222,9 +218,8 @@ $_notificationsMethods
     _log.i('Shown (id: $id)');
   }
 
-  /// Schedule at an exact [scheduledDate].
-  ///
-  /// [timeZoneName] is an IANA name like 'Europe/Lisbon'; defaults to local.
+  /// Schedule at an exact [scheduledDate]. [timeZoneName] is an IANA name like
+  /// 'Europe/Lisbon'; defaults to local.
   Future<void> scheduleAt({
     int id = scheduledId,
     required String title,
@@ -862,12 +857,7 @@ $_mediaServiceBody''';
       }
     }
 
-    // Static since file_picker 11 — `FilePicker.platform` was the entry point
-    // up to 10.x — and returning the files directly since 12, which dropped
-    // the `FilePickerResult` wrapper. A cancelled dialog is an empty list.
-    //
-    // Two entry points rather than `pickFiles(allowMultiple: false)`: that
-    // flag is deprecated and goes away in a later file_picker.
+    // A cancelled dialog is an empty list.
     final List<PlatformFile> files;
     if (allowMultiple) {
       files = await FilePicker.pickFiles(
@@ -882,9 +872,8 @@ $_mediaServiceBody''';
       files = file == null ? const [] : [file];
     }
 
-    // `path` is null for a file that is not on local disk — a web pick, or a
-    // cloud provider's document on Android. Read those through `readAsBytes`
-    // or `xFile` instead; there is no `File` to hand back.
+    // `path` is null for a file not on local disk (web, cloud documents); read
+    // those with `readAsBytes` or `xFile`.
     return files
         .where((file) => file.path != null)
         .map((file) => File(file.path!))
@@ -906,8 +895,7 @@ $_launchUrlServiceBody''';
 
   /// Launch a URL string.
   Future<void> launch(String url, {LaunchMode? mode}) async {
-    // InputType.url holds the scheme to http/https, so a `javascript:` or
-    // `file:` link can never reach the platform launcher.
+    // InputType.url allows only http/https.
     final ValidationResult res = ValidationService.validate(
       url,
       inputType: InputType.url,
@@ -934,13 +922,10 @@ $_launchUrlServiceBody''';
   static String preferencesService() => '''
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// The app's small, non-secret settings: the theme mode, a dismissed banner,
-/// an onboarding flag. Tokens and anything else sensitive belong in
-/// `core/security/secure_storage.dart`, never here.
+/// Small, non-secret settings (theme mode, onboarding flags). Tokens belong in
+/// `core/security/secure_storage.dart`.
 ///
-/// Loaded once, before `runApp` — `core_module.dart` registers it with
-/// `registerSingletonAsync`, and `setupInjector()` waits for it — so every
-/// read is synchronous and the first frame already has the saved values.
+/// Loaded before `runApp`, so every read is synchronous.
 class PreferencesService {
   PreferencesService._(this._prefs);
 
@@ -1001,9 +986,7 @@ $_connectivityServiceBody''';
 
   static const String _hasInternetProvider = '''
 
-/// The connection, as something a widget can watch — the current state
-/// first, then every change. The service behind it comes out of the locator
-/// like every other dependency. `ref.invalidate` it to read it again.
+/// The connection: the current state, then every change.
 final hasInternetProvider = StreamProvider<bool>((ref) {
   return getIt<ConnectivityService>().hasInternetStream;
 });
@@ -1011,15 +994,8 @@ final hasInternetProvider = StreamProvider<bool>((ref) {
 
   static const String _connectivityCubit = '''
 
-/// The connection as bloc state: `true` while online.
-///
-/// `OfflineGate` provides one above the navigator, so any screen can
-/// `context.watch<ConnectivityCubit>()`. Without the gate, provide it where
-/// it is needed. It starts online and fails open, like the gate.
-///
-/// A Cubit, not a Bloc: it holds one flag and has no events. It lives beside
-/// the service it reads rather than in a `connectivity_cubit.dart` of its own
-/// — which is the naming rule waived below.
+/// The connection as bloc state: `true` while online. `OfflineGate` provides
+/// it above the navigator. Starts online (fails open).
 // ignore: prefer_file_naming_conventions
 class ConnectivityCubit extends Cubit<bool> {
   ConnectivityCubit(this._service) : super(true) {
@@ -1029,8 +1005,7 @@ class ConnectivityCubit extends Cubit<bool> {
   final ConnectivityService _service;
   late final StreamSubscription<bool> _subscription;
 
-  /// Reads the connection again, for a change the platform was slow to
-  /// report — the offline screen's retry.
+  /// Reads the connection again (the offline screen's retry).
   Future<void> recheck() async => emit(await _service.hasInternet());
 
   @override
@@ -1043,17 +1018,12 @@ class ConnectivityCubit extends Cubit<bool> {
 
   static const String _connectivityServiceBody =
       r'''/// Whether the device has a network connection, and what to do when it comes
-/// back.
-///
-/// A connection is a network interface, not a working internet: a captive
-/// portal or a dead router reads as online. So this decides what to show,
-/// never whether to try — a request still handles `NetworkException`.
+/// back. An interface is not a working internet, so requests still handle
+/// `NetworkException`.
 class ConnectivityService {
   final Connectivity _connectivity = Connectivity();
 
-  /// `true` while online: the current state first, then each change. The
-  /// platform reports every interface switch (wifi to mobile), so repeats
-  /// are dropped.
+  /// `true` while online: the current state, then each change (repeats dropped).
   Stream<bool> get hasInternetStream => _states().distinct();
 
   Stream<bool> _states() async* {
@@ -1149,12 +1119,8 @@ class AppLifecycleService {
   /// Every state change, as it happens.
   Stream<AppLifecycleState> get changes => _changes.stream;
 
-  /// One event each time the app returns to the foreground, carrying how
-  /// long it was away.
-  ///
-  /// Timed from `hidden` / `paused`, not `inactive`. `inactive` is also a
-  /// pulled-down notification shade or an incoming-call banner, and the app
-  /// never left for those. Filter on the duration to skip the short trips.
+  /// One event each time the app returns to the foreground, with how long it
+  /// was away (timed from `hidden` / `paused`, not `inactive`).
   Stream<Duration> get resumed => _resumed.stream;
 
   void _onStateChange(AppLifecycleState state) {

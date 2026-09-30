@@ -195,7 +195,7 @@ void main() {
       // Nothing is imported for a field that is not there, so a feature
       // scaffolded without a data layer still compiles.
       expect(output, isNot(contains("import '../../domain/models/")));
-      // The four places a new field has to reach, all named in one TODO.
+      // The places a new field has to reach, all named in one TODO.
       expect(output, contains('OrdersState copyWith({'));
       expect(
         output,
@@ -204,8 +204,8 @@ void main() {
           '[status, errorMessage, successMessage];',
         ),
       );
-      expect(output, contains('static const placeholder ='));
-      expect(output, contains('A field has to reach four places'));
+      expect(output, isNot(contains('placeholder')));
+      expect(output, contains('constructor, `copyWith` and `props`'));
     });
 
     test('both messages are one-shot, so copyWith drops them', () {
@@ -292,14 +292,12 @@ void main() {
       expect(output, isNot(contains('ListView.builder(')));
       // `items` is named once, in the TODO that says where `isEmpty` goes —
       // never as something the body actually draws.
-      expect(output, contains('// `isEmpty: state.items.isEmpty,`.'));
+      expect(output, contains('// TODO: `isEmpty: state.items.isEmpty,`'));
       expect(output, isNot(contains('for (final')));
     });
 
-    test('the skeleton is traced from the placeholder state', () {
-      // Skeletonizer shimmers the tree it is handed, so loading has to render
-      // the same body over *something*. AppStatusView owns the Skeletonizer
-      // now; the view only says what shape to trace.
+    test('the skeleton is the feature skeleton widget', () {
+      // AppStatusView owns the Skeletonizer; the view only names what to draw.
       final output = bloc.FeatureTemplates.view(
         'orders',
         'Orders',
@@ -309,17 +307,15 @@ void main() {
 
       expect(
         output,
-        contains(
-          'skeleton: (context) => _body(context, OrdersState.placeholder)',
-        ),
+        contains('skeleton: (context) => const OrdersSkeleton(),'),
       );
+      expect(output, contains("import '../widgets/orders_skeleton.dart';"));
       // The package moved into the widget with the Skeletonizer itself.
       expect(
         output,
         isNot(contains("import 'package:skeletonizer/skeletonizer.dart';")),
       );
       expect(output, isNot(contains('Skeletonizer(')));
-      expect(output, contains('BoneMock'));
       // One body for every status, so a phase drawn over loaded data needs no
       // second one.
       expect(

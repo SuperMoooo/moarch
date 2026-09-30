@@ -314,34 +314,14 @@ void main() {
       );
     });
 
-    test('the state carries the fake data its skeleton is traced from', () {
-      final output = FeatureTemplates.state(
-        'order',
-        'Order',
-        useFirestore: true,
-      );
-
-      // Rows that exist only to be the right size — an empty list traces to a
-      // blank screen. BoneMock sets that size, so the package comes along.
-      expect(
-        output,
-        contains("import 'package:skeletonizer/skeletonizer.dart';"),
-      );
-      expect(output, contains('static final placeholder = OrderState('));
-      // List.generate, not List.filled: filled repeats one instance, so every
-      // row shares an id and a keyed list throws on the duplicates.
-      expect(output, contains('items: List.generate('));
-      expect(
-        output,
-        contains(r"(index) => OrderModel(id: '${BoneMock.name}$index'),"),
-      );
-      expect(output, isNot(contains('List.filled(')));
-
-      // The REST state has no fields to fake yet, so it gets the hook and a
-      // TODO rather than an import it would not use.
-      final rest = FeatureTemplates.state('order', 'Order');
-      expect(rest, contains('static const placeholder = OrderState();'));
-      expect(rest, isNot(contains('package:skeletonizer/skeletonizer.dart')));
+    test('the state carries no skeleton data — the skeleton file does', () {
+      for (final output in [
+        FeatureTemplates.state('order', 'Order', useFirestore: true),
+        FeatureTemplates.state('order', 'Order'),
+      ]) {
+        expect(output, isNot(contains('placeholder')));
+        expect(output, isNot(contains('package:skeletonizer')));
+      }
     });
 
     test(
@@ -389,12 +369,7 @@ void main() {
       expect(output, contains('isEmpty: (state) => state.items.isEmpty,'));
       // Skeletonizer traces the real layout, so the rows need a size to
       // shimmer — the fake ones live on the state, not inline here.
-      expect(
-        output,
-        contains(
-          'skeleton: (context) => _body(context, OrderState.placeholder),',
-        ),
-      );
+      expect(output, contains('skeleton: (context) => const OrderSkeleton(),'));
       // Which is why the view no longer names the model at all.
       expect(output, isNot(contains('OrderModel')));
 

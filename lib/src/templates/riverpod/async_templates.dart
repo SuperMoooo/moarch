@@ -3,10 +3,7 @@
 class AsyncTemplates {
   /// Returns the generated appAsyncView template.
   static String appAsyncView() => r'''
-// The three constructors take public `value` / `stream` / `future` and store
-// them in private fields. The initializing formal the lint suggests
-// (`required this._value`) is a private named parameter, which needs a newer
-// Dart than every SDK this project may run on accepts.
+// Private named parameters need a newer Dart than this project may run on.
 // ignore_for_file: prefer_initializing_formals
 
 import 'dart:async';
@@ -26,16 +23,13 @@ import '../../core/errors/app_exception.dart';
 ///   value: ref.watch(homeNotifierProvider),
 ///   onRetry: () => ref.invalidate(homeNotifierProvider),
 ///   isEmpty: (state) => state.items.isEmpty,
-///   skeleton: (context) => _body(context, HomeState.placeholder),
+///   skeleton: (context) => const HomeSkeleton(),
 ///   builder: _body,
 /// )
 /// ```
 ///
-/// [AppAsyncView.stream] and [AppAsyncView.future] take a raw source instead,
-/// for data that never became a provider. It builds inline, not as a route, so
-/// a [Scaffold] keeps its app bar while the content loads. Once there is
-/// something to show, a later reload leaves it on screen rather than swapping
-/// it for a spinner.
+/// [AppAsyncView.stream] and [AppAsyncView.future] take a raw source instead.
+/// A reload keeps what is already on screen.
 class AppAsyncView<T> extends StatelessWidget {
   /// Renders the [AsyncValue] a provider handed back.
   const AppAsyncView({
@@ -56,8 +50,7 @@ class AppAsyncView<T> extends StatelessWidget {
         _stream = null,
         _future = null;
 
-  /// Subscribes to [stream] for as long as this widget lives. Reopening a dead
-  /// stream means rebuilding with a new one, so [onRetry] is the caller's job.
+  /// Subscribes to [stream] for as long as this widget lives.
   const AppAsyncView.stream({
     super.key,
     required Stream<T> stream,
@@ -76,8 +69,7 @@ class AppAsyncView<T> extends StatelessWidget {
         _value = null,
         _future = null;
 
-  /// Awaits [future] and renders the result. A future runs once, so a retry
-  /// means handing over a new one from [onRetry].
+  /// Awaits [future] and renders the result.
   const AppAsyncView.future({
     super.key,
     required Future<T> future,
@@ -96,7 +88,7 @@ class AppAsyncView<T> extends StatelessWidget {
         _value = null,
         _stream = null;
 
-  /// Exactly one of these is set, by the constructor that was used.
+  // Exactly one of these is set.
   final AsyncValue<T>? _value;
   final Stream<T>? _stream;
   final Future<T>? _future;
@@ -104,14 +96,7 @@ class AppAsyncView<T> extends StatelessWidget {
   /// Builds the loaded state.
   final Widget Function(BuildContext context, T data) builder;
 
-  /// The shape to shimmer while the first load runs, e.g.
-  /// `(context) => _body(context, HomeState.placeholder)`. Null shows a
-  /// centered spinner instead.
-  ///
-  /// It must be built from *fake* data, not an empty state — Skeletonizer
-  /// traces the tree it is handed, so a `ListView.builder` over nothing traces
-  /// to a blank screen. States from `moarch create feature` carry a
-  /// `placeholder` for this.
+  /// Shimmered while the first load runs. Null shows a spinner.
   final WidgetBuilder? skeleton;
 
   /// Whether loaded data counts as nothing to show. Null means it never does.
@@ -128,12 +113,10 @@ class AppAsyncView<T> extends StatelessWidget {
   final String? errorTitle;
   final String? errorMessage;
 
-  /// Passing this is what puts the retry button in [ErrorView]. Usually
-  /// `() => ref.invalidate(theProvider)`.
+  /// Shows a retry button on failure. Usually `ref.invalidate(provider)`.
   final VoidCallback? onRetry;
 
-  /// Anything that is not an [AppException] shows no detail on purpose —
-  /// `error.toString()` tells the user nothing and leaks internals.
+  /// Only an [AppException]'s message is shown; anything else leaks internals.
   String? _messageFor(Object error) =>
       errorMessage ??
       switch (error) {
@@ -145,8 +128,6 @@ class AppAsyncView<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final value = _value;
     if (value != null) {
-      // Read off the four public getters. `copyWithPrevious`, which used to
-      // do this merging, is `@internal` as of Riverpod 3.
       return _render(
         context,
         _AsyncState<T>(
@@ -166,8 +147,7 @@ class AppAsyncView<T> extends StatelessWidget {
   }
 
   Widget _render(BuildContext context, _AsyncState<T> state) {
-    // `hasValue` rather than `when`: it separates "still waiting for the first
-    // result" from "already showing one and fetching again".
+    // `hasValue`, not `when`: a reload over shown data keeps the data.
     if (!state.hasValue) {
       final error = state.error;
       if (error != null && !state.isLoading) {
@@ -184,8 +164,7 @@ class AppAsyncView<T> extends StatelessWidget {
       return Skeletonizer(child: shape(context));
     }
 
-    // Non-null by `hasValue`, and the cast keeps a nullable T honest: a
-    // provider of `String?` can hold null *as its value*, and that is data.
+    // For a nullable T, null can be the loaded value.
     final data = state.value as T;
 
     if (isEmpty?.call(data) ?? false) {
@@ -202,12 +181,8 @@ class AppAsyncView<T> extends StatelessWidget {
   }
 }
 
-/// What [AppAsyncView] draws, from either source: the [AsyncValue] a provider
-/// handed over, or the stream/future [_AsyncSource] follows.
-///
-/// [hasValue] is a field of its own rather than `value != null`, because for a
-/// `T?` null is a legitimate value — "loaded, and it is null" and "nothing
-/// loaded yet" are different screens.
+/// What [AppAsyncView] draws. [hasValue] is its own field because null can be
+/// a loaded value.
 class _AsyncState<T> {
   const _AsyncState({
     required this.hasValue,
@@ -222,8 +197,7 @@ class _AsyncState<T> {
   final Object? error;
 }
 
-/// Follows a [Stream] or a [Future], carrying the last data forward so a
-/// reload or an error never wipes the screen.
+/// Follows a [Stream] or a [Future], keeping the last data on screen.
 class _AsyncSource<T> extends StatefulWidget {
   const _AsyncSource({
     required this.builder,
@@ -247,8 +221,7 @@ class _AsyncSourceState<T> extends State<_AsyncSource<T>> {
 
   StreamSubscription<T>? _subscription;
 
-  /// The future currently being awaited — a superseded one still completes,
-  /// and its late result is not ours to show.
+  /// The future being awaited; a superseded one's result is ignored.
   Future<T>? _pending;
 
   @override
@@ -279,9 +252,7 @@ class _AsyncSourceState<T> extends State<_AsyncSource<T>> {
   }
 
   void _subscribe() {
-    // A new source is a load, not a blank screen: `_hasValue` and `_value` are
-    // deliberately left alone, so whatever is on screen stays until the new
-    // source answers.
+    // The last value stays on screen until the new source answers.
     _isLoading = true;
     _error = null;
 
@@ -306,8 +277,6 @@ class _AsyncSourceState<T> extends State<_AsyncSource<T>> {
     );
   }
 
-  /// [from] is checked for futures, whose results arrive whether or not
-  /// anyone is still waiting for them.
   void _emitData(T data, {Future<T>? from}) {
     if (!mounted) return;
     if (from != null && !identical(from, _pending)) return;
@@ -319,8 +288,7 @@ class _AsyncSourceState<T> extends State<_AsyncSource<T>> {
     });
   }
 
-  /// The last data is kept: a failed refresh shows the error over what is
-  /// already there rather than replacing it.
+  /// Keeps the last data: a failed refresh does not wipe the screen.
   void _emitError(Object error, {Future<T>? from}) {
     if (!mounted) return;
     if (from != null && !identical(from, _pending)) return;
@@ -347,15 +315,12 @@ class _AsyncSourceState<T> extends State<_AsyncSource<T>> {
   static String actionListener() => r'''
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// `ProviderListenable` — the type every `ref.listen` takes — is no longer in
-// the main barrel as of Riverpod 3. It lives here now.
+// For `ProviderListenable` (Riverpod 3).
 import 'package:flutter_riverpod/misc.dart';
 
 import '../overlays/app_toast.dart';
 
-/// Reports a notifier's one-shot `error` / `success` messages to the user,
-/// and carries out whatever else a finished action left on the state.
-/// Call them from `build`, like any other `ref.listen`.
+/// Reacts to a notifier's one-shot results. Call from `build`.
 ///
 /// ```dart
 /// ref.listenAction<HomeState>(
@@ -366,11 +331,9 @@ import '../overlays/app_toast.dart';
 /// );
 /// ```
 ///
-/// [onError] / [onSuccess] replace the toast for that outcome rather than
-/// adding to it, so a screen that navigates does not also flash a message.
+/// [onError] / [onSuccess] replace the toast for that outcome.
 extension ActionListener on WidgetRef {
-  /// Listens to [provider] and reports whichever message the new state carries.
-  /// [errorOf] and [successOf] are both optional.
+  /// Toasts whichever message the new state carries.
   void listenAction<S>(
     BuildContext context,
     ProviderListenable<AsyncValue<S>> provider, {
@@ -380,13 +343,10 @@ extension ActionListener on WidgetRef {
     void Function(String message)? onSuccess,
   }) {
     listen<AsyncValue<S>>(provider, (previous, next) {
-      // A load has no outcome yet, and a failed provider is the view's error
-      // state to draw — not a toast on top of it.
+      // A failed load is the view's error screen, not a toast.
       if (next.isLoading) return;
       final state = next.value;
       if (state == null) return;
-
-      // An action can land in the same frame the route is popped.
       if (!context.mounted) return;
 
       final error = errorOf?.call(state);
@@ -396,7 +356,6 @@ extension ActionListener on WidgetRef {
         } else {
           AppToast.error(context, error);
         }
-        // One outcome per action — falling through would toast a stale success.
         return;
       }
 
@@ -411,10 +370,8 @@ extension ActionListener on WidgetRef {
     });
   }
 
-  /// Calls [onChange] once for each new value [select] reads off the state —
-  /// the open half of the pair, for the one-shot results that are not a
-  /// message: the id a create left behind, the flag a sheet closes on, the
-  /// step a form moved to.
+  /// Calls [onChange] once for each new non-null value [select] reads — for
+  /// one-shot results that are not a message (a created id, a done flag).
   ///
   /// ```dart
   /// ref.listenChange<CreateOrderState, String>(
@@ -426,18 +383,8 @@ extension ActionListener on WidgetRef {
   /// );
   /// ```
   ///
-  /// The notifier says *what happened*; this decides what to do about it, so
-  /// routes, focus and controllers stay out of the notifier. Register it
-  /// *after* [listenAction], so a success toast is raised before the screen it
-  /// belongs to navigates away.
-  ///
-  /// A null from [select] means "nothing to react to": a request the notifier
-  /// has already cleared does not fire, and neither does a state that never
-  /// carries one. For a plain flag, select the moment rather than the value —
-  /// `(state) => state.isDone ? true : null`.
-  ///
-  /// Where several screens share one provider, give each its own value to
-  /// select, so a screen only ever reacts to the action it started.
+  /// Register it after [listenAction] so the toast shows before navigating.
+  /// For a flag, select `(state) => state.isDone ? true : null`.
   void listenChange<S, T extends Object>(
     BuildContext context,
     ProviderListenable<AsyncValue<S>> provider, {
@@ -445,8 +392,6 @@ extension ActionListener on WidgetRef {
     required void Function(T value) onChange,
   }) {
     listen<AsyncValue<S>>(provider, (previous, next) {
-      // The same rule [listenAction] holds: a state still in flight has no
-      // outcome on it yet, and a failed one is the view's error to draw.
       if (next.isLoading) return;
       final state = next.value;
       if (state == null) return;
@@ -454,12 +399,10 @@ extension ActionListener on WidgetRef {
       final value = select(state);
       if (value == null) return;
 
-      // One-shot: fire when the value appears or changes, not on every later
-      // state that happens to still carry it.
+      // Fire only when the value appears or changes.
       final before = previous?.value;
       if (before != null && select(before) == value) return;
 
-      // The screen can be gone by the time its action lands.
       if (!context.mounted) return;
       onChange(value);
     });

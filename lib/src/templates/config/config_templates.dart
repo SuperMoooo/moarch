@@ -17,8 +17,8 @@ abstract final class AppRoutes {
   // keep it.
   // moarch:routes
 
-  // Dynamic routes: the constant holds the pattern GoRouter matches on, the
-  // `Of` helper builds the location you navigate to. Rename these to your own.
+  // Dynamic routes: the pattern GoRouter matches, and an `Of` helper that
+  // builds the location. Rename these to your own.
   static const featureDetail = '/detail/:id';
 
   static String featureDetailOf(String id) => '/detail/$id';
@@ -30,7 +30,7 @@ abstract final class AppRoutes {
 import 'package:envied/envied.dart';
 
 // Needs BASE_URL in .env, then generate app_env.g.dart with:
-//   dart run build_runner build --delete-conflicting-outputs
+//   fvm dart run build_runner build --delete-conflicting-outputs
 
 part 'app_env.g.dart';
 
@@ -83,8 +83,7 @@ import '../../core/constants/app_constants.dart';$statusImport
 abstract final class AppTheme {
   static const String? _fontFamily = AppConstants.fontFamily;
 
-  // Colors are left null on purpose, so each style inherits the right
-  // on-surface color for the current brightness.
+  // Colors left null so each style inherits the on-surface color.
   static const TextTheme _textTheme = TextTheme(
     displayLarge: TextStyle(fontFamily: _fontFamily, fontSize: 57, height: 1.12, fontWeight: FontWeight.w400, letterSpacing: -0.25),
     displayMedium: TextStyle(fontFamily: _fontFamily, fontSize: 45, height: 1.16, fontWeight: FontWeight.w400),
@@ -177,15 +176,13 @@ abstract final class AppTheme {
       scrolledUnderElevation: 0,
     ),
 
-    // AppCard reads this — color, corner radius and shadow — so changing a
-    // card anywhere in the app is a change here.
+    // AppCard reads this.
     cardTheme: CardThemeData(
       color: AppConstants.surfaceContainerLowest,
       shadowColor: Colors.black,
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius16),
     ),
-    // AppBottomNav reads both. The indicator is a tint rather than a flat
-    // fill: the icon and its label sit on top of it and have to stay readable.
+    // AppBottomNav reads both. The indicator is a tint so the icon stays readable.
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: AppConstants.surface,
       indicatorColor: AppConstants.primary.withValues(alpha: 0.12),
@@ -290,8 +287,7 @@ abstract final class AppTheme {
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
     ),
 
-    // AppChoiceChip and the multi-select's chips read this, so a chip's fill
-    // and its corners are set here rather than on each widget.
+    // AppChoiceChip and the multi-select's chips read this.
     chipTheme: ChipThemeData(
       backgroundColor: AppConstants.surfaceContainerLow,
       selectedColor: AppConstants.primary.withValues(alpha: 0.25),
@@ -338,8 +334,7 @@ abstract final class AppTheme {
       linearMinHeight: 6,
     ),
 
-    // AppListTile is a hand-built row rather than a Material ListTile, but it
-    // reads this too, so both kinds of row keep the same inset.
+    // AppListTile reads this too, so both kinds of row share the inset.
     listTileTheme: const ListTileThemeData(
       iconColor: AppConstants.onSurface,
       contentPadding: EdgeInsets.symmetric(
@@ -437,8 +432,7 @@ class AppStatusColors extends ThemeExtension<AppStatusColors> {
     required this.info,
   });
 
-  /// The set `AppTheme.light` registers — and what [of] falls back to under a
-  /// theme that registers none.
+  /// The light set, and the fallback under a theme that registers none.
   static const light = AppStatusColors(
     success: AppConstants.success,
     warning: AppConstants.warning,
@@ -449,8 +443,7 @@ class AppStatusColors extends ThemeExtension<AppStatusColors> {
   final Color warning;
   final Color info;
 
-  /// [theme]'s status colors, or [light] when it registers none — a
-  /// `ThemeData` built by hand, or a widget test — so a read never throws.
+  /// [theme]'s status colors, or [light] when it registers none.
   static AppStatusColors of(ThemeData theme) =>
       theme.extension<AppStatusColors>() ?? light;
 
@@ -462,8 +455,7 @@ class AppStatusColors extends ThemeExtension<AppStatusColors> {
         info: info ?? this.info,
       );
 
-  /// What `AnimatedTheme` calls while the app crossfades between light and
-  /// dark, so the status colors fade with everything else.
+  /// Lets the status colors crossfade with the theme.
   @override
   AppStatusColors lerp(AppStatusColors? other, double t) {
     if (other is! AppStatusColors) return this;
@@ -562,15 +554,13 @@ extension StatusColorsX on BuildContext {
       scrolledUnderElevation: 0,
     ),
 
-    // AppCard reads this — color, corner radius and shadow — so changing a
-    // card anywhere in the app is a change here.
+    // AppCard reads this.
     cardTheme: CardThemeData(
       color: AppConstants.surfaceContainerLowDark,
       shadowColor: Colors.black,
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius16),
     ),
-    // AppBottomNav reads both. The indicator is a tint rather than a flat
-    // fill: the icon and its label sit on top of it and have to stay readable.
+    // AppBottomNav reads both. The indicator is a tint so the icon stays readable.
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: AppConstants.surfaceDark,
       indicatorColor: AppConstants.primaryDark.withValues(alpha: 0.12),
@@ -678,8 +668,7 @@ extension StatusColorsX on BuildContext {
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
     ),
 
-    // AppChoiceChip and the multi-select's chips read this, so a chip's fill
-    // and its corners are set here rather than on each widget.
+    // AppChoiceChip and the multi-select's chips read this.
     chipTheme: ChipThemeData(
       backgroundColor: AppConstants.surfaceContainerLowDark,
       selectedColor: AppConstants.primaryDark.withValues(alpha: 0.25),
@@ -726,8 +715,7 @@ extension StatusColorsX on BuildContext {
       linearMinHeight: 6,
     ),
 
-    // AppListTile is a hand-built row rather than a Material ListTile, but it
-    // reads this too, so both kinds of row keep the same inset.
+    // AppListTile reads this too, so both kinds of row share the inset.
     listTileTheme: const ListTileThemeData(
       iconColor: AppConstants.onSurfaceDark,
       contentPadding: EdgeInsets.symmetric(
