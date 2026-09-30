@@ -381,6 +381,27 @@ void main() {
       );
     });
 
+    test('a hugging tab keeps its label off its neighbour\'s', () {
+      // The row's own spacing is a hairline between touch targets; two written
+      // labels need more than that to read as two words.
+      expect(output, contains('        hug: _hug,'));
+      expect(output, contains('  final bool hug;'));
+      // The pill already pads its label inside the fill.
+      expect(
+        output,
+        contains(
+          '    final gutter = '
+          'hug && _labelled && !pill ? AppConstants.space8 : 0.0;',
+        ),
+      );
+      expect(
+        output,
+        contains(
+          '          padding: EdgeInsets.symmetric(horizontal: gutter),',
+        ),
+      );
+    });
+
     test('Material\'s own bar is given a width, since it reports none', () {
       // NavigationBar divides whatever width it is handed and answers an
       // IntrinsicWidth with zero, which is a hugging card with no bar in it.

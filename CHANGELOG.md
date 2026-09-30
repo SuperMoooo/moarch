@@ -2,6 +2,17 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.4.2
+
+- **A hugging `AppBottomNav` gives each labelled tab room of its own.** With
+  `floatingWidth: AppBottomNavWidth.hug`, the `classic` style — and `dot` with
+  `labels: AppBottomNavLabels.below` — set its tabs 4px apart, so two long
+  labels nearly read as one word. Each of those tabs now carries 8px on
+  either side of its content, which puts 20px between neighbouring labels.
+  The pill, which pads its label inside the fill, icon-only tabs and
+  Material's own bar are unchanged, as is every bar that fills the width.
+- Existing projects: `moarch update bottom-nav`.
+
 ## 9.4.1
 
 - **A hugging Material `AppBottomNav` is no longer an empty card.** With the

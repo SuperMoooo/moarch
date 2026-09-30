@@ -447,6 +447,7 @@ class AppBottomNav extends StatelessWidget {
             (_opens
                 ? AppConstants.borderRadiusFull
                 : AppConstants.borderRadius16),
+        hug: _hug,
         variant: variant,
         onTap: () => _select(i),
       );
@@ -553,6 +554,7 @@ class _AppNavItem extends StatelessWidget {
     required this.style,
     required this.labels,
     required this.pillRadius,
+    required this.hug,
     required this.variant,
     required this.onTap,
   });
@@ -564,6 +566,10 @@ class _AppNavItem extends StatelessWidget {
 
   /// The corner of the fill behind a selected [AppBottomNavStyle.pill].
   final BorderRadius pillRadius;
+
+  /// Whether the bar is sized by its items, so this one is as wide as its
+  /// content rather than its share of the screen.
+  final bool hug;
 
   final AppInputVariant? variant;
   final VoidCallback onTap;
@@ -741,6 +747,11 @@ class _AppNavItem extends StatelessWidget {
         ),
     };
 
+    // Hugging, nothing divides the width between the items, so a written label
+    // would sit against its neighbour's. The pill is left alone: it carries
+    // its own padding inside the fill.
+    final gutter = hug && _labelled && !pill ? AppConstants.space8 : 0.0;
+
     final target = ConstrainedBox(
       constraints: const BoxConstraints(
         minWidth: AppConstants.touchTarget,
@@ -752,9 +763,13 @@ class _AppNavItem extends StatelessWidget {
       child: Center(
         widthFactor: 1,
         heightFactor: 1,
-        // The label below carries the same string as the Semantics above, and
-        // reading a destination out twice is what excluding it here avoids.
-        child: ExcludeSemantics(child: content),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: gutter),
+          // The label below carries the same string as the Semantics above,
+          // and reading a destination out twice is what excluding it here
+          // avoids.
+          child: ExcludeSemantics(child: content),
+        ),
       ),
     );
 
