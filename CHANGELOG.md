@@ -2,6 +2,31 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.5.0
+
+- **`moarch create feature` writes a loading skeleton.** A feature with a
+  state holder and a view now gets `presentation/widgets/<name>_skeleton.dart`:
+  a `ListView.separated` over a list of fake models, with a note on the
+  `BoneMock` values (`BoneMock.name`, `BoneMock.words(3)`, `BoneMock.date`…)
+  that size its bones. The view passes it to `skeleton:` on both stacks.
+- **Feature states no longer carry `placeholder`.** The skeleton file holds the
+  fake data now, so a new state field only has to reach the constructor,
+  `copyWith` and (bloc) `props`. Features created before this keep their
+  `placeholder` and still compile; nothing rewrites them.
+- **Leaner comments in generated files.** Doc and inline comments across the
+  features, state plumbing (`AppStatusView`, `AppAsyncView`, `runAction`), DI
+  modules, network, services, gates and the UI kit were cut down to what a
+  reader needs; TODOs, `moarch:` anchors and examples stay.
+- **`fvm` in front of `build_runner`** in `app_env.dart`'s comment, the env
+  docs page and `moarch doctor`'s hint for a missing `app_env.g.dart`.
+- `AppException.fromError` is generated without its stray indentation, and the
+  Riverpod feature state without a double blank line.
+- The generated README, `AGENTS.md` and skills describe the skeleton file
+  instead of `placeholder`.
+- Existing projects: `moarch update all` refreshes the generated files with
+  the shorter comments (edited files are left alone without `--force`), and
+  `moarch update ai` refreshes the agent guide.
+
 ## 9.4.3
 
 - **A hugging Material `AppBottomNav` is roomier.** Each destination now gets
