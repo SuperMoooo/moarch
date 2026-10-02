@@ -2,6 +2,40 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.7.0
+
+- **Breaking — `Paginated<T>` handles page, offset and cursor APIs.** The
+  `page` / `limit` / `pageCount` / `nextPage` fields are replaced by `next`,
+  the key of the next page (null on the last one), and `total` is now
+  nullable. `Paginated.fromJson` is replaced by `fromPageJson`,
+  `fromOffsetJson` and `fromCursorJson`. Without a `total`, a short page ends
+  the list. `append` is removed (it is now `PagedList.append`). No generated
+  code used the old fields. If your code does, `moarch update paginated` will
+  not overwrite a file you edited, so move it over yourself.
+- **mo_infinite_scroll is now part of the UI kit.** `moarch create widget
+  paged-list` adds `lib/shared/widgets/lists/app_paged_list.dart`, which holds
+  `AppPagedList`, `AppPagedGrid` and `AppPagedSliver` (plus
+  `AppPagedSliver.grid`). They load the next page a few items before the end,
+  show a loading row or a retry row at the end of the list, support
+  pull-to-refresh on vertical lists, and accept separators. Unlike the
+  package, they hold no state. You pass in the items and the loading and
+  error fields, plus an `onLoadMore` callback. The design-system preview
+  includes a demo feed of paged rows.
+- **`lib/core/utils/paged_list.dart`** is written alongside `paginated.dart`
+  in Dio projects. It contains `PagedList<T>`, the value a state holds for a
+  list that loads in pages, and a "load more" mixin for each stack:
+  `PagedNotifierMixin` on `AsyncNotifier` and `PagedBlocMixin` on `Bloc`.
+  Both load one page at a time, turn a failed page into a retry row (the
+  items already loaded stay), and drop a page that finishes loading after
+  the list was refreshed. The bloc mixin does not need `bloc_concurrency`.
+  Refresh it with `moarch update paging`. Projects scaffolded earlier get it
+  from `moarch doctor --fix`.
+- **The agent guide covers paging.** In Dio projects, `AGENTS.md` and the
+  `moarch-build-screen` skill now say that a paged list keeps a `PagedList`
+  in its state, loads further pages through the stack's mixin, passes the
+  `next` key back without reading it, and is drawn with the paged widgets.
+  Refresh them with `moarch update ai`.
+
 ## 9.6.0
 
 - **Offline-first cache, a new `init` option.** Tick *Offline-first cache

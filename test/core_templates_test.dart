@@ -377,45 +377,65 @@ void main() {
     expect(SharedTemplates.emptyView(), contains('class EmptyView'));
   });
 
-  test(
-    'the paginated envelope parses leniently and keeps the item key open',
-    () {
-      final output = CoreTemplates.paginated();
-
-      // The item key is the field most likely to be wrong for any given
-      // backend — `results`, `items`, `records` — so it is an argument rather
-      // than a literal in the body.
-      expect(output, contains("String dataKey = 'data',"));
-      expect(output, contains('final raw = json[dataKey];'));
-
-      // An unguarded `json['page'] as int` turns a stringified count into a
-      // TypeError that safeApiCall reports as an unknown failure. Counts are
-      // read through _asInt and fall back rather than throw.
-      expect(output, isNot(contains("as int")));
-      expect(output, contains("page: _asInt(json['page']) ?? 1,"));
-      expect(output, contains('final String v => int.tryParse(v),'));
-      // A null or absent list is an empty page, not a cast failure.
-      expect(
-        output,
-        contains('raw is List ? raw.map(fromJsonT).toList() : <T>[]'),
-      );
-    },
-  );
-
-  test('the paginated envelope carries the members its callers need', () {
+  test('the paginated envelope parses leniently and keeps its keys open', () {
     final output = CoreTemplates.paginated();
 
-    // `Object?` rather than Map, so a page of scalars uses the same factory.
-    expect(output, contains('T Function(Object? json) fromJsonT,'));
-    // Dividing by a missing page size must not loop a load-more forever.
+    // The keys are the fields most likely to be wrong for any given backend —
+    // `results`, `items`, `cursor` — so they are arguments, not literals.
+    expect(output, contains("String dataKey = 'data',"));
+    expect(output, contains("String cursorKey = 'next_cursor',"));
+    expect(output, contains("String offsetKey = 'offset',"));
+
+    // An unguarded `json['page'] as int` turns a stringified count into a
+    // TypeError that safeApiCall reports as an unknown failure. Counts are
+    // read through _asInt and fall back rather than throw.
+    expect(output, isNot(contains('as int')));
+    expect(output, contains('final String v => int.tryParse(v),'));
+    // A null or absent list is an empty page, not a cast failure.
     expect(
       output,
-      contains('int get pageCount => limit <= 0 ? 1 : (total / limit).ceil();'),
+      contains('raw is List ? raw.map(fromJsonT).toList() : <T>[]'),
     );
-    expect(output, contains('bool get hasMore => page < pageCount;'));
-    // The two members the Clean Architecture boundary is here for.
+  });
+
+  test('the paginated envelope covers page, offset and cursor backends', () {
+    final output = CoreTemplates.paginated();
+
+    // One type for all three: the key of the next page, opened only by the
+    // datasource. Null is the end.
+    expect(output, contains('final Object? next;'));
+    expect(output, contains('bool get hasMore => next != null;'));
+    expect(output, contains('factory Paginated.fromPageJson('));
+    expect(output, contains('factory Paginated.fromOffsetJson('));
+    expect(output, contains('factory Paginated.fromCursorJson('));
+    // An empty cursor string is the last page, not a key to send back.
+    expect(output, contains("cursor == null || cursor == '' ? null : cursor"));
+    // Without a total, a short page ends the list (mo_infinite_scroll's rule),
+    // and an empty one always does — so load-more cannot loop forever.
+    expect(output, contains('if (items.isEmpty) return false;'));
+    expect(output, contains('return limit == null || items.length >= limit;'));
     expect(output, contains('Paginated<R> map<R>(R Function(T item) toItem)'));
-    expect(output, contains('Paginated<T> append(Paginated<T> next)'));
-    expect(output, contains('items: [...items, ...next.items],'));
+  });
+
+  test('PagedList appends a page and keeps its place through an edit', () {
+    const output = CoreTemplates.pagedListState;
+
+    expect(output, contains('class PagedList<T> {'));
+    expect(output, contains('items: [...items, ...page.items],'));
+    expect(output, contains('PagedList<T> failed(String message)'));
+    expect(output, contains('PagedList<T> withItems(List<T> items)'));
+    // Loading again clears a failed page's error: `loading()` does not
+    // carry it over.
+    expect(
+      output,
+      contains(
+        'PagedList<T> loading() => PagedList(\n'
+        '    items: items,\n'
+        '    next: next,\n'
+        '    hasMore: hasMore,\n'
+        '    isLoadingMore: true,\n'
+        '  );',
+      ),
+    );
   });
 }

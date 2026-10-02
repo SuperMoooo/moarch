@@ -774,6 +774,53 @@ the notifier.
 All of it is part of `moarch init`, and `moarch create feature` writes it into an
 older project rather than generating a view that cannot compile.
 
+### Lists that load in pages — page, offset or cursor
+
+A project with Dio gets `lib/core/network/paginated.dart` and
+`lib/core/utils/paged_list.dart`, and `moarch create widget paged-list` adds
+the infinite-scroll widgets. This is where
+[mo_infinite_scroll](https://pub.dev/packages/mo_infinite_scroll) went. The
+package kept its pages in its own controller. Here they live in the notifier
+or bloc state, like the rest of a screen's data.
+
+The datasource reads the envelope with whichever factory fits the backend, and
+`Paginated.next` holds the key of the next page. Nothing above the datasource
+reads that key: the repository returns it, the state stores it and the mixin
+passes it back. So moving an endpoint from page numbers to cursors only
+changes the datasource.
+
+```dart
+OrderModel order(Object? e) => OrderModel.fromJson(e! as Map<String, dynamic>);
+
+Paginated.fromPageJson(json, order);    // {page, limit, total, data}
+Paginated.fromOffsetJson(json, order);  // {offset, limit, total, data}
+Paginated.fromCursorJson(json, order);  // {data, next_cursor}
+```
+
+The state holds a `PagedList<T>`. The first page loads like any other screen
+data, and `AppAsyncView` / `AppStatusView` draw its skeleton, error and empty
+states. A notifier mixes in `PagedNotifierMixin` and a bloc mixes in
+`PagedBlocMixin`. Each provides `loadMore()`, which loads one page at a time,
+turns a failure into a retry row instead of an error screen, and drops a page
+that finishes loading after the list was refreshed.
+
+```dart
+AppPagedList<OrderModel>(
+  items: state.orders.items,
+  hasMore: state.orders.hasMore,
+  isLoadingMore: state.orders.isLoadingMore,
+  error: state.orders.error,
+  onLoadMore: ref.read(ordersNotifierProvider.notifier).loadMore,
+  onRefresh: () => ref.refresh(ordersNotifierProvider.future),
+  itemBuilder: (context, order) => OrderTile(order: order),
+)
+```
+
+`AppPagedGrid` takes a `gridDelegate`. `AppPagedSliver` (and
+`AppPagedSliver.grid`) goes inside a `CustomScrollView` with other slivers.
+All three start loading the next page a few items before the end, and support
+pull-to-refresh on vertical lists.
+
 ### Phone numbers mask themselves, per country
 
 `moarch create widget phone-input` adds `AppPhoneInput`: a field that punctuates

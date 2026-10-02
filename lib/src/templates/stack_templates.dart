@@ -11,6 +11,7 @@ import 'bloc/feature_templates.dart' as bloc;
 import 'bloc/firebase_auth_templates.dart' as bloc;
 import 'bloc/maintenance_templates.dart' as bloc;
 import 'bloc/offline_templates.dart' as bloc;
+import 'bloc/paging_templates.dart' as bloc;
 import 'bloc/scope_templates.dart';
 import 'bloc/update_gate_templates.dart' as bloc;
 import 'riverpod/app_templates.dart' as riverpod;
@@ -20,6 +21,7 @@ import 'riverpod/feature_templates.dart' as riverpod;
 import 'riverpod/firebase_auth_templates.dart' as riverpod;
 import 'riverpod/maintenance_templates.dart' as riverpod;
 import 'riverpod/offline_templates.dart' as riverpod;
+import 'riverpod/paging_templates.dart' as riverpod;
 import 'riverpod/update_gate_templates.dart' as riverpod;
 
 export 'bloc/scope_templates.dart' show ScopeBloc, ScopeParent;
@@ -175,6 +177,13 @@ class StackTemplates {
   String actionBase() => isBloc
       ? bloc.AsyncTemplates.appStatus()
       : riverpod.AppTemplates.actionNotifier();
+
+  /// `core/utils/paged_list.dart`: the `PagedList` state value both stacks
+  /// share, and the mixin that loads its next page — on `AsyncNotifier` or on
+  /// `Bloc`. Written whenever Dio is, beside the `Paginated` it appends.
+  String pagedList() => isBloc
+      ? bloc.PagingTemplates.pagedList()
+      : riverpod.PagingTemplates.pagedList();
 
   /// Whether this stack has a `core/utils/app_bloc_observer.dart`.
   ///

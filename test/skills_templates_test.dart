@@ -143,6 +143,30 @@ void main() {
       expect(bloc, isNot(contains('ref.read')));
     });
 
+    test('build-screen points a paged list at the kit and the mixin', () {
+      final riverpod = render(
+        'build-screen',
+        options(StateManagement.riverpod, withDio: true),
+      );
+      expect(riverpod, contains('`PagedNotifierMixin`'));
+      expect(riverpod, contains('moarch create widget paged-list'));
+
+      final bloc = render(
+        'build-screen',
+        options(StateManagement.bloc, withDio: true),
+      );
+      expect(bloc, contains('`PagedBlocMixin`'));
+      expect(bloc, contains('`loadMore(emit)`'));
+
+      expect(
+        render(
+          'build-screen',
+          options(StateManagement.riverpod, withFirestore: true),
+        ),
+        isNot(contains('PagedList')),
+      );
+    });
+
     test('the data layer names only the boundary wrappers it has', () {
       final dio = render(
         'add-endpoint',

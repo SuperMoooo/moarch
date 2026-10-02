@@ -808,6 +808,40 @@ dependencies:
     });
   });
 
+  group('paging', () {
+    setUp(scaffoldHealthyProject);
+
+    File libFile(String path) =>
+        File(p.join(libPath, p.joinAll(path.split('/'))));
+
+    test('writes the PagedList a project with Paginated lacks', () async {
+      await libFile('core/network/paginated.dart').create(recursive: true);
+
+      final finding = matching(
+        await ProjectInspector.inspect(root),
+        'No PagedList',
+      ).single;
+      expect(finding.severity, DiagnosticSeverity.info);
+      await finding.fix!();
+
+      expect(
+        libFile('core/utils/paged_list.dart').readAsStringSync(),
+        contains('class PagedList<T> {'),
+      );
+      expect(
+        matching(await ProjectInspector.inspect(root), 'No PagedList'),
+        isEmpty,
+      );
+    });
+
+    test('leaves a project that does not page alone', () async {
+      expect(
+        matching(await ProjectInspector.inspect(root), 'No PagedList'),
+        isEmpty,
+      );
+    });
+  });
+
   group('endpoints', () {
     setUp(scaffoldHealthyProject);
 

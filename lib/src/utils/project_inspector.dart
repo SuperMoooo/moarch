@@ -97,6 +97,7 @@ abstract final class ProjectInspector {
       ..._codegen(libPath),
       ..._theme(root, libPath),
       ..._auth(root),
+      ..._paging(root),
       ..._endpoints(libPath),
       ..._platforms(root),
       ..._agents(root),
@@ -131,6 +132,40 @@ abstract final class ProjectInspector {
             spec.name,
           ], 'the file already exists');
           return '$result — run `moarch update auth` to use it';
+        },
+      ),
+    ];
+  }
+
+  // ── Paging ──────────────────────────────────────────────────────────────────
+
+  /// A project with `Paginated` but no `PagedList` — scaffolded before 9.7.0.
+  ///
+  /// Nothing is broken, so it is a note with a fix. A project that deleted
+  /// `paginated.dart` chose not to page and is not asked. The new file reads
+  /// `Paginated.next`, which an older `paginated.dart` lacks, and that file
+  /// is often edited — so the fix does not rewrite it and the message says to.
+  static List<Diagnostic> _paging(String root) {
+    final context = ScaffoldContext.detect(root);
+    if (!context.hasFile(ScaffoldCatalog.byName('paginated')!.path)) {
+      return const [];
+    }
+    final spec = ScaffoldCatalog.byName('paging')!;
+    if (context.hasFile(spec.path)) return const [];
+
+    return [
+      Diagnostic.info(
+        'No PagedList — a list that loads in pages has no state value or '
+        'load-more mixin to use',
+        hint:
+            'Write core/utils/paged_list.dart with `moarch doctor --fix`, then '
+            '`moarch update paginated` so Paginated carries the next-page key.',
+        fix: () async {
+          final result = await _generate(root, [
+            spec.name,
+          ], 'the file already exists');
+          return '$result — run `moarch update paginated` if it predates '
+              'cursor support';
         },
       ),
     ];

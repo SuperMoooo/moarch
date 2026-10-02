@@ -795,7 +795,7 @@ A screen is `presentation/views/<name>_view.dart` in its feature — or
   fake models whose fields come from `BoneMock` (`BoneMock.name`,
   `BoneMock.words(3)`, `BoneMock.date`). A text's length sets its bone's width;
   an empty field shimmers as nothing.
-- **Side effects** — toasts, navigation, dialogs — go in the ${o.bloc ? '`BlocConsumer`\n  `listener`' : '`ref.listenAction`\n  callbacks'}, never in `build`.$strings
+- **Side effects** — toasts, navigation, dialogs — go in the ${o.bloc ? '`BlocConsumer`\n  `listener`' : '`ref.listenAction`\n  callbacks'}, never in `build`.$strings${o.withDio ? _pagingRule(o) : ''}
 - **Sheets and dialogs** use the kit's helpers.${o.bloc ? ' One that needs the screen\'s\n  bloc gets it through a scope (`moarch create scope <feature> <name>`), not\n  `context.read` and not a second instance.' : ''}
 $route
 ## Layout errors
@@ -806,6 +806,22 @@ needs `Flexible`/`Expanded` or text that needs `overflow:`. Fix the
 constraint — never paper over it with a fixed `SizedBox` height.
 
 ${_done(o)}''';
+  }
+
+  /// The build-screen bullet for a list that loads in pages. Dio only, since
+  /// `paginated.dart` and `paged_list.dart` are written with it.
+  static String _pagingRule(SkillOptions o) {
+    final mixin = o.bloc
+        ? '`PagedBlocMixin`, with a "more requested" event whose handler is\n  `loadMore(emit)`'
+        : '`PagedNotifierMixin`, whose `loadMore` the view calls';
+    return '''
+
+- **A list that pages** keeps a `PagedList<T>` (`core/utils/paged_list.dart`)
+  in its state. The first page is the screen's normal load; the rest come
+  from $mixin. The repository returns `Paginated<T>` and takes its `next` key
+  back unopened — only the datasource knows if it is a page, an offset or a
+  cursor. Draw it with `AppPagedList` / `AppPagedGrid` / `AppPagedSliver`
+  (`moarch create widget paged-list`), never a hand-rolled scroll listener.''';
   }
 
   // ── add-env-key ────────────────────────────────────────────────────────────

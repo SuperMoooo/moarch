@@ -8127,6 +8127,7 @@ import '../widgets/text/app_rich_text.dart';
 import '../widgets/lists/app_card_tile.dart';
 import '../widgets/lists/app_expansion_tile.dart';
 import '../widgets/lists/app_list_tile.dart';
+import '../widgets/lists/app_paged_list.dart';
 import '../widgets/lists/app_section_header.dart';
 import '../widgets/lists/app_timeline.dart';
 import '../widgets/loadings/app_loading_action_overlay.dart';
@@ -8189,6 +8190,32 @@ class _DesignSystemViewState extends State<DesignSystemView> {$themeState
   List<String> _dragCards = const ['Revenue', 'Orders', 'Refunds'];
   double _rating = 3.5;
   List<AppPickedFile> _attachments = const [];
+  int _pagedCount = 12;
+  bool _pagedLoading = false;
+  String? _pagedError;
+  bool _pagedFailedOnce = false;
+
+  /// Stands in for a notifier's `loadMore`: a fake feed of 36 rows, paged in
+  /// by 12. The third page fails once, so the retry row can be seen.
+  Future<void> _previewLoadMore() async {
+    if (_pagedLoading || _pagedCount >= 36) return;
+    setState(() {
+      _pagedLoading = true;
+      _pagedError = null;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+    setState(() {
+      _pagedLoading = false;
+      if (_pagedCount == 24 && !_pagedFailedOnce) {
+        _pagedFailedOnce = true;
+        _pagedError = 'Could not load more';
+      } else {
+        _pagedCount += 12;
+      }
+    });
+  }
+
   int _railIndex = 0;$asyncStateField$previewAsync
 
   /// One destination list behind the bottom bar, the rail and the drawer —
@@ -9039,6 +9066,30 @@ $toggleAction              const SizedBox(width: AppConstants.space8),
                       onTap: () {},
                     ),
                   ],
+                ),
+              ),
+
+              // ── AppPagedList ──────────────────────────────────────────────
+              _Section(
+                title: 'AppPagedList',
+                child: SizedBox(
+                  height: 260,
+                  child: AppPagedList<int>(
+                    items: List.generate(_pagedCount, (i) => i + 1),
+                    hasMore: _pagedCount < 36,
+                    isLoadingMore: _pagedLoading,
+                    error: _pagedError,
+                    onLoadMore: _previewLoadMore,
+                    onRefresh: () async => setState(() {
+                      _pagedCount = 12;
+                      _pagedError = null;
+                      _pagedFailedOnce = false;
+                    }),
+                    itemBuilder: (context, n) => AppListTile(
+                      title: 'Row \$n',
+                      subtitle: 'Page \${(n - 1) ~/ 12 + 1}',
+                    ),
+                  ),
                 ),
               ),
 

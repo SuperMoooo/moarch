@@ -774,89 +774,129 @@ Future<T> safeApiCall<T>({
 
   /// Returns the generated Paginated template.
   ///
-  /// A starting point, not a contract: `{page, limit, total, data}` is the
-  /// most common REST envelope, but its shape is the backend's choice rather
-  /// than the app's, so the generated file is written to be renamed and says
-  /// so. What survives that edit is the arithmetic — `pageCount`, `hasMore` —
-  /// and the two members a paged list needs: `map`, to turn a page of models
-  /// into a page of whatever the screen draws, and `append`, which is the
-  /// whole of "load more".
+  /// A page of items plus the key of the page after it. The key is whatever
+  /// the backend pages by — a page number, an offset, a cursor string — and
+  /// nothing past the datasource reads it: the repository hands it back up,
+  /// the notifier or bloc stores it in a `PagedList`, and passes it down again
+  /// for the next page. That is what lets one type cover all three APIs, and
+  /// why `next` is an `Object?` rather than an `int`.
   ///
-  /// Written whenever Dio is, alongside `safeApiCall`. Nothing generated
-  /// consumes it yet; a project that does not paginate can delete it.
+  /// One factory per envelope shape, each reading its keys leniently, since
+  /// the shape is the backend's choice rather than the app's. A page-number
+  /// or offset API without a `total` ends on the first short page — the rule
+  /// mo_infinite_scroll used, kept as the fallback.
+  ///
+  /// Written whenever Dio is, alongside `safeApiCall` and `PagedList`.
   static String paginated() => r'''
-/// A page of [T] as the API returned it, for the common
-/// `{page, limit, total, data}` envelope. Edit the keys to match yours; cursor
-/// APIs need a type of their own.
+/// A page of [T] as the API returned it, and the key of the page after it.
+///
+/// [next] is what the backend pages by — a page number, an offset or a cursor
+/// — and null on the last page. Only the datasource reads it; everything above
+/// passes it back unopened, so switching an endpoint from pages to cursors
+/// touches the datasource alone:
+///
+/// ```dart
+/// Future<Paginated<OrderModel>> fetchOrders({Object? next}) => safeApiCall(
+///   apiCall: () async {
+///     final response = await _dio.get(
+///       ApiConstants.orders,
+///       queryParameters: {'cursor': next, 'limit': 20},
+///     );
+///     return Paginated.fromCursorJson(
+///       response.data as Map<String, dynamic>,
+///       (e) => OrderModel.fromJson(e! as Map<String, dynamic>),
+///     );
+///   },
+/// );
+/// ```
+///
+/// Edit the factories' default keys to match your envelope.
 class Paginated<T> {
-  const Paginated({
-    required this.page,
-    required this.limit,
-    required this.total,
-    required this.items,
-  });
+  const Paginated({required this.items, this.next, this.total});
 
-  /// A response that was never paginated server-side, read as one full page.
-  factory Paginated.single(List<T> items) => Paginated(
-    page: 1,
-    limit: items.length,
-    total: items.length,
-    items: items,
-  );
+  /// A response that was never paginated server-side, read as the only page.
+  factory Paginated.single(List<T> items) =>
+      Paginated(items: items, total: items.length);
 
-  /// The empty first page — what a notifier holds before its first load.
-  const Paginated.empty() : page = 1, limit = 0, total = 0, items = const [];
+  /// The empty last page.
+  const Paginated.empty() : items = const [], next = null, total = 0;
 
-  /// Parses the envelope, reading the item list from [dataKey].
+  /// `{page, limit, total, data}` — [next] is the following page number.
   ///
-  /// [fromJsonT] takes an `Object?` rather than a map so that a page of
-  /// scalars parses through the same factory as a page of models:
-  ///
-  /// ```dart
-  /// Paginated.fromJson(
-  ///   json,
-  ///   (e) => UserModel.fromJson(e! as Map<String, dynamic>),
-  /// );
-  /// ```
-  ///
-  /// The counts are read leniently. A missing or stringified `total` is common
-  /// enough — on a last page, from a PHP backend — that it should not cost the
-  /// caller the data that did arrive.
-  factory Paginated.fromJson(
+  /// Ask for the first page with `next ?? 1`.
+  factory Paginated.fromPageJson(
     Map<String, dynamic> json,
     T Function(Object? json) fromJsonT, {
     String dataKey = 'data',
+    String pageKey = 'page',
+    String limitKey = 'limit',
+    String totalKey = 'total',
   }) {
-    final raw = json[dataKey];
-    final items = raw is List ? raw.map(fromJsonT).toList() : <T>[];
+    final items = _itemsOf(json[dataKey], fromJsonT);
+    final page = _asInt(json[pageKey]) ?? 1;
+    final limit = _asInt(json[limitKey]);
+    final total = _asInt(json[totalKey]);
     return Paginated(
-      page: _asInt(json['page']) ?? 1,
-      limit: _asInt(json['limit']) ?? items.length,
-      total: _asInt(json['total']) ?? items.length,
       items: items,
+      total: total,
+      next: _hasMore(items, limit, total, seen: page * (limit ?? items.length))
+          ? page + 1
+          : null,
     );
   }
 
-  /// 1-based index of this page.
-  final int page;
+  /// `{offset, limit, total, data}` — [next] is the following offset.
+  ///
+  /// Ask for the first page with `next ?? 0`.
+  factory Paginated.fromOffsetJson(
+    Map<String, dynamic> json,
+    T Function(Object? json) fromJsonT, {
+    String dataKey = 'data',
+    String offsetKey = 'offset',
+    String limitKey = 'limit',
+    String totalKey = 'total',
+  }) {
+    final items = _itemsOf(json[dataKey], fromJsonT);
+    final seen = (_asInt(json[offsetKey]) ?? 0) + items.length;
+    final limit = _asInt(json[limitKey]);
+    final total = _asInt(json[totalKey]);
+    return Paginated(
+      items: items,
+      total: total,
+      next: _hasMore(items, limit, total, seen: seen) ? seen : null,
+    );
+  }
 
-  /// How many items a full page holds.
-  final int limit;
-
-  /// How many items exist across every page.
-  final int total;
+  /// `{data, next_cursor}` — [next] is the cursor the server sent.
+  ///
+  /// A missing, null or empty cursor is the last page. Ask for the first page
+  /// by leaving the cursor out.
+  factory Paginated.fromCursorJson(
+    Map<String, dynamic> json,
+    T Function(Object? json) fromJsonT, {
+    String dataKey = 'data',
+    String cursorKey = 'next_cursor',
+    String totalKey = 'total',
+  }) {
+    final cursor = json[cursorKey];
+    return Paginated(
+      items: _itemsOf(json[dataKey], fromJsonT),
+      total: _asInt(json[totalKey]),
+      next: cursor == null || cursor == '' ? null : cursor,
+    );
+  }
 
   /// The items on this page.
   final List<T> items;
 
-  /// How many pages hold everything. 1 when the envelope had no page size.
-  int get pageCount => limit <= 0 ? 1 : (total / limit).ceil();
+  /// The key of the page after this one, or null when this is the last.
+  final Object? next;
+
+  /// How many items exist across every page, when the backend says.
+  final int? total;
 
   /// Whether a page exists after this one.
-  bool get hasMore => page < pageCount;
-
-  /// The page to ask for next. Only meaningful while [hasMore].
-  int get nextPage => page + 1;
+  bool get hasMore => next != null;
 
   bool get isEmpty => items.isEmpty;
 
@@ -864,19 +904,23 @@ class Paginated<T> {
 
   /// The same page with every item mapped.
   Paginated<R> map<R>(R Function(T item) toItem) => Paginated<R>(
-    page: page,
-    limit: limit,
-    total: total,
     items: items.map(toItem).toList(),
+    next: next,
+    total: total,
   );
+}
 
-  /// [next] appended to this page. "Load more" is `state.append(page)`.
-  Paginated<T> append(Paginated<T> next) => Paginated<T>(
-    page: next.page,
-    limit: next.limit,
-    total: next.total,
-    items: [...items, ...next.items],
-  );
+/// The item list under a page's data key. A null or absent list is an empty
+/// page, not a cast failure.
+List<T> _itemsOf<T>(Object? raw, T Function(Object? json) fromJsonT) =>
+    raw is List ? raw.map(fromJsonT).toList() : <T>[];
+
+/// Whether a page-number or offset API has more after [seen] items: the
+/// [total] when the backend sends one, otherwise a full page.
+bool _hasMore<T>(List<T> items, int? limit, int? total, {required int seen}) {
+  if (items.isEmpty) return false;
+  if (total != null) return seen < total;
+  return limit == null || items.length >= limit;
 }
 
 /// Reads a count sent as a number, a numeric string, or not at all.
@@ -886,6 +930,82 @@ int? _asInt(Object? value) => switch (value) {
   final String v => int.tryParse(v),
   _ => null,
 };
+''';
+
+  /// The `PagedList` class both stacks' `paged_list.dart` open with.
+  ///
+  /// Stack-neutral on purpose: it is a value a state holds, and only the mixin
+  /// that writes it differs between a notifier and a bloc. Kept here, once, so
+  /// the two files cannot drift.
+  static const String pagedListState = r'''
+/// A list that loads in pages, as a notifier's or a bloc's state holds it.
+///
+/// The first page is loaded like any other screen data — the skeleton, the
+/// error screen and the empty state are `AppAsyncView` / `AppStatusView`'s.
+/// This tracks what comes after: the key of the next page, whether one
+/// exists, and whether loading it is running or has failed. `AppPagedList`
+/// draws those last two as the row at the end of the list.
+class PagedList<T> {
+  const PagedList({
+    this.items = const [],
+    this.next,
+    this.hasMore = false,
+    this.isLoadingMore = false,
+    this.error,
+  });
+
+  /// The list holding [page] as its first page.
+  factory PagedList.first(Paginated<T> page) =>
+      PagedList(items: page.items, next: page.next, hasMore: page.hasMore);
+
+  /// Every item loaded so far.
+  final List<T> items;
+
+  /// The key to ask for the next page with. Only the datasource opens it.
+  final Object? next;
+
+  /// Whether a page exists after the last one loaded.
+  final bool hasMore;
+
+  /// Whether the next page is loading.
+  final bool isLoadingMore;
+
+  /// Why the next page failed to load, or null. Loading again clears it.
+  final String? error;
+
+  bool get isEmpty => items.isEmpty;
+
+  bool get isNotEmpty => items.isNotEmpty;
+
+  /// This list, loading its next page.
+  PagedList<T> loading() => PagedList(
+    items: items,
+    next: next,
+    hasMore: hasMore,
+    isLoadingMore: true,
+  );
+
+  /// This list with [page] appended.
+  PagedList<T> append(Paginated<T> page) => PagedList(
+    items: [...items, ...page.items],
+    next: page.next,
+    hasMore: page.hasMore,
+  );
+
+  /// This list, its next page having failed with [message].
+  PagedList<T> failed(String message) =>
+      PagedList(items: items, next: next, hasMore: hasMore, error: message);
+
+  /// This list with its items replaced — after an edit or a delete, without
+  /// losing the place it has paged to.
+  PagedList<T> withItems(List<T> items) => PagedList(
+    items: items,
+    next: next,
+    hasMore: hasMore,
+    isLoadingMore: isLoadingMore,
+    error: error,
+  );
+}
 ''';
 
   /// Returns the generated safeFirebaseCall template.

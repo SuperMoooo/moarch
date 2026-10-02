@@ -19,6 +19,7 @@ import '../templates/riverpod/update_gate_templates.dart'
     show UpdateGateTemplates;
 import '../templates/ui/modals_templates.dart';
 import '../templates/ui/navigation_templates.dart';
+import '../templates/ui/paged_templates.dart';
 import '../templates/ui/phone_templates.dart';
 import '../templates/ui/shared_templates.dart';
 import '../templates/stack_templates.dart';
@@ -679,6 +680,15 @@ abstract final class WidgetCatalog {
       category: 'Layout & content',
       description:
           'Scrollable page body with the safe area, page padding and keyboard dismissal already decided; optional viewport fill and keyboard inset.',
+    ),
+    WidgetSpec(
+      name: 'paged-list',
+      title: 'AppPagedList',
+      file: 'lists/app_paged_list.dart',
+      template: PagedTemplates.appPagedList,
+      category: 'Layout & content',
+      description:
+          'Infinite scroll as a list, a grid (AppPagedGrid) or a sliver (AppPagedSliver): pre-fetches the next page near the end, shows a loading or retry row, pulls to refresh — the pages live in the PagedList of a notifier or bloc state.',
     ),
     WidgetSpec(
       name: 'list-tile',

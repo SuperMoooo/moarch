@@ -599,7 +599,16 @@ abstract final class ScaffoldCatalog {
       category: 'Network',
       template: (_) => CoreTemplates.paginated(),
       description:
-          'The page envelope a REST list endpoint answers with, plus its arithmetic.',
+          'A page of items and the key of the next one — page number, offset or cursor.',
+    ),
+    ScaffoldSpec(
+      name: 'paging',
+      title: 'PagedList',
+      path: 'lib/core/utils/paged_list.dart',
+      category: 'Network',
+      template: (c) => c.stack.pagedList(),
+      description:
+          'The paged-list state value and the mixin that loads its next page (notifier or bloc).',
     ),
     ScaffoldSpec(
       name: 'safe-firebase-call',

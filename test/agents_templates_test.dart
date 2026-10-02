@@ -122,6 +122,23 @@ void main() {
       expect(source, isNot(contains('ref.listenAction')));
     });
 
+    test('states the paging rule, with the stack mixin, only with Dio', () {
+      final riverpod = agents(StateManagement.riverpod, withDio: true);
+      final bloc = agents(StateManagement.bloc, withDio: true);
+      expect(
+        riverpod,
+        contains('**A list that pages** holds a `PagedList<T>`'),
+      );
+      expect(riverpod, contains('`PagedNotifierMixin`'));
+      expect(bloc, contains('`PagedBlocMixin`'));
+      expect(bloc, isNot(contains('PagedNotifierMixin')));
+      // paginated.dart and paged_list.dart are written with Dio only.
+      expect(
+        agents(StateManagement.riverpod, withFirebase: true),
+        isNot(contains('PagedList')),
+      );
+    });
+
     test('names only the boundary wrappers the project has', () {
       expect(
         agents(StateManagement.riverpod, withDio: true),
