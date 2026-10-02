@@ -2,6 +2,18 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.7.2
+
+- **Breaking — `AppOtpInput` no longer depends on `mo_2fa_code`.** The code
+  field is now part of the generated `app_otp_input.dart`. Its cells take
+  their decoration from `AppInputStyle.decoration`, the same as every other
+  input, so a field with no variant follows the theme instead of the
+  package's primary color. Pass `charset:` (`AppOtpCharset.numeric` by
+  default, also `alphanumeric` and `any`) to accept more than digits. The
+  controller is now `AppOtpController`: replace `Mo2FACodeController` in
+  any screen that uses one. Once nothing else imports `mo_2fa_code`, you can
+  remove it from `pubspec.yaml`.
+
 ## 9.7.1
 
 - **`moarch create tests` finds the state holders of a feature with a folder

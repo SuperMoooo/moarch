@@ -5739,16 +5739,54 @@ class AppBottomSheetScaffold extends StatelessWidget {
   /// Returns the generated appOtpInput template.
   static String appOtpInput() => r'''
 import 'package:flutter/material.dart';
-import 'package:mo_2fa_code/mo_2fa_code.dart';
+import 'package:flutter/services.dart';
+
 import './app_input_style.dart';
 import './input_title.dart';
+import '../../../core/constants/app_constants.dart';
 
-/// A one-time-code / OTP field wrapping mo_2fa_code's [Mo2FACodeField], styled
-/// from [AppInputVariant] + [AppInputType] so it matches the rest of the input
+/// Which characters an [AppOtpInput] accepts.
+enum AppOtpCharset {
+  /// Digits only, on the number keyboard.
+  numeric,
+
+  /// Letters and digits.
+  alphanumeric,
+
+  /// Anything.
+  any,
+}
+
+/// Reads, sets or clears an [AppOtpInput]'s code from outside the tree —
+/// clear it after a failed verification, or pre-fill it.
+class AppOtpController extends ChangeNotifier {
+  String _code = '';
+
+  /// The current code, shorter than the field while it is being typed.
+  String get code => _code;
+
+  /// Replaces the code. The field drops characters its [AppOtpCharset]
+  /// refuses and anything past its length.
+  void setCode(String value) {
+    if (_code == value) return;
+    _code = value;
+    notifyListeners();
+  }
+
+  /// Empties every cell.
+  void clear() => setCode('');
+}
+
+/// A one-time-code / OTP field: one character per cell, styled from
+/// [AppInputVariant] + [AppInputType] so it matches the rest of the input
 /// family and sits under an [InputTitle] like the other inputs.
 ///
+/// Typing advances to the next cell, backspace goes back, and a pasted or
+/// SMS-autofilled code is spread across the cells. It is a [FormField], so
+/// [validator] works inside a [Form].
+///
 /// Usage:
-///   final _codeController = Mo2FACodeController();
+///   final _codeController = AppOtpController();
 ///   AppOtpInput(
 ///     label: 'Verification code',
 ///     controller: _codeController,
@@ -5760,6 +5798,7 @@ class AppOtpInput extends StatelessWidget {
     required this.label,
     this.controller,
     this.length = 6,
+    this.charset = AppOtpCharset.numeric,
     this.onCompleted,
     this.onChanged,
     this.validator,
@@ -5770,12 +5809,17 @@ class AppOtpInput extends StatelessWidget {
     this.variant,
     this.type,
     this.readOnly = false,
-  });
+  }) : assert(length > 0, 'length must be at least 1');
 
   final String label;
-  final Mo2FACodeController? controller;
+  final AppOtpController? controller;
   final int length;
+  final AppOtpCharset charset;
+
+  /// Called once every cell is filled, with the whole code.
   final ValueChanged<String>? onCompleted;
+
+  /// Called on every change, with the code so far.
   final ValueChanged<String>? onChanged;
   final FormFieldValidator<String>? validator;
   final bool autoFocus;
@@ -5798,23 +5842,6 @@ class AppOtpInput extends StatelessWidget {
       ? AppInputLabelMode.none
       : AppInputLabelMode.above;
 
-  Mo2FACellShape get _shape => switch (type ?? AppInputStyle.config.type) {
-    AppInputType.filled => Mo2FACellShape.filled,
-    AppInputType.outlined => Mo2FACellShape.outlined,
-    AppInputType.underline => Mo2FACellShape.underline,
-  };
-
-  Mo2FACellVariant get _cellVariant =>
-      switch (AppInputStyle.variantOf(variant)) {
-        AppInputVariant.secondary => Mo2FACellVariant.secondary,
-        AppInputVariant.tertiary => Mo2FACellVariant.tertiary,
-        AppInputVariant.danger => Mo2FACellVariant.error,
-        // The cells are painted inside mo_2fa_code, which has no "leave it to
-        // the theme" variant to ask for — so a field that names none takes the
-        // package's own primary rather than nothing at all.
-        _ => Mo2FACellVariant.primary,
-      };
-
   @override
   Widget build(BuildContext context) {
     return InputFieldLayout(
@@ -5824,19 +5851,352 @@ class AppOtpInput extends StatelessWidget {
       variant: variant,
       field: ReadOnlyGate(
         readOnly: readOnly,
-        child: Mo2FACodeField(
+        child: _OtpField(
           length: length,
           controller: controller,
+          charset: charset,
           // A read-only field must not grab focus and raise a keyboard for a
           // code the user cannot change.
           autoFocus: autoFocus && !readOnly,
           obscureText: obscureText,
-          hapticFeedback: true,
+          readOnly: readOnly,
+          variant: variant,
+          type: type,
           onChanged: onChanged,
           onCompleted: onCompleted,
           validator: validator,
-          style: Mo2FACodeStyle(variant: _cellVariant, shape: _shape),
         ),
+      ),
+    );
+  }
+}
+
+class _OtpField extends FormField<String> {
+  _OtpField({
+    required this.length,
+    required this.controller,
+    required this.charset,
+    required this.autoFocus,
+    required this.obscureText,
+    required this.readOnly,
+    required this.variant,
+    required this.type,
+    this.onChanged,
+    this.onCompleted,
+    super.validator,
+  }) : super(
+         initialValue: controller?.code ?? '',
+         builder: (field) => (field as _OtpFieldState)._build(),
+       );
+
+  final int length;
+  final AppOtpController? controller;
+  final AppOtpCharset charset;
+  final bool autoFocus;
+  final bool obscureText;
+  final bool readOnly;
+  final AppInputVariant? variant;
+  final AppInputType? type;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onCompleted;
+
+  @override
+  FormFieldState<String> createState() => _OtpFieldState();
+}
+
+class _OtpFieldState extends FormFieldState<String> {
+  late List<TextEditingController> _cells;
+  late List<FocusNode> _nodes;
+
+  _OtpField get _field => widget as _OtpField;
+
+  String get _code => _cells.map((c) => c.text).join();
+
+  @override
+  void initState() {
+    super.initState();
+    _createCells();
+    _field.controller?.addListener(_onControllerChanged);
+    final initial = _field.controller?.code ?? '';
+    if (initial.isNotEmpty) {
+      _applyCode(initial, moveFocus: false, notify: false);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant FormField<String> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final old = oldWidget as _OtpField;
+    if (_field.controller != old.controller) {
+      old.controller?.removeListener(_onControllerChanged);
+      _field.controller?.addListener(_onControllerChanged);
+    }
+    if (_field.length != old.length) {
+      final code = _code;
+      _disposeCells();
+      _createCells();
+      _applyCode(code, moveFocus: false, notify: false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _field.controller?.removeListener(_onControllerChanged);
+    _disposeCells();
+    super.dispose();
+  }
+
+  @override
+  void reset() {
+    for (final cell in _cells) {
+      cell.clear();
+    }
+    _field.controller?._code = '';
+    super.reset();
+  }
+
+  void _createCells() {
+    _cells = List.generate(_field.length, (_) => TextEditingController());
+    _nodes = List.generate(
+      _field.length,
+      (index) => FocusNode(onKeyEvent: (_, event) => _onKeyEvent(event, index)),
+    );
+    for (var index = 0; index < _field.length; index++) {
+      _nodes[index].addListener(() => _onFocusChanged(index));
+    }
+  }
+
+  void _disposeCells() {
+    for (final cell in _cells) {
+      cell.dispose();
+    }
+    for (final node in _nodes) {
+      node.dispose();
+    }
+  }
+
+  /// Selects a filled cell's character on focus, so typing replaces it.
+  void _onFocusChanged(int index) {
+    final cell = _cells[index];
+    if (_nodes[index].hasFocus && cell.text.isNotEmpty) {
+      cell.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: cell.text.length,
+      );
+    }
+  }
+
+  /// Drops the characters [AppOtpCharset] refuses.
+  String _sanitize(String raw) {
+    final text = raw.trim();
+    return switch (_field.charset) {
+      AppOtpCharset.numeric => text.replaceAll(RegExp(r'[^0-9]'), ''),
+      AppOtpCharset.alphanumeric => text.replaceAll(
+        RegExp(r'[^a-zA-Z0-9]'),
+        '',
+      ),
+      AppOtpCharset.any => text,
+    };
+  }
+
+  void _onCellChanged(String value, int index) {
+    // A soft-keyboard backspace emptied the cell.
+    if (value.isEmpty) {
+      _notifyChanged();
+      if (index > 0) _nodes[index - 1].requestFocus();
+      return;
+    }
+
+    final text = _sanitize(value);
+    if (text.isEmpty) {
+      _cells[index].clear();
+      return;
+    }
+
+    HapticFeedback.selectionClick();
+
+    // More than one character at once is a paste or an autofill.
+    if (text.length > 1) {
+      _applyCode(text, from: index);
+      return;
+    }
+
+    _cells[index].value = TextEditingValue(
+      text: text,
+      selection: const TextSelection.collapsed(offset: 1),
+    );
+    _notifyChanged();
+
+    if (index < _field.length - 1) {
+      _nodes[index + 1].requestFocus();
+    } else {
+      _nodes[index].unfocus();
+    }
+  }
+
+  /// A hardware backspace on an empty cell clears the one before it — the
+  /// soft keyboard sends nothing for an empty field, so this is the only way
+  /// back.
+  KeyEventResult _onKeyEvent(KeyEvent event, int index) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.backspace &&
+        _cells[index].text.isEmpty &&
+        index > 0) {
+      _cells[index - 1].clear();
+      _nodes[index - 1].requestFocus();
+      _notifyChanged();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  /// Spreads [raw] across the cells: a whole code overwrites them from the
+  /// start, a fragment fills in from [from] and leaves the cells before it.
+  void _applyCode(
+    String raw, {
+    int from = 0,
+    bool moveFocus = true,
+    bool notify = true,
+  }) {
+    final code = _sanitize(raw);
+    final overwrite = code.length >= _field.length || from == 0;
+    final start = overwrite ? 0 : from;
+
+    for (var i = 0; i < _field.length; i++) {
+      if (i >= start && i - start < code.length) {
+        _cells[i].text = code[i - start];
+      } else if (overwrite) {
+        _cells[i].clear();
+      }
+    }
+
+    if (moveFocus) {
+      final firstEmpty = _cells.indexWhere((c) => c.text.isEmpty);
+      if (firstEmpty == -1) {
+        FocusManager.instance.primaryFocus?.unfocus();
+      } else {
+        _nodes[firstEmpty].requestFocus();
+      }
+    }
+
+    if (notify) _notifyChanged();
+  }
+
+  void _notifyChanged() {
+    final code = _code;
+    _field.controller?._code = code;
+    didChange(code);
+    _field.onChanged?.call(code);
+    if (code.length == _field.length) _field.onCompleted?.call(code);
+  }
+
+  void _onControllerChanged() {
+    final code = _field.controller!.code;
+    if (code == _code) return;
+    // Only take focus if the field already had it, e.g. a clear-and-retry.
+    final hadFocus = _nodes.any((n) => n.hasFocus);
+    _applyCode(code, moveFocus: hadFocus);
+  }
+
+  Widget _build() {
+    final base = AppInputStyle.decoration(
+      context,
+      variant: _field.variant,
+      type: _field.type,
+      enabled: _field.enabled,
+    ).copyWith(counterText: '', contentPadding: EdgeInsets.zero);
+    // The message goes under the row, not under each cell, so the cells take
+    // the error borders by hand.
+    final decoration = hasError
+        ? base.copyWith(
+            enabledBorder: base.errorBorder,
+            focusedBorder: base.focusedErrorBorder,
+          )
+        : base;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      spacing: AppConstants.space8,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          spacing: AppConstants.space12,
+          children: [
+            for (var index = 0; index < _field.length; index++)
+              _OtpCell(
+                controller: _cells[index],
+                focusNode: _nodes[index],
+                decoration: decoration,
+                charset: _field.charset,
+                enabled: _field.enabled,
+                readOnly: _field.readOnly,
+                obscureText: _field.obscureText,
+                autoFocus: _field.autoFocus && index == 0,
+                // Autofill fills the first cell; _onCellChanged spreads it.
+                autofill: index == 0,
+                onText: (value) => _onCellChanged(value, index),
+              ),
+          ],
+        ),
+        if (hasError)
+          Text(
+            errorText!,
+            textAlign: TextAlign.center,
+            style: AppInputStyle.errorStyle(context),
+          ),
+      ],
+    );
+  }
+}
+
+class _OtpCell extends StatelessWidget {
+  const _OtpCell({
+    required this.controller,
+    required this.focusNode,
+    required this.decoration,
+    required this.charset,
+    required this.enabled,
+    required this.readOnly,
+    required this.obscureText,
+    required this.autoFocus,
+    required this.autofill,
+    required this.onText,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final InputDecoration decoration;
+  final AppOtpCharset charset;
+  final bool enabled;
+  final bool readOnly;
+  final bool obscureText;
+  final bool autoFocus;
+  final bool autofill;
+  final ValueChanged<String> onText;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: AppConstants.space48,
+      height: AppConstants.space48 + AppConstants.space8,
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        enabled: enabled,
+        readOnly: readOnly,
+        autofocus: autoFocus,
+        textAlign: TextAlign.center,
+        textAlignVertical: TextAlignVertical.center,
+        style: Theme.of(context).textTheme.titleLarge,
+        keyboardType: charset == AppOtpCharset.numeric
+            ? TextInputType.number
+            : TextInputType.text,
+        obscureText: obscureText,
+        autocorrect: false,
+        enableSuggestions: false,
+        autofillHints: autofill ? const [AutofillHints.oneTimeCode] : null,
+        decoration: decoration,
+        onChanged: onText,
       ),
     );
   }

@@ -1240,14 +1240,13 @@ Everything else in the kit is one command away, catalogued in the generated
 
 ```bash
 moarch create widget switch        # AppSwitch (+ any widgets it depends on)
-moarch create widget otp           # AppOtpInput (adds the mo_2fa_code package)
+moarch create widget otp           # AppOtpInput
 moarch create widget all           # the whole kit + the DesignSystemView preview
 moarch create widget --list        # print the catalog in the terminal
 ```
 
 Widget dependencies are pulled in automatically, and any pub package a widget needs
-([mo_2fa_code](https://pub.dev/packages/mo_2fa_code) for OTP, `cached_network_image`
-for avatars/images) is added to `pubspec.yaml`.
+(`cached_network_image` for avatars/images) is added to `pubspec.yaml`.
 
 The kit covers:
 

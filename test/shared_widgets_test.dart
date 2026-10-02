@@ -61,6 +61,7 @@ void main() {
       'appDrawer': NavigationTemplates.appDrawer,
       'appNavRail': NavigationTemplates.appNavRail,
       'appTimeline': ContentTemplates.appTimeline,
+      'appOtpInput': SharedTemplates.appOtpInput,
     };
 
     tactile.forEach((name, template) {
@@ -75,8 +76,12 @@ void main() {
       });
     });
 
-    test('the OTP field leaves the haptics to mo_2fa_code', () {
-      expect(SharedTemplates.appOtpInput(), contains('hapticFeedback: true'));
+    test('the OTP field is self-contained and styled like the inputs', () {
+      final output = SharedTemplates.appOtpInput();
+      expect(output, isNot(contains('package:mo_2fa_code')));
+      expect(output, contains('class AppOtpController extends ChangeNotifier'));
+      expect(output, contains('AutofillHints.oneTimeCode'));
+      expect(output, contains('AppInputStyle.decoration('));
     });
 
     test('a toast tells you how bad the news is by feel', () {
