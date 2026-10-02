@@ -2,6 +2,17 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.7.1
+
+- **`moarch create tests` finds the state holders of a feature with a folder
+  per screen.** Notifiers, blocs and cubits under `presentation/list/`,
+  `presentation/create/` and similar folders were skipped. Now the whole
+  feature is scanned (except `data/` and `domain/`). A file counts if it sits
+  in a `notifiers/`, `blocs/`, `cubit/` or `logic/` folder at any depth, or
+  if its name ends in `_notifier`, `_bloc`, `_cubit` or `_event`. States are
+  found in any `states/` folder or by a `_state` suffix, and their imports
+  now resolve wherever they sit under `presentation/`.
+
 ## 9.7.0
 
 - **Breaking — `Paginated<T>` handles page, offset and cursor APIs.** The
