@@ -100,7 +100,8 @@ class ImportResolver {
 
   /// Builds the import line for a custom [typeName]: first searches every
   /// feature's entity/model/state folders on disk (a type doesn't have to
-  /// live in the consuming class's own feature), then falls back to a
+  /// live in the consuming class's own feature), then every feature's
+  /// `presentation/` at any depth, then falls back to a
   /// name-suffix guess inside that feature.
   String typeImport(String typeName, NotifierInfo n) {
     final snakeFile = toSnakeCase(typeName);
@@ -116,6 +117,21 @@ class ImportResolver {
           if (candidate.existsSync()) {
             final featureName = p.basename(entry.path);
             return "import 'package:${n.packageName}/features/$featureName/$sub/$snakeFile.dart';";
+          }
+        }
+      }
+      // A feature with a folder per screen keeps its states deeper
+      // (`presentation/list/states/`), so search the whole layer.
+      for (final entry in featuresDir.listSync()) {
+        if (entry is! Directory) continue;
+        final presentation = Directory(p.join(entry.path, 'presentation'));
+        if (!presentation.existsSync()) continue;
+        for (final file in presentation.listSync(recursive: true)) {
+          if (file is File && p.basename(file.path) == '$snakeFile.dart') {
+            final rel = p
+                .relative(file.path, from: p.join(projectRoot, 'lib'))
+                .replaceAll(r'\', '/');
+            return "import 'package:${n.packageName}/$rel';";
           }
         }
       }

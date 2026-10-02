@@ -11,31 +11,40 @@ class FeatureScanner {
   /// Absolute path to the `lib/features` directory.
   final String featuresRoot;
 
-  /// Folders (relative to a feature directory) that conventionally hold the
-  /// state-management classes, covering both the Riverpod layout
-  /// (`presentation/notifiers/`) and the common `flutter_bloc` ones
-  /// (`presentation/bloc/`, `presentation/cubit/`, or a top-level `bloc/`
-  /// folder). Each is scanned recursively, so a per-feature nesting like
-  /// `presentation/bloc/login/login_bloc.dart` is picked up too.
-  static const logicFolders = [
-    'presentation/notifiers',
-    'presentation/notifier',
-    'presentation/bloc',
-    'presentation/blocs',
-    'presentation/cubit',
-    'presentation/cubits',
-    'presentation/logic',
+  /// Folder names that conventionally hold the state-management classes,
+  /// covering both the Riverpod layout (`notifiers/`) and the common
+  /// `flutter_bloc` ones (`bloc/`, `blocs/`, `cubit/`). A folder counts
+  /// wherever it sits in the feature, so a feature with a folder per screen
+  /// (`presentation/list/blocs/`, `presentation/notifiers/create/`) is
+  /// scanned the same as a flat one.
+  static const logicFolders = {
+    'notifiers',
+    'notifier',
     'bloc',
     'blocs',
     'cubit',
     'cubits',
+    'logic',
+  };
+
+  /// File-name suffixes that mark a state-management file outside any of the
+  /// [logicFolders] — `presentation/list/list_bloc.dart`, where the screen's
+  /// folder is the only grouping.
+  static const logicSuffixes = [
+    '_notifier.dart',
+    '_bloc.dart',
+    '_cubit.dart',
+    '_event.dart',
   ];
 
-  /// Folders (relative to a feature directory) that conventionally hold the
-  /// state models. Bloc projects usually keep the state next to the bloc
-  /// instead, which [scan] handles by also treating `*_state.dart` files
-  /// inside [logicFolders] as state files.
-  static const stateFolders = ['presentation/states', 'presentation/state'];
+  /// Folder names that conventionally hold the state models, wherever they
+  /// sit in the feature. Bloc projects usually keep the state next to the
+  /// bloc instead, which [scan] handles by also treating every
+  /// `*_state.dart` file as a state file.
+  static const stateFolders = {'states', 'state'};
+
+  /// Layers of a feature that never hold state-management classes.
+  static const _skippedLayers = {'data', 'domain'};
 
   /// Scans the configured features directory and returns discovered bundles.
   List<FeatureBundle> scan() {
@@ -50,20 +59,25 @@ class FeatureScanner {
       final featureName = p.basename(featureDir.path);
 
       final logicFiles = <String>{};
-      for (final folder in logicFolders) {
-        logicFiles.addAll(_dartFiles(_subDir(featureDir.path, folder)));
+      final stateFiles = <String>{};
+      for (final file in _dartFiles(featureDir)) {
+        final segments = p.split(p.relative(file, from: featureDir.path));
+        if (_skippedLayers.contains(segments.first)) continue;
+        final folders = segments.sublist(0, segments.length - 1);
+        final name = segments.last;
+
+        final inLogicFolder = folders.any(logicFolders.contains);
+        if (inLogicFolder || logicSuffixes.any(name.endsWith)) {
+          logicFiles.add(file);
+        }
+        // Bloc convention: `auth_state.dart` sits beside `auth_bloc.dart`,
+        // usually as a `part` of it, rather than in a `states/` folder.
+        if (folders.any(stateFolders.contains) ||
+            name.endsWith('_state.dart')) {
+          stateFiles.add(file);
+        }
       }
       if (logicFiles.isEmpty) continue;
-
-      final stateFiles = <String>{};
-      for (final folder in stateFolders) {
-        stateFiles.addAll(_dartFiles(_subDir(featureDir.path, folder)));
-      }
-      // Bloc convention: `auth_state.dart` sits beside `auth_bloc.dart`,
-      // usually as a `part` of it, rather than in a `states/` folder.
-      stateFiles.addAll(
-        logicFiles.where((f) => p.basename(f).endsWith('_state.dart')),
-      );
 
       bundles.add(
         FeatureBundle(
@@ -81,18 +95,12 @@ class FeatureScanner {
     return bundles;
   }
 
-  Directory _subDir(String featurePath, String relative) =>
-      Directory(p.joinAll([featurePath, ...relative.split('/')]));
-
-  List<String> _dartFiles(Directory dir) {
-    if (!dir.existsSync()) return const [];
-    return dir
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.dart'))
-        .map((f) => f.path)
-        .toList();
-  }
+  List<String> _dartFiles(Directory dir) => dir
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((f) => f.path.endsWith('.dart'))
+      .map((f) => f.path)
+      .toList();
 }
 
 /// A discovered feature with its logic, state and event source files.

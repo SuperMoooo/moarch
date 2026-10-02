@@ -61,6 +61,65 @@ void main() {
         }
       },
     );
+
+    test('discovers the state holders of a feature with a folder per screen, '
+        'in or out of a notifiers/blocs folder, and skips data and domain', () {
+      final tempDir = Directory.systemTemp.createTempSync('mogen_scan_');
+      try {
+        void write(String relative) {
+          final file = File(p.joinAll([tempDir.path, ...relative.split('/')]));
+          file.parent.createSync(recursive: true);
+          file.writeAsStringSync('');
+        }
+
+        // Riverpod, one folder per screen.
+        write('orders/presentation/list/notifiers/orders_list_notifier.dart');
+        write('orders/presentation/list/states/orders_list_state.dart');
+        write('orders/presentation/create/create_order_notifier.dart');
+        write('orders/presentation/create/create_order_state.dart');
+        write('orders/presentation/create/views/create_order_view.dart');
+        write('orders/domain/models/order.dart');
+        // flutter_bloc, one folder per screen.
+        write('cart/presentation/list/blocs/cart_list_bloc.dart');
+        write('cart/presentation/list/blocs/cart_list_event.dart');
+        write('cart/presentation/list/blocs/cart_list_state.dart');
+        write('cart/presentation/create/cart_create_cubit.dart');
+
+        final bundles = FeatureScanner(featuresRoot: tempDir.path).scan()
+          ..sort((a, b) => a.featureName.compareTo(b.featureName));
+        expect(bundles.map((b) => b.featureName), equals(['cart', 'orders']));
+
+        final cart = bundles.first;
+        expect(
+          cart.notifierFiles.map(p.basename),
+          unorderedEquals([
+            'cart_list_bloc.dart',
+            'cart_list_event.dart',
+            'cart_list_state.dart',
+            'cart_create_cubit.dart',
+          ]),
+        );
+        expect(cart.stateFiles.map(p.basename), ['cart_list_state.dart']);
+
+        final orders = bundles.last;
+        expect(
+          orders.notifierFiles.map(p.basename),
+          unorderedEquals([
+            'orders_list_notifier.dart',
+            'create_order_notifier.dart',
+          ]),
+        );
+        expect(
+          orders.stateFiles.map(p.basename),
+          unorderedEquals([
+            'orders_list_state.dart',
+            'create_order_state.dart',
+          ]),
+        );
+      } finally {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
   });
 
   group('NotifierParser — flutter_bloc', () {
