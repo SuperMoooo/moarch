@@ -2,6 +2,13 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.7.3
+
+- **`docs/GENERATE_JKS_FILE.md` fixes the command for the certificate
+  fingerprints.** The `keytool` call in "Get the certificate SHA
+  fingerprints" now passes the keystore before `-list -v`. Run `moarch
+  update jks-doc` to refresh it.
+
 ## 9.7.2
 
 - **Breaking — `AppOtpInput` no longer depends on `mo_2fa_code`.** The code

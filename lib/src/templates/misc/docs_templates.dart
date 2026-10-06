@@ -818,7 +818,7 @@ android {
 Needed for Firebase, Google Sign-In, deep links, etc.:
 
 ```bash
-keytool -list -v -keystore my-release-key.jks -alias my-key-alias
+keytool -keystore my-release-key.jks -list -v 
 ```
 ''';
 
