@@ -10,6 +10,7 @@ import '../templates/core/security_templates.dart';
 import '../templates/core/services_templates.dart';
 import '../templates/core/sync_templates.dart';
 import '../templates/misc/agents_templates.dart';
+import '../templates/misc/claude_mod_templates.dart';
 import '../templates/misc/deep_links_templates.dart';
 import '../templates/misc/android_templates.dart';
 import '../templates/misc/dev_templates.dart';
@@ -301,6 +302,9 @@ class ScaffoldContext {
   /// The agent skills were generated (9.1.0 on) — what `AGENTS.md`'s skills
   /// section lists, and leaves out on a project that does not have them yet.
   bool get hasAgentSkills => hasFile(SkillsTemplates.all.first.agentsPath);
+
+  /// The Claude Code mod was generated (9.8.0 on).
+  bool get hasClaudeMod => hasFile(ClaudeModTemplates.markerPath);
 }
 
 /// One generated file outside the widget kit that `moarch update` can refresh.
@@ -1317,6 +1321,18 @@ abstract final class ScaffoldCatalog {
       template: (_) => SkillsTemplates.geminiSettings(),
       description: 'Points Gemini CLI at AGENTS.md.',
     ),
+    // The Claude Code mod: function hooks Claude Code loads from the skills
+    // folder. Static text, the same for both stacks — it reads the project
+    // at run time.
+    for (final file in ClaudeModTemplates.all)
+      ScaffoldSpec(
+        name: file.slug,
+        title: file.title,
+        path: file.path,
+        category: 'AI agents',
+        template: (_) => file.content,
+        description: file.description,
+      ),
 
     // ── Workflows ───────────────────────────────────────────────────────────
     ScaffoldSpec(

@@ -32,3 +32,6 @@ migrate_working_dir/
 
 # Claude Code per-person settings (.claude/settings.json is shared)
 .claude/settings.local.json
+
+# The API types Claude Code lays beside a mod each time it loads it.
+.claude/skills/*/.claude-plugin/types/

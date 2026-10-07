@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:moarch/src/templates/core/core_templates.dart';
+import 'package:moarch/src/templates/misc/claude_mod_templates.dart';
 import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/templates/misc/skills_templates.dart';
 import 'package:moarch/src/utils/api_constants_utils.dart';
@@ -32,6 +33,9 @@ void main() {
         p.join(root, skill.agentsPath),
       ).create(recursive: true).then((file) => file.writeAsString('---\n'));
     }
+    await File(
+      p.join(root, ClaudeModTemplates.markerPath),
+    ).create(recursive: true);
     await File(p.join(root, '.vscode', 'settings.json'))
         .create(recursive: true)
         .then((file) => file.writeAsString(DevTemplates.vscodeSettings()));
@@ -748,6 +752,57 @@ dependencies:
           await ProjectInspector.inspect(root),
           'Agent skills added since',
         ),
+        isEmpty,
+      );
+    });
+  });
+
+  group('claude code mod', () {
+    Future<void> removeMod() =>
+        Directory(p.join(root, ClaudeModTemplates.dir)).delete(recursive: true);
+
+    test('offers it to a project that has the skills but no mod', () async {
+      await scaffoldHealthyProject();
+      await removeMod();
+
+      final finding = matching(
+        await ProjectInspector.inspect(root),
+        'No Claude Code mod',
+      ).single;
+      expect(finding.severity, DiagnosticSeverity.info);
+
+      await finding.fix!();
+
+      for (final file in ClaudeModTemplates.all) {
+        expect(
+          await File(p.join(root, file.path)).readAsString(),
+          file.content,
+        );
+      }
+      expect(await ProjectInspector.inspect(root), isEmpty);
+    });
+
+    test('leaves alone a project that generated it and deleted it', () async {
+      await scaffoldHealthyProject();
+      await removeMod();
+      await File(p.join(root, ProjectManifest.fileName)).writeAsString(
+        "version: '9.8.0'\nstack: []\nfiles:\n"
+        "  '${ClaudeModTemplates.markerPath}': 'abc'\n",
+      );
+
+      expect(
+        matching(await ProjectInspector.inspect(root), 'No Claude Code mod'),
+        isEmpty,
+      );
+    });
+
+    test('is not offered without the skills', () async {
+      await scaffoldHealthyProject();
+      await removeMod();
+      await Directory(p.join(root, '.agents')).delete(recursive: true);
+
+      expect(
+        matching(await ProjectInspector.inspect(root), 'No Claude Code mod'),
         isEmpty,
       );
     });

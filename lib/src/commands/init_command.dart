@@ -7,6 +7,7 @@ import 'package:moarch/src/templates/core/security_templates.dart';
 import 'package:moarch/src/templates/core/services_templates.dart';
 import 'package:moarch/src/templates/misc/deep_links_templates.dart';
 import 'package:moarch/src/templates/misc/agents_templates.dart';
+import 'package:moarch/src/templates/misc/claude_mod_templates.dart';
 import 'package:moarch/src/templates/misc/skills_templates.dart';
 import 'package:moarch/src/templates/misc/android_templates.dart';
 import 'package:moarch/src/templates/misc/dev_templates.dart';
@@ -882,6 +883,11 @@ class InitCommand extends Command<int> {
           at('.gemini/settings.json'),
           SkillsTemplates.geminiSettings(),
         );
+        // Claude Code also loads a plugin folder it finds among the skills:
+        // the guards and the /moarch pane, enforced rather than described.
+        for (final file in ClaudeModTemplates.all) {
+          await FileUtils.writeFile(at(file.path), file.content);
+        }
       }
 
       await FileUtils.writeFile(
@@ -1024,6 +1030,8 @@ class InitCommand extends Command<int> {
         // Claude Code's per-person settings; `.claude/settings.json` is the
         // shared half and is committed.
         '.claude/settings.local.json',
+        // The API types Claude Code lays beside a mod each time it loads it.
+        '.claude/skills/*/.claude-plugin/types/',
       ];
 
       // `flutter create` projects already have a .gitignore, and writeFile

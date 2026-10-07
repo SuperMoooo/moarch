@@ -1,0 +1,9 @@
+{
+  "name": "moarch-dev",
+  "version": "0.1.0",
+  "description": "Release and template checks for working on moarch: version sync, the bump-again rule, stack parity and the agent guide.",
+  "author": {
+    "name": "moarch"
+  },
+  "types": "./types/index.d.ts"
+}

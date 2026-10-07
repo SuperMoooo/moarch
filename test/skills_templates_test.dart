@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:moarch/src/templates/misc/agents_templates.dart';
+import 'package:moarch/src/templates/misc/claude_mod_templates.dart';
 import 'package:moarch/src/templates/misc/skills_templates.dart';
 import 'package:moarch/src/utils/scaffold_catalog.dart';
 import 'package:moarch/src/utils/state_management.dart';
@@ -398,7 +399,7 @@ void main() {
   });
 
   group('catalog', () {
-    test('the ai group holds both files of every skill and the settings', () {
+    test('the ai group holds the skills, the settings and the mod', () {
       final paths = ScaffoldCatalog.byGroup('ai').map((s) => s.path).toSet();
       for (final skill in SkillsTemplates.all) {
         expect(paths, contains(skill.agentsPath));
@@ -408,7 +409,15 @@ void main() {
         paths,
         containsAll(['.claude/settings.json', '.gemini/settings.json']),
       );
-      expect(paths, hasLength(SkillsTemplates.all.length * 2 + 2));
+      for (final file in ClaudeModTemplates.all) {
+        expect(paths, contains(file.path));
+      }
+      expect(
+        paths,
+        hasLength(
+          SkillsTemplates.all.length * 2 + 2 + ClaudeModTemplates.all.length,
+        ),
+      );
     });
   });
 }

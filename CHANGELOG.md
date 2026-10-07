@@ -2,6 +2,28 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.8.0
+
+- **The AI agent guide now includes a Claude Code mod**, in
+  `.claude/skills/moarch-mod/`. A mod is a plugin of function hooks, and
+  Claude Code loads this one from the skills folder once you trust the
+  workspace. Other agents keep reading `AGENTS.md` and the skills.
+  - It refuses edits to `*.g.dart` and `*.freezed.dart` and names the source
+    to edit instead. It also refuses an edit that removes a `// moarch:routes`,
+    `// moarch:registrations` or `// moarch:endpoints` anchor.
+  - After a change to a file with a generated `part`, the status line shows
+    `build_runner pending` until build_runner runs.
+  - `/moarch` opens a pane with the stack, the features, the files that
+    differ from `.moarch.yaml` (the ones `moarch update` skips) and the
+    session cost.
+  - It adds a `moarch-mod:runner` subagent on haiku that runs analyze, test,
+    build_runner and moarch commands and reports only what failed.
+  - `claude plugin test .claude/skills/moarch-mod` runs its tests. Existing
+    projects with the skills get it from `moarch doctor --fix`, and
+    `moarch update ai` refreshes it. `init` also adds
+    `.claude/skills/*/.claude-plugin/types/` to `.gitignore`: Claude Code
+    writes the API types there each time it loads a mod.
+
 ## 9.7.3
 
 - **`docs/GENERATE_JKS_FILE.md` fixes the command for the certificate
