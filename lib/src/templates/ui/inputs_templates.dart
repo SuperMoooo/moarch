@@ -86,14 +86,15 @@ class AppMultiSelectInput<T> extends StatelessWidget {
 
   /// Called with the complete new selection, in the order the items appear in
   /// [items] — not in the order they were ticked, which no caller wants to
-  /// store. Only a [readOnly] field may leave it out — one whose sheet never
-  /// opens has nothing to report.
+  /// store. A field the user can pick in needs this or [onSelected] — either
+  /// is enough; only a [readOnly] field may leave out both, its sheet never
+  /// opening.
   final ValueChanged<List<String>>? onChanged;
 
   /// The current selection.
   final List<String> selectedIds;
 
-  /// Called with the items themselves, alongside [onChanged].
+  /// Called with the items themselves, alongside [onChanged] or in its place.
   final ValueChanged<List<T>>? onSelected;
 
   final String hint;
@@ -275,9 +276,10 @@ class AppMultiSelectInput<T> extends StatelessWidget {
       'item. Ids are what the selection is made of, so they have to be unique.',
     );
     assert(
-      onChanged != null || readOnly,
+      onChanged != null || onSelected != null || readOnly,
       'AppMultiSelectInput<$T>: a field the user can pick in needs an '
-      'onChanged. Pass readOnly: true for one that only shows the selection.',
+      'onChanged or an onSelected. Pass readOnly: true for one that only '
+      'shows the selection.',
     );
 
     return InputFieldLayout(

@@ -3311,13 +3311,13 @@ class AppDropdownInput<T> extends StatelessWidget {
   /// Extract the display label from an item.
   final String Function(T item) labelOf;
 
-  /// Called with the selected id when the user picks an option. Only a
-  /// [readOnly] field may leave it out — one that cannot be picked in has
-  /// nothing to report.
+  /// Called with the selected id when the user picks an option. A field the
+  /// user can pick in needs this or [onSelected] — either is enough; only a
+  /// [readOnly] field may leave out both, having nothing to report.
   final ValueChanged<String>? onChanged;
 
-  /// Called with the item itself, alongside [onChanged]. Saves the caller
-  /// looking up an item this field had in its hand a moment earlier.
+  /// Called with the item itself, alongside [onChanged] or in its place. Saves
+  /// the caller looking up an item this field had in its hand a moment earlier.
   final ValueChanged<T>? onSelected;
 
   /// Called when the user clears the field. Providing it is what puts the clear
@@ -3527,9 +3527,10 @@ class AppDropdownInput<T> extends StatelessWidget {
       'Ids are what pick the selection, so they have to be unique.',
     );
     assert(
-      onChanged != null || readOnly,
-      'AppDropdownInput<$T>: a field the user can pick in needs an onChanged. '
-      'Pass readOnly: true for one that only shows what was picked.',
+      onChanged != null || onSelected != null || readOnly,
+      'AppDropdownInput<$T>: a field the user can pick in needs an onChanged '
+      'or an onSelected. Pass readOnly: true for one that only shows what was '
+      'picked.',
     );
 
     final selected = _selected;

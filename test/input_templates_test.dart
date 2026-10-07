@@ -328,18 +328,24 @@ void main() {
     test('a pickable field with no callback trips an assert, not silence', () {
       // The looser signature is for read-only fields; forgetting the callback
       // on one the user can actually pick in has to be loud.
+      // Either callback is enough where both exist: onSelected alone is a
+      // complete way to hear about a pick, so demanding onChanged too would
+      // crash a field that is wired up correctly.
       final picking = <String, String Function()>{
         'appDropdown': SharedTemplates.appDropdown,
         'appMultiSelect': InputsTemplates.appMultiSelect,
-        'appCountryPicker': CountryTemplates.appCountryPicker,
       };
       picking.forEach((name, template) {
         expect(
           template(),
-          contains('onChanged != null || readOnly,'),
+          contains('onChanged != null || onSelected != null || readOnly,'),
           reason: name,
         );
       });
+      expect(
+        CountryTemplates.appCountryPicker(),
+        contains('onChanged != null || readOnly,'),
+      );
       expect(
         InputsTemplates.appFilePickerField(),
         contains('(onPick != null && onChanged != null) || readOnly,'),

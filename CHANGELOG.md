@@ -2,6 +2,14 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.8.1
+
+- **`AppDropdownInput` and `AppMultiSelectInput` no longer crash when given
+  only `onSelected`.** A field the user can pick in needs `onChanged` or
+  `onSelected` now. Before, a field with `onSelected` and no `onChanged` failed
+  an assert in debug builds. Existing projects get the fix from
+  `moarch update dropdown` and `moarch update multi-select`.
+
 ## 9.8.0
 
 - **The AI agent guide now includes a Claude Code mod**, in
