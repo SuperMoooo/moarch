@@ -165,7 +165,9 @@ class AppConfirmDialog extends StatelessWidget {
               children: [
                 Expanded(
                   child: AppButton(
-                    variant: variant,
+                    // Neutral whatever the variant: the way out must not look
+                    // like the action it backs out of.
+                    variant: AppButtonVariant.secondary,
                     type: AppButtonType.ghost,
                     label: cancelLabel,
                     onPressed: () => Navigator.of(context).pop(false),

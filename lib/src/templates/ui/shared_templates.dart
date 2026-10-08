@@ -97,11 +97,12 @@ class AppAvatar extends StatelessWidget {
         _initial(),
         style: TextStyle(
           // The palette holds light and dark colors alike, so the initial
-          // takes whichever of black / white reads on this one.
-          color: ThemeData.estimateBrightnessForColor(background) ==
-                  Brightness.dark
-              ? Colors.white
-              : Colors.black,
+          // takes whichever of black / white has more contrast on this one.
+          // 0.179 is where the two cross; Flutter's brightness estimate puts
+          // white on oranges and teals that black reads far better on.
+          color: background.computeLuminance() > 0.179
+              ? Colors.black
+              : Colors.white,
           fontWeight: FontWeight.bold,
           fontSize: size.diameter * 0.4,
         ),
@@ -1095,16 +1096,17 @@ class AppInputStyle {
     AppInputType type,
     AppInputShape shape,
     Color color,
-    double width,
-  ) {
+    double width, {
+    bool labelInside = false,
+  }) {
     final side = BorderSide(color: color, width: width);
     if (type == AppInputType.underline) {
       return UnderlineInputBorder(borderSide: side);
     }
-    return OutlineInputBorder(
-      borderRadius: _radiusOf(type, shape),
-      borderSide: side,
-    );
+    final radius = _radiusOf(type, shape);
+    return labelInside
+        ? _LabelInsideBorder(borderRadius: radius, borderSide: side)
+        : OutlineInputBorder(borderRadius: radius, borderSide: side);
   }
 
   /// Builds the decoration for an input. Nulls fall back to
@@ -1165,11 +1167,14 @@ class AppInputStyle {
       alpha: config.disabledOpacity / 2,
     );
 
-    // The theme's own fill — the same color AppCard paints — so a field and a
-    // card standing next to each other read as one surface.
+    // The theme's own fill, so `app_theme.dart` restyles every field at once.
     final baseFill = decorationTheme.fillColor ?? theme.colorScheme.surface;
 
     final marked = markedLabel(label, required: required);
+
+    // A filled field has no visible edge for a floating label to sit in, so
+    // the label floats inside the fill instead.
+    final labelInside = filled && mode == AppInputLabelMode.floating;
 
     return InputDecoration(
       // Only the in-field modes draw the label here: `above` is a separate
@@ -1196,36 +1201,42 @@ class AppInputStyle {
         resolvedShape,
         idleColor,
         config.idleBorderWidth,
+        labelInside: labelInside,
       ),
       enabledBorder: _border(
         resolvedType,
         resolvedShape,
         idleColor,
         config.idleBorderWidth,
+        labelInside: labelInside,
       ),
       focusedBorder: _border(
         resolvedType,
         resolvedShape,
         focusedColor,
         config.focusedBorderWidth,
+        labelInside: labelInside,
       ),
       disabledBorder: _border(
         resolvedType,
         resolvedShape,
         disabledColor,
         config.idleBorderWidth,
+        labelInside: labelInside,
       ),
       errorBorder: _border(
         resolvedType,
         resolvedShape,
         errorColor,
         config.idleBorderWidth,
+        labelInside: labelInside,
       ),
       focusedErrorBorder: _border(
         resolvedType,
         resolvedShape,
         errorColor,
         config.focusedBorderWidth,
+        labelInside: labelInside,
       ),
       prefixIconColor: enabled ? accent : disabledColor,
       suffixIconColor: enabled ? accent : disabledColor,
@@ -1257,6 +1268,52 @@ class AppInputStyle {
       ),
     );
   }
+}
+
+/// An [OutlineInputBorder] that keeps its label inside: Material floats the
+/// label onto an outline's top edge, and decides that from [isOutline].
+class _LabelInsideBorder extends OutlineInputBorder {
+  const _LabelInsideBorder({super.borderRadius, super.borderSide});
+
+  @override
+  bool get isOutline => false;
+
+  // Material restyles and animates the border through these; each would hand
+  // back a plain outline, which cuts a gap for the label again.
+  @override
+  _LabelInsideBorder copyWith({
+    BorderSide? borderSide,
+    BorderRadius? borderRadius,
+    double? gapPadding,
+  }) => _LabelInsideBorder(
+    borderSide: borderSide ?? this.borderSide,
+    borderRadius: borderRadius ?? this.borderRadius,
+  );
+
+  @override
+  ShapeBorder? lerpFrom(ShapeBorder? a, double t) =>
+      _keep(super.lerpFrom(a, t));
+
+  @override
+  ShapeBorder? lerpTo(ShapeBorder? b, double t) => _keep(super.lerpTo(b, t));
+
+  ShapeBorder? _keep(ShapeBorder? border) => border is OutlineInputBorder
+      ? copyWith(
+          borderSide: border.borderSide,
+          borderRadius: border.borderRadius,
+        )
+      : border;
+
+  /// Drops the label's gap, which Material measures for any labeled border.
+  @override
+  void paint(
+    Canvas canvas,
+    Rect rect, {
+    double? gapStart,
+    double gapExtent = 0.0,
+    double gapPercentage = 0.0,
+    TextDirection? textDirection,
+  }) => super.paint(canvas, rect, textDirection: textDirection);
 }
 
 /// Renders [child] as it looks when live, but inert: read-only, not disabled.
@@ -2136,6 +2193,7 @@ class _AppInputState extends State<AppInput> {
         context,
         size: widget.size,
         variant: widget.variant,
+        enabled: widget.enabled,
       ),
       decoration: AppInputStyle.decoration(
         context,
@@ -2366,6 +2424,8 @@ class AppDateInput extends StatefulWidget {
   final bool readOnly;
 
   final Widget? prefixIcon;
+
+  /// Defaults to a calendar, so the field reads as a picker.
   final Widget? suffixIcon;
   final FocusNode? focusNode;
   final bool autoFocus;
@@ -2539,6 +2599,7 @@ class _AppDateInputState extends State<AppDateInput> {
           context,
           size: widget.size,
           variant: widget.variant,
+          enabled: widget.enabled,
         ),
         textAlign: widget.textAlign,
         cursorColor: accent,
@@ -2554,7 +2615,7 @@ class _AppDateInputState extends State<AppDateInput> {
           hint: widget.hint,
           enabled: widget.enabled,
           prefixIcon: widget.prefixIcon,
-          suffixIcon: widget.suffixIcon,
+          suffixIcon: widget.suffixIcon ?? const Icon(Icons.calendar_today_outlined),
         ),
       ),
     );
@@ -2620,6 +2681,8 @@ class AppTimeInput extends StatefulWidget {
   final bool readOnly;
 
   final Widget? prefixIcon;
+
+  /// Defaults to a clock, so the field reads as a picker.
   final Widget? suffixIcon;
   final FocusNode? focusNode;
   final bool autoFocus;
@@ -2785,6 +2848,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
           context,
           size: widget.size,
           variant: widget.variant,
+          enabled: widget.enabled,
         ),
         textAlign: widget.textAlign,
         cursorColor: accent,
@@ -2800,7 +2864,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
           hint: widget.hint,
           enabled: widget.enabled,
           prefixIcon: widget.prefixIcon,
-          suffixIcon: widget.suffixIcon,
+          suffixIcon: widget.suffixIcon ?? const Icon(Icons.schedule_outlined),
         ),
       ),
     );
@@ -3566,7 +3630,7 @@ class AppDropdownInput<T> extends StatelessWidget {
       'Ids are what pick the selection, so they have to be unique.',
     );
     assert(
-      onChanged != null || onSelected != null || readOnly,
+      onChanged != null || onSelected != null || readOnly || !enabled,
       'AppDropdownInput<$T>: a field the user can pick in needs an onChanged '
       'or an onSelected. Pass readOnly: true for one that only shows what was '
       'picked.',
@@ -3648,6 +3712,7 @@ class AppDropdownInput<T> extends StatelessWidget {
                           context,
                           size: size,
                           variant: variant,
+                          enabled: enabled,
                         ),
                       ),
                     ),
@@ -3669,7 +3734,12 @@ class AppDropdownInput<T> extends StatelessWidget {
       // — restored state waiting on a fetch, a list refreshed out from under
       // the selection — would otherwise throw.
       initialValue: selected == null ? null : selectedId,
-      style: AppInputStyle.valueStyle(context, size: size, variant: variant),
+      style: AppInputStyle.valueStyle(
+        context,
+        size: size,
+        variant: variant,
+        enabled: enabled,
+      ),
       decoration: _decoration(context),
       isExpanded: true,
       // A dropdown has no textAlign, so align the item boxes instead.
@@ -4667,10 +4737,8 @@ enum AppCardType { elevated, filled, outlined }
 
 /// A themed surface container. Provide [onTap] to make the whole card tappable.
 ///
-/// Its surface is `cardTheme.color` from `config/theme/app_theme.dart` — the
-/// same color `AppInputStyle` fills a field with — so a card and an input
-/// standing next to each other read as one surface, and moving the theme moves
-/// both.
+/// Its surface is `cardTheme.color` from `config/theme/app_theme.dart`, so
+/// moving the theme moves every card.
 class AppCard extends StatelessWidget {
   const AppCard({
     super.key,
@@ -4715,7 +4783,7 @@ class AppCard extends StatelessWidget {
     // `cardTheme` decides what a card is made of, so a project restyles its
     // cards there rather than here. The fallbacks cover one that has not
     // themed cards at all.
-    final surface = cardTheme.color ?? theme.colorScheme.surfaceContainerLowest;
+    final surface = cardTheme.color ?? theme.colorScheme.surfaceContainerLow;
     final shadow = cardTheme.shadowColor ?? Colors.black;
 
     // Only a rounded rectangle has a BorderRadius to hand the ripple and the
@@ -5022,7 +5090,9 @@ class AppSkeletonList extends StatelessWidget {
             const SizedBox(height: AppConstants.space12),
         itemBuilder: (context, index) => ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: hasLeading ? const CircleAvatar(radius: 24) : null,
+          // A Bone, not a CircleAvatar: Skeletonizer keeps an avatar's own
+          // fill, which is the primary color when no primaryContainer is set.
+          leading: hasLeading ? const Bone.circle(size: 48) : null,
           title: const Text('Loading item title here'),
           subtitle: const Text('Secondary supporting line'),
           trailing: const Icon(Icons.chevron_right),
@@ -6514,40 +6584,50 @@ class EmptyView extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Center(
-      child: Padding(
-        padding: AppConstants.padding24,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Neutral: the accent is kept for the action below it.
-            Icon(
-              icon,
-              size: AppConstants.iconLarge * 2,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: AppConstants.space16),
-            Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: AppConstants.space8),
-            Text(
-              message,
-              style: theme.textTheme.bodyMedium?.copyWith(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final content = Padding(
+          padding: AppConstants.padding24,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Neutral: the accent is kept for the action below it.
+              Icon(
+                icon,
+                size: AppConstants.iconLarge * 2,
                 color: theme.colorScheme.onSurfaceVariant,
               ),
-              textAlign: TextAlign.center,
-            ),
-            if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: AppConstants.space24),
-              FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+              const SizedBox(height: AppConstants.space16),
+              Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppConstants.space8),
+              Text(
+                message,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              if (actionLabel != null && onAction != null) ...[
+                const SizedBox(height: AppConstants.space24),
+                FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+              ],
             ],
-          ],
-        ),
-      ),
+          ),
+        );
+        // Scrolls rather than overflows when large text meets a short
+        // screen; an unbounded parent (a list) takes it as it is.
+        return Center(
+          child: constraints.hasBoundedHeight
+              ? SingleChildScrollView(child: content)
+              : content,
+        );
+      },
     );
   }
 }
@@ -6580,43 +6660,53 @@ class ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: AppConstants.padding24,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: AppConstants.iconLarge * 2,
-              color: theme.colorScheme.error,
-            ),
-            const SizedBox(height: AppConstants.space16),
-            Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final content = Padding(
+          padding: AppConstants.padding24,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: AppConstants.iconLarge * 2,
+                color: theme.colorScheme.error,
               ),
-            ),
-            const SizedBox(height: AppConstants.space8),
-            Text(
-              message ?? 'An unknown error occurred',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+              const SizedBox(height: AppConstants.space16),
+              Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-            if (onRetry != null) ...[
-              const SizedBox(height: AppConstants.space24),
-              FilledButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Try again'),
+              const SizedBox(height: AppConstants.space8),
+              Text(
+                message ?? 'An unknown error occurred',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
               ),
+              if (onRetry != null) ...[
+                const SizedBox(height: AppConstants.space24),
+                FilledButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try again'),
+                ),
+              ],
             ],
-          ],
-        ),
-      ),
+          ),
+        );
+        // Scrolls rather than overflows when large text meets a short
+        // screen; an unbounded parent (a list) takes it as it is.
+        return Center(
+          child: constraints.hasBoundedHeight
+              ? SingleChildScrollView(child: content)
+              : content,
+        );
+      },
     );
   }
 }
@@ -6739,9 +6829,7 @@ class AppIconButton extends StatelessWidget {
       // of black/white keeps the filled treatment legible.
       return (
         override,
-        ThemeData.estimateBrightnessForColor(override) == Brightness.dark
-            ? Colors.white
-            : Colors.black,
+        override.computeLuminance() > 0.179 ? Colors.black : Colors.white,
       );
     }
     return switch (variant) {
@@ -6793,7 +6881,10 @@ class AppIconButton extends StatelessWidget {
         : foregroundColor.withValues(alpha: _disabledOpacity);
     final resolvedBackground = enabled
         ? backgroundColor
-        : backgroundColor.withValues(alpha: _disabledOpacity);
+        // Scaled, not set: setting an alpha on Colors.transparent paints black.
+        : backgroundColor.withValues(
+            alpha: backgroundColor.a * _disabledOpacity,
+          );
 
     final border = type == AppIconButtonType.outlined
         ? BorderSide(color: resolvedForeground, width: _outlinedBorderWidth)
@@ -6981,9 +7072,13 @@ class AppFab extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = !isLoading && onPressed != null;
     final (background, foreground) = _colorsOf(context);
-    final resolvedBackground = enabled
-        ? background
-        : background.withValues(alpha: 0.35);
+    // Loading keeps its color, as AppButton does; only a disabled FAB fades,
+    // and loses its shadow, which would show through it.
+    final disabled = onPressed == null;
+    final resolvedBackground = disabled
+        ? background.withValues(alpha: background.a * 0.35)
+        : background;
+    final elevation = type == AppButtonType.ghost || disabled ? 0.0 : null;
 
     final child = isLoading
         ? SizedBox.square(
@@ -7013,7 +7108,8 @@ class AppFab extends StatelessWidget {
         onPressed: enabled ? handlePress : null,
         backgroundColor: resolvedBackground,
         foregroundColor: foreground,
-        elevation: type == AppButtonType.ghost ? 0 : null,
+        elevation: elevation,
+      disabledElevation: elevation,
         mini: mini,
         shape: shape,
         tooltip: tooltip,
@@ -7026,7 +7122,8 @@ class AppFab extends StatelessWidget {
       onPressed: enabled ? handlePress : null,
       backgroundColor: resolvedBackground,
       foregroundColor: foreground,
-      elevation: type == AppButtonType.ghost ? 0 : null,
+      elevation: elevation,
+      disabledElevation: elevation,
       shape: shape,
       tooltip: tooltip ?? resolvedLabel,
       heroTag: heroTag,
@@ -7949,6 +8046,8 @@ class AppExpansionTile extends StatelessWidget {
           horizontal: AppConstants.space12,
         ),
         childrenPadding: childrenPadding,
+        // Flutter centers the children; they belong under the title's start.
+        expandedAlignment: AlignmentDirectional.centerStart,
         expandedCrossAxisAlignment: CrossAxisAlignment.start,
         children: children,
       ),
@@ -8204,29 +8303,23 @@ class AppStepIndicator extends StatelessWidget {
             ],
           ],
         ),
+      // Every step takes an equal share of the row and draws half of each
+      // connector beside its circle, so a caption gets the whole share to
+      // wrap in rather than a fixed slot it breaks a word to fit.
       AppStepIndicatorType.numbered => Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (var i = 0; i < stepCount; i++) ...[
-              if (i > 0)
-                Expanded(
-                  child: Container(
-                    height: 2,
-                    margin: const EdgeInsets.only(
-                      top: AppConstants.space12,
-                      left: AppConstants.space4,
-                      right: AppConstants.space4,
-                    ),
-                    color: colorFor(i),
-                  ),
+            for (var i = 0; i < stepCount; i++)
+              Expanded(
+                child: _NumberedStep(
+                  index: i,
+                  currentStep: currentStep,
+                  accent: accent,
+                  label: i < labels.length ? labels[i] : null,
+                  lineBefore: i > 0 ? colorFor(i) : null,
+                  lineAfter: i < stepCount - 1 ? colorFor(i + 1) : null,
                 ),
-              _NumberedStep(
-                index: i,
-                currentStep: currentStep,
-                accent: accent,
-                label: i < labels.length ? labels[i] : null,
               ),
-            ],
           ],
         ),
     };
@@ -8239,12 +8332,30 @@ class _NumberedStep extends StatelessWidget {
     required this.currentStep,
     required this.accent,
     required this.label,
+    required this.lineBefore,
+    required this.lineAfter,
   });
 
   final int index;
   final int currentStep;
   final Color accent;
   final String? label;
+
+  /// The connector halves either side of the circle; null at the ends.
+  final Color? lineBefore;
+  final Color? lineAfter;
+
+  static Widget _line(Color? color) => Expanded(
+        child: color == null
+            ? const SizedBox.shrink()
+            : Container(
+                height: 2,
+                margin: const EdgeInsets.symmetric(
+                  horizontal: AppConstants.space4,
+                ),
+                color: color,
+              ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -8256,55 +8367,74 @@ class _NumberedStep extends StatelessWidget {
     // The accent can be any variant color, so the label inside the filled
     // circle is picked from the accent's own brightness rather than assuming
     // onPrimary.
-    final onAccent =
-        ThemeData.estimateBrightnessForColor(accent) == Brightness.dark
-            ? Colors.white
-            : Colors.black;
+    final onAccent = accent.computeLuminance() > 0.179
+        ? Colors.black
+        : Colors.white;
 
-    return SizedBox(
-      width: 64,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: AppConstants.space24,
-            height: AppConstants.space24,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: reached ? accent : Colors.transparent,
-              border: Border.all(
-                color: reached ? accent : accent.withValues(alpha: 0.3),
-                width: 1.5,
-              ),
-            ),
-            child: isDone
-                ? Icon(Icons.check, size: 14, color: onAccent)
-                : Text(
-                    '${index + 1}',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: isCurrent
-                          ? onAccent
-                          : theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-          ),
-          if (label != null) ...[
-            const SizedBox(height: AppConstants.space4),
-            Text(
-              label!,
-              maxLines: 2,
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: reached
-                    ? theme.colorScheme.onSurface
-                    : theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ],
+    final caption = label;
+    final captionText = Text(
+      caption ?? '',
+      maxLines: 2,
+      textAlign: TextAlign.center,
+      overflow: TextOverflow.ellipsis,
+      style: theme.textTheme.labelSmall?.copyWith(
+        color: reached
+            ? theme.colorScheme.onSurface
+            : theme.colorScheme.onSurfaceVariant,
       ),
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            _line(lineBefore),
+            Container(
+              width: AppConstants.space24,
+              height: AppConstants.space24,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: reached ? accent : Colors.transparent,
+                border: Border.all(
+                  color: reached ? accent : accent.withValues(alpha: 0.3),
+                  width: 1.5,
+                ),
+              ),
+              child: isDone
+                  ? Icon(Icons.check, size: 14, color: onAccent)
+                  // Scaled down rather than spilling out of the fixed circle
+                  // when the system text size is large.
+                  : FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '${index + 1}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: isCurrent
+                              ? onAccent
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+            ),
+            _line(lineAfter),
+          ],
+        ),
+        if (caption != null) ...[
+          const SizedBox(height: AppConstants.space4),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppConstants.space4,
+            ),
+            // One word too wide for its share (large text, a long word) is
+            // scaled down whole; Text would break it mid-word instead.
+            child: caption.contains(' ')
+                ? captionText
+                : FittedBox(fit: BoxFit.scaleDown, child: captionText),
+          ),
+        ],
+      ],
     );
   }
 }

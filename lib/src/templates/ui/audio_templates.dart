@@ -409,38 +409,53 @@ class _AppAudioPlayerState extends State<AppAudioPlayer> {
           ),
           const SizedBox(height: AppConstants.space12),
         ],
-        if (widget.showProgress) _progress(accent),
-        if (widget.showTimes) _times(theme),
-        if (widget.showControls) ...[
-          const SizedBox(height: AppConstants.space8),
-          _transport(theme, accent),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildCompact(BuildContext context, ThemeData theme, Color accent) {
-    return Row(
-      children: [
-        if (widget.showControls) ...[
-          _playButton(theme, accent, dimension: _skipDimension),
-          const SizedBox(width: AppConstants.space8),
-        ],
-        Expanded(
+        // Playback runs left to right in every locale (Material's rule for
+        // media), so the bar, the times and the transport never mirror.
+        Directionality(
+          textDirection: TextDirection.ltr,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (widget.showProgress) _progress(accent),
               if (widget.showTimes) _times(theme),
+              if (widget.showControls) ...[
+                const SizedBox(height: AppConstants.space8),
+                _transport(theme, accent),
+              ],
             ],
           ),
         ),
-        if (widget.showSpeed) ...[
-          const SizedBox(width: AppConstants.space8),
-          _speedButton(theme, accent),
-        ],
       ],
+    );
+  }
+
+  Widget _buildCompact(BuildContext context, ThemeData theme, Color accent) {
+    // Left to right in every locale, as in the full layout.
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Row(
+        children: [
+          if (widget.showControls) ...[
+            _playButton(theme, accent, dimension: _skipDimension),
+            const SizedBox(width: AppConstants.space8),
+          ],
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (widget.showProgress) _progress(accent),
+                if (widget.showTimes) _times(theme),
+              ],
+            ),
+          ),
+          if (widget.showSpeed) ...[
+            const SizedBox(width: AppConstants.space8),
+            _speedButton(theme, accent),
+          ],
+        ],
+      ),
     );
   }
 
@@ -542,7 +557,7 @@ class _AppAudioPlayerState extends State<AppAudioPlayer> {
           _skipButton(
             theme,
             accent,
-            icon: Icons.replay,
+            forward: false,
             seconds: widget.skipBackward.inSeconds,
             onTap: () => _skip(-widget.skipBackward),
           ),
@@ -554,7 +569,7 @@ class _AppAudioPlayerState extends State<AppAudioPlayer> {
           _skipButton(
             theme,
             accent,
-            icon: Icons.refresh,
+            forward: true,
             seconds: widget.skipForward.inSeconds,
             onTap: () => _skip(widget.skipForward),
           ),
@@ -620,10 +635,17 @@ class _AppAudioPlayerState extends State<AppAudioPlayer> {
   Widget _skipButton(
     ThemeData theme,
     Color accent, {
-    required IconData icon,
+    required bool forward,
     required int seconds,
     required VoidCallback onTap,
   }) {
+    const iconSize = AppConstants.iconLarge;
+    final arrow = Icon(
+      Icons.replay,
+      size: iconSize,
+      color: theme.colorScheme.onSurface,
+    );
+
     return Semantics(
       button: true,
       label: '$seconds seconds',
@@ -635,19 +657,26 @@ class _AppAudioPlayerState extends State<AppAudioPlayer> {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              Icon(
-                icon,
-                size: AppConstants.iconMedium,
-                color: theme.colorScheme.onSurface,
-              ),
-              // The number rides inside the arrow, so one glyph serves any
-              // skip amount rather than needing an icon per interval.
-              Text(
-                '$seconds',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  fontSize: AppConstants.fontSize11 - 2,
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.onSurface,
+              // Forward is the same arrow mirrored, so the pair matches.
+              forward ? Transform.flip(flipX: true, child: arrow) : arrow,
+              // The number rides inside the arrow's ring, so one glyph serves
+              // any skip amount. The ring sits a little below the glyph's
+              // center, and the number shrinks to fit it at any text size.
+              Padding(
+                padding: const EdgeInsets.only(top: iconSize / 12),
+                child: SizedBox.square(
+                  dimension: iconSize * 0.4,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '$seconds',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontSize: AppConstants.fontSize11 - 2,
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],

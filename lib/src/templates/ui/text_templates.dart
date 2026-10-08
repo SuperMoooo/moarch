@@ -171,9 +171,7 @@ class AppTextButton extends StatelessWidget {
       // of black/white keeps a tonal fill legible.
       return (
         override,
-        ThemeData.estimateBrightnessForColor(override) == Brightness.dark
-            ? Colors.white
-            : Colors.black,
+        override.computeLuminance() > 0.179 ? Colors.black : Colors.white,
       );
     }
     return switch (variant) {
@@ -223,7 +221,8 @@ class AppTextButton extends StatelessWidget {
         enabled ? accent : accent.withValues(alpha: _disabledOpacity);
     final resolvedBackground = enabled
         ? background
-        : background.withValues(alpha: _disabledOpacity);
+        // Scaled, not set: setting an alpha on Colors.transparent paints black.
+        : background.withValues(alpha: background.a * _disabledOpacity);
 
     final textStyle = theme.textTheme.labelLarge?.copyWith(
           color: foreground,

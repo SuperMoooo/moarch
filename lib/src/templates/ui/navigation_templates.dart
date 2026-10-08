@@ -1146,41 +1146,57 @@ class AppDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = AppInputStyle.accentOf(context, variant);
+    final colorScheme = context.colorScheme;
 
-    return NavigationDrawer(
-      selectedIndex: selectedIndex,
-      backgroundColor: context.colorScheme.surface,
-      indicatorColor: accent.withValues(alpha: AppInputStyle.config.fillOpacity * 2),
-      indicatorShape: RoundedRectangleBorder(
-        borderRadius: AppConstants.borderRadiusFull,
+    // Material writes the picked label in onSecondaryContainer, which falls
+    // back to onSecondary, the surface color, unreadable on the indicator.
+    return NavigationDrawerTheme(
+      data: NavigationDrawerTheme.of(context).copyWith(
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => context.textTheme.labelLarge?.copyWith(
+            color: states.contains(WidgetState.selected)
+                ? colorScheme.onSurface
+                : colorScheme.onSurfaceVariant,
+          ),
+        ),
       ),
-      onDestinationSelected: (index) {
-        HapticFeedback.selectionClick();
-        _dismiss(context);
-        onDestinationSelected(index);
-      },
-      children: [
-        // NavigationDrawer counts only its NavigationDrawerDestination
-        // children, so a header or divider never shifts the selected index.
-        // An empty box rather than a null-aware element, to stay compatible
-        // with older Dart SDKs.
-        header ?? const SizedBox.shrink(),
-        for (final destination in destinations)
-          NavigationDrawerDestination(
-            icon: destination.badged(Icon(destination.icon)),
-            selectedIcon: destination.badged(
-              Icon(destination.selectedIcon, color: accent),
+      child: NavigationDrawer(
+        selectedIndex: selectedIndex,
+        backgroundColor: context.colorScheme.surface,
+        indicatorColor: accent.withValues(
+          alpha: AppInputStyle.config.fillOpacity * 2,
+        ),
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: AppConstants.borderRadiusFull,
+        ),
+        onDestinationSelected: (index) {
+          HapticFeedback.selectionClick();
+          _dismiss(context);
+          onDestinationSelected(index);
+        },
+        children: [
+          // NavigationDrawer counts only its NavigationDrawerDestination
+          // children, so a header or divider never shifts the selected index.
+          // An empty box rather than a null-aware element, to stay compatible
+          // with older Dart SDKs.
+          header ?? const SizedBox.shrink(),
+          for (final destination in destinations)
+            NavigationDrawerDestination(
+              icon: destination.badged(Icon(destination.icon)),
+              selectedIcon: destination.badged(
+                Icon(destination.selectedIcon, color: accent),
+              ),
+              label: Text(destination.label),
             ),
-            label: Text(destination.label),
-          ),
-        if (footer != null) ...[
-          const Padding(
-            padding: AppConstants.paddingV8,
-            child: Divider(height: 1),
-          ),
-          footer!,
+          if (footer != null) ...[
+            const Padding(
+              padding: AppConstants.paddingV8,
+              child: Divider(height: 1),
+            ),
+            footer!,
+          ],
         ],
-      ],
+      ),
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/ui/audio_templates.dart';
 import 'package:moarch/src/templates/ui/calendar_templates.dart';
 import 'package:moarch/src/templates/ui/country_templates.dart';
+import 'package:moarch/src/templates/ui/dialogs_templates.dart';
 import 'package:moarch/src/templates/ui/drag_templates.dart';
 import 'package:moarch/src/templates/ui/content_templates.dart';
 import 'package:moarch/src/templates/ui/inputs_templates.dart';
@@ -650,6 +651,107 @@ void main() {
 
     test('each radio row merges', () {
       expect(SharedTemplates.appRadioGroup(), contains('MergeSemantics('));
+    });
+  });
+
+  group('rendered states', () {
+    test('a faded transparent background stays transparent', () {
+      // withValues(alpha:) sets the alpha on transparent's RGB, which is
+      // black: a disabled ghost button came out as a grey box.
+      expect(
+        SharedTemplates.appIconButton(),
+        contains('alpha: backgroundColor.a * _disabledOpacity'),
+      );
+      expect(
+        TextTemplates.appTextButton(),
+        contains('alpha: background.a * _disabledOpacity'),
+      );
+    });
+
+    test('a loading FAB keeps its color; a disabled one drops its shadow', () {
+      final fab = SharedTemplates.appFab();
+      expect(fab, contains('final disabled = onPressed == null;'));
+      expect(fab, contains('disabledElevation: elevation,'));
+    });
+
+    test('a card falls back to the same layer cardTheme uses', () {
+      expect(
+        SharedTemplates.appCard(),
+        contains('cardTheme.color ?? theme.colorScheme.surfaceContainerLow;'),
+      );
+    });
+
+    test('expanded children start under the title', () {
+      expect(
+        SharedTemplates.appExpansionTile(),
+        contains('expandedAlignment: AlignmentDirectional.centerStart,'),
+      );
+    });
+
+    test('the skeleton draws bones, not a primary-colored avatar', () {
+      final skeleton = SharedTemplates.appSkeletonList();
+      expect(skeleton, contains('const Bone.circle(size: 48)'));
+      expect(skeleton, isNot(contains('CircleAvatar(')));
+    });
+
+    test("a confirm dialog's way out is neutral, whatever the variant", () {
+      final dialog = DialogsTemplates.confirmDialog();
+      final cancel = dialog.substring(
+        dialog.indexOf('child: AppButton('),
+        dialog.indexOf('label: cancelLabel,'),
+      );
+      expect(cancel, contains('variant: AppButtonVariant.secondary,'));
+    });
+
+    test('the drawer writes its picked label in onSurface', () {
+      final drawer = NavigationTemplates.appDrawer();
+      expect(drawer, contains('return NavigationDrawerTheme('));
+      expect(drawer, contains('? colorScheme.onSurface'));
+    });
+
+    test("a step's number fits its circle at any text size", () {
+      expect(
+        SharedTemplates.appStepIndicator(),
+        contains(
+          RegExp(
+            r"FittedBox\(\s*fit: BoxFit\.scaleDown,\s*child: Text\(\s*'\$\{index \+ 1\}'",
+          ),
+        ),
+      );
+    });
+
+    test('a step caption gets an equal share and keeps its words whole', () {
+      final steps = SharedTemplates.appStepIndicator();
+      expect(steps, isNot(contains('width: 64,')));
+      expect(steps, contains('lineAfter: i < stepCount - 1'));
+      expect(steps, contains("caption.contains(' ')"));
+    });
+
+    test('playback controls stay left to right in every locale', () {
+      final player = AudioTemplates.appAudioPlayer();
+      expect(
+        'textDirection: TextDirection.ltr,'.allMatches(player),
+        hasLength(2),
+      );
+      // Forward is the replay arrow mirrored, so the pair matches.
+      expect(player, contains('Transform.flip(flipX: true, child: arrow)'));
+      expect(player, isNot(contains('Icons.refresh')));
+    });
+
+    test('calendar dots sit under the day, not on its circle', () {
+      final calendar = CalendarTemplates.appCalendar();
+      expect(calendar, contains('markersAutoAligned: false,'));
+      expect(calendar, contains('cellMargin: const EdgeInsets.fromLTRB('));
+    });
+
+    test('empty and error views scroll instead of overflowing', () {
+      for (final view in [
+        SharedTemplates.emptyView(),
+        SharedTemplates.errorView(),
+      ]) {
+        expect(view, contains('constraints.hasBoundedHeight'));
+        expect(view, contains('SingleChildScrollView(child: content)'));
+      }
     });
   });
 }

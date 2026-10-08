@@ -2,6 +2,68 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.10.1
+
+Fixes from rendering the UI kit in light, dark, 2× text and right-to-left.
+
+- **Disabled states look disabled.**
+  - A disabled `AppInput`, date, time, date range, multi-select, country or
+    file field now greys its value too, not only its border.
+  - The theme greys a disabled checkbox and switch. Before, they looked
+    live.
+  - A disabled ghost or outlined `AppIconButton`, and a disabled plain or
+    underlined `AppTextButton`, no longer sit on a grey box. Fading
+    `Colors.transparent` by setting its alpha painted it black.
+  - A disabled `AppFab` drops its shadow, which showed through it. A
+    loading one keeps its color, as `AppButton` does.
+  - A field with `enabled: false` no longer needs a callback. The
+    dropdown, multi-select, country picker and file picker asserted
+    without one.
+- **Labels that were unreadable.**
+  - A selected `AppChoiceChip`, and the selected item in `AppDrawer`. Both
+    fell back to `onSecondary`, the surface color, on a tint of `primary`.
+    They now use `onSurface`.
+  - White text on a light color: the avatar's initial, the timeline's node
+    icon, the step indicator's number and a custom-colored icon or text
+    button now pick black or white by contrast. Flutter's brightness
+    estimate put white on oranges and teals.
+- **Surfaces that disappeared into the scaffold.**
+  - Inputs, OTP cells and `AppSegmented` are now filled with
+    `surfaceContainerHighest`, not `surfaceContainerLowest`. Lowest is often
+    the surface color itself, which left a field at rest with no visible
+    edge.
+  - Light cards use `surfaceContainerLow`, as dark cards already did.
+  - `AppSkeletonList` draws neutral bones. Its placeholder avatars were
+    painted in `primary`.
+- **Layout.**
+  - A floating label stays inside a filled field. It used to sit on the
+    box's top edge, half outside it. Focus still draws the full outline.
+  - `EmptyView` and `ErrorView` scroll instead of overflowing when large
+    text meets a short screen, and center a wrapped title.
+  - `AppExpansionTile` starts its expanded content under the title instead
+    of centering it.
+  - `AppCalendar`'s event dots sit under the day instead of on the edge of
+    the selected day's circle, where its fill swallowed them.
+  - `AppStepIndicator`'s numbered steps share the row equally, so a caption
+    has the whole share to wrap in. A one-word caption too wide for it is
+    scaled down instead of broken mid-word, and the numbers fit their
+    circles at large text sizes.
+  - `AppAudioPlayer`'s progress bar, times and transport stay left to right
+    in right-to-left locales, as Material specifies for media. A remaining
+    time read `0:00-`. The skip numbers fit inside their arrows, and forward
+    is now the backward arrow mirrored.
+- **Smaller changes.**
+  - `AppDateInput` and `AppTimeInput` show a calendar and a clock icon, like
+    `AppDateRangeInput` does. A `suffixIcon` still replaces them.
+  - `AppConfirmDialog`'s Cancel is neutral for every variant. On a danger
+    dialog it was as red as Delete.
+
+Existing projects: `moarch update theme input-style input date-input
+time-input date-range-input dropdown multi-select file-input country-picker
+icon-button text-button fab card avatar timeline step-indicator
+skeleton-list empty-view error-view expansion-tile confirm-dialog drawer
+calendar audio-player`.
+
 ## 9.10.0
 
 Agents in a generated project can now run the app themselves, and a new skill

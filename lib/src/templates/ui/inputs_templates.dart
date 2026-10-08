@@ -276,7 +276,7 @@ class AppMultiSelectInput<T> extends StatelessWidget {
       'item. Ids are what the selection is made of, so they have to be unique.',
     );
     assert(
-      onChanged != null || onSelected != null || readOnly,
+      onChanged != null || onSelected != null || readOnly || !enabled,
       'AppMultiSelectInput<$T>: a field the user can pick in needs an '
       'onChanged or an onSelected. Pass readOnly: true for one that only '
       'shows the selection.',
@@ -345,6 +345,7 @@ class AppMultiSelectInput<T> extends StatelessWidget {
       context,
       size: size,
       variant: variant,
+      enabled: enabled,
     );
 
     return switch (display) {
@@ -697,6 +698,7 @@ class _AppDateRangeInputState extends State<AppDateRangeInput> {
                             context,
                             size: widget.size,
                             variant: widget.variant,
+                            enabled: widget.enabled,
                           ),
                         ),
                       ),
@@ -909,7 +911,7 @@ class AppFilePickerField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     assert(
-      (onPick != null && onChanged != null) || readOnly,
+      (onPick != null && onChanged != null) || readOnly || !enabled,
       'AppFilePickerField: a field that can be added to needs onPick and '
       'onChanged. Pass readOnly: true for one that only lists what is there.',
     );
@@ -1012,6 +1014,7 @@ class AppFilePickerField extends StatelessWidget {
                   context,
                   size: size,
                   variant: variant,
+                  enabled: enabled,
                 ),
               ),
             ],

@@ -207,7 +207,7 @@ abstract final class AppTheme {
 
     // AppCard reads this.
     cardTheme: CardThemeData(
-      color: AppConstants.surfaceContainerLowest,
+      color: AppConstants.surfaceContainerLow,
       shadowColor: Colors.black,
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius16),
     ),
@@ -230,7 +230,9 @@ abstract final class AppTheme {
 
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: AppConstants.surfaceContainerLowest,
+      // The highest layer, so a field at rest stands off the scaffold without
+      // a border: lowest is often the surface color itself.
+      fillColor: AppConstants.surfaceContainerHighest,
       border: OutlineInputBorder(
         borderRadius: AppConstants.borderRadius12,
         borderSide: BorderSide.none,
@@ -290,15 +292,25 @@ abstract final class AppTheme {
       fillColor: WidgetStateProperty.resolveWith<Color>((
         Set<WidgetState> states,
       ) {
-        if (states.contains(WidgetState.selected)) {
-          return AppConstants.primary;
-        }
-        return Colors.transparent;
+        if (!states.contains(WidgetState.selected)) return Colors.transparent;
+        return states.contains(WidgetState.disabled)
+            ? AppConstants.onSurface.withValues(alpha: 0.38)
+            : AppConstants.primary;
       }),
       checkColor: const WidgetStatePropertyAll(AppConstants.onPrimary),
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius4),
       // Unchecked is a neutral edge; only the checked box carries the accent.
-      side: const BorderSide(color: AppConstants.outline, width: 1.5),
+      // Null when checked, which is what a plain BorderSide does on its own.
+      side: WidgetStateBorderSide.resolveWith(
+        (s) => s.contains(WidgetState.selected)
+            ? null
+            : BorderSide(
+                color: s.contains(WidgetState.disabled)
+                    ? AppConstants.onSurface.withValues(alpha: 0.38)
+                    : AppConstants.outline,
+                width: 1.5,
+              ),
+      ),
     ),
 
     textSelectionTheme: TextSelectionThemeData(
@@ -332,6 +344,16 @@ abstract final class AppTheme {
     chipTheme: ChipThemeData(
       backgroundColor: AppConstants.surfaceContainerLow,
       selectedColor: AppConstants.primary.withValues(alpha: 0.25),
+      // Set, or a picked chip's label falls back to onSecondary — the surface
+      // color, unreadable on that tint. It replaces the chip's whole default
+      // style, so it starts from labelLarge.
+      labelStyle: _textTheme.labelLarge?.copyWith(
+        color: WidgetStateColor.resolveWith(
+          (s) => s.contains(WidgetState.disabled)
+              ? AppConstants.onSurface.withValues(alpha: 0.38)
+              : AppConstants.onSurface,
+        ),
+      ),
       shape: RoundedRectangleBorder(
         borderRadius: AppConstants.borderRadiusFull,
       ),
@@ -346,10 +368,14 @@ abstract final class AppTheme {
       thumbColor: WidgetStateProperty.resolveWith(
         (s) => s.contains(WidgetState.selected)
             ? AppConstants.surface
+            : s.contains(WidgetState.disabled)
+            ? AppConstants.onSurface.withValues(alpha: 0.38)
             : AppConstants.outline,
       ),
       trackColor: WidgetStateProperty.resolveWith(
-        (s) => s.contains(WidgetState.selected)
+        (s) => s.contains(WidgetState.disabled)
+            ? AppConstants.onSurface.withValues(alpha: 0.12)
+            : s.contains(WidgetState.selected)
             ? AppConstants.primary
             : AppConstants.surfaceContainerHighest,
       ),
@@ -398,7 +424,7 @@ abstract final class AppTheme {
         backgroundColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)
               ? AppConstants.primary
-              : AppConstants.surfaceContainerLowest,
+              : AppConstants.surfaceContainerHighest,
         ),
         foregroundColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)
@@ -629,7 +655,9 @@ extension StatusColorsX on BuildContext {
 
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: AppConstants.surfaceContainerLowestDark,
+      // The highest layer, so a field at rest stands off the scaffold without
+      // a border: lowest is often the surface color itself.
+      fillColor: AppConstants.surfaceContainerHighestDark,
       border: OutlineInputBorder(
         borderRadius: AppConstants.borderRadius12,
         borderSide: BorderSide.none,
@@ -689,15 +717,25 @@ extension StatusColorsX on BuildContext {
       fillColor: WidgetStateProperty.resolveWith<Color>((
         Set<WidgetState> states,
       ) {
-        if (states.contains(WidgetState.selected)) {
-          return AppConstants.primaryDark;
-        }
-        return Colors.transparent;
+        if (!states.contains(WidgetState.selected)) return Colors.transparent;
+        return states.contains(WidgetState.disabled)
+            ? AppConstants.onSurfaceDark.withValues(alpha: 0.38)
+            : AppConstants.primaryDark;
       }),
       checkColor: const WidgetStatePropertyAll(AppConstants.onPrimaryDark),
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius4),
       // Unchecked is a neutral edge; only the checked box carries the accent.
-      side: const BorderSide(color: AppConstants.outlineDark, width: 1.5),
+      // Null when checked, which is what a plain BorderSide does on its own.
+      side: WidgetStateBorderSide.resolveWith(
+        (s) => s.contains(WidgetState.selected)
+            ? null
+            : BorderSide(
+                color: s.contains(WidgetState.disabled)
+                    ? AppConstants.onSurfaceDark.withValues(alpha: 0.38)
+                    : AppConstants.outlineDark,
+                width: 1.5,
+              ),
+      ),
     ),
 
     textSelectionTheme: TextSelectionThemeData(
@@ -731,6 +769,16 @@ extension StatusColorsX on BuildContext {
     chipTheme: ChipThemeData(
       backgroundColor: AppConstants.surfaceContainerLowDark,
       selectedColor: AppConstants.primaryDark.withValues(alpha: 0.25),
+      // Set, or a picked chip's label falls back to onSecondary — the surface
+      // color, unreadable on that tint. It replaces the chip's whole default
+      // style, so it starts from labelLarge.
+      labelStyle: _textTheme.labelLarge?.copyWith(
+        color: WidgetStateColor.resolveWith(
+          (s) => s.contains(WidgetState.disabled)
+              ? AppConstants.onSurfaceDark.withValues(alpha: 0.38)
+              : AppConstants.onSurfaceDark,
+        ),
+      ),
       shape: RoundedRectangleBorder(
         borderRadius: AppConstants.borderRadiusFull,
       ),
@@ -745,10 +793,14 @@ extension StatusColorsX on BuildContext {
       thumbColor: WidgetStateProperty.resolveWith(
         (s) => s.contains(WidgetState.selected)
             ? AppConstants.surfaceDark
+            : s.contains(WidgetState.disabled)
+            ? AppConstants.onSurfaceDark.withValues(alpha: 0.38)
             : AppConstants.outlineDark,
       ),
       trackColor: WidgetStateProperty.resolveWith(
-        (s) => s.contains(WidgetState.selected)
+        (s) => s.contains(WidgetState.disabled)
+            ? AppConstants.onSurfaceDark.withValues(alpha: 0.12)
+            : s.contains(WidgetState.selected)
             ? AppConstants.primaryDark
             : AppConstants.surfaceContainerHighestDark,
       ),
@@ -797,7 +849,7 @@ extension StatusColorsX on BuildContext {
         backgroundColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)
               ? AppConstants.primaryDark
-              : AppConstants.surfaceContainerLowestDark,
+              : AppConstants.surfaceContainerHighestDark,
         ),
         foregroundColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)

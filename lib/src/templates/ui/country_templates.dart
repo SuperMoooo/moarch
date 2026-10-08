@@ -223,7 +223,7 @@ class AppCountryPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     assert(
-      onChanged != null || readOnly,
+      onChanged != null || readOnly || !enabled,
       'AppCountryPicker: a field the user can pick in needs an onChanged. '
       'Pass readOnly: true for one that only shows the country.',
     );
@@ -295,6 +295,7 @@ class AppCountryPicker extends StatelessWidget {
                             context,
                             size: size,
                             variant: variant,
+                            enabled: enabled,
                           ),
                         ),
                 ),

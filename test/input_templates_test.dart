@@ -220,6 +220,66 @@ void main() {
         }
       }
     });
+
+    test('a floating label stays inside a filled field', () {
+      final style = SharedTemplates.appInputStyle();
+      expect(
+        style,
+        contains('class _LabelInsideBorder extends OutlineInputBorder'),
+      );
+      expect(style, contains('bool get isOutline => false;'));
+      expect(
+        style,
+        contains(
+          'final labelInside = filled && mode == AppInputLabelMode.floating;',
+        ),
+      );
+      // Every state's border, or focus would bring the gap back.
+      expect('labelInside: labelInside,'.allMatches(style), hasLength(6));
+      // Material measures a gap for any labeled border; painting must drop it.
+      expect(
+        style,
+        contains('super.paint(canvas, rect, textDirection: textDirection)'),
+      );
+    });
+
+    test('the date and time inputs show what they open', () {
+      expect(
+        SharedTemplates.dateInput(),
+        contains(
+          'widget.suffixIcon ?? const Icon(Icons.calendar_today_outlined)',
+        ),
+      );
+      expect(
+        SharedTemplates.timeInput(),
+        contains('widget.suffixIcon ?? const Icon(Icons.schedule_outlined)'),
+      );
+    });
+
+    test('a disabled field greys its value, not just its border', () {
+      // valueStyle defaults to enabled, and its color overrides the one
+      // Material gives a disabled field, so every caller has to pass it.
+      final callers = {
+        'appInput': SharedTemplates.appInput,
+        'dateInput': SharedTemplates.dateInput,
+        'timeInput': SharedTemplates.timeInput,
+        'appDropdown': SharedTemplates.appDropdown,
+        'appMultiSelect': InputsTemplates.appMultiSelect,
+        'appDateRangeInput': InputsTemplates.appDateRangeInput,
+        'appFilePickerField': InputsTemplates.appFilePickerField,
+        'appCountryPicker': CountryTemplates.appCountryPicker,
+        'appPhoneInput': PhoneTemplates.appPhoneInput,
+      };
+      callers.forEach((name, template) {
+        final calls = RegExp(
+          r'AppInputStyle\.valueStyle\(([^)]*)\)',
+        ).allMatches(template()).toList();
+        expect(calls, isNotEmpty, reason: name);
+        for (final call in calls) {
+          expect(call.group(1), contains('enabled:'), reason: name);
+        }
+      });
+    });
   });
 
   group('read-only across the family', () {
@@ -338,17 +398,21 @@ void main() {
       picking.forEach((name, template) {
         expect(
           template(),
-          contains('onChanged != null || onSelected != null || readOnly,'),
+          contains(
+            'onChanged != null || onSelected != null || readOnly || !enabled,',
+          ),
           reason: name,
         );
       });
       expect(
         CountryTemplates.appCountryPicker(),
-        contains('onChanged != null || readOnly,'),
+        contains('onChanged != null || readOnly || !enabled,'),
       );
       expect(
         InputsTemplates.appFilePickerField(),
-        contains('(onPick != null && onChanged != null) || readOnly,'),
+        contains(
+          '(onPick != null && onChanged != null) || readOnly || !enabled,',
+        ),
       );
     });
 

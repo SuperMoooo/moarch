@@ -409,7 +409,14 @@ class _AppCalendarState extends State<AppCalendar> {
         // The greyed-out spill from the neighbouring months reads as tappable
         // when it is not; the grid is easier to scan without it.
         outsideDaysVisible: false,
-        cellMargin: const EdgeInsets.all(AppConstants.space4),
+        // The extra bottom margin is the dots' row, so they sit under the
+        // day's circle rather than on its edge.
+        cellMargin: const EdgeInsets.fromLTRB(
+          AppConstants.space4,
+          AppConstants.space4,
+          AppConstants.space4,
+          AppConstants.space8,
+        ),
         defaultTextStyle: body,
         weekendTextStyle: body.copyWith(color: colorScheme.onSurfaceVariant),
         disabledTextStyle: body.copyWith(
@@ -434,6 +441,9 @@ class _AppCalendarState extends State<AppCalendar> {
         markerDecoration: _dotDecoration(accent),
         markersMaxCount: _maxDots,
         markerSize: _dotSize,
+        // Auto-alignment centers the dots on the circle's edge, where a
+        // selected day's fill swallows them; it also overrides the alignment.
+        markersAutoAligned: false,
         markersAlignment: Alignment.bottomCenter,
         markerMargin: _dotMargin,
       ),

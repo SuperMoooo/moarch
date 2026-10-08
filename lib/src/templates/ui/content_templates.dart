@@ -244,10 +244,9 @@ class _TimelineRow extends StatelessWidget {
                 // whichever of black / white reads on it.
                 color: hollow
                     ? color
-                    : ThemeData.estimateBrightnessForColor(color) ==
-                            Brightness.dark
-                        ? Colors.white
-                        : Colors.black,
+                    : color.computeLuminance() > 0.179
+                    ? Colors.black
+                    : Colors.white,
               ),
             ),
     );

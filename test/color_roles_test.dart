@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:moarch/src/templates/bloc/app_templates.dart' as bloc;
 import 'package:moarch/src/templates/config/config_templates.dart';
 import 'package:moarch/src/templates/core/core_templates.dart';
+import 'package:moarch/src/templates/ui/content_templates.dart';
 import 'package:moarch/src/templates/riverpod/app_templates.dart' as riverpod;
 import 'package:moarch/src/templates/ui/shared_templates.dart';
 import 'package:moarch/src/templates/ui/text_templates.dart';
@@ -177,13 +178,60 @@ void main() {
           );
           expect(half, contains('color: AppConstants.primary$s,\n'));
           expect(half, contains('width: 1.5'));
+          expect(half, contains(': AppConstants.outline$s,\n'));
+          expect(half, contains('side: WidgetStateBorderSide.resolveWith('));
+        });
+
+        test('greys out a disabled checkbox and switch', () {
+          final checkbox = half.substring(
+            half.indexOf('checkboxTheme:'),
+            half.indexOf('textSelectionTheme:'),
+          );
+          final switches = half.substring(
+            half.indexOf('switchTheme:'),
+            half.indexOf('radioTheme:'),
+          );
+          for (final theme in [checkbox, switches]) {
+            expect(theme, contains('WidgetState.disabled'));
+            expect(
+              theme,
+              contains('AppConstants.onSurface$s.withValues(alpha: 0.38)'),
+            );
+          }
+        });
+
+        test('fills fields and segments from the highest layer', () {
+          // Lowest is often the surface color itself, which leaves a filled
+          // field at rest with no edge at all.
           expect(
             half,
-            contains(
-              'side: const BorderSide(color: AppConstants.outline$s, '
-              'width: 1.5)',
-            ),
+            contains('fillColor: AppConstants.surfaceContainerHighest$s,'),
           );
+          final segmented = half.substring(
+            half.indexOf('segmentedButtonTheme:'),
+          );
+          expect(
+            segmented,
+            contains(': AppConstants.surfaceContainerHighest$s,'),
+          );
+          expect(
+            half,
+            isNot(contains('fillColor: AppConstants.surfaceContainerLowest')),
+          );
+        });
+
+        test('writes a picked chip in onSurface, not onSecondary', () {
+          final chip = half.substring(
+            half.indexOf('chipTheme:'),
+            half.indexOf('switchTheme:'),
+          );
+          // The theme's labelStyle replaces the chip's default outright, so
+          // it has to start from a full text style.
+          expect(
+            chip,
+            contains('labelStyle: _textTheme.labelLarge?.copyWith('),
+          );
+          expect(chip, contains(': AppConstants.onSurface$s,'));
         });
 
         test('hints and unselected tabs use the muted tone, not an alpha', () {
@@ -345,9 +393,20 @@ void main() {
       }
     });
 
-    test('avatar initials pick black or white against their color', () {
+    test('black or white is picked by contrast, not a brightness guess', () {
+      // estimateBrightnessForColor puts white on oranges and teals that black
+      // reads far better on; 0.179 is where the two contrasts cross.
       final avatar = SharedTemplates.appAvatar();
-      expect(avatar, contains('estimateBrightnessForColor(background)'));
+      expect(avatar, contains('background.computeLuminance() > 0.179'));
+      for (final source in [
+        SharedTemplates.appAvatar(),
+        SharedTemplates.appIconButton(),
+        SharedTemplates.appStepIndicator(),
+        TextTemplates.appTextButton(),
+        ContentTemplates.appTimeline(),
+      ]) {
+        expect(source, isNot(contains('estimateBrightnessForColor')));
+      }
     });
   });
 
