@@ -11,6 +11,7 @@ class DialogsTemplates {
     return '''
 import 'package:flutter/material.dart';
 import '../../../config/router/app_router.dart';
+import '../../../core/constants/app_constants.dart';
 
 
 abstract class IAppDialogs {
@@ -18,8 +19,8 @@ abstract class IAppDialogs {
   required Widget child,
   bool dismissible = true,
   bool useRootNavigator = true,
-  Duration duration = const Duration(milliseconds: 300),
-  Color barrierColor = const Color(0x80000000),
+  Duration duration = AppConstants.duration300,
+  Color? barrierColor,
 });
 }
 
@@ -30,8 +31,8 @@ Future<T?> showAppDialog<T>({
   required Widget child,
   bool dismissible = true,
   bool useRootNavigator = true,
-  Duration duration = const Duration(milliseconds: 300),
-  Color barrierColor = const Color(0x80000000),
+  Duration duration = AppConstants.duration300,
+  Color? barrierColor,
 }) async{
   final context = rootNavigatorKey.currentContext;
   if (context == null) return null;
@@ -39,7 +40,9 @@ Future<T?> showAppDialog<T>({
   return await showGeneralDialog<T>(
     context: context,
     barrierDismissible: dismissible,
-    barrierColor: barrierColor,
+    // Null takes the theme's scrim, at the half strength dialogs use.
+    barrierColor:
+        barrierColor ?? Theme.of(context).colorScheme.scrim.withValues(alpha: 0.5),
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: duration,
     useRootNavigator: useRootNavigator,

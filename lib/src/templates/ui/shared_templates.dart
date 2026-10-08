@@ -88,18 +88,26 @@ class AppAvatar extends StatelessWidget {
         child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
 
-  Widget _fallback() => Container(
-        color: _backgroundColor(),
-        alignment: Alignment.center,
-        child: Text(
-          _initial(),
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: size.diameter * 0.4,
-          ),
+  Widget _fallback() {
+    final background = _backgroundColor();
+    return Container(
+      color: background,
+      alignment: Alignment.center,
+      child: Text(
+        _initial(),
+        style: TextStyle(
+          // The palette holds light and dark colors alike, so the initial
+          // takes whichever of black / white reads on this one.
+          color: ThemeData.estimateBrightnessForColor(background) ==
+                  Brightness.dark
+              ? Colors.white
+              : Colors.black,
+          fontWeight: FontWeight.bold,
+          fontSize: size.diameter * 0.4,
         ),
-      );
+      ),
+    );
+  }
 }
 ''';
 
@@ -294,7 +302,14 @@ import 'package:flutter/services.dart';$biometricImports
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
-/// Color role of [AppButton]; every color it paints derives from it.
+/// Role of [AppButton]; every color it paints derives from it.
+///
+/// - [primary]: the screen's main action — the only one wearing the accent.
+/// - [secondary]: a supporting action — a tonal neutral fill.
+/// - [tertiary]: a minor action — a neutral outline, no fill.
+/// - [danger]: a destructive action — the error color.
+///
+/// One primary button per screen keeps the accent meaning "do this".
 enum AppButtonVariant { primary, secondary, tertiary, danger }
 
 /// Fill treatment of [AppButton].
@@ -311,7 +326,7 @@ enum AppButtonSize { large, medium, small }
 
 typedef _ButtonSizeConfig = ({
   double height,
-  double fontSize,
+  TextStyle? textStyle,
   double iconSize,
   EdgeInsets padding,
 });
@@ -356,26 +371,35 @@ $classDeclaration
   /// A line centered above the button, e.g. what the action costs.
   final String? hint;$requireAuthField
 
-  _ButtonSizeConfig _getSizeConfig() => switch (size) {
+  // Labels come from the theme's type scale, so a button never brings a size
+  // of its own. [height] is a minimum: a large system text size grows the
+  // button instead of clipping its label.
+  _ButtonSizeConfig _getSizeConfig(TextTheme textTheme) => switch (size) {
         AppButtonSize.small => (
             height: AppConstants.touchTarget,
-            fontSize: 14,
-            iconSize: 18,
+            textStyle: textTheme.labelLarge,
+            iconSize: AppConstants.iconSmall,
             padding: AppConstants.padding12,
           ),
         AppButtonSize.medium => (
-            height: AppConstants.touchTarget + 4,
-            fontSize: 16,
-            iconSize: 22,
+            height: AppConstants.touchTarget + AppConstants.space4,
+            textStyle: textTheme.titleMedium,
+            iconSize: AppConstants.iconSmall + AppConstants.space4,
             padding: AppConstants.padding16,
           ),
         AppButtonSize.large => (
-            height: AppConstants.touchTarget + 8,
-            fontSize: 18,
-            iconSize: 26,
+            height: AppConstants.touchTarget + AppConstants.space8,
+            textStyle: textTheme.titleMedium,
+            iconSize: AppConstants.iconMedium,
             padding: AppConstants.padding16,
           ),
       };
+
+  /// Only [AppButtonVariant.primary] and [AppButtonVariant.danger] carry a
+  /// color of their own; the other two are neutral, so a screen has one
+  /// accent rather than three competing ones.
+  bool get _isAccented =>
+      variant == AppButtonVariant.primary || variant == AppButtonVariant.danger;
 
   /// The variant's color and the color that reads on top of it.
   (Color, Color) _colorsOf(ThemeData theme) => switch (variant) {
@@ -383,13 +407,9 @@ $classDeclaration
             theme.colorScheme.primary,
             theme.colorScheme.onPrimary,
           ),
-        AppButtonVariant.secondary => (
-            theme.colorScheme.secondary,
-            theme.colorScheme.onSecondary,
-          ),
-        AppButtonVariant.tertiary => (
-            theme.colorScheme.tertiary,
-            theme.colorScheme.onTertiary,
+        AppButtonVariant.secondary || AppButtonVariant.tertiary => (
+            theme.colorScheme.onSurface,
+            theme.colorScheme.surface,
           ),
         AppButtonVariant.danger => (
             theme.colorScheme.error,
@@ -400,11 +420,22 @@ $classDeclaration
   @override
   $buildSignature
     final theme = context.theme;
-    final sizeConfig = _getSizeConfig();
+    final sizeConfig = _getSizeConfig(theme.textTheme);
     final (accent, onAccent) = _colorsOf(theme);
 
+    // A filled secondary is tonal (a container fill) and a filled tertiary an
+    // outline, so neither competes with the primary's accent.
+    final effectiveType =
+        variant == AppButtonVariant.tertiary && type == AppButtonType.filled
+            ? AppButtonType.outlined
+            : type;
+
     // Variant chooses the color; type only decides how that color is applied.
-    final (backgroundColor, foregroundColor) = switch (type) {
+    final (backgroundColor, foregroundColor) = switch (effectiveType) {
+      AppButtonType.filled when !_isAccented => (
+          theme.colorScheme.surfaceContainerHighest,
+          theme.colorScheme.onSurface,
+        ),
       AppButtonType.filled => (accent, onAccent),
       AppButtonType.outlined || AppButtonType.ghost => (
           Colors.transparent,
@@ -412,8 +443,16 @@ $classDeclaration
         ),
     };
 
+    // A neutral outline is the theme's control edge; an accented one keeps
+    // its color.
+    final borderColor = _isAccented ? accent : theme.colorScheme.outline;
+
     // Faded, so a disabled button still reads as its variant.
-    final (disabledBackground, disabledForeground) = switch (type) {
+    final (disabledBackground, disabledForeground) = switch (effectiveType) {
+      AppButtonType.filled when !_isAccented => (
+          backgroundColor.withValues(alpha: 0.5),
+          foregroundColor.withValues(alpha: 0.38),
+        ),
       AppButtonType.filled => (
           accent.withValues(alpha: 0.35),
           onAccent.withValues(alpha: 0.9),
@@ -429,11 +468,11 @@ $classDeclaration
 
     final button = SizedBox(
       width: width ?? double.infinity,
-      height: sizeConfig.height,
       child: ElevatedButton(
         onPressed: $onPressedWiring,
         style: ElevatedButton.styleFrom(
           elevation: 0,
+          minimumSize: Size(0, sizeConfig.height),
           padding: sizeConfig.padding,
           backgroundColor: backgroundColor,
           foregroundColor: foregroundColor,
@@ -446,8 +485,8 @@ $classDeclaration
               AppButtonShape.rounded => AppConstants.borderRadius12,
               AppButtonShape.pill => AppConstants.borderRadiusFull,
             },
-            side: type == AppButtonType.outlined
-                ? BorderSide(color: accent, width: 2)
+            side: effectiveType == AppButtonType.outlined
+                ? BorderSide(color: borderColor, width: 1.5)
                 : BorderSide.none,
           ),
         ),
@@ -478,9 +517,8 @@ $classDeclaration
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.titleLarge?.copyWith(
+                      style: sizeConfig.textStyle?.copyWith(
                         color: foregroundColor,
-                        fontSize: sizeConfig.fontSize,
                       ),
                     ),
                   ),
@@ -657,7 +695,8 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_constants.dart';
 
 /// Color role of an input; every color it paints derives from it. Mirrors
-/// [AppButtonVariant].
+/// [AppButtonVariant]: [primary] is the accent, [secondary] and [tertiary]
+/// are neutral tones.
 enum AppInputVariant { primary, secondary, tertiary, danger }
 
 /// Fill treatment of an input.
@@ -736,7 +775,7 @@ class AppInputConfig {
       verticalPadding: (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
     ),
     this.largeMetrics = const (
-      fontSize: AppConstants.fontSize34,
+      fontSize: AppConstants.fontSize28,
       iconSize: AppConstants.iconLarge,
       verticalPadding: AppConstants.space16,
     ),
@@ -906,8 +945,8 @@ class AppInputStyle {
     final colorScheme = context.theme.colorScheme;
     return switch (resolved) {
       AppInputVariant.primary => colorScheme.primary,
-      AppInputVariant.secondary => colorScheme.secondary,
-      AppInputVariant.tertiary => colorScheme.tertiary,
+      AppInputVariant.secondary => colorScheme.onSurface,
+      AppInputVariant.tertiary => colorScheme.onSurfaceVariant,
       AppInputVariant.danger => colorScheme.error,
     };
   }
@@ -929,8 +968,8 @@ class AppInputStyle {
     final colorScheme = context.theme.colorScheme;
     return switch (resolved) {
       AppInputVariant.primary => colorScheme.onPrimary,
-      AppInputVariant.secondary => colorScheme.onSecondary,
-      AppInputVariant.tertiary => colorScheme.onTertiary,
+      AppInputVariant.secondary => colorScheme.surface,
+      AppInputVariant.tertiary => colorScheme.surface,
       AppInputVariant.danger => colorScheme.onError,
     };
   }
@@ -3689,9 +3728,14 @@ class AppCheckbox extends StatelessWidget {
     this.shape,
     this.tristate = false,
     this.readOnly = false,
+    this.dense = false,
   });
 
   final bool? value;
+
+  /// Drops the 48dp tap target down to the box. Only for a box inside a row
+  /// that is itself the target, as in AppCheckboxLabel.
+  final bool dense;
 
   /// Leave it out — or pass null — to render the box disabled. [readOnly] is
   /// the other way to make it uneditable, and the one that keeps its colors.
@@ -3756,8 +3800,10 @@ class AppCheckbox extends StatelessWidget {
           shape: (shape ?? config.shape) == AppInputShape.pill
               ? const CircleBorder()
               : null,
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: dense
+              ? MaterialTapTargetSize.shrinkWrap
+              : MaterialTapTargetSize.padded,
+          visualDensity: dense ? VisualDensity.compact : null,
         ),
       ),
     );
@@ -3887,6 +3933,7 @@ class AppCheckboxLabel extends StatelessWidget {
                       variant: variant,
                       size: size,
                       shape: shape,
+                      dense: true,
                     ),
                     const SizedBox(width: AppConstants.space8),
                     Expanded(
@@ -5083,8 +5130,8 @@ class AppToast {
   static const double _maxWidth = 480;
 
   /// Arriving is slower than leaving.
-  static const Duration _enterDuration = Duration(milliseconds: 320);
-  static const Duration _exitDuration = Duration(milliseconds: 200);
+  static const Duration _enterDuration = AppConstants.duration300;
+  static const Duration _exitDuration = AppConstants.duration200;
 
   /// How far the card rises, as a fraction of its own height. Short on purpose:
   /// a full-height slide reads as a drawer opening, this reads as it settling.
@@ -6270,7 +6317,9 @@ class AppScreenLock extends StatelessWidget {
           content,
           Positioned.fill(
             child: ColoredBox(
-              color: dim ? const Color(0x66000000) : const Color(0x00000000),
+              color: dim
+                  ? Theme.of(context).colorScheme.scrim.withValues(alpha: 0.4)
+                  : Colors.transparent,
               child: showProgress
                   ? const Center(child: CircularProgressIndicator())
                   : null,
@@ -6314,6 +6363,8 @@ class AppLoadingData extends StatelessWidget {
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import '../../../core/constants/app_constants.dart';
 
 const _kWaitingMessages = [
   'We are processing your request...',
@@ -6400,25 +6451,33 @@ class _AppLoadingActionOverlayState extends State<AppLoadingActionOverlay> {
       children: [
         widget.child,
         if (widget.isLoading) ...[
-          const ModalBarrier(dismissible: false, color: Colors.black54),
+          ModalBarrier(
+            dismissible: false,
+            color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.54),
+          ),
           Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 16,
-              children: [
-                const CircularProgressIndicator(),
-                if (_currentMessage != null)
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 400),
-                    child: Text(
-                      _currentMessage!,
-                      key: ValueKey(_currentMessage),
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: Colors.white),
-                    ),
-                  ),
-              ],
+            child: Card(
+              margin: AppConstants.padding24,
+              child: Padding(
+                padding: AppConstants.padding24,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: AppConstants.space16,
+                  children: [
+                    const CircularProgressIndicator(),
+                    if (_currentMessage != null)
+                      AnimatedSwitcher(
+                        duration: AppConstants.duration300,
+                        child: Text(
+                          _currentMessage!,
+                          key: ValueKey(_currentMessage),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
@@ -6461,15 +6520,20 @@ class EmptyView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 72, color: theme.colorScheme.primary),
-            const SizedBox(height: 16),
+            // Neutral: the accent is kept for the action below it.
+            Icon(
+              icon,
+              size: AppConstants.iconLarge * 2,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: AppConstants.space16),
             Text(
               title,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppConstants.space8),
             Text(
               message,
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -6478,7 +6542,7 @@ class EmptyView extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: AppConstants.space24),
               FilledButton(onPressed: onAction, child: Text(actionLabel!)),
             ],
           ],
@@ -6522,15 +6586,19 @@ class ErrorView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 64, color: theme.colorScheme.error),
-            const SizedBox(height: 16),
+            Icon(
+              icon,
+              size: AppConstants.iconLarge * 2,
+              color: theme.colorScheme.error,
+            ),
+            const SizedBox(height: AppConstants.space16),
             Text(
               title,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppConstants.space8),
             Text(
               message ?? 'An unknown error occurred',
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -6539,7 +6607,7 @@ class ErrorView extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             if (onRetry != null) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: AppConstants.space24),
               FilledButton.icon(
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh),
@@ -6563,8 +6631,9 @@ import 'package:flutter/services.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
-/// Color role of [AppIconButton]. Mirrors [AppButtonVariant] and
-/// [AppLeadingIconVariant] so every control speaks the same color vocabulary.
+/// Color role of [AppIconButton]. Mirrors [AppButtonVariant]: [primary] is
+/// the accent, [secondary] and [tertiary] are neutral tones (`onSurface`,
+/// `onSurfaceVariant`), so the accent stays on the one action that matters.
 enum AppIconButtonVariant { primary, secondary, tertiary, danger }
 
 /// Fill treatment of [AppIconButton] — how the variant color is applied.
@@ -6681,12 +6750,12 @@ class AppIconButton extends StatelessWidget {
           theme.colorScheme.onPrimary,
         ),
       AppIconButtonVariant.secondary => (
-          theme.colorScheme.secondary,
-          theme.colorScheme.onSecondary,
+          theme.colorScheme.onSurface,
+          theme.colorScheme.surface,
         ),
       AppIconButtonVariant.tertiary => (
-          theme.colorScheme.tertiary,
-          theme.colorScheme.onTertiary,
+          theme.colorScheme.onSurfaceVariant,
+          theme.colorScheme.surface,
         ),
       AppIconButtonVariant.danger => (
           theme.colorScheme.error,
@@ -7106,10 +7175,7 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
                   title!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontSize: AppConstants.fontSize20,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: theme.textTheme.titleLarge,
                 ),
                 if (subtitle != null)
                   Text(
@@ -7256,11 +7322,14 @@ class AppBanner extends StatelessWidget {
                       HapticFeedback.selectionClick();
                       onAction!();
                     },
+                    // Compact to sit flush with the text, but the tap target
+                    // stays 48dp.
                     style: TextButton.styleFrom(
                       foregroundColor: color,
-                      padding: EdgeInsets.zero,
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppConstants.space8,
+                      ),
+                      visualDensity: VisualDensity.compact,
                     ),
                     child: Text(actionLabel!),
                   ),
@@ -8640,12 +8709,12 @@ $themeConfig
         builder: (context) => Scaffold(
           // The screen's own chrome is AppAppBar, so this doubles as its
           // preview — subtitle, actions and all.
-          appBar: AppAppBar(
+          appBar: ${withDark ? '' : 'const '}AppAppBar(
             title: 'Design System',
             subtitle: 'Every shared widget, in your theme',
             showBack: false,
             actions: [
-$toggleAction              const SizedBox(width: AppConstants.space8),
+$toggleAction              ${withDark ? 'const ' : ''}SizedBox(width: AppConstants.space8),
             ],
           ),
           body: ListView(
@@ -8659,15 +8728,20 @@ $toggleAction              const SizedBox(width: AppConstants.space8),
                   return Wrap(
                     spacing: AppConstants.space8,
                     runSpacing: AppConstants.space8,
+                    // Grouped by the 60-30-10 rule AppConstants is laid out by:
+                    // the background, the structure around the content, the
+                    // one accent — then the colors kept for meaning or
+                    // illustration.
                     children: [
-                      _ColorChip(label: 'primary', color: cs.primary, onColor: cs.onPrimary),
+                      _ColorChip(label: '60 · surface', color: cs.surface, onColor: cs.onSurface),
+                      _ColorChip(label: '30 · containerLowest', color: cs.surfaceContainerLowest, onColor: cs.onSurface),
+                      _ColorChip(label: '30 · containerLow', color: cs.surfaceContainerLow, onColor: cs.onSurface),
+                      _ColorChip(label: '30 · containerHighest', color: cs.surfaceContainerHighest, onColor: cs.onSurface),
+                      _ColorChip(label: '30 · onSurfaceVariant', color: cs.surface, onColor: cs.onSurfaceVariant),
+                      _ColorChip(label: '10 · primary', color: cs.primary, onColor: cs.onPrimary),
+                      _ColorChip(label: 'error', color: cs.error, onColor: cs.onError),
                       _ColorChip(label: 'secondary', color: cs.secondary, onColor: cs.onSecondary),
                       _ColorChip(label: 'tertiary', color: cs.tertiary, onColor: cs.onTertiary),
-                      _ColorChip(label: 'error', color: cs.error, onColor: cs.onError),
-                      _ColorChip(label: 'surface', color: cs.surface, onColor: cs.onSurface),
-                      _ColorChip(label: 'surfaceVariant', color: cs.surfaceContainerHighest, onColor: cs.onSurfaceVariant),
-                      _ColorChip(label: 'primaryContainer', color: cs.primaryContainer, onColor: cs.onPrimaryContainer),
-                      _ColorChip(label: 'secondaryContainer', color: cs.secondaryContainer, onColor: cs.onSecondaryContainer),
                     ],
                   );
                 }),
@@ -10913,9 +10987,9 @@ $asyncViewSection              // ── AppPhoneInput ────────�
                   indicatorInside: true,
                   children: [
                     for (final (index, color) in [
-                      Colors.indigo,
-                      Colors.teal,
-                      Colors.deepOrange,
+                      Theme.of(context).colorScheme.primary,
+                      Theme.of(context).colorScheme.secondary,
+                      Theme.of(context).colorScheme.tertiary,
                     ].indexed)
                       Container(
                         color: color.withValues(alpha: 0.35),
@@ -11065,7 +11139,7 @@ class _RadiusChip extends StatelessWidget {
           width: 56,
           height: 56,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(radius.clamp(0, 28)),
           ),
         ),

@@ -294,7 +294,13 @@ test/
   lacks is added with `moarch create widget <name>`, not written from scratch.
 - No magic numbers: spacing, padding, radii, icon sizes, durations, curves and
   shadows come from `AppConstants` (`space16`, `padding16`, `borderRadius12`,
-  `duration300`, `curveStandard`, `shadowCard`…).
+  `duration300`, `curveStandard`, `shadowCard`…). Text sizes come from
+  `Theme.of(context).textTheme` roles (`bodyMedium`, `titleLarge`…), never a
+  `fontSize`.
+- One accent (60-30-10): `primary` marks the screen's main action and
+  selected / focused states, nothing decorative. Other actions are
+  `AppButtonVariant.secondary` (tonal) or `.tertiary` (outlined); secondary
+  text is `colorScheme.onSurfaceVariant`.
 - No hard-coded colors: read `Theme.of(context).colorScheme`${withStatusColors ? ', and\n  `context.statusColors` for success / warning / info' : ''}.${withDarkTheme ? ' The app has a dark\n  theme, so a literal `Color` is a bug in one of the two.' : ''}${withDarkTheme && withThemeMode ? '\n- Light / dark / system is the user\'s choice, saved across launches:\n  ${bloc ? '`context.read<ThemeModeCubit>().setMode(mode)`' : '`ref.read(themeModeProvider.notifier).setMode(mode)`'}\n  (`core/services/theme_mode_service.dart`). Never set `themeMode` on\n  `MaterialApp` by hand. Other small non-secret settings go through\n  `PreferencesService`; tokens stay in `TokenStorage`.' : ''}
 - **Every widget gets its own file.** A `build` is split into public widget
   classes, one per file, in the feature's `presentation/widgets/`

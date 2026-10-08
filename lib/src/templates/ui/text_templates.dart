@@ -11,7 +11,8 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
 /// Color role of [AppTextButton] — what the action is about, not how it is
-/// drawn. Mirrors [AppButtonVariant].
+/// drawn. Mirrors [AppButtonVariant]: [primary] is the accent, [secondary]
+/// and [tertiary] are neutral tones (`onSurface`, `onSurfaceVariant`).
 ///
 /// [neutral] follows the theme's `onSurface`, for actions that are offered
 /// without being urged: "Skip", "Not now", "Cancel".
@@ -134,26 +135,26 @@ class AppTextButton extends StatelessWidget {
 
   _TextButtonSizeConfig _sizeConfig() => switch (size) {
         AppTextButtonSize.small => (
-            fontSize: AppConstants.fontSize13,
-            iconSize: 16.0,
-            minHeight: 32.0,
+            fontSize: AppConstants.fontSize12,
+            iconSize: AppConstants.iconSmall,
+            minHeight: AppConstants.space32,
             padding: const EdgeInsets.symmetric(
               horizontal: AppConstants.space8,
               vertical: AppConstants.space4,
             ),
           ),
         AppTextButtonSize.medium => (
-            fontSize: AppConstants.fontSize15,
-            iconSize: 18.0,
-            minHeight: 40.0,
+            fontSize: AppConstants.fontSize14,
+            iconSize: AppConstants.iconSmall,
+            minHeight: AppConstants.space32 + AppConstants.space8,
             padding: const EdgeInsets.symmetric(
               horizontal: AppConstants.space12,
               vertical: AppConstants.space8,
             ),
           ),
         AppTextButtonSize.large => (
-            fontSize: AppConstants.fontSize17,
-            iconSize: 20.0,
+            fontSize: AppConstants.fontSize16,
+            iconSize: AppConstants.iconSmall + AppConstants.space4,
             minHeight: AppConstants.touchTarget,
             padding: const EdgeInsets.symmetric(
               horizontal: AppConstants.space16,
@@ -181,12 +182,12 @@ class AppTextButton extends StatelessWidget {
           theme.colorScheme.onPrimary,
         ),
       AppTextButtonVariant.secondary => (
-          theme.colorScheme.secondary,
-          theme.colorScheme.onSecondary,
+          theme.colorScheme.onSurface,
+          theme.colorScheme.surface,
         ),
       AppTextButtonVariant.tertiary => (
-          theme.colorScheme.tertiary,
-          theme.colorScheme.onTertiary,
+          theme.colorScheme.onSurfaceVariant,
+          theme.colorScheme.surface,
         ),
       AppTextButtonVariant.danger => (
           theme.colorScheme.error,
@@ -946,8 +947,6 @@ enum AppHeadingVariant { primary, secondary, tertiary, danger, neutral, muted }
 enum AppHeadingAlign { start, center, end }
 
 typedef _HeadingSizeConfig = ({
-  double fontSize,
-  double subtitleSize,
   FontWeight weight,
   double letterSpacing,
   bool uppercase,
@@ -1041,36 +1040,26 @@ class AppHeading extends StatelessWidget {
 
   _HeadingSizeConfig _sizeConfig() => switch (size) {
         AppHeadingSize.display => (
-            fontSize: AppConstants.fontSize34,
-            subtitleSize: AppConstants.fontSize16,
             weight: FontWeight.w700,
             letterSpacing: -0.5,
             uppercase: false,
           ),
         AppHeadingSize.large => (
-            fontSize: AppConstants.fontSize28,
-            subtitleSize: AppConstants.fontSize15,
             weight: FontWeight.w700,
             letterSpacing: -0.25,
             uppercase: false,
           ),
         AppHeadingSize.medium => (
-            fontSize: AppConstants.fontSize22,
-            subtitleSize: AppConstants.fontSize14,
             weight: FontWeight.w600,
             letterSpacing: 0,
             uppercase: false,
           ),
         AppHeadingSize.small => (
-            fontSize: AppConstants.fontSize17,
-            subtitleSize: AppConstants.fontSize13,
             weight: FontWeight.w600,
             letterSpacing: 0,
             uppercase: false,
           ),
         AppHeadingSize.label => (
-            fontSize: AppConstants.fontSize13,
-            subtitleSize: AppConstants.fontSize12,
             weight: FontWeight.w600,
             letterSpacing: _capsLetterSpacing,
             uppercase: true,
@@ -1084,7 +1073,14 @@ class AppHeading extends StatelessWidget {
         AppHeadingSize.large => textTheme.headlineMedium,
         AppHeadingSize.medium => textTheme.titleLarge,
         AppHeadingSize.small => textTheme.titleMedium,
-        AppHeadingSize.label => textTheme.labelSmall,
+        AppHeadingSize.label => textTheme.labelMedium,
+      };
+
+  /// The subtitle's role, a step down from [_baseStyle].
+  TextStyle? _subtitleStyle(TextTheme textTheme) => switch (size) {
+        AppHeadingSize.display || AppHeadingSize.large => textTheme.bodyLarge,
+        AppHeadingSize.medium || AppHeadingSize.small => textTheme.bodyMedium,
+        AppHeadingSize.label => textTheme.bodySmall,
       };
 
   Color _variantColor(ThemeData theme) => switch (variant) {
@@ -1115,10 +1111,10 @@ class AppHeading extends StatelessWidget {
     final accent = color ?? _variantColor(theme);
     final caps = uppercase ?? config.uppercase;
 
-    final titleStyle =
-        (_baseStyle(theme.textTheme) ?? const TextStyle()).copyWith(
+    final baseStyle = _baseStyle(theme.textTheme) ?? const TextStyle();
+    final fontSize = baseStyle.fontSize ?? AppConstants.fontSize16;
+    final titleStyle = baseStyle.copyWith(
       color: accent,
-      fontSize: config.fontSize,
       fontWeight: weight ?? config.weight,
       letterSpacing: caps && config.letterSpacing < _capsLetterSpacing
           ? _capsLetterSpacing
@@ -1136,7 +1132,7 @@ class AppHeading extends StatelessWidget {
       titleLine = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: config.fontSize * _iconScale, color: accent),
+          Icon(icon, size: fontSize * _iconScale, color: accent),
           const SizedBox(width: AppConstants.space8),
           Flexible(child: titleLine),
         ],
@@ -1153,9 +1149,9 @@ class AppHeading extends StatelessWidget {
           Text(
             subtitle!,
             textAlign: _textAlign,
-            style: (theme.textTheme.bodySmall ?? const TextStyle()).copyWith(
+            style: (_subtitleStyle(theme.textTheme) ?? const TextStyle())
+                .copyWith(
               color: subtitleColor ?? theme.colorScheme.onSurfaceVariant,
-              fontSize: config.subtitleSize,
             ),
           ),
         ],

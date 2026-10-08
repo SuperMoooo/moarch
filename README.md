@@ -645,6 +645,19 @@ from them, and a **lean common set** of widgets under `lib/shared/widgets/`: inp
 state screens (`AppAsyncView`, `ErrorView`, `EmptyView`, `AppLoadingData`) and
 overlays (`AppToast`, `AppConfirmDialog`, dialog/bottom-sheet helpers).
 
+The palette is laid out by the **60-30-10 rule**:
+
+- **60%** is `surface`, the background.
+- **30%** is the `surfaceContainer*` layers, `onSurfaceMuted` and `outline`:
+  cards, bars, inputs and secondary text.
+- **10%** is `primary`: the main action, selected and focused states, and
+  progress. It is the only accent.
+
+`AppButtonVariant.secondary` is a tonal neutral and `.tertiary` an outline,
+so a screen never has three competing accents. The colors moarch ships pass
+WCAG AA. The comment at the top of `app_constants.dart` lists the pairs to
+check once you fill in your brand.
+
 `AppInput` is driven by an `AppInputFormat`: one enum that picks the keyboard, the
 input formatters that shape the value as it is typed, the autofill hints and the
 validation rule together.

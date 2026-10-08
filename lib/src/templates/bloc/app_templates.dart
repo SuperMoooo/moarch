@@ -447,10 +447,11 @@ $localizationConfig$routerConfig      debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            // Follows the system font size, capped so fixed-height rows don't break.
+            // Follows the system font size up to 2x, the bar WCAG sets for
+            // resizable text; the kit's controls grow with their labels.
             textScaler: MediaQuery.textScalerOf(
               context,
-            ).clamp(maxScaleFactor: 1.3),
+            ).clamp(maxScaleFactor: 2),
             alwaysUse24HourFormat: true,
           ),
           child: ${maintenanceOpen}child!$maintenanceClose,

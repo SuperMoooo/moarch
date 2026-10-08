@@ -782,7 +782,12 @@ A screen is `presentation/views/<name>_view.dart` in its feature — or
   scratch.
 - **Tokens, not numbers.** Spacing, padding, radii, icon sizes, durations,
   curves and shadows come from `AppConstants` (`space16`, `padding16`,
-  `borderRadius12`, `duration300`, `curveStandard`, `shadowCard`…).
+  `borderRadius12`, `duration300`, `curveStandard`, `shadowCard`…), and text
+  sizes from `textTheme` roles — never a `fontSize`.
+- **One accent.** `primary` is for the screen's main action and for selected
+  / focused states only. Supporting actions are `AppButtonVariant.secondary`
+  (tonal) or `.tertiary` (outlined); secondary text is
+  `colorScheme.onSurfaceVariant`.
 - **Theme, not colors.** Read $colors. A literal `Color` is a bug${o.withDarkTheme ? ' in one of\n  the two themes' : ''}.
 - **One widget per file.** Split the screen into public widget classes, each
   in its own file in the feature's `presentation/widgets/`

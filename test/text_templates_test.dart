@@ -366,7 +366,7 @@ void main() {
         'AppHeadingSize.large => textTheme.headlineMedium,',
         'AppHeadingSize.medium => textTheme.titleLarge,',
         'AppHeadingSize.small => textTheme.titleMedium,',
-        'AppHeadingSize.label => textTheme.labelSmall,',
+        'AppHeadingSize.label => textTheme.labelMedium,',
       ]) {
         expect(output, contains(role), reason: '$role is missing');
       }

@@ -138,6 +138,16 @@ class ScaffoldContext {
   /// status widgets read it — see [WidgetVariants.hasStatusColorsIn].
   bool get hasStatusColors => WidgetVariants.hasStatusColorsIn(resolve('lib'));
 
+  /// `app_constants.dart` declares the color roles `AppTheme` reads since
+  /// 9.9.0 (`onPrimary`, `onSurfaceMuted`…) — or does not exist yet, as
+  /// during `init`. Without them a refreshed theme falls back to the tokens
+  /// the old one used: see [CoreTemplates.colorRoleLiterals].
+  bool get hasColorRoles {
+    final file = File(resolve('lib/core/constants/app_constants.dart'));
+    return !file.existsSync() ||
+        CoreTemplates.declaresColorRoles(file.readAsStringSync());
+  }
+
   /// MoAdapt was generated. `main.dart` mounts it above the whole app, so
   /// refreshing main without checking would silently drop the proportional
   /// scaling every screen was built against.
@@ -792,10 +802,15 @@ abstract final class ScaffoldCatalog {
       title: 'AppTheme',
       path: 'lib/config/theme/app_theme.dart',
       category: 'Config',
-      template: (c) => ConfigTemplates.appTheme(
-        withDark: c.hasDarkTheme,
-        withStatusColors: c.hasStatusColors,
-      ),
+      template: (c) {
+        final theme = ConfigTemplates.appTheme(
+          withDark: c.hasDarkTheme,
+          withStatusColors: c.hasStatusColors,
+        );
+        return c.hasColorRoles
+            ? theme
+            : CoreTemplates.inlineMissingColorRoles(theme);
+      },
       description:
           'The ThemeData built from AppConstants — light, plus dark '
           'when the project took it.',

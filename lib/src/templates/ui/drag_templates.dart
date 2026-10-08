@@ -276,9 +276,12 @@ class AppDragSection extends StatelessWidget {
             index: index,
             child: Padding(
               padding: const EdgeInsets.all(AppConstants.space8),
+              // A handle is structure, not an action: neutral unless the
+              // list asks for a variant.
               child: Icon(
                 handleIcon,
-                color: AppInputStyle.accentOf(context, variant),
+                color: AppInputStyle.accentOrNull(context, variant) ??
+                    Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),

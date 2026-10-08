@@ -102,6 +102,24 @@ abstract final class AppTheme {
     labelSmall: TextStyle(fontFamily: _fontFamily, fontSize: AppConstants.fontSize11, height: 1.45, fontWeight: FontWeight.w600, letterSpacing: 0.5),
   );
 
+  static final ButtonStyle _buttonStyle = ButtonStyle(
+    minimumSize: const WidgetStatePropertyAll(
+      Size(AppConstants.touchTarget, AppConstants.touchTarget),
+    ),
+    padding: const WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: AppConstants.space16),
+    ),
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
+    ),
+  );
+
+  static final ButtonStyle _textButtonStyle = ButtonStyle(
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(borderRadius: AppConstants.borderRadius8),
+    ),
+  );
+
   static ThemeData get light => ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,$lightExtensions
@@ -109,16 +127,18 @@ abstract final class AppTheme {
     fontFamily: AppConstants.fontFamily,
     colorScheme: ColorScheme.light(
       primary: AppConstants.primary,
-      onPrimary: AppConstants.surface,
+      onPrimary: AppConstants.onPrimary,
 
       secondary: AppConstants.secondary,
-      onSecondary: AppConstants.surface,
+      onSecondary: AppConstants.onSecondary,
 
       tertiary: AppConstants.tertiary,
-      onTertiary: AppConstants.surface,
+      onTertiary: AppConstants.onTertiary,
 
       surface: AppConstants.surface,
       onSurface: AppConstants.onSurface,
+      // Secondary text, hints, captions — the kit's quieter tone.
+      onSurfaceVariant: AppConstants.onSurfaceMuted,
       surfaceContainer: AppConstants.surfaceContainerLow,
       surfaceContainerLow: AppConstants.surfaceContainerLow,
       surfaceContainerLowest: AppConstants.surfaceContainerLowest,
@@ -127,15 +147,19 @@ abstract final class AppTheme {
       error: AppConstants.error,
       onError: AppConstants.surface,
 
-      outline: AppConstants.outline.withValues(alpha: 0.3),
+      // Edges a control is recognised by (an outlined input, an unchecked
+      // box) need 3:1; the decorative variant (dividers) does not.
+      outline: AppConstants.outline.withValues(alpha: 0.5),
       outlineVariant: AppConstants.outline.withValues(alpha: 0.3),
     ),
 
     scaffoldBackgroundColor: AppConstants.surface,
 
+    // Material's 24: what a bare Icon gets — list rows, badges, the calendar
+    // chevrons. Controls that want smaller set their own size.
     iconTheme: const IconThemeData(
       color: AppConstants.outline,
-      size: AppConstants.iconSmall,
+      size: AppConstants.iconMedium,
     ),
 
     searchBarTheme: SearchBarThemeData(
@@ -163,11 +187,16 @@ abstract final class AppTheme {
       ),
       hintStyle: WidgetStatePropertyAll(
         _textTheme.bodyLarge?.copyWith(
-          color: AppConstants.onSurface.withValues(alpha: 0.35),
+          color: AppConstants.onSurfaceMuted,
         ),
       ),
     ),
 
+    // Surface tiers, the same in both themes: the scaffold and the app bar are
+    // the 60% (`surface`); cards, dialogs and inputs are the 30% — the
+    // lightest container in light, one step above the scaffold in dark,
+    // which is how a dark theme shows elevation.
+    //
     // AppAppBar passes no color of its own, so this is the bar the app wears.
     appBarTheme: const AppBarTheme(
       backgroundColor: AppConstants.surface,
@@ -195,7 +224,7 @@ abstract final class AppTheme {
       indicatorAnimation: TabIndicatorAnimation.elastic,
       labelColor: AppConstants.onSurface,
       labelStyle: _textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
-      unselectedLabelColor: AppConstants.onSurface.withValues(alpha: 0.5),
+      unselectedLabelColor: AppConstants.onSurfaceMuted,
       unselectedLabelStyle: _textTheme.labelLarge,
     ),
 
@@ -212,31 +241,35 @@ abstract final class AppTheme {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: AppConstants.borderRadius12,
-        borderSide: const BorderSide(color: AppConstants.outline, width: 0.5),
+        borderSide: const BorderSide(
+          color: AppConstants.primary,
+          width: 1.5,
+        ),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: AppConstants.borderRadius12,
-        borderSide: const BorderSide(color: AppConstants.error, width: 0.5),
+        borderSide: const BorderSide(color: AppConstants.error, width: 1.5),
       ),
-      prefixIconColor: AppConstants.primary,
-      suffixIconColor: AppConstants.primary,
+      // Icons inside a field are structure, not a call to action.
+      prefixIconColor: AppConstants.onSurfaceMuted,
+      suffixIconColor: AppConstants.onSurfaceMuted,
       contentPadding: const EdgeInsets.symmetric(
         vertical: (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
         horizontal: AppConstants.space12,
       ),
 
       hintStyle: _textTheme.bodyLarge?.copyWith(
-        color: AppConstants.onSurface.withValues(alpha: 0.35),
+        color: AppConstants.onSurfaceMuted,
       ),
     ),
 
     datePickerTheme: DatePickerThemeData(
       backgroundColor: AppConstants.surface,
       headerBackgroundColor: AppConstants.primary,
-      headerForegroundColor: AppConstants.surface,
+      headerForegroundColor: AppConstants.onPrimary,
       rangePickerBackgroundColor: AppConstants.surface,
       rangePickerHeaderBackgroundColor: AppConstants.primary,
-      rangePickerHeaderForegroundColor: AppConstants.surface,
+      rangePickerHeaderForegroundColor: AppConstants.onPrimary,
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
     ),
 
@@ -249,9 +282,7 @@ abstract final class AppTheme {
         if (states.contains(WidgetState.selected)) {
           return AppConstants.primary; // Color when selected
         }
-        return AppConstants.secondary.withValues(
-          alpha: 0.2,
-        ); // Color when not selected
+        return AppConstants.surfaceContainerHighest;
       }),
     ),
 
@@ -264,9 +295,10 @@ abstract final class AppTheme {
         }
         return Colors.transparent;
       }),
-      checkColor: const WidgetStatePropertyAll(AppConstants.surface),
+      checkColor: const WidgetStatePropertyAll(AppConstants.onPrimary),
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius4),
-      side: const BorderSide(color: AppConstants.primary, width: 1),
+      // Unchecked is a neutral edge; only the checked box carries the accent.
+      side: const BorderSide(color: AppConstants.outline, width: 1.5),
     ),
 
     textSelectionTheme: TextSelectionThemeData(
@@ -275,15 +307,24 @@ abstract final class AppTheme {
       selectionHandleColor: AppConstants.primary,
     ),
 
-    dividerTheme: const DividerThemeData(color: Colors.transparent),
+    dividerTheme: DividerThemeData(
+      color: AppConstants.outline.withValues(alpha: 0.3),
+    ),
 
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: AppConstants.primary,
-      foregroundColor: Colors.white,
+      foregroundColor: AppConstants.onPrimary,
     ),
 
+    // Stock buttons wear AppButton's shape, so a FilledButton in app code (or
+    // in EmptyView / ErrorView) sits beside an AppButton as one family.
+    filledButtonTheme: FilledButtonThemeData(style: _buttonStyle),
+    elevatedButtonTheme: ElevatedButtonThemeData(style: _buttonStyle),
+    outlinedButtonTheme: OutlinedButtonThemeData(style: _buttonStyle),
+    textButtonTheme: TextButtonThemeData(style: _textButtonStyle),
+
     dialogTheme: DialogThemeData(
-      backgroundColor: AppConstants.surface,
+      backgroundColor: AppConstants.surfaceContainerLowest,
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
     ),
 
@@ -295,7 +336,10 @@ abstract final class AppTheme {
         borderRadius: AppConstants.borderRadiusFull,
       ),
       side: BorderSide.none,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppConstants.space12,
+        vertical: AppConstants.space8,
+      ),
     ),
 
     switchTheme: SwitchThemeData(
@@ -358,7 +402,7 @@ abstract final class AppTheme {
         ),
         foregroundColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)
-              ? AppConstants.surface
+              ? AppConstants.onPrimary
               : AppConstants.onSurface,
         ),
         shape: WidgetStatePropertyAll(
@@ -488,16 +532,18 @@ extension StatusColorsX on BuildContext {
     fontFamily: AppConstants.fontFamily,
     colorScheme: ColorScheme.dark(
       primary: AppConstants.primaryDark,
-      onPrimary: AppConstants.surfaceDark,
+      onPrimary: AppConstants.onPrimaryDark,
 
       secondary: AppConstants.secondaryDark,
-      onSecondary: AppConstants.surfaceDark,
+      onSecondary: AppConstants.onSecondaryDark,
 
       tertiary: AppConstants.tertiaryDark,
-      onTertiary: AppConstants.surfaceDark,
+      onTertiary: AppConstants.onTertiaryDark,
 
       surface: AppConstants.surfaceDark,
       onSurface: AppConstants.onSurfaceDark,
+      // Secondary text, hints, captions — the kit's quieter tone.
+      onSurfaceVariant: AppConstants.onSurfaceMutedDark,
       surfaceContainer: AppConstants.surfaceContainerLowDark,
       surfaceContainerLow: AppConstants.surfaceContainerLowDark,
       surfaceContainerLowest: AppConstants.surfaceContainerLowestDark,
@@ -506,15 +552,19 @@ extension StatusColorsX on BuildContext {
       error: AppConstants.errorDark,
       onError: AppConstants.surfaceDark,
 
-      outline: AppConstants.outlineDark.withValues(alpha: 0.3),
+      // Edges a control is recognised by (an outlined input, an unchecked
+      // box) need 3:1; the decorative variant (dividers) does not.
+      outline: AppConstants.outlineDark.withValues(alpha: 0.5),
       outlineVariant: AppConstants.outlineDark.withValues(alpha: 0.3),
     ),
 
     scaffoldBackgroundColor: AppConstants.surfaceDark,
 
+    // Material's 24: what a bare Icon gets — list rows, badges, the calendar
+    // chevrons. Controls that want smaller set their own size.
     iconTheme: const IconThemeData(
       color: AppConstants.outlineDark,
-      size: AppConstants.iconSmall,
+      size: AppConstants.iconMedium,
     ),
 
     searchBarTheme: SearchBarThemeData(
@@ -542,13 +592,13 @@ extension StatusColorsX on BuildContext {
       ),
       hintStyle: WidgetStatePropertyAll(
         _textTheme.bodyLarge?.copyWith(
-          color: AppConstants.onSurfaceDark.withValues(alpha: 0.35),
+          color: AppConstants.onSurfaceMutedDark,
         ),
       ),
     ),
 
     appBarTheme: const AppBarTheme(
-      backgroundColor: AppConstants.surfaceContainerLowDark,
+      backgroundColor: AppConstants.surfaceDark,
       foregroundColor: AppConstants.onSurfaceDark,
       elevation: 0,
       scrolledUnderElevation: 0,
@@ -573,7 +623,7 @@ extension StatusColorsX on BuildContext {
       indicatorAnimation: TabIndicatorAnimation.elastic,
       labelColor: AppConstants.onSurfaceDark,
       labelStyle: _textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
-      unselectedLabelColor: AppConstants.onSurfaceDark.withValues(alpha: 0.5),
+      unselectedLabelColor: AppConstants.onSurfaceMutedDark,
       unselectedLabelStyle: _textTheme.labelLarge,
     ),
 
@@ -591,33 +641,34 @@ extension StatusColorsX on BuildContext {
       focusedBorder: OutlineInputBorder(
         borderRadius: AppConstants.borderRadius12,
         borderSide: const BorderSide(
-          color: AppConstants.outlineDark,
-          width: 0.5,
+          color: AppConstants.primaryDark,
+          width: 1.5,
         ),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: AppConstants.borderRadius12,
-        borderSide: const BorderSide(color: AppConstants.errorDark, width: 0.5),
+        borderSide: const BorderSide(color: AppConstants.errorDark, width: 1.5),
       ),
-      prefixIconColor: AppConstants.primaryDark,
-      suffixIconColor: AppConstants.primaryDark,
+      // Icons inside a field are structure, not a call to action.
+      prefixIconColor: AppConstants.onSurfaceMutedDark,
+      suffixIconColor: AppConstants.onSurfaceMutedDark,
       contentPadding: const EdgeInsets.symmetric(
         vertical: (AppConstants.touchTarget - AppConstants.fontSize16) / 2,
         horizontal: AppConstants.space12,
       ),
 
       hintStyle: _textTheme.bodyLarge?.copyWith(
-        color: AppConstants.onSurfaceDark.withValues(alpha: 0.35),
+        color: AppConstants.onSurfaceMutedDark,
       ),
     ),
 
     datePickerTheme: DatePickerThemeData(
       backgroundColor: AppConstants.surfaceDark,
       headerBackgroundColor: AppConstants.primaryDark,
-      headerForegroundColor: AppConstants.surfaceDark,
+      headerForegroundColor: AppConstants.onPrimaryDark,
       rangePickerBackgroundColor: AppConstants.surfaceDark,
       rangePickerHeaderBackgroundColor: AppConstants.primaryDark,
-      rangePickerHeaderForegroundColor: AppConstants.surfaceDark,
+      rangePickerHeaderForegroundColor: AppConstants.onPrimaryDark,
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius12),
     ),
 
@@ -630,9 +681,7 @@ extension StatusColorsX on BuildContext {
         if (states.contains(WidgetState.selected)) {
           return AppConstants.primaryDark; // Color when selected
         }
-        return AppConstants.secondaryDark.withValues(
-          alpha: 0.2,
-        ); // Color when not selected
+        return AppConstants.surfaceContainerHighestDark;
       }),
     ),
 
@@ -645,9 +694,10 @@ extension StatusColorsX on BuildContext {
         }
         return Colors.transparent;
       }),
-      checkColor: const WidgetStatePropertyAll(AppConstants.surfaceDark),
+      checkColor: const WidgetStatePropertyAll(AppConstants.onPrimaryDark),
       shape: RoundedRectangleBorder(borderRadius: AppConstants.borderRadius4),
-      side: const BorderSide(color: AppConstants.primaryDark, width: 1),
+      // Unchecked is a neutral edge; only the checked box carries the accent.
+      side: const BorderSide(color: AppConstants.outlineDark, width: 1.5),
     ),
 
     textSelectionTheme: TextSelectionThemeData(
@@ -656,12 +706,21 @@ extension StatusColorsX on BuildContext {
       selectionHandleColor: AppConstants.primaryDark,
     ),
 
-    dividerTheme: const DividerThemeData(color: Colors.transparent),
+    dividerTheme: DividerThemeData(
+      color: AppConstants.outlineDark.withValues(alpha: 0.3),
+    ),
 
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: AppConstants.primaryDark,
-      foregroundColor: AppConstants.surfaceDark,
+      foregroundColor: AppConstants.onPrimaryDark,
     ),
+
+    // Stock buttons wear AppButton's shape, so a FilledButton in app code (or
+    // in EmptyView / ErrorView) sits beside an AppButton as one family.
+    filledButtonTheme: FilledButtonThemeData(style: _buttonStyle),
+    elevatedButtonTheme: ElevatedButtonThemeData(style: _buttonStyle),
+    outlinedButtonTheme: OutlinedButtonThemeData(style: _buttonStyle),
+    textButtonTheme: TextButtonThemeData(style: _textButtonStyle),
 
     dialogTheme: DialogThemeData(
       backgroundColor: AppConstants.surfaceContainerLowDark,
@@ -676,7 +735,10 @@ extension StatusColorsX on BuildContext {
         borderRadius: AppConstants.borderRadiusFull,
       ),
       side: BorderSide.none,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppConstants.space12,
+        vertical: AppConstants.space8,
+      ),
     ),
 
     switchTheme: SwitchThemeData(
@@ -739,7 +801,7 @@ extension StatusColorsX on BuildContext {
         ),
         foregroundColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)
-              ? AppConstants.surfaceDark
+              ? AppConstants.onPrimaryDark
               : AppConstants.onSurfaceDark,
         ),
         shape: WidgetStatePropertyAll(

@@ -238,7 +238,17 @@ class _TimelineRow extends StatelessWidget {
           ? null
           : FittedBox(
               fit: BoxFit.scaleDown,
-              child: Icon(icon, color: hollow ? color : Colors.white),
+              child: Icon(
+                icon,
+                // A filled node can be any color, so the glyph takes
+                // whichever of black / white reads on it.
+                color: hollow
+                    ? color
+                    : ThemeData.estimateBrightnessForColor(color) ==
+                            Brightness.dark
+                        ? Colors.white
+                        : Colors.black,
+              ),
             ),
     );
   }

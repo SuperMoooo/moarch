@@ -2,6 +2,84 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.9.0
+
+The generated design system now follows the 60-30-10 color rule and passes
+WCAG AA contrast in the colors it ships.
+
+- **`primary` is now the only accent.**
+  - `AppButtonVariant.secondary` is a tonal neutral fill.
+  - `.tertiary` is a neutral outline, whatever `type` is passed.
+  - On `AppIconButton`, `AppTextButton` and the inputs, `secondary` and
+    `tertiary` now paint `onSurface` and `onSurfaceVariant`.
+  - The theme no longer colors input icons, unchecked checkboxes, the
+    time picker's idle fields or `EmptyView`'s illustration with the accent.
+  - A focused input now gets a 1.5px `primary` border, replacing the 0.5px
+    neutral one.
+  - `secondary` and `tertiary` stay in the palette for charts and
+    illustrations.
+- **New color roles in `AppConstants`.**
+  - `onPrimary`, `onSecondary` and `onTertiary` set what reads on each
+    accent. They default to `surface`, the old behavior, so set them when
+    your accent is a light color.
+  - `onSurfaceMuted` is the secondary text tone: hints, captions, subtitles
+    and unselected tabs. Before, `onSurfaceVariant` was never set, so
+    secondary text came out the same color as body text.
+  - Each role has a `*Dark` counterpart.
+  - The palette's comment now lays out the 60-30-10 split and the contrast
+    pairs to check when you fill it in.
+- **Contrast fixes.**
+  - The light `success`, `warning` and `info` colors are deeper, so they pass
+    4.5:1 as text on white and on `AppTag`'s and `AppBanner`'s tint.
+  - The theme's `outline` is drawn at 3:1.
+  - `AppAvatar` and `AppTimeline` now pick black or white text for the color
+    behind it.
+  - The light FAB no longer uses a hard-coded white icon.
+  - `AppLoadingActionOverlay` shows its spinner and message on a card over
+    the theme's scrim.
+- **One type scale.**
+  - `AppButton`, `AppTextButton`, `AppHeading` and `AppAppBar` take their
+    sizes from `TextTheme` roles.
+  - The iOS-only sizes `fontSize15`, `fontSize17`, `fontSize20` and
+    `fontSize34` are gone from new projects' `AppConstants`. Nothing
+    generated reads them any more.
+- **Text scaling follows the system up to 2×**, up from 1.3×. `AppButton`
+  now has a minimum height instead of a fixed one, so it grows with its
+  label.
+- **Layout.**
+  - Stock `FilledButton`, `ElevatedButton`, `OutlinedButton` and `TextButton`
+    now have `AppButton`'s shape.
+  - The app bar sits on `surface` in both themes. Dark dialogs and light
+    dialogs now sit on the same tier as cards.
+  - Dividers are visible again. `AppDrawer`'s divider drew nothing before.
+- **Icons default to 24, up from 16.** This is Material's default size, and
+  it reaches every `Icon` that doesn't set its own size: list-row icons,
+  badges and the calendar's chevrons. Controls with their own size (inputs,
+  buttons, the FAB) are unchanged. `AppDragSection`'s handle is now neutral
+  unless the list sets a variant.
+- **Touch targets.** A standalone `AppCheckbox` and `AppBanner`'s action keep
+  a 48dp tap target. `AppCheckbox(dense: true)` opts out for a box inside a
+  row that is itself the target.
+- **Hard-coded values** for spacing, durations and colors in the dialogs,
+  toast, screen lock and state views now use `AppConstants` tokens and theme
+  colors.
+- **`AppDialogs.showAppDialog`'s `barrierColor`** is now nullable and
+  defaults to the theme's scrim.
+- **The design-system preview** groups its color chips by 60-30-10. In a
+  project with one theme, it no longer trips two `prefer_const` lints.
+- **The agent guide** (`AGENTS.md` and the build-screen skill) says to take
+  type sizes from `textTheme` and to keep `primary` for one action per
+  screen.
+
+**Existing projects:**
+
+- `moarch update widgets` refreshes the kit.
+- `moarch update theme main` refreshes the theme and the text-scale cap.
+- If your `app_constants.dart` was edited, the refreshed theme falls back to
+  the colors it used before (`surface` on the accent, `onSurface` for muted
+  text). Add the four roles by hand to get the new ones. The comment at the
+  top of a fresh `app_constants.dart` shows where they go.
+
 ## 9.8.1
 
 - **`AppDropdownInput` and `AppMultiSelectInput` no longer crash when given

@@ -472,8 +472,13 @@ const _unaccented = 'AAAAAAaaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuNnCc';
   static const Color tertiaryDark  = Color(0xFFFFFFFF);
   static const Color surfaceDark   = Color(0xFF121212);
   static const Color onSurfaceDark = Color(0xFFFFFFFF);
+  static const Color onSurfaceMutedDark = Color(0xFFB3B3B3);
   static const Color outlineDark   = Color(0xFFFFFFFF);
   static const Color errorDark     = Color(0xFFffb4ab);
+
+  static const Color onPrimaryDark   = surfaceDark;
+  static const Color onSecondaryDark = surfaceDark;
+  static const Color onTertiaryDark  = surfaceDark;
 
   static const Color surfaceContainerLowestDark  = Color(0xFF0A0A0A);
   static const Color surfaceContainerLowDark     = Color(0xFF1E1E1E);
@@ -489,14 +494,31 @@ const _unaccented = 'AAAAAAaaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuNnCc';
 import 'package:flutter/material.dart';
 
 abstract final class AppConstants {
-  // ── Brand palette ─────────────────────────────────────────────────────────
+  // ── Brand palette — 60-30-10 ──────────────────────────────────────────────
+  // 60  surface: the scaffold, the large calm background.
+  // 30  surfaceContainer*, onSurfaceMuted, outline: cards, bars, inputs,
+  //     secondary text — the structure around the content.
+  // 10  primary: primary actions, selected and focused states, progress.
+  //     The only accent; secondary and tertiary are for charts and
+  //     illustrations, not for competing buttons.
+  // Contrast to check when you fill these in (WCAG AA):
+  //   onPrimary on primary, onSurface and onSurfaceMuted on surface and on
+  //   every surfaceContainer — 4.5:1. primary on surface — 4.5:1 (text
+  //   buttons, links). outline on surface — 3:1 (input and checkbox edges).
   static const Color primary   = Color(0xFF000000);
   static const Color secondary = Color(0xFF000000);
   static const Color tertiary  = Color(0xFF000000);
   static const Color surface   = Color(0xFF000000);
   static const Color onSurface = Color(0xFF000000);
+  static const Color onSurfaceMuted = Color(0xFF000000); // secondary text, hints
   static const Color outline   = Color(0xFF000000);
   static const Color error     = Color(0xFFba1a1a);
+
+  // What reads on top of each accent. Point them at a dark color when the
+  // accent is light (yellow, lime, cyan).
+  static const Color onPrimary   = surface;
+  static const Color onSecondary = surface;
+  static const Color onTertiary  = surface;
 
   // ── Surface layers ────────────────────────────────────────────────────────
   static const Color surfaceContainerLowest  = Color(0xFF000000);
@@ -504,10 +526,11 @@ abstract final class AppConstants {
   static const Color surfaceContainerHighest = Color(0xFF000000);
 
   // ── Status colors ─────────────────────────────────────────────────────────
-  // Outside the palette, so they survive a rebrand.
-  static const Color success = Color(0xFF2E7D32);
-  static const Color warning = Color(0xFFED6C02);
-  static const Color info    = Color(0xFF0288D1);
+  // Outside the palette, so they survive a rebrand. Deep enough to pass
+  // 4.5:1 as text on white and on their own 12% tint (AppTag, AppBanner).
+  static const Color success = Color(0xFF2A6B2E);
+  static const Color warning = Color(0xFF9A4A00);
+  static const Color info    = Color(0xFF0265A8);
 $darkPalette
   // ── Type ──────────────────────────────────────────────────────────────────
   // Null uses the platform default. Name a font declared in pubspec.yaml here.
@@ -548,18 +571,16 @@ $darkPalette
   static const double iconMedium = 24;
   static const double iconLarge = 32;
 
-  // ── Text sizes — Material type scale / iOS HIG ────────────────────────────
-  static const double fontSize11 = 11; // caption2 / label small
-  static const double fontSize12 = 12; // caption1 / body small
-  static const double fontSize13 = 13; // footnote
-  static const double fontSize14 = 14; // label / body medium (Material)
-  static const double fontSize15 = 15; // subheadline
-  static const double fontSize16 = 16; // callout / body large
-  static const double fontSize17 = 17; // body / headline (iOS default)
-  static const double fontSize20 = 20; // title3
-  static const double fontSize22 = 22; // title2 / titleL
-  static const double fontSize28 = 28; // title1 / headlineM
-  static const double fontSize34 = 34; // largeTitle (iOS)
+  // ── Text sizes — the TextTheme's scale (app_theme.dart) ───────────────────
+  // Prefer the theme's roles (`textTheme.bodyMedium`) over these; they are
+  // for the few places a size is computed rather than picked.
+  static const double fontSize11 = 11; // labelSmall
+  static const double fontSize12 = 12; // labelMedium / bodySmall
+  static const double fontSize13 = 13; // calendar cells
+  static const double fontSize14 = 14; // labelLarge / bodyMedium / titleSmall
+  static const double fontSize16 = 16; // bodyLarge / titleMedium
+  static const double fontSize22 = 22; // titleLarge
+  static const double fontSize28 = 28; // headlineMedium
 
   // ── Touch targets — iOS HIG 44pt minimum, Material 48dp ───────────────────
   static const double touchTarget = 48;
@@ -615,6 +636,45 @@ $darkPalette
     });
     return out;
   }
+
+  /// The color roles `AppTheme` reads that an `AppConstants` from before 9.9.0
+  /// lacks, and the token each one fell back to then.
+  ///
+  /// `app_theme.dart` is refreshed by `update` while the constants it reads
+  /// are almost never, so a theme written against these roles would not
+  /// compile in a project whose palette predates them. The fallbacks are the
+  /// colors the old theme used, so the refreshed theme looks the way the old
+  /// one did. Every literal is const, as the theme reads some of them in a
+  /// const context.
+  static const Map<String, String> colorRoleLiterals = {
+    'AppConstants.onPrimaryDark': 'AppConstants.surfaceDark',
+    'AppConstants.onSecondaryDark': 'AppConstants.surfaceDark',
+    'AppConstants.onTertiaryDark': 'AppConstants.surfaceDark',
+    'AppConstants.onSurfaceMutedDark': 'AppConstants.onSurfaceDark',
+    'AppConstants.onPrimary': 'AppConstants.surface',
+    'AppConstants.onSecondary': 'AppConstants.surface',
+    'AppConstants.onTertiary': 'AppConstants.surface',
+    'AppConstants.onSurfaceMuted': 'AppConstants.onSurface',
+  };
+
+  /// [source] with every [colorRoleLiterals] role replaced by its fallback —
+  /// for a project whose `AppConstants` predates them.
+  ///
+  /// The `*Dark` roles come first in the map so `onPrimary` never matches
+  /// the front of `onPrimaryDark`.
+  static String inlineMissingColorRoles(String source) {
+    var out = source;
+    colorRoleLiterals.forEach((role, literal) {
+      out = out.replaceAll(role, literal);
+    });
+    return out;
+  }
+
+  /// Whether [constantsSource] (an `app_constants.dart`) declares the color
+  /// roles in [colorRoleLiterals]. Matches the declaration, not a mention —
+  /// the palette's own comment names the role.
+  static bool declaresColorRoles(String constantsSource) =>
+      RegExp(r'\bColor\s+onSurfaceMuted\b').hasMatch(constantsSource);
 
   /// The comment `moarch create feature` inserts each feature's endpoint
   /// above. Load-bearing: the generated source says so.

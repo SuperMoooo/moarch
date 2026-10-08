@@ -130,39 +130,42 @@ void main() {
       expect(output, contains('overlay.insert(entry);'));
     });
 
-    test('owns both ends of the animation, which a SnackBar does not expose', () {
-      expect(
-        output,
-        contains(
-          'static const Duration _enterDuration = Duration(milliseconds: 320);',
-        ),
-      );
-      expect(
-        output,
-        contains(
-          'static const Duration _exitDuration = Duration(milliseconds: 200);',
-        ),
-      );
-      // Decelerating in, accelerating out — reversing easeOutCubic would have
-      // the card crawl off the screen. The tokens are those two curves.
-      expect(output, contains('curve: AppConstants.curveEnter,'));
-      expect(output, contains('reverseCurve: AppConstants.curveExit,'));
-      expect(
-        CoreTemplates.appConstants(),
-        contains('curveEnter = Curves.easeOutCubic'),
-      );
-      expect(
-        CoreTemplates.appConstants(),
-        contains('curveExit = Curves.easeInCubic'),
-      );
-      // Fade, rise and scale run off the same curve.
-      expect(output, contains('FadeTransition('));
-      expect(output, contains('begin: const Offset(0, AppToast._rise),'));
-      expect(
-        output,
-        contains('Tween<double>(begin: AppToast._enterScale, end: 1)'),
-      );
-    });
+    test(
+      'owns both ends of the animation, which a SnackBar does not expose',
+      () {
+        expect(
+          output,
+          contains(
+            'static const Duration _enterDuration = AppConstants.duration300;',
+          ),
+        );
+        expect(
+          output,
+          contains(
+            'static const Duration _exitDuration = AppConstants.duration200;',
+          ),
+        );
+        // Decelerating in, accelerating out — reversing easeOutCubic would have
+        // the card crawl off the screen. The tokens are those two curves.
+        expect(output, contains('curve: AppConstants.curveEnter,'));
+        expect(output, contains('reverseCurve: AppConstants.curveExit,'));
+        expect(
+          CoreTemplates.appConstants(),
+          contains('curveEnter = Curves.easeOutCubic'),
+        );
+        expect(
+          CoreTemplates.appConstants(),
+          contains('curveExit = Curves.easeInCubic'),
+        );
+        // Fade, rise and scale run off the same curve.
+        expect(output, contains('FadeTransition('));
+        expect(output, contains('begin: const Offset(0, AppToast._rise),'));
+        expect(
+          output,
+          contains('Tween<double>(begin: AppToast._enterScale, end: 1)'),
+        );
+      },
+    );
 
     test('honours reduce motion', () {
       expect(
@@ -411,7 +414,8 @@ void main() {
         // Stretch hands children a tight cross-axis constraint, so a
         // `width: 220` button would go full-bleed the moment it took a hint.
         expect(output, isNot(contains('CrossAxisAlignment.stretch')));
-        expect(output, contains('height: sizeConfig.height,'));
+        // A minimum, not a fixed height: a large text size grows the button.
+        expect(output, contains('minimumSize: Size(0, sizeConfig.height),'));
       },
     );
 
