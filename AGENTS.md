@@ -190,6 +190,12 @@ for coding agents, in the same form this repo uses for its own:
   the body that could drift.
 - `.claude/settings.json` (allows the checks, denies `.env` and the generated
   files) and `.gemini/settings.json`.
+- `.mcp.json` and the `mcpServers` in `.gemini/settings.json`: the Dart MCP
+  server, through `fvm` (`SkillsTemplates.mcpJson`). Detected by
+  `ScaffoldContext.hasDartMcp`, which gates the "Running the app" section of
+  `AGENTS.md` and the run-it-yourself steps in build-screen and fix-bug.
+  Tool names are left out of the text on purpose: the server renames them
+  between SDK releases.
 - `.claude/skills/moarch-mod/` (`templates/misc/claude_mod_templates.dart`): a
   Claude Code mod, a plugin of function hooks in TypeScript that Claude Code
   loads from the skills folder. It refuses edits to build_runner's output and
@@ -238,7 +244,7 @@ lib/features/<feature>/{data/{datasources,models,repositories},
                         domain/{models,repositories},
                         presentation/{notifiers|blocs,states,views,pages}}
 lib/shared/{widgets,views}/      README.md   docs/*.md   .moarch.yaml   .fvmrc
-AGENTS.md   CLAUDE.md   .agents/skills/   .claude/{skills,settings.json}   .gemini/
+AGENTS.md   CLAUDE.md   .agents/skills/   .claude/{skills,settings.json}   .gemini/   .mcp.json
 ```
 
 There is no entity layer: a feature's one data type is the freezed model in

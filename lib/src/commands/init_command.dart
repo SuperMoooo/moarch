@@ -839,6 +839,7 @@ class InitCommand extends Command<int> {
             withEasyLocalization: stack.contains(_kEasyLocalization),
             withFeatureModule: true,
             withSkills: true,
+            withDartMcp: true,
           ),
         );
         await FileUtils.writeFile(
@@ -862,6 +863,7 @@ class InitCommand extends Command<int> {
           blocConcurrency: stateManagement.isBloc,
           withLocalCache: stack.contains(_kOfflineFirst),
           withSync: stack.contains(_kSync),
+          withDartMcp: true,
         );
         String at(String path) =>
             p.joinAll([p.absolute(targetPath), ...p.posix.split(path)]);
@@ -883,6 +885,7 @@ class InitCommand extends Command<int> {
           at('.gemini/settings.json'),
           SkillsTemplates.geminiSettings(),
         );
+        await FileUtils.writeFile(at('.mcp.json'), SkillsTemplates.mcpJson());
         // Claude Code also loads a plugin folder it finds among the skills:
         // the guards and the /moarch pane, enforced rather than described.
         for (final file in ClaudeModTemplates.all) {

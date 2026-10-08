@@ -66,6 +66,13 @@ abstract final class SkillsTemplates {
           'a dialog.',
     ),
     AgentSkill._(
+      'preview-widget',
+      'Preview a widget or a part of a screen in this moarch project with '
+          "Flutter's widget previewer (`@Preview`), in both themes and at the "
+          'sizes that matter, without running the app. Use when building or '
+          'restyling UI, or when asked for a preview of a widget.',
+    ),
+    AgentSkill._(
       'add-env-key',
       'Add a configuration value or secret (API key, URL, feature flag) to '
           'this moarch project through .env and AppEnv. Use whenever code '
@@ -121,6 +128,7 @@ abstract final class SkillsTemplates {
       'add-action' => o.bloc ? _addActionBloc(o) : _addActionRiverpod(o),
       'add-model' => _addModel(o),
       'build-screen' => _buildScreen(o),
+      'preview-widget' => _previewWidget(o),
       'add-env-key' => _addEnvKey(o),
       'write-tests' => _writeTests(o),
       'fix-bug' => _fixBug(o),
@@ -173,15 +181,37 @@ Read `${skill.agentsPath}` and follow it.
 }
 ''';
 
+  /// Returns `.mcp.json`, which starts the Dart MCP server for Claude Code:
+  /// the tools that launch the app, hot reload it and read its runtime errors
+  /// and widget tree. Through `fvm`, so the server is the pinned SDK's.
+  static String mcpJson() =>
+      '''
+{
+  "mcpServers": $_dartMcpServer
+}
+''';
+
   /// Returns `.gemini/settings.json`, which points Gemini CLI at `AGENTS.md`
-  /// — it reads only `GEMINI.md` unless told otherwise.
-  static String geminiSettings() => '''
+  /// — it reads only `GEMINI.md` unless told otherwise — and starts the same
+  /// Dart MCP server as [mcpJson].
+  static String geminiSettings() =>
+      '''
 {
   "context": {
     "fileName": ["AGENTS.md", "GEMINI.md"]
-  }
+  },
+  "mcpServers": $_dartMcpServer
 }
 ''';
+
+  /// The one server entry [mcpJson] and [geminiSettings] share.
+  static const _dartMcpServer = '''
+{
+    "dart": {
+      "command": "fvm",
+      "args": ["dart", "mcp-server"]
+    }
+  }''';
 
   /// The `AGENTS.md` section listing the skills, for agents that do not
   /// discover them on their own.
@@ -795,6 +825,12 @@ A screen is `presentation/views/<name>_view.dart` in its feature — or
   screen in `lib/shared/views/`, or once a second feature needs it. Never a
   private `_Header` class in the view file, never a `Widget _buildHeader()`
   method. `const` wherever it compiles.
+- **The space it gets, not the device.** Branch on a widget's own
+  `LayoutBuilder` constraints, or `context.isTablet` for the whole screen —
+  never on the platform or the orientation, and never lock the orientation.
+  On a wide window a list or a form is centered in a
+  `ConstrainedBox(constraints: BoxConstraints(maxWidth: …))` rather than
+  stretched edge to edge. Long lists are `.builder`s.
 - **The skeleton.** While loading, the view draws
   `presentation/widgets/<name>_skeleton.dart`: the same rows as `_body`, over
   fake models whose fields come from `BoneMock` (`BoneMock.name`,
@@ -805,10 +841,161 @@ A screen is `presentation/views/<name>_view.dart` in its feature — or
 $route
 ## Layout errors
 
-Constraints go down, sizes go up. An unbounded-height error is a scrollable
-inside a `Column` (wrap it in `Expanded`); an overflow is a `Row` child that
-needs `Flexible`/`Expanded` or text that needs `overflow:`. Fix the
-constraint — never paper over it with a fixed `SizedBox` height.
+Constraints go down, sizes go up, the parent sets the position. Read the
+first layout error in the log — `RenderBox was not laid out` is a knock-on
+of an earlier one, never the cause.
+
+| Error | Cause | Fix |
+|---|---|---|
+| `Vertical viewport was given unbounded height` | A `ListView` / `GridView` inside a `Column` | Wrap it in `Expanded`, or make the whole screen one scroll view |
+| `An InputDecorator…cannot have an unbounded width` | A text field inside a `Row` | Wrap the field in `Expanded` |
+| `A RenderFlex overflowed by … pixels` | A `Row` / `Column` child bigger than the space | `Expanded` / `Flexible` on that child, `overflow:` on its text, or a scroll view for a form under the keyboard |
+| `Incorrect use of ParentData widget` | `Expanded` outside a `Row` / `Column`, `Positioned` outside a `Stack` | Make it that parent's direct child |
+
+Fix the constraint — never paper over it with a fixed `SizedBox` height.
+${o.withDartMcp ? _seeItRun : ''}
+${_done(o)}''';
+  }
+
+  /// The build-screen section for a project whose agents have the Dart MCP
+  /// server (`.mcp.json`).
+  static const _seeItRun = '''
+
+## See it run
+
+When the Dart MCP server is connected (`AGENTS.md`, "Running the app") and
+the app is running, hot reload after each change to the screen and read the
+runtime errors: an overflow or a constraint error shows up there before
+anyone looks at the screen. The widget tree tells you which widget it is.
+Hot restart instead when the change is to an initial state, `initState` or a
+registration in `lib/config/di/`.
+''';
+
+  // ── preview-widget ─────────────────────────────────────────────────────────
+
+  static String _previewWidget(SkillOptions o) {
+    final previews = o.withDarkTheme
+        ? '''
+        Preview(theme: appPreviewTheme, brightness: Brightness.light),
+        Preview(theme: appPreviewTheme, brightness: Brightness.dark),'''
+        : '''
+        Preview(theme: appPreviewTheme, brightness: Brightness.light),''';
+    final strings = o.withEasyLocalization
+        ? '\n- **`.tr()` shows its key.** easy_localization needs its async setup,\n  which a preview does not run. That is expected; check the copy in the app.'
+        : o.withLocalization
+        ? '\n- **Translated strings** need the delegates: add `localizations:` to\n  `AppPreview`\'s `Preview`s, a public top-level function returning\n  `PreviewLocalizationsData` with `AppLocalizations.localizationsDelegates`\n  and `AppLocalizations.supportedLocales`.'
+        : '';
+    return '''
+${_intro('Preview a widget')}
+Flutter's widget previewer renders every function annotated `@Preview` on
+its own, outside the app, and redraws it on save — the way to see a widget
+in ${o.withDarkTheme ? 'both themes' : 'the app theme'}, on a phone and a wide window, with long text and an
+empty state, without navigating to it. The kit itself is shown by
+`lib/shared/views/design_system_view.dart` (`moarch create widget
+design-system`); previews are for the widgets this project writes.
+
+## 1. The project's annotation, once
+
+Without a theme a preview renders in Flutter's default one, which is not
+this app. If `lib/shared/previews/app_preview.dart` does not exist, write it:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
+
+import '../../config/theme/app_theme.dart';
+
+/// The app's theme, for previews.
+PreviewThemeData appPreviewTheme() => PreviewThemeData(
+  materialLight: AppTheme.light,${o.withDarkTheme ? '\n  materialDark: AppTheme.dark,' : ''}
+);
+
+/// Previews a widget in the app's theme${o.withDarkTheme ? ', light and dark' : ''}.
+final class AppPreview extends MultiPreview {
+  /// Previews under [name], at [size] when the widget is unconstrained.
+  const AppPreview({required this.name, this.group = 'App', this.size});
+
+  /// What the preview is called in the previewer.
+  final String name;
+
+  /// The previewer's section for it, usually the feature.
+  final String group;
+
+  /// A fixed size, for a widget that would otherwise take all the space.
+  final Size? size;
+
+  @override
+  List<Preview> get previews => const [
+$previews
+      ];
+
+  @override
+  List<Preview> transform() => [
+        for (final preview in super.transform())
+          (preview.toBuilder()
+                ..name = '\$name — \${preview.brightness!.name}'
+                ..group = group
+                ..size = size)
+              .toPreview(),
+      ];
+}
+```
+
+It is the project's file, not moarch's: edit it freely. `MultiPreview`,
+`transform()` and `group` need Flutter 3.38 or later — if they do not
+resolve, `fvm flutter --version` shows an older pin.
+
+## 2. Write the preview
+
+A preview is a public top-level function returning a `Widget`, annotated
+`@AppPreview`. Give it the data a real screen would — the model's
+`.empty()` plus `copyWith` — and add one for each case that changes the
+layout: the longest text, an empty list, an error.
+
+```dart
+@AppPreview(name: 'OrderHeader', group: 'orders')
+Widget orderHeaderPreview() => OrderHeader(
+  order: OrderModel.empty().copyWith(
+    title: 'A title long enough to wrap onto a second line',
+  ),
+);
+
+@AppPreview(name: 'OrderHeader, wide', group: 'orders', size: Size(900, 120))
+Widget orderHeaderWidePreview() => OrderHeader(order: OrderModel.empty());
+```
+
+Where it goes:
+
+- **A widget the project owns** (`presentation/widgets/`,
+  `lib/shared/views/`): below the class, in the same file.
+- **A kit widget** (`lib/shared/widgets/`): in
+  `lib/shared/previews/<widget>_preview.dart`. The kit files are moarch's,
+  and an edit to one stops `moarch update` refreshing it.
+
+## 3. What a preview cannot render
+
+The previewer runs the widget on the web, alone:
+
+- **No `dart:io`, no plugins.** The kit's date and time inputs, action sheet
+  and file picker field branch on `Platform`, so they throw there. Preview
+  the widget around them with a stand-in, or not at all.
+- **No get_it, no ${o.bloc ? 'bloc' : 'provider'} above it.** A widget that takes its data
+  in its constructor previews; a view that reads its ${o.bloc ? 'bloc' : 'notifier'} does not. That is
+  one more reason a screen is split into widgets that take their data in —
+  preview those, and check the view in the app or a widget test.
+- **An unconstrained widget** (a list, anything that expands) gets a `size:`.$strings
+
+## 4. Look at it
+
+```bash
+fvm flutter widget-preview start
+```
+
+It opens in Chrome; VS Code and Android Studio also show it in a "Flutter
+Widget Preview" panel. You cannot see the previewer yourself: write the
+previews, make sure they analyze, and tell the user which ones to open.
+A preview asserts nothing — a widget whose behavior matters also gets a
+widget test (`moarch-write-tests`).
 
 ${_done(o)}''';
   }
@@ -1030,9 +1217,15 @@ ${o.withDio ? '''
 ''' : ''}
 ${o.withDio ? '5' : '4'}. **On a device** — for what no test reaches: a permission, a platform
    channel, a notification, a deep link, the app coming back from the
-   background. You cannot run this yourself. Add temporary `debugPrint`
-   lines with one tag (`[bug]`) at each layer's edge, give the user the exact
-   steps, and ask for the log from `fvm flutter run`.
+   background. Add temporary `debugPrint` lines with one tag (`[bug]`) at
+   each layer's edge.${o.withDartMcp ? '''
+ With the Dart MCP server connected, launch the app on a
+   device or simulator the user has running, reproduce it, and read the
+   runtime errors and the log yourself. What needs a person — a system
+   prompt, a notification, a link opened from another app — still goes to
+   the user as exact steps.''' : '''
+ You cannot run this yourself: give the user the exact steps,
+   and ask for the log from `fvm flutter run`.'''}
 
 Run it and watch it fail **with the symptom the user described** — a
 different failure nearby is a different bug. If nothing you build makes it
@@ -1224,6 +1417,7 @@ class SkillOptions {
     this.blocConcurrency = false,
     this.withLocalCache = false,
     this.withSync = false,
+    this.withDartMcp = false,
   });
 
   /// Riverpod or bloc.
@@ -1261,6 +1455,10 @@ class SkillOptions {
 
   /// Offline sync (`lib/core/sync/`) was generated: writes are queued.
   final bool withSync;
+
+  /// `.mcp.json` starts the Dart MCP server, so an agent can run the app,
+  /// hot reload it and read its runtime errors.
+  final bool withDartMcp;
 
   /// Whether the project uses flutter_bloc.
   bool get bloc => stateManagement.isBloc;

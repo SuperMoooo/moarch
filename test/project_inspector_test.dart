@@ -36,6 +36,9 @@ void main() {
     await File(
       p.join(root, ClaudeModTemplates.markerPath),
     ).create(recursive: true);
+    await File(
+      p.join(root, '.mcp.json'),
+    ).writeAsString(SkillsTemplates.mcpJson());
     await File(p.join(root, '.vscode', 'settings.json'))
         .create(recursive: true)
         .then((file) => file.writeAsString(DevTemplates.vscodeSettings()));
@@ -752,6 +755,67 @@ dependencies:
           await ProjectInspector.inspect(root),
           'Agent skills added since',
         ),
+        isEmpty,
+      );
+    });
+  });
+
+  group('dart mcp server', () {
+    Future<void> removeMcp() => File(p.join(root, '.mcp.json')).delete();
+
+    test('offers .mcp.json to a project that has the skills', () async {
+      await scaffoldHealthyProject();
+      await removeMcp();
+
+      final finding = matching(
+        await ProjectInspector.inspect(root),
+        'No Dart MCP server',
+      ).single;
+      expect(finding.severity, DiagnosticSeverity.info);
+
+      await finding.fix!();
+
+      expect(
+        await File(p.join(root, '.mcp.json')).readAsString(),
+        SkillsTemplates.mcpJson(),
+      );
+      expect(await ProjectInspector.inspect(root), isEmpty);
+    });
+
+    test('never rewrites a .mcp.json the team wrote', () async {
+      await scaffoldHealthyProject();
+      const theirs = '{"mcpServers": {"figma": {"command": "figma-mcp"}}}';
+      await File(p.join(root, '.mcp.json')).writeAsString(theirs);
+
+      final finding = matching(
+        await ProjectInspector.inspect(root),
+        '.mcp.json has no Dart MCP server',
+      ).single;
+      expect(finding.fix, isNull);
+      expect(finding.hint, contains('"mcp-server"'));
+      expect(await File(p.join(root, '.mcp.json')).readAsString(), theirs);
+    });
+
+    test('leaves alone a project that generated it and deleted it', () async {
+      await scaffoldHealthyProject();
+      await removeMcp();
+      await File(p.join(root, ProjectManifest.fileName)).writeAsString(
+        "version: '9.10.0'\nstack: []\nfiles:\n  '.mcp.json': 'abc'\n",
+      );
+
+      expect(
+        matching(await ProjectInspector.inspect(root), 'Dart MCP server'),
+        isEmpty,
+      );
+    });
+
+    test('is not offered without the skills', () async {
+      await scaffoldHealthyProject();
+      await removeMcp();
+      await Directory(p.join(root, '.agents')).delete(recursive: true);
+
+      expect(
+        matching(await ProjectInspector.inspect(root), 'Dart MCP server'),
         isEmpty,
       );
     });

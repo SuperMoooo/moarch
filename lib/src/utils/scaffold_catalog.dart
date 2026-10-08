@@ -315,6 +315,14 @@ class ScaffoldContext {
 
   /// The Claude Code mod was generated (9.8.0 on).
   bool get hasClaudeMod => hasFile(ClaudeModTemplates.markerPath);
+
+  /// `.mcp.json` starts the Dart MCP server (9.10.0 on) — what lets the
+  /// agent guide tell an agent to run the app itself. Read for the server
+  /// rather than the file, since a team may keep other servers there.
+  bool get hasDartMcp {
+    if (!hasFile('.mcp.json')) return false;
+    return File(resolve('.mcp.json')).readAsStringSync().contains('mcp-server');
+  }
 }
 
 /// One generated file outside the widget kit that `moarch update` can refresh.
@@ -1186,6 +1194,7 @@ abstract final class ScaffoldCatalog {
         withEasyLocalization: c.hasEasyLocalization,
         withFeatureModule: c.hasFeatureModule,
         withSkills: c.hasAgentSkills,
+        withDartMcp: c.hasDartMcp,
       ),
       description:
           'The rules coding agents (Codex, Cursor, Copilot, Claude) '
@@ -1334,7 +1343,18 @@ abstract final class ScaffoldCatalog {
       path: '.gemini/settings.json',
       category: 'AI agents',
       template: (_) => SkillsTemplates.geminiSettings(),
-      description: 'Points Gemini CLI at AGENTS.md.',
+      description:
+          'Points Gemini CLI at AGENTS.md and starts the Dart MCP server.',
+    ),
+    ScaffoldSpec(
+      name: 'mcp',
+      title: 'MCP servers',
+      path: '.mcp.json',
+      category: 'AI agents',
+      template: (_) => SkillsTemplates.mcpJson(),
+      description:
+          'Starts the Dart MCP server for Claude Code: run the app, hot '
+          'reload, read runtime errors.',
     ),
     // The Claude Code mod: function hooks Claude Code loads from the skills
     // folder. Static text, the same for both stacks — it reads the project
@@ -1541,4 +1561,5 @@ SkillOptions _skillOptions(ScaffoldContext c) => SkillOptions(
   blocConcurrency: c.hasBlocConcurrency,
   withLocalCache: c.hasLocalCache,
   withSync: c.hasSync,
+  withDartMcp: c.hasDartMcp,
 );

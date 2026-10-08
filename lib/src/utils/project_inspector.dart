@@ -105,6 +105,7 @@ abstract final class ProjectInspector {
       ..._skills(root),
       ..._newSkills(root),
       ..._claudeMod(root),
+      ..._dartMcp(root),
       ..._widgets(root, libPath, pubspec),
     ];
   }
@@ -399,6 +400,46 @@ abstract final class ProjectInspector {
         fix: () => _generate(root, [
           for (final file in ClaudeModTemplates.all) file.slug,
         ], 'the files already exist'),
+      ),
+    ];
+  }
+
+  /// A project with the skills but no Dart MCP server for its agents (9.10.0).
+  ///
+  /// Gated like [_claudeMod], on the manifest's record of `.mcp.json`. A
+  /// `.mcp.json` the team wrote is never rewritten: it gets the entry to add
+  /// by hand instead.
+  static List<Diagnostic> _dartMcp(String root) {
+    final context = ScaffoldContext.detect(root);
+    if (!context.hasAgentSkills || context.hasDartMcp) return const [];
+    const hint =
+        'Then `moarch update gemini-settings agents` gives Gemini CLI the same '
+        'server and tells agents to use it.';
+    if (context.hasFile('.mcp.json')) {
+      return const [
+        Diagnostic.info(
+          '.mcp.json has no Dart MCP server — agents cannot run the app',
+          hint:
+              'Add `"dart": {"command": "fvm", "args": ["dart", '
+              '"mcp-server"]}` under `mcpServers`. $hint',
+        ),
+      ];
+    }
+    final manifest = ProjectManifest.load(root);
+    if (manifest?.files['.mcp.json'] != null) return const [];
+
+    return [
+      Diagnostic.info(
+        'No Dart MCP server — agents cannot run the app, hot reload it or '
+        'read its runtime errors',
+        hint: 'Generate .mcp.json with `moarch doctor --fix`. $hint',
+        fix: () async {
+          final result = await _generate(root, [
+            'mcp',
+          ], 'the file already exists');
+          return '$result — run `moarch update gemini-settings agents` to '
+              'finish';
+        },
       ),
     ];
   }

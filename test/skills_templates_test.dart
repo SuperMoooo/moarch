@@ -16,6 +16,9 @@ void main() {
     bool withRouter = false,
     bool withWorkflows = false,
     bool withLocalization = false,
+    bool withEasyLocalization = false,
+    bool withDarkTheme = false,
+    bool withDartMcp = false,
   }) => SkillOptions(
     stateManagement: stateManagement,
     withDio: withDio,
@@ -23,6 +26,9 @@ void main() {
     withRouter: withRouter,
     withWorkflows: withWorkflows,
     withLocalization: withLocalization,
+    withEasyLocalization: withEasyLocalization,
+    withDarkTheme: withDarkTheme,
+    withDartMcp: withDartMcp,
     blocConcurrency: stateManagement.isBloc,
   );
 
@@ -47,6 +53,8 @@ void main() {
         withRouter: true,
         withWorkflows: true,
         withLocalization: true,
+        withDarkTheme: true,
+        withDartMcp: true,
       ),
     ],
   ];
@@ -304,6 +312,85 @@ void main() {
       expect(bloc, isNot(contains('ref.read')));
     });
 
+    test('fix-bug runs the app itself only with the Dart MCP server', () {
+      final without = render('fix-bug', options(StateManagement.riverpod));
+      expect(without, contains('You cannot run this yourself'));
+      expect(without, isNot(contains('Dart MCP server')));
+
+      final withMcp = render(
+        'fix-bug',
+        options(StateManagement.riverpod, withDartMcp: true),
+      );
+      expect(withMcp, contains('With the Dart MCP server connected'));
+      expect(withMcp, isNot(contains('You cannot run this yourself')));
+      expect(withMcp, contains('\n4. **On a device**'));
+    });
+
+    test('build-screen names the layout errors and the space rule', () {
+      final body = render('build-screen', options(StateManagement.riverpod));
+      for (final error in [
+        'Vertical viewport was given unbounded height',
+        'An InputDecorator…cannot have an unbounded width',
+        'A RenderFlex overflowed',
+        'Incorrect use of ParentData widget',
+        'RenderBox was not laid out',
+      ]) {
+        expect(body, contains(error));
+      }
+      expect(body, contains('never lock the orientation'));
+      expect(body, isNot(contains('## See it run')));
+
+      expect(
+        render(
+          'build-screen',
+          options(StateManagement.bloc, withDartMcp: true),
+        ),
+        contains('## See it run'),
+      );
+    });
+
+    test('preview-widget themes the previews the way the app is themed', () {
+      final light = render('preview-widget', options(StateManagement.riverpod));
+      expect(light, contains('final class AppPreview extends MultiPreview'));
+      expect(light, contains('materialLight: AppTheme.light,'));
+      expect(light, isNot(contains('AppTheme.dark')));
+      expect(light, isNot(contains('Brightness.dark')));
+      expect(light, contains('fvm flutter widget-preview start'));
+      expect(light, contains('lib/shared/previews/<widget>_preview.dart'));
+      // The generated Dart keeps its interpolation.
+      expect(light, contains(r"'$name — ${preview.brightness!.name}'"));
+      expect(light, contains('no provider above it'));
+
+      final dark = render(
+        'preview-widget',
+        options(StateManagement.bloc, withDarkTheme: true),
+      );
+      expect(dark, contains('materialDark: AppTheme.dark,'));
+      expect(dark, contains('brightness: Brightness.dark'));
+      expect(dark, contains('no bloc above it'));
+    });
+
+    test('preview-widget handles the strings the project translates', () {
+      expect(
+        render('preview-widget', options(StateManagement.riverpod)),
+        isNot(contains('localizations')),
+      );
+      expect(
+        render(
+          'preview-widget',
+          options(StateManagement.riverpod, withLocalization: true),
+        ),
+        contains('AppLocalizations.localizationsDelegates'),
+      );
+      expect(
+        render(
+          'preview-widget',
+          options(StateManagement.riverpod, withEasyLocalization: true),
+        ),
+        contains('`.tr()` shows its key'),
+      );
+    });
+
     test('fix-bug throws an exception the project declares', () {
       // `AppException` is sealed: a test can only throw one of its kinds.
       for (final o in every) {
@@ -366,6 +453,20 @@ void main() {
     );
   });
 
+  test('Claude Code and Gemini CLI start the Dart MCP server through fvm', () {
+    for (final source in [
+      SkillsTemplates.mcpJson(),
+      SkillsTemplates.geminiSettings(),
+    ]) {
+      final json = jsonDecode(source) as Map<String, dynamic>;
+      final servers = json['mcpServers'] as Map<String, dynamic>;
+      expect(servers['dart'], {
+        'command': 'fvm',
+        'args': ['dart', 'mcp-server'],
+      });
+    }
+  });
+
   group('AGENTS.md', () {
     test('lists every skill when the project has them', () {
       final source = AgentsTemplates.agentsMd(
@@ -388,6 +489,26 @@ void main() {
       expect(SkillsTemplates.all.first.slug, 'add-feature');
     });
 
+    test('tells agents to run the app only with the Dart MCP server', () {
+      final withMcp = AgentsTemplates.agentsMd(
+        projectName: 'demo',
+        stateManagement: StateManagement.riverpod,
+        withSkills: true,
+        withDartMcp: true,
+      );
+      expect(withMcp, contains('## Running the app'));
+      expect(withMcp, contains('`fvm dart mcp-server`'));
+      expect(withMcp, contains(', `.mcp.json`'));
+
+      final without = AgentsTemplates.agentsMd(
+        projectName: 'demo',
+        stateManagement: StateManagement.riverpod,
+        withSkills: true,
+      );
+      expect(without, isNot(contains('## Running the app')));
+      expect(without, isNot(contains('.mcp.json')));
+    });
+
     test('says nothing about skills a project does not have', () {
       final source = AgentsTemplates.agentsMd(
         projectName: 'demo',
@@ -407,7 +528,11 @@ void main() {
       }
       expect(
         paths,
-        containsAll(['.claude/settings.json', '.gemini/settings.json']),
+        containsAll([
+          '.claude/settings.json',
+          '.gemini/settings.json',
+          '.mcp.json',
+        ]),
       );
       for (final file in ClaudeModTemplates.all) {
         expect(paths, contains(file.path));
@@ -415,7 +540,7 @@ void main() {
       expect(
         paths,
         hasLength(
-          SkillsTemplates.all.length * 2 + 2 + ClaudeModTemplates.all.length,
+          SkillsTemplates.all.length * 2 + 3 + ClaudeModTemplates.all.length,
         ),
       );
     });

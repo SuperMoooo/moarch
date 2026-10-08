@@ -2,6 +2,41 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.10.0
+
+Agents in a generated project can now run the app themselves, and a new skill
+covers Flutter's widget previewer.
+
+- **The Dart MCP server.** `.mcp.json` (new) and `.gemini/settings.json` start
+  it through FVM (`fvm dart mcp-server`), so Claude Code and Gemini CLI can
+  launch the app, hot reload it, and read its runtime errors, log and widget
+  tree.
+  - `AGENTS.md` gets a "Running the app" section: hot reload and read the
+    errors after a UI change, and hot restart when an initial state or a
+    registration changed. Running the app adds to analyze and test; it
+    never replaces them.
+  - `moarch-fix-bug` reproduces device-only bugs itself when the server is
+    connected, instead of always handing the user the steps.
+  - `moarch-build-screen` gets a "See it run" section.
+  - On Windows, if `fvm` is the `.bat` that `dart pub global activate fvm`
+    installs, the server may not start. Wrap the command in your local
+    config: `"command": "cmd", "args": ["/c", "fvm", "dart", "mcp-server"]`.
+- **`moarch-preview-widget`, a new skill.** It writes `@Preview` functions in
+  the app's theme (light and dark when the app has both) through an
+  `AppPreview` annotation the project owns. It also says what the web-based
+  previewer cannot render: `dart:io` (the kit's date and time inputs, action
+  sheet and file picker field), get_it, and the state holder above a view.
+- **`moarch-build-screen` on layout.** A table of the four layout errors, each
+  with its cause and fix, and a note that `RenderBox was not laid out` is
+  only a knock-on error. A new rule: lay out by the space a widget gets, not
+  by device or orientation, and cap list and form widths on wide windows.
+
+Existing projects with the agent guide: `moarch doctor --fix` writes
+`.mcp.json` and offers the new skill. Then run `moarch update
+gemini-settings agents skill-build-screen skill-fix-bug` to bring in the rest.
+If a project already has its own `.mcp.json`, `doctor` prints the entry to add
+by hand and leaves the file alone.
+
 ## 9.9.0
 
 The generated design system now follows the 60-30-10 color rule and passes

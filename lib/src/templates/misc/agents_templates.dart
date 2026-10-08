@@ -35,11 +35,13 @@ class AgentsTemplates {
     bool withSkills = false,
     bool withLocalCache = false,
     bool withSync = false,
+    bool withDartMcp = false,
   }) {
     final bloc = stateManagement.isBloc;
     return <String>[
       _header(projectName),
       _commands(),
+      if (withDartMcp) _runningTheApp(),
       _layout(bloc: bloc, withRouter: withRouter),
       _architecture(
         bloc: bloc,
@@ -70,7 +72,11 @@ class AgentsTemplates {
       if (withLocalization || withEasyLocalization)
         _localization(easy: withEasyLocalization),
       if (withSkills) SkillsTemplates.agentsMdSection(),
-      _generated(withAuthFeature: withAuthFeature, withSkills: withSkills),
+      _generated(
+        withAuthFeature: withAuthFeature,
+        withSkills: withSkills,
+        withDartMcp: withDartMcp,
+      ),
       _done(bloc: bloc),
     ].join('\n');
   }
@@ -131,6 +137,24 @@ the new files match the rest and the tooling can still refresh them:
 | `moarch create tests [feature]` | Generate unit + integration tests from the code — re-run after adding methods |
 | `moarch update --list` | See which generated files are stale or edited |
 | `moarch doctor` | Check the project for known problems |
+''';
+
+  static String _runningTheApp() => '''
+## Running the app
+
+`.mcp.json` (Claude Code) and `.gemini/settings.json` (Gemini CLI) start the
+Dart MCP server through FVM (`fvm dart mcp-server`). When it is connected you
+can launch the app on a device or simulator the user has running, hot reload
+it, and read its runtime errors, its log and its widget tree yourself.
+
+- After changing UI under `lib/`, hot reload and read the runtime errors
+  before calling the change done. Hot restart instead when `main()`, an
+  initial state, `initState` or a registration in `lib/config/di/` changed.
+  A change to comments, `test/` or docs needs neither.
+- Running the app adds to the checks under "Definition of done"; it never
+  replaces them.
+- Without the server — another agent, or it is not connected — ask the user
+  to run `fvm flutter run` and paste the log instead.
 ''';
 
   static String _layout({required bool bloc, required bool withRouter}) {
@@ -409,6 +433,7 @@ are read through `AppLocalizations.of(context)`. Add every new key to
   static String _generated({
     required bool withAuthFeature,
     required bool withSkills,
+    required bool withDartMcp,
   }) =>
       '''
 ## Files moarch owns
@@ -420,7 +445,7 @@ overwriting it — but prefer extending over rewriting:
 
 - `lib/core/`, `lib/config/`, `lib/shared/widgets/`${withAuthFeature ? ', `lib/features/auth/`' : ''}
 - `README.md`, `AGENTS.md`, `CLAUDE.md`, `docs/`, `analysis_options.yaml`,
-  `.github/workflows/`${withSkills ? ', `.agents/skills/`, `.claude/`, `.gemini/`' : ''}
+  `.github/workflows/`${withSkills ? ', `.agents/skills/`, `.claude/`, `.gemini/`' : ''}${withDartMcp ? ', `.mcp.json`' : ''}
 
 Never edit `.moarch.yaml`, `*.g.dart` or `*.freezed.dart`.
 ''';
