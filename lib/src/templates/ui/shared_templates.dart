@@ -10005,6 +10005,34 @@ $toggleAction              ${withDark ? 'const ' : ''}SizedBox(width: AppConstan
                       ),
                     ),
                     const SizedBox(height: AppConstants.space16),
+                    // The modern floating bar: a quiet fill behind the
+                    // selection, a hairline around the card — and the same bar
+                    // with its labels folded away, as it is while the content
+                    // is scrolled down.
+                    for (final collapsed in [false, true]) ...[
+                      Text(
+                        'tonal / floating / border'
+                        '\${collapsed ? ' / labels collapsed' : ''}:',
+                      ),
+                      const SizedBox(height: AppConstants.space8),
+                      ColoredBox(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerLowest,
+                        child: AppBottomNav(
+                          index: _navIndex,
+                          style: AppBottomNavStyle.tonal,
+                          floating: true,
+                          borderColor:
+                              Theme.of(context).colorScheme.outlineVariant,
+                          labelsCollapsed: collapsed,
+                          onDestinationSelected: (i) =>
+                              setState(() => _navIndex = i),
+                          destinations: _navDestinations,
+                        ),
+                      ),
+                      const SizedBox(height: AppConstants.space16),
+                    ],
                     // Docked, the same color moves to the line between the bar
                     // and the content above it.
                     const Text('classic / docked / border:'),

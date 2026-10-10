@@ -2,6 +2,32 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.11.0
+
+The bottom bar catches up with the floating bars modern apps use.
+
+- **`AppBottomNavStyle.tonal`.** Every icon has its label under it. The
+  selected one sits on a soft stadium a step off the card's color, and the
+  accent tints its icon and label. Pair it with `floating: true` and a
+  `borderColor` for the floating card with a hairline border.
+- **Labels fold away on scroll.** `AppAdaptiveNav(collapseBottomNavLabelsOnScroll:
+  true)` hides the labels and lowers the bar to its icons while the body
+  scrolls down. They come back when it scrolls up, reaches the top, or
+  changes tab. Only vertical scrolling counts, so a sideways carousel does
+  not trigger it. A bar placed by hand gets the same through
+  `AppBottomNav.labelsCollapsed`.
+- **A floating bar fades the content under it.** Content scrolling under the
+  card's margin and the system's gesture area fades into the surface
+  instead of showing through. Taps in the margin still reach the content.
+- **A hugging bar no longer overflows.** With `AppBottomNavWidth.hug` and
+  enough long labels, labels now ellipsize. Before, they ran off the
+  screen.
+- The design-system preview shows the tonal floating bar, open and
+  collapsed.
+
+Existing projects: `moarch update bottom-nav` (and `design-system` for the
+preview).
+
 ## 9.10.1
 
 Fixes from rendering the UI kit in light, dark, 2× text and right-to-left.

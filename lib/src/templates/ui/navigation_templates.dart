@@ -68,14 +68,18 @@ class AppNavDestination {
 /// - [pill]: icons only until selected; the selected one opens into an accent
 ///   pill with its label beside the icon.
 /// - [dot]: icons only, with a dot under the selected one. The quietest of the
-///   four, for a bar whose icons speak for themselves.
-enum AppBottomNavStyle { material, classic, pill, dot }
+///   styles, for a bar whose icons speak for themselves.
+/// - [tonal]: a label under every icon, and the selected pair sits on a soft
+///   neutral fill a step off the bar's own surface, tinted with the accent.
+///   The look of a modern floating bar, where an accent pill would shout.
+enum AppBottomNavStyle { material, classic, pill, dot, tonal }
 
 /// Where [AppBottomNav] writes its labels, on top of what the
 /// [AppBottomNavStyle] says by itself.
 ///
-/// - [auto]: whatever the style does on its own — [AppBottomNavStyle.material]
-///   and [AppBottomNavStyle.classic] write the label under every icon,
+/// - [auto]: whatever the style does on its own — [AppBottomNavStyle.material],
+///   [AppBottomNavStyle.classic] and [AppBottomNavStyle.tonal] write the label
+///   under every icon,
 ///   [AppBottomNavStyle.pill] beside the selected one, [AppBottomNavStyle.dot]
 ///   nowhere.
 /// - [below]: every destination carries its label under its icon, whichever
@@ -134,12 +138,19 @@ enum AppBottomNavWidth { fill, hug }
 /// card riding above it, [floatingShape] is the corner that card is cut with,
 /// [floatingWidth] is how wide it is, [borderColor] is the line drawn around
 /// it, and [pillShape] the corner of the fill behind the selection. A floating
-/// [pill] is the look most modern apps wear, but every style floats and every
-/// style can carry labels.
+/// [AppBottomNavStyle.tonal] bar with a hairline border is the look most
+/// modern apps wear, but every style floats and every style can carry labels.
 ///
 /// A floating bar wants `Scaffold(extendBody: true)` under it, so the content
 /// runs through the gap instead of stopping at it. [AppAdaptiveNav] sets that
 /// for you.
+///
+/// [labelsCollapsed] folds the written labels away and lowers the bar to its
+/// icons — what a bar does while the content is scrolled down, so the screen
+/// gets the room back, undone as soon as it is scrolled up.
+/// [AppAdaptiveNav.collapseBottomNavLabelsOnScroll] drives it from the body's
+/// scrolling; a bar placed by hand drives it from a
+/// `NotificationListener<ScrollUpdateNotification>` the same way.
 class AppBottomNav extends StatelessWidget {
   const AppBottomNav({
     super.key,
@@ -156,6 +167,7 @@ class AppBottomNav extends StatelessWidget {
     this.borderColor,
     this.pillShape,
     this.pillBorderRadius,
+    this.labelsCollapsed = false,
     this.variant,
   });
 
@@ -212,13 +224,22 @@ class AppBottomNav extends StatelessWidget {
   /// A corner of the project's own for that fill, overriding [pillShape].
   final BorderRadius? pillBorderRadius;
 
+  /// Folds the written labels away, animated, and lowers the bar to the height
+  /// of its icons. A bar that writes no labels is left as it is. The names
+  /// still reach a screen reader, and a long press still says them.
+  final bool labelsCollapsed;
+
   /// Null follows [AppInputConfig.defaults].
   final AppInputVariant? variant;
 
-  /// The height of the three styles this widget draws itself, before any
-  /// safe-area inset: a row of touch targets with a little air around it.
-  /// Material's own bar measures itself and is left alone.
+  /// The height of the styles this widget draws itself, before any safe-area
+  /// inset: a row of touch targets with a little air around it. Material's own
+  /// bar measures itself and is left alone.
   static const double _height = 64;
+
+  /// That height once [labelsCollapsed] has folded the labels away: a touch
+  /// target and the air around it, and nothing else.
+  static const double _collapsedHeight = 56;
 
   /// The width of the indicator Material's [NavigationBar] slides behind its
   /// selected icon — the least a destination of that bar can be.
@@ -246,6 +267,17 @@ class AppBottomNav extends StatelessWidget {
   /// [AppBottomNavLabels.below] — or for none — takes away.
   bool get _opens =>
       style == AppBottomNavStyle.pill && labels == AppBottomNavLabels.auto;
+
+  /// Whether this bar writes any label for [labelsCollapsed] to fold away. A
+  /// bar of bare icons has nothing to collapse, so it keeps its height.
+  bool get _writesLabels => switch (labels) {
+        AppBottomNavLabels.none => false,
+        AppBottomNavLabels.below => true,
+        AppBottomNavLabels.auto => style != AppBottomNavStyle.dot,
+      };
+
+  /// Whether the labels are folded away right now.
+  bool get _collapsed => labelsCollapsed && _writesLabels;
 
   /// Whether the bar is sized by its destinations rather than by the screen.
   /// Only a floating bar can be: a docked one is the bottom edge.
@@ -285,6 +317,9 @@ class AppBottomNav extends StatelessWidget {
 
     final bar = NavigationBar(
       selectedIndex: index,
+      // Collapsed, the bar drops to the height its icons need instead of the
+      // theme's, which is sized for a label under each of them.
+      height: _collapsed ? _height : null,
       // Floating, the card behind it owns the surface and the shadow — a bar
       // painting its own would draw a second edge inside the rounded one.
       backgroundColor: floating ? Colors.transparent : null,
@@ -305,13 +340,15 @@ class AppBottomNav extends StatelessWidget {
       // Material's bar writes a label under every icon on its own, so `auto`
       // and `below` are the same answer here — and null is the one that lets a
       // NavigationBarTheme still have its say.
-      labelBehavior: switch (labels) {
-        AppBottomNavLabels.auto => null,
-        AppBottomNavLabels.below =>
-          NavigationDestinationLabelBehavior.alwaysShow,
-        AppBottomNavLabels.none =>
-          NavigationDestinationLabelBehavior.alwaysHide,
-      },
+      labelBehavior: _collapsed
+          ? NavigationDestinationLabelBehavior.alwaysHide
+          : switch (labels) {
+              AppBottomNavLabels.auto => null,
+              AppBottomNavLabels.below =>
+                NavigationDestinationLabelBehavior.alwaysShow,
+              AppBottomNavLabels.none =>
+                NavigationDestinationLabelBehavior.alwaysHide,
+            },
       onDestinationSelected: _select,
       destinations: [
         for (final destination in destinations)
@@ -354,7 +391,7 @@ class AppBottomNav extends StatelessWidget {
   double _materialWidth(BuildContext context) {
     var widest = _indicatorWidth;
 
-    if (labels != AppBottomNavLabels.none) {
+    if (labels != AppBottomNavLabels.none && !_collapsed) {
       // The selected label is the one a theme makes heavier, so it is the one
       // that has to fit.
       final labelStyle = NavigationBarTheme.of(context)
@@ -379,11 +416,13 @@ class AppBottomNav extends StatelessWidget {
     return destinations.length * (widest + AppConstants.space32);
   }
 
-  /// The three styles Material does not ship: one row of items over the bar's
-  /// own surface.
+  /// The styles Material does not ship: one row of items over the bar's own
+  /// surface.
   Widget _drawn(BuildContext context) {
-    final row = SizedBox(
-      height: _height,
+    final row = AnimatedContainer(
+      duration: _durationOf(context),
+      curve: Curves.easeOut,
+      height: _collapsed ? _collapsedHeight : _height,
       child: Row(
         // Hugging, the row is as wide as its items and the card around it
         // shrinks to match; filling, it takes the width and spreads them.
@@ -401,10 +440,11 @@ class AppBottomNav extends StatelessWidget {
             // no width to divide: every item is its own size.
             if (!_hug && !_opens)
               Expanded(child: _item(i))
-            // The open pill is the one item that can want more room than it is
-            // given: Flexible lets its label ellipsize on a narrow screen
-            // instead of overflowing the row.
-            else if (_opens && i == index)
+            // The open pill can want more room than it is given, and so can
+            // every hugging item once enough long labels are written: Flexible
+            // lets a label ellipsize on a narrow screen instead of overflowing
+            // the row, and is its own size wherever there is room.
+            else if (_hug || (_opens && i == index))
               Flexible(child: _item(i))
             else
               _item(i),
@@ -442,15 +482,23 @@ class AppBottomNav extends StatelessWidget {
         // A pill that opens sideways is a stadium, which is what it has always
         // been. Stacked over a label it is taller than it is wide, and a
         // stadium there is a lozenge — so that one defaults to a card's corner,
-        // the same one Material's stacked indicator wears.
+        // the same one Material's stacked indicator wears. The tonal fill is
+        // wider than it is tall even over its label, so it stays a stadium.
         pillRadius: _pillRadius ??
-            (_opens
+            (_opens || style == AppBottomNavStyle.tonal
                 ? AppConstants.borderRadiusFull
                 : AppConstants.borderRadius16),
         hug: _hug,
+        collapsed: _collapsed,
         variant: variant,
         onTap: () => _select(i),
       );
+
+  /// Reduce-motion reaches the same layouts, just instantly.
+  static Duration _durationOf(BuildContext context) =>
+      MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : AppConstants.duration200;
 
   /// The card a floating bar rides in: the margin off the edges, the corner it
   /// is cut with, the width it takes of what is left, and the shadow that lifts
@@ -515,6 +563,16 @@ class AppBottomNav extends StatelessWidget {
       ),
     );
 
+    // Hugging, the card is as wide as what its destinations write, so folding
+    // the labels away narrows it — and this is what makes that a glide.
+    if (_hug) {
+      card = AnimatedSize(
+        duration: _durationOf(context),
+        curve: Curves.easeOut,
+        child: card,
+      );
+    }
+
     final maxWidth = floatingMaxWidth;
     if (maxWidth != null) {
       card = ConstrainedBox(
@@ -534,7 +592,7 @@ class AppBottomNav extends StatelessWidget {
         ? Align(heightFactor: 1, child: card)
         : card;
 
-    return Padding(
+    final padded = Padding(
       padding: EdgeInsets.only(
         left: AppConstants.space16,
         right: AppConstants.space16,
@@ -542,6 +600,33 @@ class AppBottomNav extends StatelessWidget {
         bottom: bottomMargin,
       ),
       child: placed,
+    );
+
+    // The content runs under the card and on under the system's own bar, and
+    // this fade is what keeps it from being read through the margin and
+    // behind the gesture pill. It ignores the pointer, so a tap in the margin
+    // still lands on whatever is scrolled there.
+    final surface = context.colorScheme.surface;
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    surface.withValues(alpha: 0),
+                    surface.withValues(alpha: 0.85),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        padded,
+      ],
     );
   }
 }
@@ -555,6 +640,7 @@ class _AppNavItem extends StatelessWidget {
     required this.labels,
     required this.pillRadius,
     required this.hug,
+    required this.collapsed,
     required this.variant,
     required this.onTap,
   });
@@ -571,6 +657,10 @@ class _AppNavItem extends StatelessWidget {
   /// content rather than its share of the screen.
   final bool hug;
 
+  /// Whether the bar has folded its labels away. The label stays in the tree
+  /// either way, so folding it is an animation rather than a jump.
+  final bool collapsed;
+
   final AppInputVariant? variant;
   final VoidCallback onTap;
 
@@ -582,19 +672,26 @@ class _AppNavItem extends StatelessWidget {
   /// drawn on.
   static const double _badgeOverhang = 4;
 
-  /// Whether this destination's name is written on screen — which decides both
-  /// whether the layouts below make room for it and whether a tooltip naming
-  /// the icon would be repeating what is already there.
-  bool get _labelled => switch (labels) {
+  /// Whether this destination's name belongs on screen at all — which decides
+  /// whether the layouts below hold a label for it.
+  bool get _writes => switch (labels) {
         AppBottomNavLabels.none => false,
         AppBottomNavLabels.below => true,
         AppBottomNavLabels.auto => switch (style) {
-            AppBottomNavStyle.material || AppBottomNavStyle.classic => true,
+            AppBottomNavStyle.material ||
+            AppBottomNavStyle.classic ||
+            AppBottomNavStyle.tonal =>
+              true,
             // The pill writes its label only once it has opened to hold it.
             AppBottomNavStyle.pill => selected,
             AppBottomNavStyle.dot => false,
           },
       };
+
+  /// Whether that name is showing right now: written, and not folded away. It
+  /// decides the air around the icon, and whether a tooltip naming the icon
+  /// would be repeating what is already there.
+  bool get _labelled => _writes && !collapsed;
 
   /// Whether this item is a pill that opens sideways on selection, as opposed
   /// to one stacked over its label or holding an icon alone.
@@ -606,16 +703,14 @@ class _AppNavItem extends StatelessWidget {
     final accent = AppInputStyle.accentOf(context, variant);
     final idle = context.colorScheme.onSurfaceVariant;
     final pill = style == AppBottomNavStyle.pill;
+    final tonal = style == AppBottomNavStyle.tonal;
 
     // The pill is the one style that fills a surface behind its icon, so it is
     // the one style whose selected icon is drawn *on* the accent.
     final selectedColor =
         pill ? AppInputStyle.onAccentOf(context, variant) : accent;
 
-    // Reduce-motion reaches the same layouts, just instantly.
-    final duration = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : AppConstants.duration200;
+    final duration = AppBottomNav._durationOf(context);
 
     final icon = destination.badged(
       Icon(
@@ -652,10 +747,15 @@ class _AppNavItem extends StatelessWidget {
     // ellipsize, and the width it has to fit is the item's own either way.
     final stacked = <Widget>[
       icon,
-      if (_labelled) ...[
-        const SizedBox(height: AppConstants.space4),
-        label,
-      ],
+      if (_writes)
+        _AppNavFold(
+          folded: collapsed,
+          duration: duration,
+          child: Padding(
+            padding: const EdgeInsets.only(top: AppConstants.space4),
+            child: label,
+          ),
+        ),
     ];
 
     final Widget content = switch (style) {
@@ -730,7 +830,7 @@ class _AppNavItem extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         icon,
-                        if (selected) ...[
+                        if (selected && !collapsed) ...[
                           const SizedBox(width: AppConstants.space8),
                           Flexible(child: label),
                         ],
@@ -745,12 +845,34 @@ class _AppNavItem extends StatelessWidget {
                   children: stacked,
                 ),
         ),
+      // The same stacked layout as the pill below its label, but the fill is
+      // a quiet step off the bar's surface and the pair on it keeps the
+      // accent — the selection reads by the fill, not by a block of color.
+      AppBottomNavStyle.tonal => AnimatedContainer(
+          duration: duration,
+          curve: Curves.easeOut,
+          padding: EdgeInsets.symmetric(
+            horizontal: AppConstants.space16,
+            vertical: _labelled ? AppConstants.space4 : AppConstants.space8,
+          ),
+          decoration: BoxDecoration(
+            color: selected
+                ? context.colorScheme.surfaceContainerHighest
+                : Colors.transparent,
+            borderRadius: pillRadius,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: stacked,
+          ),
+        ),
     };
 
     // Hugging, nothing divides the width between the items, so a written label
     // would sit against its neighbour's. The pill is left alone: it carries
     // its own padding inside the fill.
-    final gutter = hug && _labelled && !pill ? AppConstants.space8 : 0.0;
+    final gutter =
+        hug && _labelled && !pill && !tonal ? AppConstants.space8 : 0.0;
 
     final target = ConstrainedBox(
       constraints: const BoxConstraints(
@@ -763,7 +885,9 @@ class _AppNavItem extends StatelessWidget {
       child: Center(
         widthFactor: 1,
         heightFactor: 1,
-        child: Padding(
+        child: AnimatedPadding(
+          duration: duration,
+          curve: Curves.easeOut,
           padding: EdgeInsets.symmetric(horizontal: gutter),
           // The label below carries the same string as the Semantics above,
           // and reading a destination out twice is what excluding it here
@@ -788,9 +912,8 @@ class _AppNavItem extends StatelessWidget {
           // squared-off pill is not tapped with a round splash.
           child: InkWell(
             onTap: onTap,
-            borderRadius: style == AppBottomNavStyle.pill
-                ? pillRadius
-                : AppConstants.borderRadiusFull,
+            borderRadius:
+                pill || tonal ? pillRadius : AppConstants.borderRadiusFull,
             child: target,
           ),
         ),
@@ -803,6 +926,40 @@ class _AppNavItem extends StatelessWidget {
   Widget _tooltipped({required Widget child}) {
     if (_labelled) return child;
     return Tooltip(message: destination.label, child: child);
+  }
+}
+
+/// Folds [child] away to nothing — its height, its width and its ink — and
+/// back. What a label under an icon does while [AppBottomNav.labelsCollapsed].
+class _AppNavFold extends StatelessWidget {
+  const _AppNavFold({
+    required this.folded,
+    required this.duration,
+    required this.child,
+  });
+
+  final bool folded;
+  final Duration duration;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    // The factors size the box to a share of the label rather than clipping a
+    // label that keeps its room, so the bar around it can close up as well.
+    return ClipRect(
+      child: AnimatedAlign(
+        duration: duration,
+        curve: Curves.easeOut,
+        alignment: Alignment.topCenter,
+        heightFactor: folded ? 0 : 1,
+        widthFactor: folded ? 0 : 1,
+        child: AnimatedOpacity(
+          duration: duration,
+          opacity: folded ? 0 : 1,
+          child: child,
+        ),
+      ),
+    );
   }
 }
 ''';
@@ -1365,8 +1522,10 @@ class AppNavRail extends StatelessWidget {
 ///
 /// The phone half of it is an [AppBottomNav], so [bottomNavStyle],
 /// [bottomNavLabels], [floatingBottomNav], [bottomNavShape], [bottomNavWidth]
-/// and [bottomNavBorderColor] pick which of its looks that half wears.
-class AppAdaptiveNav extends StatelessWidget {
+/// and [bottomNavBorderColor] pick which of its looks that half wears, and
+/// [collapseBottomNavLabelsOnScroll] folds its labels away while the body is
+/// scrolled down.
+class AppAdaptiveNav extends StatefulWidget {
   const AppAdaptiveNav({
     super.key,
     required this.destinations,
@@ -1387,6 +1546,7 @@ class AppAdaptiveNav extends StatelessWidget {
     this.bottomNavBorderColor,
     this.bottomNavPillShape,
     this.bottomNavPillBorderRadius,
+    this.collapseBottomNavLabelsOnScroll = false,
     this.variant,
   });
 
@@ -1447,19 +1607,70 @@ class AppAdaptiveNav extends StatelessWidget {
   /// A corner of the project's own, overriding [bottomNavPillShape].
   final BorderRadius? bottomNavPillBorderRadius;
 
+  /// Folds the bar's labels away while the body is scrolled down and brings
+  /// them back the moment it is scrolled up, at the top, or on a new tab —
+  /// see [AppBottomNav.labelsCollapsed]. Only vertical scrolling counts, so a
+  /// carousel swiped sideways leaves the bar alone. Only read on the phone
+  /// layout.
+  final bool collapseBottomNavLabelsOnScroll;
+
   /// Null follows [AppInputConfig.defaults].
   final AppInputVariant? variant;
 
   @override
+  State<AppAdaptiveNav> createState() => _AppAdaptiveNavState();
+}
+
+class _AppAdaptiveNavState extends State<AppAdaptiveNav> {
+  bool _collapsed = false;
+
+  @override
+  void didUpdateWidget(AppAdaptiveNav oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A new tab is a new screen, and it opens with its bar fully written —
+    // whatever the last one had been scrolled to.
+    if (widget.index != oldWidget.index) _collapsed = false;
+  }
+
+  bool _onScroll(ScrollUpdateNotification notification) {
+    final metrics = notification.metrics;
+    final delta = notification.scrollDelta ?? 0;
+    // A bounce past either end scrolls back on its own, and reading that as
+    // the user changing direction would flicker the labels at the bottom.
+    if (metrics.axis != Axis.vertical || metrics.outOfRange || delta == 0) {
+      return false;
+    }
+
+    // At the top there is nothing left to make room for.
+    final collapsed = delta > 0 && metrics.pixels > metrics.minScrollExtent;
+    if (collapsed != _collapsed) setState(() => _collapsed = collapsed);
+    return false;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final destinations = widget.destinations;
+    final index = widget.index;
+    final onDestinationSelected = widget.onDestinationSelected;
+    final variant = widget.variant;
+    final floatingBottomNav = widget.floatingBottomNav;
+
     // The 600dp short-side breakpoint, so the layout survives a rotation
     // instead of following whichever edge happens to be longer.
     final wide = context.isTablet;
 
+    // Listening is free, but a bar that is never collapsed has no use for it.
+    final body = !wide && widget.collapseBottomNavLabelsOnScroll
+        ? NotificationListener<ScrollUpdateNotification>(
+            onNotification: _onScroll,
+            child: widget.body,
+          )
+        : widget.body;
+
     return Scaffold(
-      appBar: appBar,
-      drawer: drawer,
-      floatingActionButton: floatingActionButton,
+      appBar: widget.appBar,
+      drawer: widget.drawer,
+      floatingActionButton: widget.floatingActionButton,
       // A floating bar leaves a gap under and beside itself. Without this the
       // body stops at the top of that gap and the card looks pasted on.
       extendBody: !wide && floatingBottomNav,
@@ -1470,7 +1681,7 @@ class AppAdaptiveNav extends StatelessWidget {
                   destinations: destinations,
                   index: index,
                   onDestinationSelected: onDestinationSelected,
-                  extended: extendedRail,
+                  extended: widget.extendedRail,
                   variant: variant,
                 ),
                 const VerticalDivider(width: 1),
@@ -1484,16 +1695,17 @@ class AppAdaptiveNav extends StatelessWidget {
               index: index,
               destinations: destinations,
               onDestinationSelected: onDestinationSelected,
-              style: bottomNavStyle,
-              labels: bottomNavLabels,
+              style: widget.bottomNavStyle,
+              labels: widget.bottomNavLabels,
               floating: floatingBottomNav,
-              floatingShape: bottomNavShape,
-              floatingBorderRadius: bottomNavBorderRadius,
-              floatingWidth: bottomNavWidth,
-              floatingMaxWidth: bottomNavMaxWidth,
-              borderColor: bottomNavBorderColor,
-              pillShape: bottomNavPillShape,
-              pillBorderRadius: bottomNavPillBorderRadius,
+              floatingShape: widget.bottomNavShape,
+              floatingBorderRadius: widget.bottomNavBorderRadius,
+              floatingWidth: widget.bottomNavWidth,
+              floatingMaxWidth: widget.bottomNavMaxWidth,
+              borderColor: widget.bottomNavBorderColor,
+              pillShape: widget.bottomNavPillShape,
+              pillBorderRadius: widget.bottomNavPillBorderRadius,
+              labelsCollapsed: _collapsed,
               variant: variant,
             ),
     );

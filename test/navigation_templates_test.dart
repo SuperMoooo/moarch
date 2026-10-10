@@ -103,10 +103,12 @@ void main() {
   group('appBottomNav', () {
     final output = NavigationTemplates.appBottomNav();
 
-    test('offers four looks, and floating as a separate question', () {
+    test('offers five looks, and floating as a separate question', () {
       expect(
         output,
-        contains('enum AppBottomNavStyle { material, classic, pill, dot }'),
+        contains(
+          'enum AppBottomNavStyle { material, classic, pill, dot, tonal }',
+        ),
       );
       // Two knobs rather than one enum naming every combination — so every
       // style can float, including ones added later.
@@ -189,7 +191,7 @@ void main() {
       expect(
         output,
         contains(
-          'else if (_opens && i == index)\n'
+          'else if (_hug || (_opens && i == index))\n'
           '              Flexible(child: _item(i))',
         ),
       );
@@ -225,11 +227,13 @@ void main() {
       expect(
         output,
         contains(
-          '  bool get _labelled => switch (labels) {\n'
+          '  bool get _writes => switch (labels) {\n'
           '        AppBottomNavLabels.none => false,\n'
           '        AppBottomNavLabels.below => true,',
         ),
       );
+      // Written and showing are two questions once the labels can fold away.
+      expect(output, contains('bool get _labelled => _writes && !collapsed;'));
       // Under `auto` each style still answers for itself.
       expect(output, contains('AppBottomNavStyle.pill => selected,'));
       expect(output, contains('AppBottomNavStyle.dot => false,'));
@@ -243,7 +247,8 @@ void main() {
         contains(
           '    final stacked = <Widget>[\n'
           '      icon,\n'
-          '      if (_labelled) ...[',
+          '      if (_writes)\n'
+          '        _AppNavFold(',
         ),
       );
       expect(output, contains('child: _opens\n'));
@@ -271,8 +276,10 @@ void main() {
       expect(
         output,
         contains(
-          '      labelBehavior: switch (labels) {\n'
-          '        AppBottomNavLabels.auto => null,',
+          '      labelBehavior: _collapsed\n'
+          '          ? NavigationDestinationLabelBehavior.alwaysHide\n'
+          '          : switch (labels) {\n'
+          '              AppBottomNavLabels.auto => null,',
         ),
       );
       expect(
@@ -332,7 +339,7 @@ void main() {
         output,
         contains(
           '        pillRadius: _pillRadius ??\n'
-          '            (_opens\n'
+          '            (_opens || style == AppBottomNavStyle.tonal\n'
           '                ? AppConstants.borderRadiusFull\n'
           '                : AppConstants.borderRadius16),',
         ),
@@ -375,7 +382,7 @@ void main() {
       expect(
         output,
         contains(
-          '            else if (_opens && i == index)\n'
+          '            else if (_hug || (_opens && i == index))\n'
           '              Flexible(child: _item(i))',
         ),
       );
@@ -390,8 +397,8 @@ void main() {
       expect(
         output,
         contains(
-          '    final gutter = '
-          'hug && _labelled && !pill ? AppConstants.space8 : 0.0;',
+          '    final gutter =\n'
+          '        hug && _labelled && !pill && !tonal ? AppConstants.space8 : 0.0;',
         ),
       );
       expect(
@@ -418,7 +425,11 @@ void main() {
       // never less than the indicator, which is all a bar without labels has.
       expect(output, contains('static const double _indicatorWidth = 64;'));
       expect(output, contains('var widest = _indicatorWidth;'));
-      expect(output, contains('if (labels != AppBottomNavLabels.none) {'));
+      // Folded away, a label takes no width, so it sets none either.
+      expect(
+        output,
+        contains('if (labels != AppBottomNavLabels.none && !_collapsed) {'),
+      );
       expect(
         output,
         contains(
@@ -515,11 +526,51 @@ void main() {
       expect(
         output,
         contains(
-          'final duration = MediaQuery.disableAnimationsOf(context)\n'
-          '        ? Duration.zero\n'
-          '        : AppConstants.duration200;',
+          '  static Duration _durationOf(BuildContext context) =>\n'
+          '      MediaQuery.disableAnimationsOf(context)\n'
+          '          ? Duration.zero\n'
+          '          : AppConstants.duration200;',
         ),
       );
+    });
+
+    test('labels fold away and the bar lowers to its icons', () {
+      expect(output, contains('this.labelsCollapsed = false,'));
+      expect(output, contains('static const double _collapsedHeight = 56;'));
+      // A bar of bare icons has nothing to fold, so it keeps its height.
+      expect(
+        output,
+        contains('bool get _collapsed => labelsCollapsed && _writesLabels;'),
+      );
+      expect(
+        output,
+        contains('height: _collapsed ? _collapsedHeight : _height,'),
+      );
+      expect(output, contains('height: _collapsed ? _height : null,'));
+      // Folded by its size, not clipped in place, so the item closes up too.
+      expect(output, contains('class _AppNavFold extends StatelessWidget'));
+      expect(output, contains('heightFactor: folded ? 0 : 1,'));
+      expect(output, contains('widthFactor: folded ? 0 : 1,'));
+      // The opening pill folds its sideways label the same way.
+      expect(output, contains('if (selected && !collapsed) ...['));
+    });
+
+    test('tonal sits the selection on a quiet fill, keeping the accent', () {
+      expect(output, contains('AppBottomNavStyle.tonal => AnimatedContainer('));
+      expect(
+        output,
+        contains(
+          '            color: selected\n'
+          '                ? context.colorScheme.surfaceContainerHighest\n'
+          '                : Colors.transparent,',
+        ),
+      );
+    });
+
+    test('a floating bar fades the content passing under its margin', () {
+      // The fade must never take a tap meant for the content under it.
+      expect(output, contains('child: IgnorePointer(\n'));
+      expect(output, contains('surface.withValues(alpha: 0),'));
     });
 
     test('the dot keeps its room whether or not it is drawn', () {
@@ -667,7 +718,7 @@ void main() {
     });
 
     test('AppAdaptiveNav switches on the short-side breakpoint', () {
-      expect(output, contains('class AppAdaptiveNav extends StatelessWidget'));
+      expect(output, contains('class AppAdaptiveNav extends StatefulWidget'));
       expect(output, contains('final wide = context.isTablet;'));
       expect(output, contains('body: wide'));
       expect(output, contains('bottomNavigationBar: wide\n          ? null'));
@@ -680,7 +731,7 @@ void main() {
         contains('this.bottomNavStyle = AppBottomNavStyle.material,'),
       );
       expect(output, contains('this.floatingBottomNav = false,'));
-      expect(output, contains('style: bottomNavStyle,'));
+      expect(output, contains('style: widget.bottomNavStyle,'));
       expect(output, contains('floating: floatingBottomNav,'));
       // The bar took a variant before the rail did not pass it one.
       expect(output, contains('variant: variant,'));
@@ -696,17 +747,53 @@ void main() {
       expect(output, contains('this.bottomNavShape = AppBottomNavShape.full,'));
       expect(output, contains('final BorderRadius? bottomNavBorderRadius;'));
       expect(output, contains('final AppBottomNavShape? bottomNavPillShape;'));
-      expect(output, contains('labels: bottomNavLabels,'));
-      expect(output, contains('floatingShape: bottomNavShape,'));
-      expect(output, contains('floatingBorderRadius: bottomNavBorderRadius,'));
-      expect(output, contains('pillShape: bottomNavPillShape,'));
-      expect(output, contains('pillBorderRadius: bottomNavPillBorderRadius,'));
+      expect(output, contains('labels: widget.bottomNavLabels,'));
+      expect(output, contains('floatingShape: widget.bottomNavShape,'));
+      expect(
+        output,
+        contains('floatingBorderRadius: widget.bottomNavBorderRadius,'),
+      );
+      expect(output, contains('pillShape: widget.bottomNavPillShape,'));
+      expect(
+        output,
+        contains('pillBorderRadius: widget.bottomNavPillBorderRadius,'),
+      );
       expect(output, contains('this.bottomNavWidth = AppBottomNavWidth.fill,'));
       expect(output, contains('final double? bottomNavMaxWidth;'));
       expect(output, contains('final Color? bottomNavBorderColor;'));
-      expect(output, contains('floatingWidth: bottomNavWidth,'));
-      expect(output, contains('floatingMaxWidth: bottomNavMaxWidth,'));
-      expect(output, contains('borderColor: bottomNavBorderColor,'));
+      expect(output, contains('floatingWidth: widget.bottomNavWidth,'));
+      expect(output, contains('floatingMaxWidth: widget.bottomNavMaxWidth,'));
+      expect(output, contains('borderColor: widget.bottomNavBorderColor,'));
+    });
+
+    test('folds the bar labels away while the body is scrolled down', () {
+      expect(output, contains('this.collapseBottomNavLabelsOnScroll = false,'));
+      expect(
+        output,
+        contains('NotificationListener<ScrollUpdateNotification>('),
+      );
+      // A sideways carousel and a bounce past either end are not the user
+      // changing direction.
+      expect(
+        output,
+        contains(
+          'if (metrics.axis != Axis.vertical || metrics.outOfRange || '
+          'delta == 0) {',
+        ),
+      );
+      expect(
+        output,
+        contains(
+          'final collapsed = delta > 0 && '
+          'metrics.pixels > metrics.minScrollExtent;',
+        ),
+      );
+      // A new tab opens with its labels written.
+      expect(
+        output,
+        contains('if (widget.index != oldWidget.index) _collapsed = false;'),
+      );
+      expect(output, contains('labelsCollapsed: _collapsed,'));
     });
 
     test('a floating bar gets a body that runs under it', () {
