@@ -750,7 +750,13 @@ import 'permission_service.dart';
 
 $_mediaServiceBody''';
 
-  static const String _mediaServiceBody = r'''class MediaService {
+  static const String _mediaServiceBody =
+      r'''/// Picks images, videos and files, asking for the permission each one needs.
+///
+/// A pick the user was not allowed to make returns null, the same as a
+/// cancel. To tell them apart, and to offer the settings for a blocked
+/// permission, read `PermissionService.status` after a null.
+class MediaService {
   MediaService(this._permissionService);
 
   final PermissionService _permissionService;
@@ -764,17 +770,13 @@ $_mediaServiceBody''';
     int? imageQuality,
   }) async {
     if (source == ImageSource.camera) {
-      final granted = await _permissionService.request(
-        permission: Permission.camera,
-      );
-      if (!granted) {
+      final status = await _permissionService.request(Permission.camera);
+      if (!status.isGranted) {
         return null;
       }
     } else if (Platform.isAndroid || Platform.isIOS) {
-      final granted = await _permissionService.request(
-        permission: Permission.photos,
-      );
-      if (!granted) {
+      final status = await _permissionService.request(Permission.photos);
+      if (!status.isGranted) {
         return null;
       }
     }
@@ -796,10 +798,8 @@ $_mediaServiceBody''';
     int? imageQuality,
   }) async {
     if (Platform.isAndroid || Platform.isIOS) {
-      final granted = await _permissionService.request(
-        permission: Permission.photos,
-      );
-      if (!granted) {
+      final status = await _permissionService.request(Permission.photos);
+      if (!status.isGranted) {
         return null;
       }
     }
@@ -819,17 +819,13 @@ $_mediaServiceBody''';
     Duration? maxDuration,
   }) async {
     if (source == ImageSource.camera) {
-      final granted = await _permissionService.request(
-        permission: Permission.camera,
-      );
-      if (!granted) {
+      final status = await _permissionService.request(Permission.camera);
+      if (!status.isGranted) {
         return null;
       }
     } else if (Platform.isAndroid || Platform.isIOS) {
-      final granted = await _permissionService.request(
-        permission: Permission.photos,
-      );
-      if (!granted) {
+      final status = await _permissionService.request(Permission.photos);
+      if (!status.isGranted) {
         return null;
       }
     }
@@ -849,10 +845,8 @@ $_mediaServiceBody''';
     bool allowMultiple = false,
   }) async {
     if (Platform.isAndroid) {
-      final granted = await _permissionService.request(
-        permission: Permission.photos,
-      );
-      if (!granted) {
+      final status = await _permissionService.request(Permission.photos);
+      if (!status.isGranted) {
         return null;
       }
     }
@@ -1175,29 +1169,54 @@ import 'package:permission_handler/permission_handler.dart';
 
 $_permissionServiceBody''';
 
-  static const String _permissionServiceBody = r'''class PermissionService {
-  /// Request a specific permission.
-  Future<bool> request({required Permission permission}) async {
-    final status = await permission.status;
+  static const String _permissionServiceBody =
+      r'''/// Where a device permission stands, as a screen needs to tell it apart.
+enum DevicePermissionStatus {
+  /// Granted, including iOS's limited photo access and provisional
+  /// notifications.
+  granted,
 
-    switch (status) {
-      case PermissionStatus.granted:
-      case PermissionStatus.limited:
-        return true;
+  /// Not granted yet — asking again shows the system prompt.
+  denied,
 
-      case PermissionStatus.denied:
-        final response = await permission.request();
-        return response.isGranted || response.isLimited;
+  /// Refused for good, or restricted by the device's owner: only the system
+  /// settings can grant it now. Offer [PermissionService.openSettings].
+  blocked;
 
-      case PermissionStatus.permanentlyDenied:
-        await openAppSettings();
-        final updated = await permission.status;
-        return updated.isGranted || updated.isLimited;
+  /// Whether the app may use the permission now.
+  bool get isGranted => this == granted;
+}
 
-      default:
-        return false;
-    }
-  }
+/// Reads and requests runtime permissions.
+///
+/// It never opens the system settings on its own: a
+/// [DevicePermissionStatus.blocked] result goes back to the screen, which
+/// decides whether to explain and offer [openSettings].
+class PermissionService {
+  /// Where [permission] stands, without asking.
+  Future<DevicePermissionStatus> status(Permission permission) async =>
+      _statusOf(await permission.status);
+
+  /// Shows the system prompt for [permission] when it can still be asked, and
+  /// returns where it stands afterwards. A permission already granted or
+  /// blocked comes back as it is, with no prompt.
+  Future<DevicePermissionStatus> request(Permission permission) async =>
+      _statusOf(await permission.request());
+
+  /// Opens this app's page in the system settings, where a blocked permission
+  /// is granted. It returns once the page is open, not when the user comes
+  /// back — read [status] again on resume.
+  Future<bool> openSettings() => openAppSettings();
+
+  static DevicePermissionStatus _statusOf(PermissionStatus status) =>
+      switch (status) {
+        PermissionStatus.granted ||
+        PermissionStatus.limited ||
+        PermissionStatus.provisional => DevicePermissionStatus.granted,
+        PermissionStatus.permanentlyDenied ||
+        PermissionStatus.restricted => DevicePermissionStatus.blocked,
+        PermissionStatus.denied => DevicePermissionStatus.denied,
+      };
 }
 ''';
 }

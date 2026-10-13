@@ -741,7 +741,8 @@ abstract final class ScaffoldCatalog {
       category: 'Services',
       template: (c) => ServicesTemplates.permissionService(),
       description:
-          'One place to request a permission and handle the permanently-denied case.',
+          'Reads and requests a permission as granted, denied or blocked — '
+          'blocked being the one only the system settings can grant.',
     ),
     ScaffoldSpec(
       name: 'connectivity',

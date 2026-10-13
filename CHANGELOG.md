@@ -2,6 +2,30 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 9.11.1
+
+`PermissionService` tells a screen whether a permission can still be asked.
+
+- **Three states instead of a bool.** `status(permission)` and
+  `request(permission)` return a `DevicePermissionStatus`: `granted`
+  (including limited photos and provisional notifications), `denied`
+  (asking again shows the prompt) or `blocked` (permanently denied or
+  restricted, so only the system settings can grant it).
+- **It no longer opens the settings on its own.** Before, `request` jumped to
+  the settings page for a permanently denied permission and read the status
+  back straight away, before the user could return, so it always answered
+  `false`. A `blocked` result now goes back to the screen, which can explain
+  and call `openSettings()`.
+- `restricted` and `provisional` are mapped the same way everywhere. Before,
+  `request` returned `false` for both.
+- `MediaService` checks `status.isGranted`, and its doc says how to tell a
+  refusal from a cancel.
+
+Existing projects: `moarch update permission-service media-service`, both
+together. `request` now takes the permission positionally and returns a
+`DevicePermissionStatus`, so your own calls to it change from
+`await request(permission: p)` to `(await request(p)).isGranted`.
+
 ## 9.11.0
 
 The bottom bar catches up with the floating bars modern apps use.

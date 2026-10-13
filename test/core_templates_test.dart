@@ -438,4 +438,38 @@ void main() {
       ),
     );
   });
+
+  test('permissionService reports three states and never opens settings '
+      'on its own', () {
+    final output = ServicesTemplates.permissionService();
+
+    expect(output, contains('enum DevicePermissionStatus {'));
+    expect(output, contains('Future<DevicePermissionStatus> status('));
+    expect(output, contains('Future<DevicePermissionStatus> request('));
+    expect(
+      output,
+      contains('Future<bool> openSettings() => openAppSettings();'),
+    );
+    expect(
+      output,
+      contains(
+        '        PermissionStatus.permanentlyDenied ||\n'
+        '        PermissionStatus.restricted => DevicePermissionStatus.blocked,',
+      ),
+    );
+    // Settings are opened only through openSettings, never from request.
+    expect('openAppSettings('.allMatches(output), hasLength(1));
+    expect(output, isNot(contains('Future<bool> request(')));
+  });
+
+  test('mediaService checks the permission status it gets back', () {
+    final output = ServicesTemplates.mediaService();
+
+    expect(
+      output,
+      contains('await _permissionService.request(Permission.camera);'),
+    );
+    expect(output, contains('if (!status.isGranted) {'));
+    expect(output, isNot(contains('permission: Permission.')));
+  });
 }
