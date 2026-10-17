@@ -10,7 +10,7 @@ class SkeletonTemplates {
   /// model to build the fake rows from.
   static String feature(String name, String cls, {bool withModel = true}) {
     final modelImport = withModel
-        ? "\nimport '../../domain/models/${name}_model.dart';\n"
+        ? "\nimport '../../data/models/${name}_model.dart';\n"
         : '\n';
     final fakes = withModel
         ? '''

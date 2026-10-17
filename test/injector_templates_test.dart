@@ -111,7 +111,7 @@ void main() {
       expect(
         output,
         contains(
-          "import '../../features/auth/domain/repositories/auth_repository.dart';",
+          "import '../../features/auth/data/repositories/auth_repository.dart';",
         ),
       );
     });
@@ -315,7 +315,7 @@ void main() {
           useFirestore: true,
         ),
         riverpod.FeatureTemplates.localDatasource('orders', 'Orders', 'orders'),
-        riverpod.FeatureTemplates.repositoryImpl(
+        riverpod.FeatureTemplates.repository(
           'orders',
           'Orders',
           'orders',
@@ -335,10 +335,7 @@ void main() {
         outputs.first,
         contains('const OrdersRemoteDataSource(this._dio);'),
       );
-      expect(
-        outputs.last,
-        contains('const OrdersRepositoryImpl(this._remote);'),
-      );
+      expect(outputs.last, contains('const OrdersRepository(this._remote);'));
     });
 
     test('the notifier is the seam: a provider that reads getIt', () {

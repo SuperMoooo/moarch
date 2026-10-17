@@ -1153,8 +1153,8 @@ $authStreamCatch    if (error is FirebaseException) {
   /// Firestore's own date type is `Timestamp`, and json_serializable knows
   /// nothing about it — left alone it would write a `DateTime` out as an ISO
   /// string, which sorts as text and takes a range query with it. This is the
-  /// translation, and it belongs to the model layer alone: `domain/` keeps
-  /// plain `DateTime`s.
+  /// translation, and it belongs to the model alone: the repository and the
+  /// screens see plain `DateTime`s.
   static String timestampConverter() => r'''
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:json_annotation/json_annotation.dart';

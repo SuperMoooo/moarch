@@ -351,9 +351,7 @@ void main() {
       expect(
         output,
         isNot(
-          contains(
-            "import '../../domain/repositories/orders_repository.dart';",
-          ),
+          contains("import '../../data/repositories/orders_repository.dart';"),
         ),
       );
       // Still a working bloc: it just has nothing to load yet.
@@ -387,7 +385,7 @@ void main() {
 
       expect(
         output,
-        contains("import '../../domain/repositories/orders_repository.dart';"),
+        contains("import '../../data/repositories/orders_repository.dart';"),
       );
       expect(output, contains('final OrdersRepository _repo;'));
       expect(
@@ -585,7 +583,7 @@ void main() {
       expect(
         output.holderImports,
         contains(
-          "import '../../features/orders/domain/repositories/orders_repository.dart';",
+          "import '../../features/orders/data/repositories/orders_repository.dart';",
         ),
       );
     });

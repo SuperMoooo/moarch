@@ -241,17 +241,22 @@ lib/config/di/{injector,external_module,core_module,data_module,feature_module,
 lib/config/{env,theme,router,firebase}
 lib/core/{constants,database,errors,network,security,services,sync,utils}
 lib/features/<feature>/{data/{datasources,models,repositories},
-                        domain/{models,repositories},
                         presentation/{notifiers|blocs,states,views,pages}}
 lib/shared/{widgets,views}/      README.md   docs/*.md   .moarch.yaml   .fvmrc
 AGENTS.md   CLAUDE.md   .agents/skills/   .claude/{skills,settings.json}   .gemini/   .mcp.json
 ```
 
-There is no entity layer: a feature's one data type is the freezed model in
-`domain/models/`, which the repository interfaces, the state and the screens all
-use directly. (Before 8.0.0 it lived in `data/models/`; the two auth model
-specs carry `movedFrom` so `update` relocates them.) Do not reintroduce a `domain/entities/` or `toEntity`/`fromEntity`
-mapping.
+There is no domain layer: a feature is `data/` and `presentation/`. Its one
+data type is the freezed model in `data/models/`, which the repository, the
+state and the screens all use directly, and the repository is one concrete
+class, `data/repositories/<x>_repository.dart` — no interface, no `_impl`.
+(From 8.0.0 to 10.0.0 the models lived in `domain/models/` and each repository
+was a `domain/` interface plus a `data/` `_impl`; the auth model specs and
+`auth-repository` carry `movedFrom` so `update` relocates them, and the
+commands that read a project's models or repositories — `create
+empty-factories`, `create tests`, `doctor` — still look in `domain/`.) Do not
+reintroduce a `domain/` folder, repository interfaces, entities or
+`toEntity`/`fromEntity` mapping.
 
 Generated projects are FVM-pinned, so their commands run as `fvm flutter …` /
 `fvm dart …`, and model/env codegen is `build_runner`.

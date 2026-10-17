@@ -10,58 +10,6 @@
 class AuthTemplates {
   AuthTemplates._();
 
-  // ── Domain — Repository interface ───────────────────────────────────────────
-
-  /// Returns the generated auth repository interface template.
-  ///
-  /// [withPushNotifications] adds the device-token contract the bloc calls on
-  /// login, on register and when a stored session is restored.
-  static String repositoryInterface({bool withPushNotifications = false}) {
-    final syncDeviceToken = withPushNotifications
-        ? '''
-
-  /// Reads this device's push token and sends it to the backend, so it can
-  /// target the signed-in user. Safe to call repeatedly — the token only
-  /// changes when the install does.
-  Future<void> syncDeviceToken();
-'''
-        : '';
-
-    return '''
-import '../models/user_model.dart';
-
-abstract interface class AuthRepository {
-  /// True when a session can be restored: a refresh token is stored and a
-  /// new access token could be obtained from it. Called by the auth bloc
-  /// when AuthStarted is dispatched at app start.
-  Future<bool> isLoggedIn();
-
-  /// Authenticates, saves the access and refresh tokens in secure storage,
-  /// and returns the signed-in user from `GET /auth/me`.
-  Future<UserModel> login({required String email, required String password});
-
-  /// Creates the account, saves the returned session in secure storage, and
-  /// returns the new user from `GET /auth/me`.
-  Future<UserModel> register({required String email, required String password});
-
-  /// The signed-in user, as `GET /auth/me` returns it.
-  Future<UserModel> me();
-
-  /// Exchanges the stored refresh token for a new access token.
-  Future<void> refresh();
-
-  /// Revokes the session on the backend (best effort) and always clears the
-  /// local session.
-  Future<void> logout();
-
-  /// Deletes the account on the backend and clears the local session.
-  Future<void> deleteAccount();
-$syncDeviceToken}
-''';
-  }
-
-  // ── Data — Model ────────────────────────────────────────────────────────────
-
   /// Returns the generated auth tokens model template.
   static String model() => r'''
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -140,8 +88,8 @@ import 'package:dio/dio.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/network/safe_api_call.dart';
-import '../../domain/models/auth_tokens_model.dart';
-import '../../domain/models/user_model.dart';
+import '../models/auth_tokens_model.dart';
+import '../models/user_model.dart';
 
 class AuthRemoteDataSource {
   const AuthRemoteDataSource(this._dio);
@@ -230,13 +178,14 @@ $saveDeviceToken}
 ''';
   }
 
-  // ── Data — Repository impl ──────────────────────────────────────────────────
+  // ── Data — Repository ───────────────────────────────────────────────────────
 
-  /// Returns the generated auth repository implementation template.
+  /// Returns the generated auth repository template: the one class the
+  /// state holder calls, over the datasource and secure storage.
   ///
   /// [withPushNotifications] hands the FCM service to the repository, so a
   /// signed-in session can register the device with the backend.
-  static String repositoryImpl({
+  static String repository({
     bool withPushNotifications = false,
     bool withLocalCache = false,
   }) {
@@ -282,7 +231,9 @@ $saveDeviceToken}
     final syncDeviceToken = withPushNotifications
         ? '''
 
-  @override
+  /// Reads this device's push token and sends it to the backend, so it can
+  /// target the signed-in user. Safe to call repeatedly — the token only
+  /// changes when the install does.
   Future<void> syncDeviceToken() async {
     final deviceToken = await _push.getDeviceToken();
     if (deviceToken == null) return;
@@ -301,18 +252,19 @@ $saveDeviceToken}
 ${cacheImport}import '../../../../core/errors/app_exception.dart';
 import '../../../../core/security/secure_storage.dart';
 ${pushImport}import '../../../../core/utils/app_logger.dart';
-import '../../domain/models/auth_tokens_model.dart';
-import '../../domain/models/user_model.dart';
-import '../../domain/repositories/auth_repository.dart';
+import '../models/auth_tokens_model.dart';
+import '../models/user_model.dart';
 import '../datasources/auth_remote_datasource.dart';
 
-class AuthRepositoryImpl implements AuthRepository {
-  AuthRepositoryImpl(this._remote, this._tokens$pushCtorParam$cacheCtorParam);
+class AuthRepository {
+  AuthRepository(this._remote, this._tokens$pushCtorParam$cacheCtorParam);
 
   final AuthRemoteDataSource _remote;
   final TokenStorage _tokens;$pushField$cacheField
 
-  @override
+  /// True when a session can be restored: a refresh token is stored and a
+  /// new access token could be obtained from it. Called by the auth bloc
+  /// when AuthStarted is dispatched at app start.
   Future<bool> isLoggedIn() async {
     final refreshToken = await _tokens.refreshToken;
     if (refreshToken == null) return false;
@@ -330,7 +282,8 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
-  @override
+  /// Authenticates, saves the access and refresh tokens in secure storage,
+  /// and returns the signed-in user from `GET /auth/me`.
   Future<UserModel> login({
     required String email,
     required String password,
@@ -339,7 +292,8 @@ class AuthRepositoryImpl implements AuthRepository {
     return _startSession(tokens);
   }
 
-  @override
+  /// Creates the account, saves the returned session in secure storage, and
+  /// returns the new user from `GET /auth/me`.
   Future<UserModel> register({
     required String email,
     required String password,
@@ -348,7 +302,7 @@ class AuthRepositoryImpl implements AuthRepository {
     return _startSession(tokens);
   }
 
-  @override
+  /// The signed-in user, as `GET /auth/me` returns it.
   Future<UserModel> me() => _remote.me();
 
   /// Saves [tokens], then fetches their user. A failed `GET /auth/me` undoes
@@ -370,7 +324,7 @@ class AuthRepositoryImpl implements AuthRepository {
   /// spent once.
   Future<void>? _refreshing;
 
-  @override
+  /// Exchanges the stored refresh token for a new access token.
   Future<void> refresh() {
     return _refreshing ??= _refresh().whenComplete(() => _refreshing = null);
   }
@@ -385,7 +339,8 @@ class AuthRepositoryImpl implements AuthRepository {
     );
   }
 
-  @override
+  /// Revokes the session on the backend (best effort) and always clears the
+  /// local session.
   Future<void> logout() async {
     final refreshToken = await _tokens.refreshToken;
     try {
@@ -400,7 +355,7 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
-  @override
+  /// Deletes the account on the backend and clears the local session.
   Future<void> deleteAccount() async {
     await _remote.delete();
     await _tokens.clearSession();$clearCacheOnDelete
@@ -415,7 +370,7 @@ $syncDeviceToken}
   static String state() => r'''
 import 'package:equatable/equatable.dart';
 
-import '../../domain/models/user_model.dart';
+import '../../data/models/user_model.dart';
 
 /// Whether the app has a session. The router holds on splash while
 /// [AuthInitial].
@@ -650,8 +605,8 @@ import 'package:bloc/bloc.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/utils/app_logger.dart';
-import '../../domain/models/user_model.dart';
-import '../../domain/repositories/auth_repository.dart';
+import '../../data/models/user_model.dart';
+import '../../data/repositories/auth_repository.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
 

@@ -96,15 +96,15 @@ lib/core/database/
 lib/features/orders/data/
   datasources/orders_local_datasource.dart   LocalCache, under the key 'orders'
   datasources/orders_remote_datasource.dart  the API, through Dio
-  repositories/orders_repository_impl.dart   decides network vs cache
+  repositories/orders_repository.dart        decides network vs cache
 ```
 
 ```text
 the screen's state holder
         │
         ▼
-OrdersRepositoryImpl ──► OrdersRemoteDataSource ──► Dio ──► API
-        └──────────────► OrdersLocalDataSource ──► LocalCache ──► AppDatabase
+OrdersRepository ──► OrdersRemoteDataSource ──► Dio ──► API
+        └──────────► OrdersLocalDataSource ──► LocalCache ──► AppDatabase
 ```
 
 All of it is wired by get_it in `lib/config/di/`. Features never touch drift:
@@ -125,17 +125,17 @@ lib/core/sync/
 lib/features/orders/data/
   datasources/orders_local_datasource.dart   LocalCache, under the key 'orders'
   datasources/orders_remote_datasource.dart  GET through Dio; writes as SyncRequest
-  repositories/orders_repository_impl.dart   decides cache vs network vs queue
+  repositories/orders_repository.dart        decides cache vs network vs queue
 ```
 
 ```text
 the screen's state holder
         │
         ▼
-OrdersRepositoryImpl ──► OrdersRemoteDataSource ──► Dio ──► API
-        │         └────► OrdersLocalDataSource ──► LocalCache ──► AppDatabase
-        └──────────────► SyncService ──► SyncQueue ──────────────► AppDatabase
-                              └──► Dio (to send) + ConnectivityService (to know when)
+OrdersRepository ──► OrdersRemoteDataSource ──► Dio ──► API
+        │     └────► OrdersLocalDataSource ──► LocalCache ──► AppDatabase
+        └──────────► SyncService ──► SyncQueue ──────────────► AppDatabase
+                          └──► Dio (to send) + ConnectivityService (to know when)
 ```
 
 All of it is wired by get_it in `lib/config/di/`. The rule of thumb:
@@ -282,7 +282,7 @@ the path still lives in the datasource next to the GET.
 ### Step 2: the repository applies it locally, then queues it
 
 ```dart
-// orders_repository_impl.dart
+// orders_repository.dart
 Future<void> update(OrdersModel item) async {
   await _local.save(item);                              // cache → screen redraws NOW
   await _sync.enqueue('orders', _remote.update(item));  // queue → sent later
@@ -421,7 +421,7 @@ triggers: start-up, after each write, reconnect, resume.
     final what = withSync ? 'cache + queue' : 'cache';
     final who = withAuthFeature
         ? 'All of it goes through `LocalCache.clearAll()`, which the generated '
-              '`AuthRepositoryImpl` calls.'
+              '`AuthRepository` calls.'
         : 'Call `getIt<LocalCache>().clearAll()` wherever the app signs a user '
               'out or switches accounts.';
     return '''

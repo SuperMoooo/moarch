@@ -88,7 +88,7 @@ class CreateModelCommand extends Command<int> {
 
     final modelFile = p.join(
       featurePath,
-      'domain',
+      'data',
       'models',
       '${modelName}_model.dart',
     );
@@ -256,7 +256,7 @@ class CreateModelCommand extends Command<int> {
     void line(String s) => _logger.info('  $s');
 
     line('features/$featureName/');
-    line('└── domain/');
+    line('└── data/');
     line('    └── models/${modelName}_model.dart');
     line('');
     _logger.info('');

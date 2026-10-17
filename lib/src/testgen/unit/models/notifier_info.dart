@@ -95,7 +95,7 @@ class NotifierInfo {
   ///
   /// Used to resolve accurate import paths for dependencies (repositories,
   /// services, other notifiers, ...) that don't follow the standard
-  /// `domain/repositories` folder convention, by reusing an import the
+  /// `data/repositories` folder convention, by reusing an import the
   /// source file already declares.
   final List<String> sourceImports;
 

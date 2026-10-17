@@ -124,7 +124,7 @@ Future<void> setupInjector() async {
       if (withDio) "import '../../core/network/dio_client.dart';",
       "import '../../core/security/secure_storage.dart';",
       if (withDio && withAuthFeature && !withFirebaseAuthFeature)
-        "import '../../features/auth/domain/repositories/auth_repository.dart';",
+        "import '../../features/auth/data/repositories/auth_repository.dart';",
       "import 'injector.dart';",
     ].join('\n');
 
@@ -350,8 +350,7 @@ Future<void> closeScope(String name) async {
         "import '../../core/services/firebase_notifications_service.dart';",
       if (withAuthFeature) ...[
         "import '../../features/auth/data/datasources/auth_remote_datasource.dart';",
-        "import '../../features/auth/data/repositories/auth_repository_impl.dart';",
-        "import '../../features/auth/domain/repositories/auth_repository.dart';",
+        "import '../../features/auth/data/repositories/auth_repository.dart';",
       ],
       "import 'injector.dart';",
     ].join('\n');
@@ -375,12 +374,12 @@ Future<void> closeScope(String name) async {
         : '';
     final authRepository = withFirebaseAuthFeature
         ? '''    ..registerLazySingleton<AuthRepository>(
-      () => AuthRepositoryImpl(
+      () => AuthRepository(
         getIt<AuthRemoteDataSource>(),${withFirebaseNotifications ? '\n        getIt<FirebaseNotificationsService>(),' : ''}$cacheArgument
       ),
     )'''
         : '''    ..registerLazySingleton<AuthRepository>(
-      () => AuthRepositoryImpl(
+      () => AuthRepository(
         getIt<AuthRemoteDataSource>(),
         getIt<TokenStorage>(),${withFirebaseNotifications ? '\n        getIt<FirebaseNotificationsService>(),' : ''}$cacheArgument
       ),
@@ -411,7 +410,7 @@ ${_body(entries, _dataAnchor)}}
       if (withLocalization)
         "import '../../core/services/language_service.dart';",
       if (withAuthFeature) ...[
-        "import '../../features/auth/domain/repositories/auth_repository.dart';",
+        "import '../../features/auth/data/repositories/auth_repository.dart';",
         "import '../../features/auth/presentation/blocs/auth_bloc.dart';",
       ],
       "import 'injector.dart';",
@@ -536,8 +535,7 @@ ${_body(entries, _holderAnchor)}}
         "import '../../core/services/url_launcher_service.dart';",
       if (withAuthFeature) ...[
         "import '../../features/auth/data/datasources/auth_remote_datasource.dart';",
-        "import '../../features/auth/data/repositories/auth_repository_impl.dart';",
-        "import '../../features/auth/domain/repositories/auth_repository.dart';",
+        "import '../../features/auth/data/repositories/auth_repository.dart';",
         if (withAuthHolder)
           "import '../../features/auth/presentation/blocs/auth_bloc.dart';",
       ],
@@ -603,12 +601,12 @@ ${_body(entries, _holderAnchor)}}
 
     final authRepository = withFirebaseAuthFeature
         ? '''    ..registerLazySingleton<AuthRepository>(
-      () => AuthRepositoryImpl(
+      () => AuthRepository(
         getIt<AuthRemoteDataSource>(),${withFirebaseNotifications ? '\n        getIt<FirebaseNotificationsService>(),' : ''}
       ),
     )'''
         : '''    ..registerLazySingleton<AuthRepository>(
-      () => AuthRepositoryImpl(
+      () => AuthRepository(
         getIt<AuthRemoteDataSource>(),
         getIt<TokenStorage>(),${withFirebaseNotifications ? '\n        getIt<FirebaseNotificationsService>(),' : ''}
       ),

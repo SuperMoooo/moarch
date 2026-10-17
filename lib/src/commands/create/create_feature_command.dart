@@ -27,7 +27,7 @@ const _kRemoteDatasource = 'Remote Datasource';
 const _kDioDatasource = 'Remote Datasource (Dio)';
 const _kFirestoreDatasource = 'Remote Datasource (Firestore)';
 const _kLocalDatasource = 'Local/Cache Datasource';
-const _kRepository = 'Repository (interface + impl)';
+const _kRepository = 'Repository';
 const _kView = 'View';
 
 /// Creates the feature subcommand for scaffolding.
@@ -101,14 +101,16 @@ class CreateFeatureCommand extends Command<int> {
           '${featureName}_remote_datasource.dart',
         ),
       ).existsSync();
-      final hasRepo = File(
-        p.join(
-          featurePath,
-          'data',
-          'repositories',
-          '${featureName}_repository_impl.dart',
-        ),
-      ).existsSync();
+      // A feature from before 10.0.0 has `_repository_impl.dart` instead.
+      final hasRepo =
+          [
+            '${featureName}_repository.dart',
+            '${featureName}_repository_impl.dart',
+          ].any(
+            (file) => File(
+              p.join(featurePath, 'data', 'repositories', file),
+            ).existsSync(),
+          );
       final hasHolder = File(
         p.join(
           featurePath,
@@ -205,7 +207,7 @@ class CreateFeatureCommand extends Command<int> {
               _kRepository,
               defaultOn: true,
               description:
-                  'Interface + implementation combining the datasources.',
+                  'The class the state holder calls, over the datasources.',
             ),
             ChecklistItem(
               holderItem,
@@ -735,19 +737,8 @@ class CreateFeatureCommand extends Command<int> {
     bool withSync = false,
   }) async {
     await FileUtils.writeFile(
-      p.join(fp, 'domain', 'repositories', '${name}_repository.dart'),
-      // `watchAll` is the live read in both cases: the collection, or the
-      // cache.
-      templates.featureRepositoryInterface(
-        name,
-        cls,
-        useFirestore: useFirestore || offlineFirst,
-        withWrites: withSync,
-      ),
-    );
-    await FileUtils.writeFile(
-      p.join(fp, 'data', 'repositories', '${name}_repository_impl.dart'),
-      templates.featureRepositoryImpl(
+      p.join(fp, 'data', 'repositories', '${name}_repository.dart'),
+      templates.featureRepository(
         name,
         cls,
         varName,
@@ -768,7 +759,7 @@ class CreateFeatureCommand extends Command<int> {
     bool useFirestore = false,
   }) async {
     await FileUtils.writeFile(
-      p.join(fp, 'domain', 'models', '${name}_model.dart'),
+      p.join(fp, 'data', 'models', '${name}_model.dart'),
       templates.featureModel(name, cls, useFirestore: useFirestore),
     );
   }
@@ -883,11 +874,6 @@ class CreateFeatureCommand extends Command<int> {
         selected.contains(_kRepository);
 
     if (!testsOnly) {
-      if (selected.contains(_kRepository)) {
-        line('domain/');
-        line('└── repositories/${name}_repository.dart');
-      }
-
       if (hasDataLayer) {
         line('data/');
         if (selected.contains(_kRemoteDatasource)) {
@@ -898,7 +884,7 @@ class CreateFeatureCommand extends Command<int> {
         }
         line('├── models/${name}_model.dart');
         if (selected.contains(_kRepository)) {
-          line('└── repositories/${name}_repository_impl.dart');
+          line('└── repositories/${name}_repository.dart');
         }
       }
 

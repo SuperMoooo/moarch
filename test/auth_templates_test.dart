@@ -114,7 +114,7 @@ void main() {
     expect(output, contains('Future<UserModel> me()'));
     expect(output, contains('_dio.get<dynamic>(ApiConstants.authAccount)'));
     expect(output, contains('UserModel.fromJson('));
-    expect(output, contains("import '../../domain/models/user_model.dart';"));
+    expect(output, contains("import '../models/user_model.dart';"));
   });
 
   test('auth payloads are snake_case, like the models', () {
@@ -138,16 +138,29 @@ void main() {
   });
 
   test('auth repository saves the session on login and restores it', () {
-    final interface = AuthTemplates.repositoryInterface();
-    final impl = AuthTemplates.repositoryImpl();
+    final impl = AuthTemplates.repository();
 
-    expect(interface, contains('Future<bool> isLoggedIn()'));
-    expect(interface, contains('Future<UserModel> login('));
-    expect(interface, contains('Future<UserModel> register('));
-    expect(interface, contains('Future<UserModel> me();'));
-    expect(interface, isNot(contains('currentUserId')));
+    // One concrete class: no interface in `domain/`, no `_impl`.
+    expect(impl, contains('class AuthRepository {'));
+    expect(impl, isNot(contains('implements')));
+    expect(impl, isNot(contains('@override')));
+    expect(impl, isNot(contains('domain/')));
+    expect(impl, contains("import '../models/user_model.dart';"));
+    expect(impl, contains('Future<bool> isLoggedIn()'));
+    expect(impl, contains('Future<UserModel> login('));
+    expect(impl, contains('Future<UserModel> register('));
+    expect(impl, contains('Future<UserModel> me() =>'));
+    expect(impl, isNot(contains('currentUserId')));
+    // The interface's docs moved onto the methods.
+    expect(
+      impl,
+      contains(
+        '  /// Exchanges the stored refresh token for a new access token.\n'
+        '  Future<void> refresh() {',
+      ),
+    );
     // Constructor injection, resolved in injector.dart.
-    expect(impl, contains('AuthRepositoryImpl(this._remote, this._tokens)'));
+    expect(impl, contains('AuthRepository(this._remote, this._tokens)'));
     expect(impl, isNot(contains('Provider')));
     expect(impl, contains('await _tokens.saveSession'));
     // isLoggedIn: refresh token present → refresh() → logged in.
@@ -218,20 +231,15 @@ void main() {
     test(
       'the repository reads the FCM token and hands it to the datasource',
       () {
-        final interface = AuthTemplates.repositoryInterface(
-          withPushNotifications: true,
-        );
-        final impl = AuthTemplates.repositoryImpl(withPushNotifications: true);
+        final impl = AuthTemplates.repository(withPushNotifications: true);
         final datasource = AuthTemplates.remoteDatasource(
           withPushNotifications: true,
         );
 
-        expect(interface, contains('Future<void> syncDeviceToken();'));
+        expect(impl, contains('Future<void> syncDeviceToken() async {'));
         expect(
           impl,
-          contains(
-            'AuthRepositoryImpl(this._remote, this._tokens, this._push)',
-          ),
+          contains('AuthRepository(this._remote, this._tokens, this._push)'),
         );
         expect(impl, contains('await _push.getDeviceToken();'));
         expect(
@@ -247,8 +255,7 @@ void main() {
 
     test('a project without FCM keeps the auth feature as it was', () {
       for (final output in [
-        AuthTemplates.repositoryInterface(),
-        AuthTemplates.repositoryImpl(),
+        AuthTemplates.repository(),
         AuthTemplates.remoteDatasource(),
         AuthTemplates.notifier(),
       ]) {
@@ -292,7 +299,7 @@ void main() {
   });
 
   test('the repository owns the single-flight refresh guard', () {
-    final impl = AuthTemplates.repositoryImpl();
+    final impl = AuthTemplates.repository();
 
     // It moved here from dio_client.dart, where it was a top-level mutable
     // global beside a second copy of the refresh call. The repository is a
@@ -305,7 +312,7 @@ void main() {
       ),
     );
     // A guard needs a field, so the constructor cannot be const any more.
-    expect(impl, isNot(contains('const AuthRepositoryImpl')));
+    expect(impl, isNot(contains('const AuthRepository')));
   });
 
   test('the auth datasource reads its paths from ApiConstants', () {

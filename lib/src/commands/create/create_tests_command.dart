@@ -255,9 +255,14 @@ class CreateTestsCommand extends Command<int> {
     final featuresDir = Directory(p.join(libPath, 'features'));
     final missing = <String>[];
     for (final featureDir in featuresDir.listSync().whereType<Directory>()) {
-      final models = Directory(p.join(featureDir.path, 'domain', 'models'));
-      if (!models.existsSync()) continue;
-      for (final file in models.listSync().whereType<File>()) {
+      // `domain/models/` is where a feature from before 10.0.0 keeps them.
+      final models = [
+        for (final layer in const ['data', 'domain'])
+          if (Directory(p.join(featureDir.path, layer, 'models')) case final dir
+              when dir.existsSync())
+            ...dir.listSync().whereType<File>(),
+      ];
+      for (final file in models) {
         final source = file.readAsStringSync();
         final declares = used.any(
           (type) => RegExp('\\bclass\\s+$type\\b').hasMatch(source),

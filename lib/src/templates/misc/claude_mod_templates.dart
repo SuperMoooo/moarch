@@ -531,8 +531,8 @@ describe('rules', () => {
   })
 
   test('maps a generated file to its source', async () => {
-    expect(sourceOf('lib/features/user/domain/models/user.freezed.dart')).toBe(
-      'lib/features/user/domain/models/user.dart',
+    expect(sourceOf('lib/features/user/data/models/user.freezed.dart')).toBe(
+      'lib/features/user/data/models/user.dart',
     )
     expect(sourceOf('lib/config/env/env.g.dart')).toBe('lib/config/env/env.dart')
     expect(sourceOf('lib/main.dart')).toBeUndefined()
@@ -575,10 +575,10 @@ import { expect, test } from 'claude-code/testing'
 
 const ROOT = '/work/app'
 const ROUTER = `${ROOT}/lib/config/router/app_router.dart`
-const MODEL = `${ROOT}/lib/features/user/domain/models/user.dart`
+const MODEL = `${ROOT}/lib/features/user/data/models/user.dart`
 const FILES: Record<string, string> = {
   'lib/config/router/app_router.dart': 'routes: [\n  // moarch:routes\n]\n',
-  'lib/features/user/domain/models/user.dart': "part 'user.freezed.dart';\n",
+  'lib/features/user/data/models/user.dart': "part 'user.freezed.dart';\n",
 }
 
 /** Answers what the engine would, and records the status line in [statuses]. */
@@ -604,11 +604,11 @@ test('refuses edits to generated files and removed anchors', async ($, on) => {
 
   const generated = await $.tool.call({
     tool: 'Edit',
-    file_path: `${ROOT}/lib/features/user/domain/models/user.freezed.dart`,
+    file_path: `${ROOT}/lib/features/user/data/models/user.freezed.dart`,
     old_string: 'a',
     new_string: 'b',
   })
-  expect(generated.deny).toContain('Edit lib/features/user/domain/models/user.dart instead')
+  expect(generated.deny).toContain('Edit lib/features/user/data/models/user.dart instead')
 
   const anchor = await $.tool.call({ tool: 'Write', file_path: ROUTER, content: 'routes: []\n' })
   expect(anchor.deny).toContain('// moarch:routes')

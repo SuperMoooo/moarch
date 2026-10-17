@@ -4,39 +4,6 @@ import '../core/cache_templates.dart';
 class FeatureTemplates {
   FeatureTemplates._();
 
-  // ── Domain — Repository interface ───────────────────────────────────────────
-
-  /// Returns the generated repositoryInterface template.
-  ///
-  /// [useFirestore] adds `watchAll` — the live read the presentation layer is
-  /// built on when the data is in Firestore, with `fetchAll` left for the
-  /// one-off cases (an export, a background job) that do not want a
-  /// subscription.
-  ///
-  /// [withWrites] declares the queued `create` / `update` / `delete` of a
-  /// synced feature.
-  static String repositoryInterface(
-    String name,
-    String cls, {
-    bool useFirestore = false,
-    bool withWrites = false,
-  }) =>
-      '''
-import '../models/${name}_model.dart';
-
-abstract interface class ${cls}Repository {
-  Future<List<${cls}Model>> fetchAll();
-${useFirestore ? '''
-
-  /// A live view of the collection: emits now, and again on every change.
-  Stream<List<${cls}Model>> watchAll();
-''' : ''}${withWrites ? CacheTemplates.interfaceWrites(cls) : ''}
-  // TODO: add your other methods
-}
-''';
-
-  // ── Data — Model ────────────────────────────────────────────────────────────
-
   /// Returns the generated model template.
   ///
   /// The [useFirestore] variant reads the id off the document rather than out
@@ -142,7 +109,7 @@ abstract class ${cls}Model with _\$${cls}Model {
 import 'package:dio/dio.dart';
 
 ${constantsImport}import '../../../../core/network/safe_api_call.dart';
-${withSync ? "import '../../../../core/sync/sync_queue.dart';\n" : ''}import '../../domain/models/${name}_model.dart';
+${withSync ? "import '../../../../core/sync/sync_queue.dart';\n" : ''}import '../models/${name}_model.dart';
 
 class ${cls}RemoteDataSource {
   const ${cls}RemoteDataSource(this._dio);
@@ -171,7 +138,7 @@ class ${cls}RemoteDataSource {
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../../core/network/safe_firebase_call.dart';
-import '../../domain/models/${name}_model.dart';
+import '../models/${name}_model.dart';
 
 class ${cls}RemoteDataSource {
   const ${cls}RemoteDataSource(this._firestore);
@@ -252,14 +219,15 @@ class ${cls}LocalDataSource {
 }
 ''';
 
-  // ── Data — Repository impl ───────────────────────────────────────────────────
+  // ── Data — Repository ────────────────────────────────────────────────────────
 
-  /// Returns the generated repositoryImpl template.
+  /// Returns the generated repository template: the class the state
+  /// holder calls, over the feature's datasources.
   ///
   /// [useFirestore] is implemented rather than left as a TODO: the Firestore
   /// datasource already returns the models and the live query, so this
   /// layer only hands them on.
-  static String repositoryImpl(
+  static String repository(
     String name,
     String cls,
     String varName, {
@@ -288,38 +256,37 @@ class ${cls}LocalDataSource {
     // is not invented for them: the methods stay TODOs.
     final methods = hasRemote
         ? '''
-  @override
   Future<List<${cls}Model>> fetchAll() {
     return _remote.fetchAll();
   }${useFirestore ? '''
 
-  @override
+  /// A live view of the collection: emits now, and again on every change.
   Stream<List<${cls}Model>> watchAll() {
     return _remote.watchAll();
   }''' : ''}'''
         : '''
-  @override
   Future<List<${cls}Model>> fetchAll() {
     // TODO: implement using the datasource above
     throw UnimplementedError();
   }${useFirestore ? '''
 
-  @override
+  /// A live view of the collection: emits now, and again on every change.
   Stream<List<${cls}Model>> watchAll() {
     // TODO: implement using the datasource above
     throw UnimplementedError();
   }''' : ''}''';
 
     return '''
-${hasRemote ? "import '../datasources/${name}_remote_datasource.dart';\n" : ''}${hasLocal ? "import '../datasources/${name}_local_datasource.dart';\n" : ''}import '../../domain/models/${name}_model.dart';
-import '../../domain/repositories/${name}_repository.dart';
+${hasRemote ? "import '../datasources/${name}_remote_datasource.dart';\n" : ''}${hasLocal ? "import '../datasources/${name}_local_datasource.dart';\n" : ''}import '../models/${name}_model.dart';
 
-class ${cls}RepositoryImpl implements ${cls}Repository {
-  const ${cls}RepositoryImpl($ctorParams);
+class ${cls}Repository {
+  const ${cls}Repository($ctorParams);
 
 $fields
 
 $methods
+
+  // TODO: add your other methods
 }
 ''';
   }
@@ -331,7 +298,7 @@ $methods
   /// [useFirestore] adds the `items` the live query fills in.
   static String state(String name, String cls, {bool useFirestore = false}) =>
       '''
-import '../../../../core/utils/action_notifier.dart';${useFirestore ? "\nimport '../../domain/models/${name}_model.dart';" : ''}
+import '../../../../core/utils/action_notifier.dart';${useFirestore ? "\nimport '../../data/models/${name}_model.dart';" : ''}
 
 class ${cls}State implements ActionState<${cls}State> {
   const ${cls}State({${useFirestore ? '\n    this.items = const [],' : ''}
@@ -400,8 +367,7 @@ class ${cls}State implements ActionState<${cls}State> {
     final dependency =
         '  ${cls}Repository get _repo => getIt<${cls}Repository>();';
 
-    final imports =
-        "import '../../domain/repositories/${name}_repository.dart';";
+    final imports = "import '../../data/repositories/${name}_repository.dart';";
 
     // No data layer to reach, so no locator and no repository to import.
     if (!hasRepository) {

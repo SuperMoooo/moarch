@@ -75,14 +75,15 @@ class CreateEmptyFactoriesCommand extends Command<int> {
     int failed = 0;
 
     for (final featureDir in featureDirs) {
-      final modelDir = Directory(p.join(featureDir.path, 'domain', 'models'));
-      if (!modelDir.existsSync()) continue;
-
-      final modelFiles = modelDir
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.endsWith('_model.dart'))
-          .toList();
+      // `domain/models/` is where a feature from before 10.0.0 keeps them.
+      final modelFiles = [
+        for (final layer in const ['data', 'domain'])
+          if (Directory(p.join(featureDir.path, layer, 'models')) case final dir
+              when dir.existsSync())
+            ...dir.listSync().whereType<File>().where(
+              (f) => f.path.endsWith('_model.dart'),
+            ),
+      ];
 
       if (modelFiles.isEmpty) continue;
 

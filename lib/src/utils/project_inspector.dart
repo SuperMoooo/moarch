@@ -121,7 +121,12 @@ abstract final class ProjectInspector {
     final context = ScaffoldContext.detect(root);
     if (!context.hasRestAuthFeature) return const [];
     final spec = ScaffoldCatalog.byName('auth-me-model')!;
-    if (context.hasFile(spec.path)) return const [];
+    // A project from 9.3.0 to 10.0.0 has it under `domain/models/`.
+    final movedFrom = spec.movedFrom;
+    if (context.hasFile(spec.path) ||
+        (movedFrom != null && context.hasFile(movedFrom))) {
+      return const [];
+    }
 
     return [
       Diagnostic.warning(
@@ -1004,18 +1009,18 @@ abstract final class ProjectInspector {
                 libPath,
                 'features',
                 'auth',
-                'domain',
+                'data',
                 'models',
                 'auth_user_model.dart',
               ),
             ).existsSync() ||
-            // Where a project scaffolded before 8.0.0 keeps it.
+            // Where a project scaffolded from 8.0.0 to 10.0.0 keeps it.
             File(
               p.join(
                 libPath,
                 'features',
                 'auth',
-                'data',
+                'domain',
                 'models',
                 'auth_user_model.dart',
               ),

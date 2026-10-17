@@ -34,19 +34,20 @@ abstract final class ApiConstants {
   static const ordersHistory = '/orders/history';
 }
 ''');
-    write('lib/features/orders/domain/models/orders_model.dart', '''
+    write('lib/features/orders/data/models/orders_model.dart', '''
 class OrdersModel {
   const OrdersModel({required this.id});
   factory OrdersModel.empty() => const OrdersModel(id: 0);
   final int id;
 }
 ''');
-    write('lib/features/orders/domain/repositories/orders_repository.dart', '''
+    write('lib/features/orders/data/repositories/orders_repository.dart', '''
 import '../models/orders_model.dart';
 
-abstract interface class OrdersRepository {
-  Future<List<OrdersModel>> fetchAll();
-  Future<OrdersModel> cancel(int id);
+class OrdersRepository {
+  Future<List<OrdersModel>> fetchAll() async => const [];
+
+  Future<OrdersModel> cancel(int id) async => OrdersModel(id: id);
 }
 ''');
   });
@@ -71,7 +72,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../config/di/injector.dart';
-import '../../domain/repositories/orders_repository.dart';
+import '../../data/repositories/orders_repository.dart';
 import '../states/orders_state.dart';
 
 final ordersNotifierProvider =
@@ -116,6 +117,15 @@ class OrdersNotifier extends AsyncNotifier<OrdersState> {
       );
       expect(source, contains('await getIt.reset();'));
       expect(source, isNot(contains('overrideWithValue')));
+      // The repository is one class in `data/` — no interface, no `_impl`.
+      expect(
+        source,
+        contains(
+          "import 'package:shop/features/orders/data/repositories/orders_repository.dart';",
+        ),
+      );
+      expect(source, isNot(contains('domain/')));
+      expect(source, isNot(contains('_impl')));
       expect(source, contains('container = ProviderContainer();'));
     });
 
@@ -193,7 +203,7 @@ class OrdersState {
       write('lib/features/orders/presentation/blocs/orders_bloc.dart', '''
 import 'package:bloc/bloc.dart';
 
-import '../../domain/repositories/orders_repository.dart';
+import '../../data/repositories/orders_repository.dart';
 import 'orders_event.dart';
 import 'orders_state.dart';
 
@@ -272,7 +282,7 @@ final class OrdersGone extends OrdersState {
       write('lib/features/orders/presentation/blocs/orders_bloc.dart', '''
 import 'package:bloc/bloc.dart';
 
-import '../../domain/repositories/orders_repository.dart';
+import '../../data/repositories/orders_repository.dart';
 import 'orders_event.dart';
 import 'orders_state.dart';
 

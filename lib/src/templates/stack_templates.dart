@@ -424,28 +424,6 @@ class StackTemplates {
 
   // ── Feature ─────────────────────────────────────────────────────────────────
 
-  /// The repository contract.
-  ///
-  /// [withWrites] declares a synced feature's queued writes.
-  String featureRepositoryInterface(
-    String name,
-    String cls, {
-    bool useFirestore = false,
-    bool withWrites = false,
-  }) => isBloc
-      ? bloc.FeatureTemplates.repositoryInterface(
-          name,
-          cls,
-          useFirestore: useFirestore,
-          withWrites: withWrites,
-        )
-      : riverpod.FeatureTemplates.repositoryInterface(
-          name,
-          cls,
-          useFirestore: useFirestore,
-          withWrites: withWrites,
-        );
-
   /// The data model — the one class a feature passes from datasource to
   /// screen.
   String featureModel(String name, String cls, {bool useFirestore = false}) =>
@@ -496,12 +474,12 @@ class StackTemplates {
       ? bloc.FeatureTemplates.localDatasource(name, cls, varName)
       : riverpod.FeatureTemplates.localDatasource(name, cls, varName);
 
-  /// The repository implementation.
+  /// The repository — the class the state holder calls.
   ///
   /// [offlineFirst] is a REST datasource and the cache together: the
   /// repository saves the API's list to the cache and answers from it
   /// offline. The same in both stacks.
-  String featureRepositoryImpl(
+  String featureRepository(
     String name,
     String cls,
     String varName, {
@@ -511,9 +489,9 @@ class StackTemplates {
     bool offlineFirst = false,
     bool withSync = false,
   }) => offlineFirst
-      ? CacheTemplates.repositoryImpl(name, cls, withSync: withSync)
+      ? CacheTemplates.repository(name, cls, withSync: withSync)
       : isBloc
-      ? bloc.FeatureTemplates.repositoryImpl(
+      ? bloc.FeatureTemplates.repository(
           name,
           cls,
           varName,
@@ -521,7 +499,7 @@ class StackTemplates {
           hasLocal: hasLocal,
           useFirestore: useFirestore,
         )
-      : riverpod.FeatureTemplates.repositoryImpl(
+      : riverpod.FeatureTemplates.repository(
           name,
           cls,
           varName,
@@ -616,15 +594,6 @@ class StackTemplates {
 
   // ── Auth feature (REST) ─────────────────────────────────────────────────────
 
-  /// The auth repository contract.
-  String authRepositoryInterface({bool withPushNotifications = false}) => isBloc
-      ? bloc.AuthTemplates.repositoryInterface(
-          withPushNotifications: withPushNotifications,
-        )
-      : riverpod.AuthTemplates.repositoryInterface(
-          withPushNotifications: withPushNotifications,
-        );
-
   /// The token-pair model.
   String authModel() =>
       isBloc ? bloc.AuthTemplates.model() : riverpod.AuthTemplates.model();
@@ -643,17 +612,17 @@ class StackTemplates {
           withPushNotifications: withPushNotifications,
         );
 
-  /// The auth repository implementation. [withLocalCache] empties the
+  /// The auth repository. [withLocalCache] empties the
   /// offline-first cache whenever a session starts or ends.
-  String authRepositoryImpl({
+  String authRepository({
     bool withPushNotifications = false,
     bool withLocalCache = false,
   }) => isBloc
-      ? bloc.AuthTemplates.repositoryImpl(
+      ? bloc.AuthTemplates.repository(
           withPushNotifications: withPushNotifications,
           withLocalCache: withLocalCache,
         )
-      : riverpod.AuthTemplates.repositoryImpl(
+      : riverpod.AuthTemplates.repository(
           withPushNotifications: withPushNotifications,
           withLocalCache: withLocalCache,
         );
@@ -692,17 +661,6 @@ class StackTemplates {
 
   // ── Auth feature (Firebase) ─────────────────────────────────────────────────
 
-  /// The Firebase auth repository contract.
-  String firebaseAuthRepositoryInterface({
-    bool withPushNotifications = false,
-  }) => isBloc
-      ? bloc.FirebaseAuthTemplates.repositoryInterface(
-          withPushNotifications: withPushNotifications,
-        )
-      : riverpod.FirebaseAuthTemplates.repositoryInterface(
-          withPushNotifications: withPushNotifications,
-        );
-
   /// The signed-in-user model.
   String firebaseAuthModel({bool withFirestore = false}) => isBloc
       ? bloc.FirebaseAuthTemplates.model(withFirestore: withFirestore)
@@ -722,19 +680,19 @@ class StackTemplates {
           withPushNotifications: withPushNotifications,
         );
 
-  /// The Firebase auth repository implementation. [withLocalCache] empties
+  /// The Firebase auth repository. [withLocalCache] empties
   /// the offline-first cache on sign-out and account deletion.
-  String firebaseAuthRepositoryImpl({
+  String firebaseAuthRepository({
     bool withFirestore = false,
     bool withPushNotifications = false,
     bool withLocalCache = false,
   }) => isBloc
-      ? bloc.FirebaseAuthTemplates.repositoryImpl(
+      ? bloc.FirebaseAuthTemplates.repository(
           withFirestore: withFirestore,
           withPushNotifications: withPushNotifications,
           withLocalCache: withLocalCache,
         )
-      : riverpod.FirebaseAuthTemplates.repositoryImpl(
+      : riverpod.FirebaseAuthTemplates.repository(
           withFirestore: withFirestore,
           withPushNotifications: withPushNotifications,
           withLocalCache: withLocalCache,

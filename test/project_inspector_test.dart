@@ -901,12 +901,28 @@ dependencies:
           libPath,
           'features',
           'auth',
-          'domain',
+          'data',
           'models',
           'user_model.dart',
         ),
       );
       expect(model.readAsStringSync(), contains('abstract class UserModel'));
+      expect(await ProjectInspector.inspect(root), isEmpty);
+    });
+
+    test('finds a UserModel still under domain/, from before 10.0.0', () async {
+      await writeRestAuth();
+      await File(
+        p.join(
+          libPath,
+          'features',
+          'auth',
+          'domain',
+          'models',
+          'user_model.dart',
+        ),
+      ).create(recursive: true);
+
       expect(await ProjectInspector.inspect(root), isEmpty);
     });
 
@@ -917,7 +933,7 @@ dependencies:
           libPath,
           'features',
           'auth',
-          'domain',
+          'data',
           'models',
           'auth_user_model.dart',
         ),

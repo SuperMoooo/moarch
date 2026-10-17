@@ -179,10 +179,8 @@ lib/
   features/<feature>/
     data/
       datasources/   # where the bytes come from
-      repositories/  # <x>_repository_impl.dart
-    domain/
       models/        # the feature's freezed model(s)
-      repositories/  # the interface the presentation layer depends on
+      repositories/  # <x>_repository.dart — what the presentation layer calls
     presentation/
       $holder      views/        # <x>_view.dart — the screen
       widgets/      # the screens' pieces, one widget per file, and
@@ -211,14 +209,17 @@ test/
     return '''
 ## Architecture rules
 
-- **No entity layer.** A feature's data type is the freezed model in
-  `domain/models/`, used directly by the repository interface, the state and
-  the view. Do not add `domain/entities/`, `toEntity()` / `fromEntity()`
-  mappers or a second class mirroring a model.
-- **No use-case classes.** The ${bloc ? 'bloc' : 'notifier'} calls the repository interface.
-- `domain/` imports no Flutter${sdks.isEmpty ? '' : ', no ${sdks.join(', no ')}'} and nothing from `data/`.
-- The ${bloc ? 'bloc' : 'notifier'} depends on the repository **interface**, never on a
-  datasource or on `*_repository_impl.dart`.
+- **No domain layer.** A feature is `data/` and `presentation/`. Its data
+  type is the freezed model in `data/models/`, used directly by the
+  repository, the state and the view. Do not add a `domain/` folder,
+  entities, `toEntity()` / `fromEntity()` mappers or a second class mirroring
+  a model.
+- **No repository interfaces.** `data/repositories/<x>_repository.dart` is one
+  concrete class — no `abstract interface class`, no `_impl`. Tests mock the
+  class itself.
+- **No use-case classes.** The ${bloc ? 'bloc' : 'notifier'} calls the repository.
+- `data/` imports no Flutter and nothing from `presentation/`.
+- The ${bloc ? 'bloc' : 'notifier'} depends on the repository, never on a datasource${sdks.isEmpty ? '' : ' or on\n  ${sdks.join(' / ')} directly'}.
 - **One error type reaches the UI: `AppException`** (`core/errors/`).
   ${boundary.isEmpty ? 'The datasource translates' : 'The datasource wraps its calls in ${boundary.join(' / ')}, which translate'}
   transport errors into it. Catch `AppException` and show its `message`; never
@@ -345,9 +346,9 @@ test/
 ## Adding a feature
 
 1. `moarch create feature <name>` — never create the folders by hand.${withRouter ? '\n   It also adds the route: `AppRoutes.<name>` in `app_routes.dart` and the\n   `GoRoute` in `app_router.dart`${bloc ? ', pointing at the page' : ''}, above `// moarch:routes`.' : ''}
-2. Fields on `domain/models/<name>_model.dart`, then run `build_runner`.
-3. Methods on the repository interface, implemented in the `_impl`, with the
-   call itself in the datasource.
+2. Fields on `data/models/<name>_model.dart`, then run `build_runner`.
+3. Methods on `data/repositories/<name>_repository.dart`, with the call
+   itself in the datasource.
 4. ${bloc ? 'An event per action, a handler through `runAction`, and the fields on the state\n   (`copyWith`, `props`).' : 'A notifier method per action through `runAction`, and the fields on the state\n   (`copyWith`).'}
 5. The screen in `presentation/views/`, from the UI kit, and its loading
    skeleton in `presentation/widgets/<x>_skeleton.dart` (the same rows over

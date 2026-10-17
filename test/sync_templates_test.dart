@@ -208,21 +208,36 @@ void main() {
       expect(source, contains(r"SyncRequest.put('/order/${item.id}'"));
     });
 
-    test('the interface declares the writes only with sync', () {
+    test('the repository has the writes only with sync', () {
       const stack = StackTemplates(StateManagement.bloc);
 
       expect(
-        stack.featureRepositoryInterface('order', 'Order', withWrites: true),
-        contains('Future<void> create(OrderModel item);'),
+        stack.featureRepository(
+          'order',
+          'Order',
+          'order',
+          hasRemote: true,
+          hasLocal: true,
+          offlineFirst: true,
+          withSync: true,
+        ),
+        contains('Future<void> create(OrderModel item) async {'),
       );
       expect(
-        stack.featureRepositoryInterface('order', 'Order'),
+        stack.featureRepository(
+          'order',
+          'Order',
+          'order',
+          hasRemote: true,
+          hasLocal: true,
+          offlineFirst: true,
+        ),
         isNot(contains('create(')),
       );
     });
 
     test('the repository applies to the cache, then enqueues', () {
-      final source = CacheTemplates.repositoryImpl(
+      final source = CacheTemplates.repository(
         'order',
         'Order',
         withSync: true,
@@ -230,9 +245,7 @@ void main() {
 
       expect(
         source,
-        contains(
-          'OrderRepositoryImpl(this._remote, this._local, this._sync) {',
-        ),
+        contains('OrderRepository(this._remote, this._local, this._sync) {'),
       );
       expect(
         source,
@@ -249,7 +262,7 @@ void main() {
       );
       expect(source, contains('-DateTime.now().microsecondsSinceEpoch'));
       expect(
-        CacheTemplates.repositoryImpl('order', 'Order'),
+        CacheTemplates.repository('order', 'Order'),
         isNot(contains('SyncService')),
       );
     });

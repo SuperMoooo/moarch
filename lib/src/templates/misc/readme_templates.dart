@@ -113,7 +113,7 @@ class ReadmeTemplates {
 > **Last updated:** `[month year]`
 > **Owner:** `[name]`
 > **Primary platform:** Flutter (iOS & Android)
-> **Architecture:** Clean Architecture + ${bloc ? 'flutter_bloc' : 'Riverpod'} + get_it
+> **Architecture:** Clean Architecture (data + presentation) + ${bloc ? 'flutter_bloc' : 'Riverpod'} + get_it
 
 This is the guide to the project: what it is, how to get it running, how it is
 put together and how it ships. It assumes no prior experience with this
@@ -159,38 +159,38 @@ codebase. Everything — screens, business rules, API calls — lives in `lib/`.
 The `android/` and `ios/` folders are the native shells Flutter builds into;
 you will only open them for signing, permissions and platform configuration.
 
-The code follows **Clean Architecture**. That is one idea, applied per feature:
+The code follows a lean **Clean Architecture**, without the domain layer. That
+is one idea, applied per feature:
 
-> Business rules must not depend on the things that come and go —
-> the UI framework, the HTTP client, the database.
+> The screen must not depend on where the data comes from —
+> the HTTP client, the database.
 
-So each feature is split into three layers, and the dependencies only ever
-point *inwards*, towards the rules:
+So each feature is split into two layers, and the dependency only ever
+points one way — the UI knows the data layer, never the reverse:
 
 | Layer | What lives there | May import |
 |---|---|---|
-| `domain` | Models (the one data type a feature has) and repository **interfaces** — the rules, and the promises the app makes | nothing but Dart and the `freezed` / `json_serializable` annotations |
-| `data` | Datasources${withDio ? ' (Dio, secure storage)' : ''} and the repository **implementations** | `domain` |
-| `presentation` | Screens and the ${bloc ? 'blocs' : 'notifiers'} that hold their state | `domain` |
+| `data` | Models (the one data type a feature has), datasources${withDio ? ' (Dio, secure storage)' : ''} and the **repository** — what the feature can do | `core/`, never Flutter |
+| `presentation` | Screens and the ${bloc ? 'blocs' : 'notifiers'} that hold their state | `data` — the models and the repository, never a datasource |
 
 ```
-presentation ─────► domain ◄───── data
-     (UI)         (the rules)    (the world)
+presentation ─────► data ─────► the world
+     (UI)        (repository)   (API, storage)
 ```
 
-`presentation` never imports `data`. It asks the `domain` interface for what it
-needs, and the wiring in `lib/config/di/` decides which implementation answers.
-That indirection is what makes the data layer replaceable${withDio ? ' — swapping REST for something else touches `data/` only' : ''}, and what makes the rules testable
-without a device.
+A ${bloc ? 'bloc' : 'notifier'} asks the **repository** for what it needs and never sees a
+datasource, so the screen does not know where the bytes come from${withDio ? ' — swapping REST for\nsomething else touches `data/` only' : ''}. The repository is one concrete class: there
+is no `domain/` layer, no interface in front of it and no `_impl` behind it.
+A test mocks the class itself, which mocktail does as readily as an
+interface.
 
-There is no separate entity: the **model** is the feature's one data type, so
-every field is written once, and the repository hands the screens the same
-class the API parsed. That is why a model carries JSON annotations from a
-package rather than being plain Dart — the one concession `domain/` makes.
+There is no separate entity either: the **model** is the feature's one data
+type, so every field is written once, and the repository hands the screens the
+same class the API parsed.
 
 **Why it is worth the extra folders:** a screen that talks to Dio directly
 cannot be tested without a network, cannot be reused when the endpoint changes,
-and spreads error handling across the UI. Three folders up front avoid all
+and spreads error handling across the UI. A repository between them avoids all
 three.
 
 ### Generated, and still refreshable
@@ -557,12 +557,10 @@ ${withRouter ? '│   ├── router/                      # GoRouter routes +
 │   └── utils/                       # logger, extensions${bloc ? ', AppStatus + runAction, AppBlocObserver' : ', runAction'}
 ├── features/                        # One folder per feature — the app itself
 │   └── $feature/
-│       ├── domain/
-│       │   ├── models/                  # the feature's data type, + fromJson / toJson
-│       │   └── repositories/            # the interfaces the UI depends on
 │       ├── data/
 │       │   ├── datasources/             # where the bytes actually come from
-│       │   └── repositories/            # the implementations
+│       │   ├── models/                  # the feature's data type, + fromJson / toJson
+│       │   └── repositories/            # what the UI calls
 $presentation
 ├── shared/
 │   ├── widgets/                     # The UI kit — see docs/UI_KIT.md
@@ -595,14 +593,14 @@ Two rules keep those folders meaningful:
   same line `features/<name>/presentation/views/` already draws.
 - **A feature never imports another feature's `data/` layer.** If two features
   need the same data, the repository belongs to whichever owns it, and the other
-  depends on its `domain` interface.
+  depends on that repository.
 
 ---
 ''';
   }
 
   /// Section 5 — one piece of data traced from the API to the screen, which is
-  /// the only way the three folders stop looking like ceremony.
+  /// the only way the folders stop looking like ceremony.
   static String _architecture({required bool bloc, required bool withDio}) =>
       '''
 ## 5. How the architecture works
@@ -610,13 +608,13 @@ Two rules keep those folders meaningful:
 Follow one piece of data from the server to the screen. This is a `profile`
 feature; every feature in `lib/features/` has the same shape.
 
-### `domain/` — the rules
+### `data/` — the model, the datasource and the repository
 
 A **model** is the feature's one data type — what the screens draw, and the
 payload as it comes over the wire:
 
 ```dart
-// lib/features/profile/domain/models/profile_model.dart
+// lib/features/profile/data/models/profile_model.dart
 @freezed
 abstract class ProfileModel with _\$ProfileModel {
   const ProfileModel._();
@@ -646,49 +644,37 @@ class is code-generated: after editing a model run
 fvm dart run build_runner build --delete-conflicting-outputs
 ```
 
-A **repository interface** is what the feature promises it can do — never how:
+A **datasource** is where the bytes come from${withDio ? ' — an HTTP call through the shared\nDio client' : ''}. The **repository** is what the
+feature can do: the one class the ${bloc ? 'bloc' : 'notifier'} calls, deciding which datasource
+answers and handing back models:
 
 ```dart
-// lib/features/profile/domain/repositories/profile_repository.dart
-abstract interface class ProfileRepository {
-  Future<List<ProfileModel>> fetchAll();
-}
-```
-
-Nothing under `domain/` imports ${withDio ? 'Dio, ' : ''}Firebase or Flutter. That is the
-point: these files can be tested with a plain `dart test`, and they survive
-every change to the client and the UI.
-
-### `data/` — the world
-
-A **datasource** is where the bytes come from${withDio ? ' — an HTTP call through the shared\nDio client' : ''}. A **repository implementation** puts
-the datasources behind the interface and is the only class that satisfies it:
-
-```dart
-// lib/features/profile/data/repositories/profile_repository_impl.dart
-class ProfileRepositoryImpl implements ProfileRepository {
-  ProfileRepositoryImpl(this._remote);
+// lib/features/profile/data/repositories/profile_repository.dart
+class ProfileRepository {
+  const ProfileRepository(this._remote);
 
   final ProfileRemoteDataSource _remote;
 
-  @override
+  /// Every profile, as the API lists them.
   Future<List<ProfileModel>> fetchAll() => _remote.fetchAll();
 }
 ```
 
+Nothing under `data/` imports Flutter, so these files can be tested with a
+plain `dart test`.
+
 ### The wiring: `lib/config/di/`
 
-The locator knows both sides — which implementation answers which interface. It
-uses **get_it**:
+The locator builds the repository with its datasources. It uses **get_it**:
 
 ```dart
 getIt.registerLazySingleton<ProfileRepository>(
-  () => ProfileRepositoryImpl(getIt<ProfileRemoteDataSource>()),
+  () => ProfileRepository(getIt<ProfileRemoteDataSource>()),
 );
 ```
 
-Anywhere else in the app, `getIt<ProfileRepository>()` hands back that instance
-— and the caller only ever sees the interface type.
+Anywhere else in the app, `getIt<ProfileRepository>()` hands back that
+instance — and the caller never builds a datasource itself.
 
 - `registerLazySingleton` — built on first use, one instance for the app's life.
   The default for repositories and services.
@@ -1144,9 +1130,8 @@ Then the part that is yours:
 
 1. **Describe the data.** Fields on `profile_model.dart`; `fromJson` / `toJson`
    come with them from json_serializable.
-2. **Say what the feature can do.** Methods on the repository *interface*,
-   implemented in `profile_repository_impl.dart`, with the actual call in the
-   datasource.
+2. **Say what the feature can do.** Methods on `profile_repository.dart`,
+   with the actual call in the datasource.
 $stateStep
 4. **Draw it.** Build the view out of `lib/shared/widgets/` rather than raw
    Material widgets — the kit is catalogued in `docs/UI_KIT.md`.

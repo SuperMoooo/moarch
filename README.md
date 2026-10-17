@@ -288,7 +288,7 @@ handed out by type. `moarch create feature` **writes into it** at the
 
 ```dart
 getIt.registerLazySingleton<OrdersRepository>(
-  () => OrdersRepositoryImpl(getIt<OrdersRemoteDataSource>()),
+  () => OrdersRepository(getIt<OrdersRemoteDataSource>()),
 );
 // bloc only. A factory, not a singleton: the screen's BlocProvider creates it
 // and closing the route closes it, subscriptions and all.
@@ -546,7 +546,7 @@ local datasource by default and writes the data layer against the cache:
 - `<name>_local_datasource.dart` keeps the feature's records in `LocalCache`,
   under the feature's name. It stores the freezed model's own JSON, so a new
   feature needs no table and no migration.
-- `<name>_repository_impl.dart`: `fetchAll()` saves the API's list to the
+- `<name>_repository.dart`: `fetchAll()` saves the API's list to the
   cache and, on a `NetworkException`, answers from the cache instead. It
   rethrows only when nothing is cached yet. `watchAll()` follows the cache.
 - On Riverpod the notifier loads through `fetchAll()` and then follows
@@ -574,7 +574,7 @@ the remote datasource *describes*:
 SyncRequest update(OrdersModel item) =>
     SyncRequest.put('${ApiConstants.orders}/${item.id}', item.toJson());
 
-// orders_repository_impl.dart
+// orders_repository.dart
 Future<void> update(OrdersModel item) async {
   await _local.save(item);                                   // the screen, now
   await _sync.enqueue(OrdersLocalDataSource.collection, _remote.update(item));
@@ -1356,17 +1356,19 @@ yours to apply (or `--force`).
 ## Models
 
 A feature has one data type, and it is a **freezed** class: the model. There is
-no separate entity — `domain/models/<x>_model.dart` is freezed + json_serializable,
+no separate entity — `data/models/<x>_model.dart` is freezed + json_serializable,
 the repository hands it to the state layer as it is, and the screens draw it.
 Every field is declared once. Run `fvm dart run build_runner build` after
 editing one.
 
-The model lives in `domain/` because it is what the domain speaks: the
-repository interfaces return it, so the dependencies keep pointing inward
-(`presentation → domain ← data`). The trade is that `domain/` imports the
-`freezed` and `json_serializable` annotations, and that a change to a payload's
-shape reaches the screens that read it, where an entity layer would have
-absorbed it in a mapping.
+There is no domain layer either. A feature is `data/` (datasources, models,
+repository) and `presentation/`, and the dependencies point one way:
+`presentation → data`. The repository is one concrete class,
+`data/repositories/<x>_repository.dart`, with no interface in front of it and
+no `_impl` behind it — a test mocks the class itself, which mocktail does as
+readily as an interface. The trade is that a change to a payload's shape
+reaches the screens that read it, where an entity layer would have absorbed it
+in a mapping.
 
 A model shared by several features — an address, a money amount — belongs in
 `lib/core/`, not in whichever feature happened to need it first.

@@ -126,7 +126,7 @@ void main() {
       expect(
         data,
         contains(
-          "import '../../features/orders/data/repositories/orders_repository_impl.dart';",
+          "import '../../features/orders/data/repositories/orders_repository.dart';",
         ),
       );
       expect(data, isNot(contains('orders_bloc.dart')));
@@ -138,15 +138,15 @@ void main() {
           "import '../../features/orders/presentation/blocs/orders_bloc.dart';",
         ),
       );
-      // The bloc's constructor names it, so the interface has to be in scope
-      // here too — but the implementation does not.
+      // The bloc's constructor names it, so the repository has to be in
+      // scope here too — but not its datasources.
       expect(
         presentation,
         contains(
-          "import '../../features/orders/domain/repositories/orders_repository.dart';",
+          "import '../../features/orders/data/repositories/orders_repository.dart';",
         ),
       );
-      expect(presentation, isNot(contains('orders_repository_impl.dart')));
+      expect(presentation, isNot(contains('orders_remote_datasource.dart')));
     });
 
     test('a Riverpod feature touches the data module alone', () async {
@@ -244,7 +244,7 @@ void main() {
       for (final import in [
         "import 'package:dio/dio.dart';",
         "import '../../features/orders/data/datasources/orders_remote_datasource.dart';",
-        "import '../../features/orders/domain/repositories/orders_repository.dart';",
+        "import '../../features/orders/data/repositories/orders_repository.dart';",
         "import '../../features/orders/presentation/blocs/orders_bloc.dart';",
       ]) {
         expect(import.allMatches(source).length, 1, reason: import);

@@ -55,7 +55,7 @@ void main() {
       expect(
         output,
         contains(
-          "import 'package:app/features/auth/domain/repositories/auth_repository.dart';",
+          "import 'package:app/features/auth/data/repositories/auth_repository.dart';",
         ),
       );
 
@@ -67,7 +67,7 @@ void main() {
       expect(
         output,
         contains(
-          "import 'package:app/features/auth/domain/repositories/cart_repository.dart';",
+          "import 'package:app/features/auth/data/repositories/cart_repository.dart';",
         ),
       );
 

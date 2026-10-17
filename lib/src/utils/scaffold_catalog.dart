@@ -211,11 +211,11 @@ class ScaffoldContext {
   ///
   /// Read off the model, the one file whose name differs between the two
   /// variants — a project can have `firebase_auth` in its pubspec and still
-  /// have taken the REST auth feature. A project scaffolded before 8.0.0 keeps
-  /// the model under `data/`, which is looked at too.
+  /// have taken the REST auth feature. A project scaffolded between 8.0.0 and
+  /// 10.0.0 keeps the model under `domain/`, which is looked at too.
   bool get hasFirebaseAuthFeature =>
-      hasFile('lib/features/auth/domain/models/auth_user_model.dart') ||
-      hasFile('lib/features/auth/data/models/auth_user_model.dart');
+      hasFile('lib/features/auth/data/models/auth_user_model.dart') ||
+      hasFile('lib/features/auth/domain/models/auth_user_model.dart');
 
   /// The auth feature was generated against the REST client — the variant
   /// that owns a refresh token, and so the only one whose `/auth/*` paths and
@@ -986,24 +986,10 @@ abstract final class ScaffoldCatalog {
     // state holder is the one that differs by *stack* as well as by backend —
     // hence the separate notifier / bloc / event entries at the end.
     ScaffoldSpec(
-      name: 'auth-repository',
-      title: 'AuthRepository',
-      path: 'lib/features/auth/domain/repositories/auth_repository.dart',
-      category: 'Auth feature',
-      template: (c) => c.hasFirebaseAuthFeature
-          ? c.stack.firebaseAuthRepositoryInterface(
-              withPushNotifications: c.hasFirebaseNotifications,
-            )
-          : c.stack.authRepositoryInterface(
-              withPushNotifications: c.hasFirebaseNotifications,
-            ),
-      description: 'The repository contract the state holder depends on.',
-    ),
-    ScaffoldSpec(
       name: 'auth-model',
       title: 'AuthTokensModel',
-      path: 'lib/features/auth/domain/models/auth_tokens_model.dart',
-      movedFrom: 'lib/features/auth/data/models/auth_tokens_model.dart',
+      path: 'lib/features/auth/data/models/auth_tokens_model.dart',
+      movedFrom: 'lib/features/auth/domain/models/auth_tokens_model.dart',
       category: 'Auth feature',
       template: (c) => c.stack.authModel(),
       description: 'The access/refresh token pair, as the API sends it.',
@@ -1011,7 +997,8 @@ abstract final class ScaffoldCatalog {
     ScaffoldSpec(
       name: 'auth-me-model',
       title: 'UserModel',
-      path: 'lib/features/auth/domain/models/user_model.dart',
+      path: 'lib/features/auth/data/models/user_model.dart',
+      movedFrom: 'lib/features/auth/domain/models/user_model.dart',
       category: 'Auth feature',
       template: (c) => c.stack.authUserModel(),
       description: 'The signed-in user, as GET /auth/me returns it (REST).',
@@ -1019,8 +1006,8 @@ abstract final class ScaffoldCatalog {
     ScaffoldSpec(
       name: 'auth-user-model',
       title: 'AuthUserModel',
-      path: 'lib/features/auth/domain/models/auth_user_model.dart',
-      movedFrom: 'lib/features/auth/data/models/auth_user_model.dart',
+      path: 'lib/features/auth/data/models/auth_user_model.dart',
+      movedFrom: 'lib/features/auth/domain/models/auth_user_model.dart',
       category: 'Auth feature',
       template: (c) => c.stack.firebaseAuthModel(withFirestore: c.hasFirestore),
       description:
@@ -1046,22 +1033,26 @@ abstract final class ScaffoldCatalog {
           'The auth calls — /auth/* over Dio, or FirebaseAuth and Google sign-in.',
     ),
     ScaffoldSpec(
-      name: 'auth-repository-impl',
-      title: 'AuthRepositoryImpl',
-      path: 'lib/features/auth/data/repositories/auth_repository_impl.dart',
+      name: 'auth-repository',
+      title: 'AuthRepository',
+      path: 'lib/features/auth/data/repositories/auth_repository.dart',
+      // Before 10.0.0 this was the implementation of an interface in
+      // `domain/repositories/`, which a refresh leaves behind.
+      movedFrom:
+          'lib/features/auth/data/repositories/auth_repository_impl.dart',
       category: 'Auth feature',
       template: (c) => c.hasFirebaseAuthFeature
-          ? c.stack.firebaseAuthRepositoryImpl(
+          ? c.stack.firebaseAuthRepository(
               withFirestore: c.hasFirestore,
               withPushNotifications: c.hasFirebaseNotifications,
               withLocalCache: c.hasLocalCache,
             )
-          : c.stack.authRepositoryImpl(
+          : c.stack.authRepository(
               withPushNotifications: c.hasFirebaseNotifications,
               withLocalCache: c.hasLocalCache,
             ),
       description:
-          'Datasource + secure storage behind the repository contract.',
+          'What the state holder calls: the datasource and the session storage.',
     ),
     ScaffoldSpec(
       name: 'auth-state',

@@ -1364,7 +1364,7 @@ class InitCommand extends Command<int> {
       _logger.info(
         '  auth_remote_datasource.dart and the fields GET /auth/me returns in',
       );
-      _logger.info('  domain/models/user_model.dart to your API contract.');
+      _logger.info('  data/models/user_model.dart to your API contract.');
       _logger.info('');
     }
     if (firebaseAuthFeature) {
@@ -2062,17 +2062,11 @@ class InitCommand extends Command<int> {
     final f = p.join(libPath, 'features', 'auth');
 
     await FileUtils.writeFile(
-      p.join(f, 'domain', 'repositories', 'auth_repository.dart'),
-      templates.authRepositoryInterface(
-        withPushNotifications: withPushNotifications,
-      ),
-    );
-    await FileUtils.writeFile(
-      p.join(f, 'domain', 'models', 'auth_tokens_model.dart'),
+      p.join(f, 'data', 'models', 'auth_tokens_model.dart'),
       templates.authModel(),
     );
     await FileUtils.writeFile(
-      p.join(f, 'domain', 'models', 'user_model.dart'),
+      p.join(f, 'data', 'models', 'user_model.dart'),
       templates.authUserModel(),
     );
     await FileUtils.writeFile(
@@ -2082,8 +2076,8 @@ class InitCommand extends Command<int> {
       ),
     );
     await FileUtils.writeFile(
-      p.join(f, 'data', 'repositories', 'auth_repository_impl.dart'),
-      templates.authRepositoryImpl(
+      p.join(f, 'data', 'repositories', 'auth_repository.dart'),
+      templates.authRepository(
         withPushNotifications: withPushNotifications,
         withLocalCache: withLocalCache,
       ),
@@ -2136,13 +2130,7 @@ class InitCommand extends Command<int> {
     final f = p.join(libPath, 'features', 'auth');
 
     await FileUtils.writeFile(
-      p.join(f, 'domain', 'repositories', 'auth_repository.dart'),
-      templates.firebaseAuthRepositoryInterface(
-        withPushNotifications: withPushNotifications,
-      ),
-    );
-    await FileUtils.writeFile(
-      p.join(f, 'domain', 'models', 'auth_user_model.dart'),
+      p.join(f, 'data', 'models', 'auth_user_model.dart'),
       templates.firebaseAuthModel(withFirestore: withFirestore),
     );
     await FileUtils.writeFile(
@@ -2153,8 +2141,8 @@ class InitCommand extends Command<int> {
       ),
     );
     await FileUtils.writeFile(
-      p.join(f, 'data', 'repositories', 'auth_repository_impl.dart'),
-      templates.firebaseAuthRepositoryImpl(
+      p.join(f, 'data', 'repositories', 'auth_repository.dart'),
+      templates.firebaseAuthRepository(
         withFirestore: withFirestore,
         withPushNotifications: withPushNotifications,
         withLocalCache: withLocalCache,

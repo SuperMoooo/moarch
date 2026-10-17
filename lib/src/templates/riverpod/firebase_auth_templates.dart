@@ -10,77 +10,6 @@
 class FirebaseAuthTemplates {
   FirebaseAuthTemplates._();
 
-  // ── Domain — Repository interface ───────────────────────────────────────────
-
-  /// Returns the generated auth repository interface template.
-  ///
-  /// [withPushNotifications] adds the device-token contract the notifier calls
-  /// on sign-in and when Firebase restores a session at start-up.
-  static String repositoryInterface({bool withPushNotifications = false}) {
-    final syncDeviceToken = withPushNotifications
-        ? '''
-  /// Reads this device's FCM token and saves it against the signed-in user,
-  /// so a notification can be targeted at them. Safe to call repeatedly — the
-  /// token only changes when the install does.
-  Future<void> syncDeviceToken();
-
-'''
-        : '';
-
-    return '''
-import '../models/auth_user_model.dart';
-
-abstract interface class AuthRepository {
-  /// Emits the signed-in user, or null once they sign out.
-  ///
-  /// Firebase restores the persisted session asynchronously at start-up, so
-  /// this is what says whether the app opened signed in — `currentUser` can
-  /// still be null for a moment after launch.
-  Stream<AuthUserModel?> authStateChanges();
-
-  /// True when a session was restored for this device.
-  Future<bool> isLoggedIn();
-
-  /// The signed-in user, or null.
-  Future<AuthUserModel?> currentUser();
-
-  /// Signs in with email and password.
-  Future<AuthUserModel> login({
-    required String email,
-    required String password,
-  });
-
-  /// Creates the account, optionally setting a display name on it.
-  Future<AuthUserModel> register({
-    required String email,
-    required String password,
-    String? displayName,
-  });
-
-  /// Google sign-in, exchanged for a Firebase session.
-  ///
-  /// Throws an [AppException] of type `cancelled` when the user dismisses the
-  /// Google sheet — nothing failed, so there is nothing to report.
-  Future<AuthUserModel> signInWithGoogle();
-
-  /// Sends the password reset email Firebase hosts.
-  Future<void> sendPasswordResetEmail({required String email});
-
-  /// Ends the session — Google's too, when that is how the user signed in.
-  Future<void> logout();
-
-  /// Deletes the account. Firebase requires a recent sign-in for this and
-  /// reports `requires-recent-login` when the session is too old.
-  Future<void> deleteAccount();
-
-$syncDeviceToken  /// The signed-in user's uid.
-  Future<String?> currentUserId();
-}
-''';
-  }
-
-  // ── Data — Model ────────────────────────────────────────────────────────────
-
   /// Returns the generated auth user model template.
   ///
   /// [withFirestore] adds the JSON mapping for the `users/{uid}` profile
@@ -264,7 +193,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/network/safe_firebase_call.dart';
-import '../../domain/models/auth_user_model.dart';
+import '../models/auth_user_model.dart';
 
 /// The **web** client id from Firebase console → Authentication → Sign-in
 /// method → Google → Web SDK configuration.
@@ -418,13 +347,14 @@ $firestoreMethods$deviceTokenMethod}
 ''';
   }
 
-  // ── Data — Repository impl ──────────────────────────────────────────────────
+  // ── Data — Repository ───────────────────────────────────────────────────────
 
-  /// Returns the generated auth repository implementation template.
+  /// Returns the generated auth repository template: the one class the
+  /// state holder calls, over the FirebaseAuth datasource.
   ///
   /// [withPushNotifications] hands the FCM service to the repository, so a
   /// signed-in session can register the device.
-  static String repositoryImpl({
+  static String repository({
     bool withFirestore = false,
     bool withPushNotifications = false,
     bool withLocalCache = false,
@@ -468,7 +398,9 @@ $firestoreMethods$deviceTokenMethod}
     final syncDeviceToken = withPushNotifications
         ? '''
 
-  @override
+  /// Reads this device's FCM token and saves it against the signed-in user,
+  /// so a notification can be targeted at them. Safe to call repeatedly — the
+  /// token only changes when the install does.
   Future<void> syncDeviceToken() async {
     final id = await currentUserId();
     if (id == null) return;
@@ -505,25 +437,28 @@ $firestoreMethods$deviceTokenMethod}
         : '';
 
     return '''
-$cacheImport${pushImports}import '../../domain/repositories/auth_repository.dart';
-import '../datasources/auth_remote_datasource.dart';
-import '../../domain/models/auth_user_model.dart';
+$cacheImport${pushImports}import '../datasources/auth_remote_datasource.dart';
+import '../models/auth_user_model.dart';
 
-class AuthRepositoryImpl implements AuthRepository {
-  const AuthRepositoryImpl(this._remote$pushCtorParam$cacheCtorParam);
+class AuthRepository {
+  const AuthRepository(this._remote$pushCtorParam$cacheCtorParam);
 
   final AuthRemoteDataSource _remote;$pushField$cacheField
 
-  @override
+  /// Emits the signed-in user, or null once they sign out.
+  ///
+  /// Firebase restores the persisted session asynchronously at start-up, so
+  /// this is what says whether the app opened signed in — `currentUser` can
+  /// still be null for a moment after launch.
   Stream<AuthUserModel?> authStateChanges() => _remote.authStateChanges();
 
-  @override
+  /// True when a session was restored for this device.
   Future<bool> isLoggedIn() async => _remote.currentUser != null;
 
-  @override
+  /// The signed-in user, or null.
   Future<AuthUserModel?> currentUser() async => _remote.currentUser;
 
-  @override
+  /// Signs in with email and password.
   Future<AuthUserModel> login({
     required String email,
     required String password,
@@ -531,7 +466,7 @@ class AuthRepositoryImpl implements AuthRepository {
     return _remote.login(email: email, password: password);
   }
 
-  @override
+  /// Creates the account, optionally setting a display name on it.
   Future<AuthUserModel> register({
     required String email,
     required String password,
@@ -545,25 +480,29 @@ class AuthRepositoryImpl implements AuthRepository {
     return user;
   }
 
-  @override
+  /// Google sign-in, exchanged for a Firebase session.
+  ///
+  /// Throws an [AppException] of type `cancelled` when the user dismisses the
+  /// Google sheet — nothing failed, so there is nothing to report.
   Future<AuthUserModel> signInWithGoogle() async {
     final user = await _remote.signInWithGoogle();$saveProfileOnGoogle
     return user;
   }
 
-  @override
+  /// Sends the password reset email Firebase hosts.
   Future<void> sendPasswordResetEmail({required String email}) =>
       _remote.sendPasswordResetEmail(email: email);
 
-  @override
+  /// Ends the session — Google's too, when that is how the user signed in.
   $logout
 
-  @override
+  /// Deletes the account. Firebase requires a recent sign-in for this and
+  /// reports `requires-recent-login` when the session is too old.
   Future<void> deleteAccount() async {
 $deleteProfile    await _remote.delete();$clearCacheOnDelete
   }
 $syncDeviceToken
-  @override
+  /// The signed-in user's uid.
   Future<String?> currentUserId() async => _remote.currentUser?.id;
 }
 ''';
@@ -663,8 +602,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../config/di/injector.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/utils/action_notifier.dart';
-import '../../domain/models/auth_user_model.dart';
-import '../../domain/repositories/auth_repository.dart';
+import '../../data/models/auth_user_model.dart';
+import '../../data/repositories/auth_repository.dart';
 import '../states/auth_state.dart';
 
 final authNotifierProvider =

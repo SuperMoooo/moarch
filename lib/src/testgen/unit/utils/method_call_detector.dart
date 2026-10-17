@@ -18,7 +18,7 @@ class RepositoryMethodCall {
   ///
   /// [methodName] is the repository method name being invoked.
   /// [argumentMatchers] is the list of matcher expressions for the method call arguments.
-  /// [returnType] is the declared return type resolved from the repository interface, if available.
+  /// [returnType] is the declared return type resolved from the repository's source, if available.
   const RepositoryMethodCall({
     required this.methodName,
     required this.argumentMatchers,

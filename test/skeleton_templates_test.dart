@@ -16,10 +16,7 @@ void main() {
     });
 
     test('draws a separated list over fake models', () {
-      expect(
-        output,
-        contains("import '../../domain/models/orders_model.dart';"),
-      );
+      expect(output, contains("import '../../data/models/orders_model.dart';"));
       expect(
         output,
         contains(

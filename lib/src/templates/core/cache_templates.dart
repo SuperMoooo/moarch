@@ -275,7 +275,7 @@ class LocalCache {
   static String localDatasource(String name, String cls) =>
       '''
 import '../../../../core/database/local_cache.dart';
-import '../../domain/models/${name}_model.dart';
+import '../models/${name}_model.dart';
 
 class ${cls}LocalDataSource {
   const ${cls}LocalDataSource(this._cache);
@@ -315,29 +315,25 @@ class ${cls}LocalDataSource {
 }
 ''';
 
-  /// A feature's `data/repositories/<name>_repository_impl.dart` when it has
+  /// A feature's `data/repositories/<name>_repository.dart` when it has
   /// both a REST datasource and the cache: the API's list is saved to the
   /// cache, the cache is what `watchAll` follows, and offline `fetchAll`
   /// answers from the cache.
   ///
   /// [withSync] adds `create` / `update` / `delete`: each changes the cache
   /// at once and queues the request the remote datasource describes.
-  static String repositoryImpl(
-    String name,
-    String cls, {
-    bool withSync = false,
-  }) {
+  static String repository(String name, String cls, {bool withSync = false}) {
     final syncImport = withSync
         ? "import '../../../../core/sync/sync_service.dart';\n"
         : '';
     final ctor = withSync
         ? '''
-  ${cls}RepositoryImpl(this._remote, this._local, this._sync) {
+  ${cls}Repository(this._remote, this._local, this._sync) {
     // After a sync touches this collection, the server's list replaces what
     // was written offline.
     _sync.refreshOnSync(${cls}LocalDataSource.collection, fetchAll);
   }'''
-        : '  const ${cls}RepositoryImpl(this._remote, this._local);';
+        : '  const ${cls}Repository(this._remote, this._local);';
     final syncField = withSync ? '\n  final SyncService _sync;' : '';
     final writes = withSync
         ? '''
@@ -345,19 +341,18 @@ class ${cls}LocalDataSource {
 
   /// Shown at once under a temporary negative id, sent when the connection
   /// allows. The refetch after the sync brings the server's id.
-  @override
   Future<void> create(${cls}Model item) async {
     await _local.save(item.copyWith(id: -DateTime.now().microsecondsSinceEpoch));
     await _sync.enqueue(${cls}LocalDataSource.collection, _remote.create(item));
   }
 
-  @override
+  /// Applied to the cache now, sent to the API when it can be.
   Future<void> update(${cls}Model item) async {
     await _local.save(item);
     await _sync.enqueue(${cls}LocalDataSource.collection, _remote.update(item));
   }
 
-  @override
+  /// Applied to the cache now, sent to the API when it can be.
   Future<void> delete(int id) async {
     await _local.remove(id);
     await _sync.enqueue(${cls}LocalDataSource.collection, _remote.delete(id));
@@ -367,10 +362,9 @@ class ${cls}LocalDataSource {
 import '../../../../core/errors/app_exception.dart';
 ${syncImport}import '../datasources/${name}_local_datasource.dart';
 import '../datasources/${name}_remote_datasource.dart';
-import '../../domain/models/${name}_model.dart';
-import '../../domain/repositories/${name}_repository.dart';
+import '../models/${name}_model.dart';
 
-class ${cls}RepositoryImpl implements ${cls}Repository {
+class ${cls}Repository {
 $ctor
 
   final ${cls}RemoteDataSource _remote;
@@ -378,7 +372,6 @@ $ctor
 
   /// The API's list, saved to the cache. Offline, the cached list — unless
   /// there is none yet, when the NetworkException is the honest answer.
-  @override
   Future<List<${cls}Model>> fetchAll() async {
     try {
       final items = await _remote.fetchAll();
@@ -392,7 +385,6 @@ $ctor
   }
 
   /// The cache: emits now, and again whenever [fetchAll] saves to it.
-  @override
   Stream<List<${cls}Model>> watchAll() => _local.watchAll();$writes
 }
 ''';
@@ -425,14 +417,4 @@ $ctor
     return SyncRequest.delete('$base/\$id');
   }''';
   }
-
-  /// The write methods a synced feature's repository interface declares.
-  static String interfaceWrites(String cls) =>
-      '''
-
-  /// Applied to the cache now, sent to the API when it can be.
-  Future<void> create(${cls}Model item);
-  Future<void> update(${cls}Model item);
-  Future<void> delete(int id);
-''';
 }

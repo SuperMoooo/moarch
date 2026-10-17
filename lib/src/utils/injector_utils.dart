@@ -220,7 +220,7 @@ abstract final class InjectorUtils {
   );''',
       if (hasRepository)
         '''  getIt.registerLazySingleton<${className}Repository>(
-    () => ${className}RepositoryImpl(
+    () => ${className}Repository(
 ${[if (hasRemote) '      getIt<${className}RemoteDataSource>(),', if (hasLocal) '      getIt<${className}LocalDataSource>(),', if (withSync) '      getIt<SyncService>(),'].join('\n')}
     ),
   );''',
@@ -284,10 +284,8 @@ ${blocRepo == null ? '  getIt.registerFactory<${className}Bloc>(${className}Bloc
       "import '../../features/$featureName/data/datasources/${featureName}_remote_datasource.dart';",
     if (hasLocal)
       "import '../../features/$featureName/data/datasources/${featureName}_local_datasource.dart';",
-    if (hasRepository) ...[
-      "import '../../features/$featureName/data/repositories/${featureName}_repository_impl.dart';",
-      "import '../../features/$featureName/domain/repositories/${featureName}_repository.dart';",
-    ],
+    if (hasRepository)
+      "import '../../features/$featureName/data/repositories/${featureName}_repository.dart';",
   ];
 
   static List<String> _holderImportsFor({
@@ -296,7 +294,7 @@ ${blocRepo == null ? '  getIt.registerFactory<${className}Bloc>(${className}Bloc
     required String blocFileName,
   }) => <String>[
     if (withRepository)
-      "import '../../features/$featureName/domain/repositories/${featureName}_repository.dart';",
+      "import '../../features/$featureName/data/repositories/${featureName}_repository.dart';",
     "import '../../features/$featureName/presentation/blocs/${blocFileName}_bloc.dart';",
   ];
 

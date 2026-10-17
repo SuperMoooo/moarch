@@ -50,7 +50,7 @@ void main() {
       );
       // Its own table row, not glued to the one before.
       expect(withAuth, contains('| The same. |\n| Sign-in | cache + queue |'));
-      expect(withAuth, contains('the generated `AuthRepositoryImpl` calls'));
+      expect(withAuth, contains('the generated `AuthRepository` calls'));
 
       final withoutAuth = OfflineDocsTemplates.doc();
       expect(withoutAuth, isNot(contains('| Sign-in |')));

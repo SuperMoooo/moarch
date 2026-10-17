@@ -16,7 +16,7 @@ void main() {
     libPath,
     'features',
     feature,
-    'domain',
+    'data',
     'models',
     '${model}_model.dart',
   );
@@ -58,14 +58,10 @@ void main() {
 
       expect(code, 0);
       expect(File(modelPath('auth', 'login_response')).existsSync(), isTrue);
-      // A model is the only type a feature has — there is no domain/entities,
-      // and nothing is written under data/.
+      // A model is the only type a feature has, and it lives in `data/` —
+      // there is no domain layer.
       final feature = p.join(libPath, 'features', 'auth');
-      expect(
-        Directory(p.join(feature, 'domain', 'entities')).existsSync(),
-        isFalse,
-      );
-      expect(Directory(p.join(feature, 'data')).existsSync(), isFalse);
+      expect(Directory(p.join(feature, 'domain')).existsSync(), isFalse);
     });
 
     test('refuses a feature that does not exist', () async {
@@ -279,6 +275,30 @@ class OrderModel {
 
       expect(code, 0);
       expect(await File(modelPath('orders', 'order')).readAsString(), original);
+    });
+
+    test('still finds a model under domain/, from before 10.0.0', () async {
+      final legacy = p.join(
+        libPath,
+        'features',
+        'orders',
+        'domain',
+        'models',
+        'order_model.dart',
+      );
+      await Directory(p.dirname(legacy)).create(recursive: true);
+      await File(legacy).writeAsString('''
+class OrderModel {
+  const OrderModel({required this.id});
+
+  final int id;
+}
+''');
+
+      final code = await runner.run(['empty-factories', '--path', libPath]);
+
+      expect(code, 0);
+      expect(await File(legacy).readAsString(), contains('id: 0,'));
     });
   });
 

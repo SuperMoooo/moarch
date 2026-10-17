@@ -58,10 +58,10 @@ class ImportResolver {
     final fromSource = _findSourceImport(repo.type, n);
     if (fromSource != null) {
       if (fromSource.isImplOnly && isRepositorySuffix(repo.type)) {
-        // The source only imports the `_impl` file (likely where the provider
-        // itself is declared) — the mock class still needs the bare interface
-        // type for `implements $Type` to compile, and the impl file isn't
-        // guaranteed to re-export it. The feature name is taken from the
+        // The source only imports the `_impl` file (a moarch project from
+        // before 10.0.0, or another Clean-Architecture layout) — the mock
+        // class still needs the bare interface type for `implements $Type`
+        // to compile, and the impl file isn't guaranteed to re-export it. The feature name is taken from the
         // *resolved impl import* rather than the consuming class's own
         // feature, since the dependency may well live elsewhere (e.g. an
         // `AuthNotifier` depending on a `UserRepository` under
@@ -78,16 +78,21 @@ class ImportResolver {
 
     if (isRepositorySuffix(repo.type)) {
       final snakeCase = toSnakeCase(repo.type);
-      // Prefer the feature folder the repository interface actually lives in
-      // on disk — a dependency doesn't necessarily belong to the consuming
-      // class's own feature. Only fall back to assuming it when nothing is
-      // found (e.g. in unit tests against a fabricated project root).
-      final featureName =
-          findActualFeatureFolder(snakeCase) ??
-          extractFeatureName(n.importPath);
+      // Prefer the feature folder the repository actually lives in on disk —
+      // a dependency doesn't necessarily belong to the consuming class's own
+      // feature. Only fall back to assuming it when nothing is found (e.g.
+      // in unit tests against a fabricated project root).
+      final found = findRepository(snakeCase);
+      final featureName = found?.feature ?? extractFeatureName(n.importPath);
+      if (found?.layer == 'domain') {
+        // An interface in `domain/` with its implementation in `data/`.
+        return [
+          "import 'package:${n.packageName}/features/$featureName/domain/repositories/$snakeCase.dart';",
+          "import 'package:${n.packageName}/features/$featureName/data/repositories/${snakeCase}_impl.dart';",
+        ];
+      }
       return [
-        "import 'package:${n.packageName}/features/$featureName/domain/repositories/$snakeCase.dart';",
-        "import 'package:${n.packageName}/features/$featureName/data/repositories/${snakeCase}_impl.dart';",
+        "import 'package:${n.packageName}/features/$featureName/data/repositories/$snakeCase.dart';",
       ];
     }
 
@@ -142,43 +147,45 @@ class ImportResolver {
     return "import 'package:${n.packageName}/features/$featureName/$subFolder/$snakeFile.dart';";
   }
 
-  /// Derives the absolute path to the domain repository interface file,
+  /// Derives the absolute path to the file declaring [repo]'s methods,
   /// searching every feature folder on disk first — the dependency doesn't
   /// have to live in the consuming class's own feature.
   String repositoryInterfacePath(RepositoryDep repo, NotifierInfo n) {
     final snakeCase = toSnakeCase(repo.type);
-    final featureName =
-        findActualFeatureFolder(snakeCase) ?? extractFeatureName(n.importPath);
+    final found = findRepository(snakeCase);
     return p.join(
       projectRoot,
       'lib',
       'features',
-      featureName,
-      'domain',
+      found?.feature ?? extractFeatureName(n.importPath),
+      found?.layer ?? 'data',
       'repositories',
       '$snakeCase.dart',
     );
   }
 
-  /// Scans `lib/features/*/domain/repositories/` on disk for a file named
-  /// `$repositoryFileName.dart` and returns the feature folder it was found
-  /// in, or `null` if no such file exists anywhere in the project.
-  String? findActualFeatureFolder(String repositoryFileName) {
+  /// The layers a repository's declaring file can be in: `data/` holds the
+  /// repository itself, `domain/` the interface of a project laid out with
+  /// one (moarch before 10.0.0, and other Clean-Architecture projects).
+  static const _repositoryLayers = ['data', 'domain'];
+
+  /// Scans `lib/features/*/{data,domain}/repositories/` on disk for a file
+  /// named `$repositoryFileName.dart` and returns the feature folder and the
+  /// layer it was found in, or `null` if no such file exists anywhere in the
+  /// project.
+  ({String feature, String layer})? findRepository(String repositoryFileName) {
     final featuresDir = Directory(p.join(projectRoot, 'lib', 'features'));
     if (!featuresDir.existsSync()) return null;
 
-    for (final entry in featuresDir.listSync()) {
-      if (entry is! Directory) continue;
-      final candidate = File(
-        p.join(
-          entry.path,
-          'domain',
-          'repositories',
-          '$repositoryFileName.dart',
-        ),
-      );
-      if (candidate.existsSync()) {
-        return p.basename(entry.path);
+    for (final layer in _repositoryLayers) {
+      for (final entry in featuresDir.listSync()) {
+        if (entry is! Directory) continue;
+        final candidate = File(
+          p.join(entry.path, layer, 'repositories', '$repositoryFileName.dart'),
+        );
+        if (candidate.existsSync()) {
+          return (feature: p.basename(entry.path), layer: layer);
+        }
       }
     }
     return null;
@@ -238,7 +245,8 @@ class ImportResolver {
   }
 
   /// Whether [type] follows the repository naming convention, which is what
-  /// unlocks the `domain/repositories` + `data/repositories` layout guesses.
+  /// unlocks the `data/repositories` (and legacy `domain/repositories`)
+  /// layout guesses.
   static bool isRepositorySuffix(String type) =>
       type.toLowerCase().endsWith('repository');
 

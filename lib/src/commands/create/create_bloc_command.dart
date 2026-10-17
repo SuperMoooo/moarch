@@ -98,7 +98,7 @@ class CreateBlocCommand extends Command<int> {
     final repositoryFile = File(
       p.join(
         featurePath,
-        'domain',
+        'data',
         'repositories',
         '${featureName}_repository.dart',
       ),

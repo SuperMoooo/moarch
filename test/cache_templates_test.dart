@@ -88,11 +88,11 @@ void main() {
     });
 
     test('the repository saves the API list and falls back offline', () {
-      final source = CacheTemplates.repositoryImpl('order', 'Order');
+      final source = CacheTemplates.repository('order', 'Order');
 
       expect(
         source,
-        contains('const OrderRepositoryImpl(this._remote, this._local);'),
+        contains('const OrderRepository(this._remote, this._local);'),
       );
       expect(source, contains('await _local.saveAll(items);'));
       expect(source, contains('} on NetworkException {'));
@@ -121,7 +121,7 @@ void main() {
         bloc.featureLocalDatasource('order', 'Order', 'order', withCache: true),
       );
       expect(
-        riverpod.featureRepositoryImpl(
+        riverpod.featureRepository(
           'order',
           'Order',
           'order',
@@ -129,7 +129,7 @@ void main() {
           hasLocal: true,
           offlineFirst: true,
         ),
-        bloc.featureRepositoryImpl(
+        bloc.featureRepository(
           'order',
           'Order',
           'order',
@@ -272,7 +272,7 @@ void main() {
 
       test('REST auth clears it on logout, delete and sign-in '
           '($stateManagement)', () {
-        final source = stack.authRepositoryImpl(withLocalCache: true);
+        final source = stack.authRepository(withLocalCache: true);
 
         expect(
           source,
@@ -280,9 +280,7 @@ void main() {
         );
         expect(
           source,
-          contains(
-            'AuthRepositoryImpl(this._remote, this._tokens, this._cache);',
-          ),
+          contains('AuthRepository(this._remote, this._tokens, this._cache);'),
         );
         // Each clear is its own statement, on its own line.
         expect(
@@ -310,16 +308,16 @@ void main() {
             '    await _tokens.saveSession(',
           ),
         );
-        expect(stack.authRepositoryImpl(), isNot(contains('LocalCache')));
+        expect(stack.authRepository(), isNot(contains('LocalCache')));
       });
 
       test('Firebase auth clears it on logout and delete '
           '($stateManagement)', () {
-        final source = stack.firebaseAuthRepositoryImpl(withLocalCache: true);
+        final source = stack.firebaseAuthRepository(withLocalCache: true);
 
         expect(
           source,
-          contains('const AuthRepositoryImpl(this._remote, this._cache);'),
+          contains('const AuthRepository(this._remote, this._cache);'),
         );
         expect(
           source,
@@ -337,7 +335,7 @@ void main() {
           ),
         );
         expect(
-          stack.firebaseAuthRepositoryImpl(),
+          stack.firebaseAuthRepository(),
           contains('Future<void> logout() => _remote.logout();'),
         );
       });

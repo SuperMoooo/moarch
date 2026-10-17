@@ -89,7 +89,11 @@ void main() {
       final source = agents(StateManagement.riverpod);
       // The two rules an agent trained on other Clean Architecture apps is
       // likeliest to break.
-      expect(source, contains('**No entity layer.**'));
+      expect(source, contains('**No domain layer.**'));
+      expect(source, contains('**No repository interfaces.**'));
+      expect(source, contains('repositories/  # <x>_repository.dart'));
+      expect(source, isNot(contains('_repository_impl.dart')));
+      expect(source, isNot(contains('    domain/')));
       expect(source, contains('**No use-case classes.**'));
       expect(source, contains('// moarch:registrations'));
     });
@@ -197,7 +201,7 @@ void main() {
     test('imports AGENTS.md rather than repeating it', () {
       final source = AgentsTemplates.claudeMd();
       expect(source, contains('@AGENTS.md'));
-      expect(source, isNot(contains('No entity layer')));
+      expect(source, isNot(contains('No domain layer')));
     });
   });
 

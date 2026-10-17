@@ -213,54 +213,64 @@ void main() {
     });
 
     test('the repository exposes the live query, the Dio one does not', () {
-      final firestore = FeatureTemplates.repositoryInterface(
+      final firestore = FeatureTemplates.repository(
         'order',
         'Order',
+        'order',
+        hasRemote: true,
+        hasLocal: false,
         useFirestore: true,
       );
 
-      expect(firestore, contains('Stream<List<OrderModel>> watchAll();'));
-      expect(firestore, contains('Future<List<OrderModel>> fetchAll();'));
+      expect(firestore, contains('Stream<List<OrderModel>> watchAll() {'));
+      expect(firestore, contains('Future<List<OrderModel>> fetchAll() {'));
       expect(firestore, contains("import '../models/order_model.dart';"));
+      // One concrete class, beside its model in `data/`.
+      expect(firestore, contains('class OrderRepository {'));
+      expect(firestore, isNot(contains('domain/')));
+      expect(firestore, isNot(contains('@override')));
       expect(
-        FeatureTemplates.repositoryInterface('order', 'Order'),
+        FeatureTemplates.repository(
+          'order',
+          'Order',
+          'order',
+          hasRemote: true,
+          hasLocal: false,
+        ),
         isNot(contains('watchAll')),
       );
     });
 
-    test(
-      'the repository impl passes the datasource through, on both backends',
-      () {
-        final output = FeatureTemplates.repositoryImpl(
-          'order',
-          'Order',
-          'order',
-          hasRemote: true,
-          hasLocal: false,
-          useFirestore: true,
-        );
+    test('the repository passes the datasource through, on both backends', () {
+      final output = FeatureTemplates.repository(
+        'order',
+        'Order',
+        'order',
+        hasRemote: true,
+        hasLocal: false,
+        useFirestore: true,
+      );
 
-        expect(output, contains('return _remote.fetchAll();'));
-        expect(output, contains('return _remote.watchAll();'));
-        // The datasource already speaks models, so there is nothing to map.
-        expect(output, isNot(contains('toEntity')));
-        expect(output, isNot(contains('UnimplementedError')));
+      expect(output, contains('return _remote.fetchAll();'));
+      expect(output, contains('return _remote.watchAll();'));
+      // The datasource already speaks models, so there is nothing to map.
+      expect(output, isNot(contains('toEntity')));
+      expect(output, isNot(contains('UnimplementedError')));
 
-        final dio = FeatureTemplates.repositoryImpl(
-          'order',
-          'Order',
-          'order',
-          hasRemote: true,
-          hasLocal: false,
-        );
-        expect(dio, contains('return _remote.fetchAll();'));
-        expect(dio, isNot(contains('watchAll')));
-        expect(dio, isNot(contains('UnimplementedError')));
-      },
-    );
+      final dio = FeatureTemplates.repository(
+        'order',
+        'Order',
+        'order',
+        hasRemote: true,
+        hasLocal: false,
+      );
+      expect(dio, contains('return _remote.fetchAll();'));
+      expect(dio, isNot(contains('watchAll')));
+      expect(dio, isNot(contains('UnimplementedError')));
+    });
 
     test('a cache with no methods yet is not an analyzer warning', () {
-      final output = FeatureTemplates.repositoryImpl(
+      final output = FeatureTemplates.repository(
         'order',
         'Order',
         'order',
@@ -279,7 +289,7 @@ void main() {
     test('the layer the user declined is not invented for them', () {
       // No remote datasource selected — there is nothing to return, so both
       // methods stay TODOs rather than calling a field that does not exist.
-      final output = FeatureTemplates.repositoryImpl(
+      final output = FeatureTemplates.repository(
         'order',
         'Order',
         'order',
@@ -300,10 +310,7 @@ void main() {
         useFirestore: true,
       );
 
-      expect(
-        output,
-        contains("import '../../domain/models/order_model.dart';"),
-      );
+      expect(output, contains("import '../../data/models/order_model.dart';"));
       expect(output, contains('final List<OrderModel> items;'));
       expect(output, contains('this.items = const [],'));
       expect(output, contains('items: items ?? this.items,'));
@@ -449,20 +456,15 @@ void main() {
     test(
       'the repository writes the profile on register and Google sign-in',
       () {
-        final withDb = FirebaseAuthTemplates.repositoryImpl(
-          withFirestore: true,
-        );
-        final withoutDb = FirebaseAuthTemplates.repositoryImpl();
+        final withDb = FirebaseAuthTemplates.repository(withFirestore: true);
+        final withoutDb = FirebaseAuthTemplates.repository();
 
         expect(withDb, contains('await _remote.saveProfile(user);'));
         expect(withDb, contains('await _remote.deleteProfile(id);'));
         expect(withoutDb, isNot(contains('saveProfile')));
-        // Both variants satisfy the same contract.
+        // Both variants are the same class to the state holder.
         for (final output in [withDb, withoutDb]) {
-          expect(
-            output,
-            contains('class AuthRepositoryImpl implements AuthRepository'),
-          );
+          expect(output, contains('class AuthRepository {'));
           expect(output, contains('Future<AuthUserModel> signInWithGoogle()'));
           expect(output, isNot(contains('Provider<')));
         }
@@ -520,10 +522,7 @@ void main() {
         FirebaseAuthTemplates.notifier(),
         contains('AuthRepository get _repo => getIt<AuthRepository>();'),
       );
-      expect(
-        FirebaseAuthTemplates.repositoryImpl(),
-        isNot(contains('Provider<')),
-      );
+      expect(FirebaseAuthTemplates.repository(), isNot(contains('Provider<')));
       expect(
         FirebaseAuthTemplates.remoteDatasource(),
         isNot(contains('Provider<')),
@@ -588,10 +587,7 @@ void main() {
       final notifier = FirebaseAuthTemplates.notifier(
         withPushNotifications: true,
       );
-      final interface = FirebaseAuthTemplates.repositoryInterface(
-        withPushNotifications: true,
-      );
-      final impl = FirebaseAuthTemplates.repositoryImpl(
+      final impl = FirebaseAuthTemplates.repository(
         withPushNotifications: true,
       );
 
@@ -606,11 +602,8 @@ void main() {
         contains('if (restored != null) unawaited(_repo.syncDeviceToken());'),
       );
 
-      expect(interface, contains('Future<void> syncDeviceToken();'));
-      expect(
-        impl,
-        contains('const AuthRepositoryImpl(this._remote, this._push)'),
-      );
+      expect(impl, contains('Future<void> syncDeviceToken() async {'));
+      expect(impl, contains('const AuthRepository(this._remote, this._push)'));
       expect(impl, contains('final id = await currentUserId();'));
       expect(impl, contains('await _push.getDeviceToken();'));
       expect(
@@ -641,8 +634,7 @@ void main() {
 
     test('a Firebase auth project without FCM is left alone', () {
       for (final output in [
-        FirebaseAuthTemplates.repositoryInterface(),
-        FirebaseAuthTemplates.repositoryImpl(withFirestore: true),
+        FirebaseAuthTemplates.repository(withFirestore: true),
         FirebaseAuthTemplates.remoteDatasource(withFirestore: true),
         FirebaseAuthTemplates.notifier(),
       ]) {

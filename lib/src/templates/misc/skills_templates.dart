@@ -40,7 +40,7 @@ abstract final class SkillsTemplates {
     AgentSkill._(
       'add-endpoint',
       'Add or change a backend call in this moarch project: the datasource '
-          'method, the repository interface and its implementation. Use when '
+          'method and the repository method that calls it. Use when '
           'a feature needs to fetch, create, update or delete something it '
           'does not yet reach.',
     ),
@@ -237,8 +237,8 @@ Generic skills can be installed beside these: Flutter ones (for example
 example `grill-me`, `domain-modeling` and `handoff` from `mattpocock/skills`).
 Where one disagrees with this file — a ViewModel on `ChangeNotifier`,
 hand-written `fromJson`, `http` instead of the project's client, a
-model-to-entity mapper, dropping a repository interface because it has one
-implementation — this file wins.
+model-to-entity mapper, a `domain/` layer, a repository interface with an
+`_impl` — this file wins.
 ''';
   }
 
@@ -328,12 +328,12 @@ or `moarch-build-screen` instead. If the user asked to plan it first,
    snake_case (`order_history`).
 $scaffold
 
-   It writes `domain/models/<name>_model.dart`, the repository interface and
-   implementation, the datasource(s), $holder and `presentation/views/<name>_view.dart`,
+   It writes `data/models/<name>_model.dart`, `data/repositories/<name>_repository.dart`,
+   the datasource(s), $holder and `presentation/views/<name>_view.dart`,
    and registers the data layer in `lib/config/di/data_module.dart`${o.bloc ? ' and the bloc\n   in `presentation_module.dart`' : ''} above `// moarch:registrations`.${o.withRouter ? '\n   It adds the route too: `AppRoutes.<name>` and a `GoRoute` to the\n   ${o.bloc ? 'page' : 'view'}, above `// moarch:routes`.' : ''}${o.withDio ? '\n   With a Dio datasource, the endpoint goes into `ApiConstants` above\n   `// moarch:endpoints`.' : ''}
    Read what it printed before going on.
 
-2. **The model** — fields on `domain/models/<name>_model.dart`, then
+2. **The model** — fields on `data/models/<name>_model.dart`, then
    `$_buildRunner`. Follow `moarch-add-model`.
 
 3. **The data layer** — the repository hands `fetchAll` on to the remote
@@ -550,20 +550,20 @@ rethrow them as one.
         : '';
     return '''
 ${_intro('Add a backend call')}
-Three files, always in this order, all under `lib/features/<feature>/`.
+Two files, always in this order, both under `lib/features/<feature>/data/`.
 
 ## 1. The datasource — `data/datasources/<feature>_remote_datasource.dart`
 
 $dio$firestore$neither
-The datasource returns the feature's freezed model(s) from `domain/models/`.
+The datasource returns the feature's freezed model(s) from `data/models/`.
 There is no separate DTO and no mapper — if the payload has a shape the model
 does not, change the model (`moarch-add-model`).
 
-## 2. The interface — `domain/repositories/<feature>_repository.dart`
+## 2. The repository — `data/repositories/<feature>_repository.dart`
 
-Add the method signature. `domain/` imports nothing from `data/`, no Flutter${o.withDio ? ', no\nDio' : ''}${o.withFirestore ? ', no Firebase' : ''}: it takes and returns models and plain Dart types only.
-
-## 3. The implementation — `data/repositories/<feature>_repository_impl.dart`
+One concrete class: add the method to it, with a doc comment saying what it
+does. There is no interface to declare it on and no `_impl`. It takes and
+returns models and plain Dart types — never a ${o.withDio ? 'Dio `Response`' : 'client type'}${o.withFirestore ? ' or a Firestore snapshot' : ''}.
 
 Delegate to the datasource. If the feature has a local datasource, this is
 where cache-then-network is decided.${o.withLocalCache ? '''
@@ -719,9 +719,9 @@ ${_done(o)}''';
   static String _addModel(SkillOptions o) =>
       '''
 ${_intro('Add or change a model')}
-A feature's data type is the freezed model in `domain/models/`, used as-is by
-the datasource, the repository, the state and the view. There is no entity
-layer: never add `domain/entities/`, a DTO, or `toEntity()` / `fromEntity()`.
+A feature's data type is the freezed model in `data/models/`, used as-is by
+the datasource, the repository, the state and the view. There is no domain
+layer: never add `domain/`, an entity, a DTO, or `toEntity()` / `fromEntity()`.
 
 ## A new model
 
@@ -1093,7 +1093,7 @@ so re-running it after adding methods is how the new ones get covered.
 moarch create tests [feature]      # --dry-run to preview
 ```
 
-- `test/unit/` — one test file per ${o.bloc ? 'bloc and cubit' : 'notifier'}, with `mocktail`${o.bloc ? ' and\n  `bloc_test`' : ''}, mocking the repository **interface**.
+- `test/unit/` — one test file per ${o.bloc ? 'bloc and cubit' : 'notifier'}, with `mocktail`${o.bloc ? ' and\n  `bloc_test`' : ''}, mocking the repository class.
 ${o.withDio ? '- `test/integration/` — one test per GET in each Dio datasource. These\n  call the real API at `BASE_URL` from `.env`.' : ''}
 
 A generated test you edited is kept on the next run (`--force` overwrites
@@ -1105,7 +1105,8 @@ it — only when the user agrees).
   from the model's `.empty()` + `copyWith`, and the expected states.
 - Test through the public surface: ${o.bloc ? 'events in, states out (`blocTest`)' : 'notifier methods in, state out'}.
   Cover the success path and the `AppException` path of every action.
-- Mock the repository interface, never the `_impl` and never a datasource.
+- Mock the repository (`class MockXRepository extends Mock implements
+  XRepository`), never a datasource.
 
 ## Widget tests
 
@@ -1187,8 +1188,8 @@ things yet.
 
 Take the first loop that can reach the bug:
 
-1. **A unit test on the $holder** (`test/unit/`) — mock the repository
-   **interface** so it returns the payload, or throws the `AppException`
+1. **A unit test on the $holder** (`test/unit/`) — mock the repository so
+   it returns the payload, or throws the `AppException`
    (a concrete one: `ServerException`, `NetworkException`…), that sets the
    bug off, then assert on the state:
 
@@ -1337,11 +1338,12 @@ to do instead`, most serious first. Do not fix anything unless asked.
 
 ## Architecture
 
-- [ ] No `domain/entities/`, DTOs, `toEntity()` / `fromEntity()`, or a class
-      mirroring a model. No use-case classes.
-- [ ] `domain/` imports no Flutter, no SDK client, nothing from `data/`.
-- [ ] State holders depend on the repository **interface**, never a
-      datasource or `*_repository_impl.dart`.
+- [ ] No `domain/` layer: no entities, DTOs, `toEntity()` / `fromEntity()`,
+      or a class mirroring a model. No use-case classes.
+- [ ] No repository interfaces: `data/repositories/<x>_repository.dart` is
+      one concrete class, with no `_impl`.
+- [ ] `data/` imports no Flutter and nothing from `presentation/`.
+- [ ] State holders depend on the repository, never a datasource.
 - [ ] Transport errors become `AppException` in the datasource; nothing
       catches and swallows, nothing shows a raw exception.
 - [ ] New classes are registered in the right `lib/config/di/` module; the

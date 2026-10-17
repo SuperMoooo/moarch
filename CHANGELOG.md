@@ -2,6 +2,54 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 10.0.0
+
+**Breaking: there is no domain layer.** A feature is `data/` and
+`presentation/`:
+
+```text
+lib/features/<feature>/
+  data/
+    datasources/   <x>_remote_datasource.dart, <x>_local_datasource.dart
+    models/        <x>_model.dart
+    repositories/  <x>_repository.dart
+  presentation/
+```
+
+- **Models are in `data/models/`**, back where they were before 8.0.0. They
+  are still freezed + json_serializable, and still the only data type a
+  feature has.
+- **The repository is one concrete class**,
+  `data/repositories/<x>_repository.dart`. The `domain/` interface and the
+  `<x>_repository_impl.dart` behind it are gone. The doc comments that were
+  on the interface are now on the methods. The state holder and get_it name
+  `XRepository` as before (`registerLazySingleton<XRepository>(() =>
+  XRepository(...))`), so a test still mocks it with
+  `class MockXRepository extends Mock implements XRepository`.
+- `init` writes the auth feature this way, on both backends and both stacks,
+  and so do `create feature`, `create model` and `create bloc`. The
+  `create feature` checklist item is now just **Repository**.
+- The generated `AGENTS.md`, skills, README and `docs/OFFLINE_FIRST.md`
+  describe the two-layer layout. `moarch-review` flags a `domain/` folder or a
+  repository interface.
+- `create tests` imports the repository from `data/repositories/`.
+
+Existing projects keep working. Your own features stay as they are, and the
+commands that read them (`create empty-factories`, `create tests`, `create
+feature` on an existing feature, `doctor`) still find models and repositories
+under `domain/`. To move the auth feature over:
+
+```bash
+moarch update auth di-external di-data di-presentation   # `injector` instead, on a pre-9.0.0 locator
+```
+
+`update` moves the three auth models from `domain/models/` to `data/models/`,
+and `auth_repository_impl.dart` to `auth_repository.dart`. It leaves
+`lib/features/auth/domain/repositories/auth_repository.dart` behind, so delete
+`lib/features/auth/domain/` once the update is done. Then run
+`moarch update ai readme` for the new guide. A file you have edited is
+listed, not moved: its diff (`--diff`) is what to apply by hand.
+
 ## 9.11.1
 
 `PermissionService` tells a screen whether a permission can still be asked.

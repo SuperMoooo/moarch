@@ -423,26 +423,37 @@ void main() {
     });
   });
 
-  group('the auth models that moved under domain/', () {
-    // 8.0.0 moved both auth models from `data/models/` to `domain/models/`,
-    // since a model is the domain's own type once there is no entity. A project
-    // scaffolded earlier still holds them at the old path.
-    const legacy = 'lib/features/auth/data/models/auth_user_model.dart';
-    const moved = 'lib/features/auth/domain/models/auth_user_model.dart';
+  group('the auth files that moved out of domain/', () {
+    // 10.0.0 dropped the domain layer: the models moved from `domain/models/`
+    // back to `data/models/`, and the repository became one class in place of
+    // an interface and its `_impl`. A project scaffolded from 8.0.0 on still
+    // holds them at the old paths.
+    const legacy = 'lib/features/auth/domain/models/auth_user_model.dart';
+    const moved = 'lib/features/auth/data/models/auth_user_model.dart';
 
     String at(String relative) => p.joinAll([root, ...p.posix.split(relative)]);
     String current() => currentSource('auth-user-model');
 
     test('the catalog says where each one used to be', () {
-      for (final slug in ['auth-model', 'auth-user-model']) {
+      for (final slug in ['auth-model', 'auth-me-model', 'auth-user-model']) {
         final entry = ScaffoldCatalog.byName(slug)!;
-        expect(entry.path, contains('/domain/models/'), reason: slug);
+        expect(entry.path, contains('/data/models/'), reason: slug);
         expect(
           entry.movedFrom,
-          entry.path.replaceFirst('/domain/', '/data/'),
+          entry.path.replaceFirst('/data/', '/domain/'),
           reason: slug,
         );
       }
+      final repository = ScaffoldCatalog.byName('auth-repository')!;
+      expect(
+        repository.path,
+        'lib/features/auth/data/repositories/auth_repository.dart',
+      );
+      expect(
+        repository.movedFrom,
+        'lib/features/auth/data/repositories/auth_repository_impl.dart',
+      );
+      expect(ScaffoldCatalog.byName('auth-repository-impl'), isNull);
     });
 
     test(
@@ -468,6 +479,26 @@ void main() {
       final files = ProjectManifest.load(root)!.files;
       expect(files, isNot(contains(legacy)));
       expect(files, contains(moved));
+    });
+
+    test('the repository implementation becomes the repository', () async {
+      const impl =
+          'lib/features/auth/data/repositories/auth_repository_impl.dart';
+      final entry = ScaffoldCatalog.byName('auth-repository')!;
+      // The model marks the project as having the auth feature.
+      await place(at(moved), current(), record: true);
+      await place(
+        at(impl),
+        'class AuthRepositoryImpl implements AuthRepository {}\n',
+        record: true,
+      );
+
+      expect(await runUpdate(['--yes', 'auth-repository']), 0);
+
+      expect(File(at(impl)).existsSync(), isFalse);
+      final repository = await File(at(entry.path)).readAsString();
+      expect(repository, contains('class AuthRepository {'));
+      expect(repository, isNot(contains('domain/')));
     });
 
     test('a model the user edited is left where it is', () async {
