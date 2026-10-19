@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:moarch/src/templates/misc/agents_templates.dart';
-import 'package:moarch/src/templates/misc/claude_mod_templates.dart';
 import 'package:moarch/src/templates/misc/skills_templates.dart';
 import 'package:moarch/src/utils/scaffold_catalog.dart';
 import 'package:moarch/src/utils/state_management.dart';
@@ -534,15 +533,9 @@ void main() {
           '.mcp.json',
         ]),
       );
-      for (final file in ClaudeModTemplates.all) {
-        expect(paths, contains(file.path));
-      }
-      expect(
-        paths,
-        hasLength(
-          SkillsTemplates.all.length * 2 + 3 + ClaudeModTemplates.all.length,
-        ),
-      );
+      expect(paths, hasLength(SkillsTemplates.all.length * 2 + 3));
+      // The Claude Code mod was dropped in 10.1.0.
+      expect(paths.where((path) => path.contains('moarch-mod')), isEmpty);
     });
   });
 }

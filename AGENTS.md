@@ -196,16 +196,14 @@ for coding agents, in the same form this repo uses for its own:
   `AGENTS.md` and the run-it-yourself steps in build-screen and fix-bug.
   Tool names are left out of the text on purpose: the server renames them
   between SDK releases.
-- `.claude/skills/moarch-mod/` (`templates/misc/claude_mod_templates.dart`): a
-  Claude Code mod, a plugin of function hooks in TypeScript that Claude Code
-  loads from the skills folder. It refuses edits to build_runner's output and
-  to the `// moarch:` anchors, tracks pending build_runner runs, adds the
-  `/moarch` pane, and declares a haiku `runner` agent. The TypeScript is kept
-  as raw strings in that Dart file. `dart test` checks that the files fit
-  together and that the mod's FNV-1a matches `ProjectManifest.hashContent`,
-  but it cannot run TypeScript. After changing it, scaffold a project and run `claude plugin validate`
-  and `claude plugin test` on its `.claude/skills/moarch-mod/`. A new anchor
-  must still match the mod's `// moarch:[a-z_]+`.
+
+There is no Claude Code mod. From 9.8.0 to 10.0.0 `init` also wrote
+`.claude/skills/moarch-mod/`, function hooks in TypeScript; 10.1.0 dropped it.
+Its guard on build_runner's output duplicated the `.claude/settings.json` deny,
+the rest was extras, and it stood on an early-access Claude Code API that
+`dart test` cannot run. A project that has it keeps it (`update` leaves it
+alone). Enforce a rule through `.claude/settings.json` or state it in
+`AGENTS.md` rather than bringing a mod back.
 
 All of it is in the catalog's `ai` group (`moarch update ai`). AGENTS.md
 lists the skills only when `ScaffoldContext.hasAgentSkills` finds them on disk
@@ -275,11 +273,3 @@ starting that kind of change.
 | [`add-init-option`](.agents/skills/add-init-option/SKILL.md) | A new checklist option in `moarch init` |
 | [`try-scaffold`](.agents/skills/try-scaffold/SKILL.md) | Generate a real project from this checkout and build it |
 | [`release`](.agents/skills/release/SKILL.md) | Bump the version, write the changelog, pass CI |
-
-Claude Code also loads `.claude/skills/moarch-dev/`, a mod for this repository.
-It is not part of the package. `/moarch-dev` opens a pane, and a band above
-the prompt flags what would fail CI or break a rule: `version.dart` out of
-sync, a changelog without the new version, a change that needs its own bump
-because the last commit already bumped, one stack's templates changed without
-the other's, and templates changed without the agent guide. Its tests run
-with `claude plugin test .claude/skills/moarch-dev`.

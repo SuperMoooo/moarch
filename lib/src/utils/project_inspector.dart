@@ -5,7 +5,6 @@ import 'package:yaml_edit/yaml_edit.dart';
 
 import '../templates/config/config_templates.dart';
 import '../templates/misc/deep_links_templates.dart';
-import '../templates/misc/claude_mod_templates.dart';
 import '../templates/misc/skills_templates.dart';
 import 'api_constants_utils.dart';
 import 'file_utils.dart';
@@ -104,7 +103,6 @@ abstract final class ProjectInspector {
       ..._agents(root),
       ..._skills(root),
       ..._newSkills(root),
-      ..._claudeMod(root),
       ..._dartMcp(root),
       ..._widgets(root, libPath, pubspec),
     ];
@@ -382,36 +380,9 @@ abstract final class ProjectInspector {
     ];
   }
 
-  /// A project with the skills but not the Claude Code mod (9.8.0).
-  ///
-  /// Gated like [_newSkills], on the manifest's file records: a project that
-  /// generated the mod and deleted it chose that.
-  static List<Diagnostic> _claudeMod(String root) {
-    final context = ScaffoldContext.detect(root);
-    if (!context.hasAgentSkills || context.hasClaudeMod) return const [];
-    final manifest = ProjectManifest.load(root);
-    if (manifest?.files[ClaudeModTemplates.markerPath] != null) {
-      return const [];
-    }
-
-    return [
-      Diagnostic.info(
-        'No Claude Code mod — Claude Code gets the rules but nothing '
-        'enforces them',
-        hint:
-            'Generate .claude/skills/moarch-mod/ (generated-file and anchor '
-            'guards, build_runner tracking, the /moarch pane) with '
-            '`moarch doctor --fix`.',
-        fix: () => _generate(root, [
-          for (final file in ClaudeModTemplates.all) file.slug,
-        ], 'the files already exist'),
-      ),
-    ];
-  }
-
   /// A project with the skills but no Dart MCP server for its agents (9.10.0).
   ///
-  /// Gated like [_claudeMod], on the manifest's record of `.mcp.json`. A
+  /// Gated like [_newSkills], on the manifest's record of `.mcp.json`. A
   /// `.mcp.json` the team wrote is never rewritten: it gets the entry to add
   /// by hand instead.
   static List<Diagnostic> _dartMcp(String root) {

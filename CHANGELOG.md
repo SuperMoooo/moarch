@@ -2,6 +2,19 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 10.1.0
+
+- **The Claude Code mod is gone.** `init` no longer writes
+  `.claude/skills/moarch-mod/` or the `.claude/skills/*/.claude-plugin/types/`
+  line in `.gitignore`, the `claude-mod-*` slugs are no longer in the catalog,
+  and `doctor` no longer offers the mod. Its guard on `*.g.dart` and
+  `*.freezed.dart` repeated the deny in `.claude/settings.json`, which stays.
+  The anchor rules stay in `AGENTS.md`. The rest (the `/moarch` pane, the
+  `build_runner pending` status, the haiku runner) was extra, and all of it
+  depended on an early-access Claude Code API that can change without notice.
+  A project that already has the mod keeps it: `update` leaves it alone, and
+  the folder can be deleted by hand.
+
 ## 10.0.0
 
 **Breaking: there is no domain layer.** A feature is `data/` and
