@@ -22,6 +22,13 @@ void main() {
       expect(output, contains('if (error != null && !state.isLoading) {'));
     });
 
+    test('an empty state can be pulled to refresh', () {
+      expect(output, contains('final RefreshCallback? onRefresh;'));
+      // All three constructors take it.
+      expect('this.onRefresh,'.allMatches(output), hasLength(3));
+      expect(output, contains('onRefresh: onRefresh,'));
+    });
+
     test('a spinner is the fallback, not the default', () {
       expect(output, contains('final shape = skeleton;'));
       expect(output, contains('if (shape == null) {'));

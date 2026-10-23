@@ -2,6 +2,16 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 10.1.1
+
+- **An empty screen can be pulled to refresh.** `AppStatusView` (bloc) and
+  `AppAsyncView` (Riverpod) take an `onRefresh`, which they hand to
+  `EmptyView`: with it set, the empty state sits in an always-scrollable view
+  under a `RefreshIndicator.adaptive`, so a pull works even though nothing
+  fills the screen. Without it nothing changes. Existing projects get it with
+  `moarch update empty-view status-view` (bloc) or
+  `moarch update empty-view async-view` (Riverpod).
+
 ## 10.1.0
 
 - **The Claude Code mod is gone.** `init` no longer writes

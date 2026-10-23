@@ -6572,6 +6572,7 @@ class EmptyView extends StatelessWidget {
     this.icon = Icons.inbox_outlined,
     this.actionLabel,
     this.onAction,
+    this.onRefresh,
   });
 
   final String title;
@@ -6580,9 +6581,13 @@ class EmptyView extends StatelessWidget {
   final String? actionLabel;
   final VoidCallback? onAction;
 
+  /// Reloads when the user pulls down. Null turns pull-to-refresh off.
+  final RefreshCallback? onRefresh;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final onRefresh = this.onRefresh;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -6620,6 +6625,20 @@ class EmptyView extends StatelessWidget {
             ],
           ),
         );
+        if (onRefresh != null && constraints.hasBoundedHeight) {
+          // Always scrollable and at least the viewport's height, so a pull
+          // works from anywhere on a screen the content does not fill.
+          return RefreshIndicator.adaptive(
+            onRefresh: onRefresh,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(child: content),
+              ),
+            ),
+          );
+        }
         // Scrolls rather than overflows when large text meets a short
         // screen; an unbounded parent (a list) takes it as it is.
         return Center(

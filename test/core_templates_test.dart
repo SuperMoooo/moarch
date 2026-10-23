@@ -377,6 +377,23 @@ void main() {
     expect(SharedTemplates.emptyView(), contains('class EmptyView'));
   });
 
+  test('the empty view pulls to refresh only when asked', () {
+    final output = SharedTemplates.emptyView();
+
+    expect(output, contains('final RefreshCallback? onRefresh;'));
+    expect(
+      output,
+      contains('if (onRefresh != null && constraints.hasBoundedHeight) {'),
+    );
+    expect(output, contains('RefreshIndicator.adaptive('));
+    // A pull has to work on content shorter than the screen.
+    expect(output, contains('physics: const AlwaysScrollableScrollPhysics(),'));
+    expect(
+      output,
+      contains('BoxConstraints(minHeight: constraints.maxHeight)'),
+    );
+  });
+
   test('the paginated envelope parses leniently and keeps its keys open', () {
     final output = CoreTemplates.paginated();
 

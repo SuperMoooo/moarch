@@ -121,6 +121,10 @@ import '../../core/utils/app_status.dart';
 ///   message: state.errorMessage,
 ///   onRetry: () => context.read<HomeBloc>().add(const HomeStarted()),
 ///   isEmpty: state.items.isEmpty,
+///   onRefresh: () {
+///     context.read<HomeBloc>().add(const HomeStarted());
+///     return context.read<HomeBloc>().stream.first;
+///   },
 ///   skeleton: (context) => const HomeSkeleton(),
 ///   builder: (context) => _body(context, state),
 /// )
@@ -141,6 +145,7 @@ class AppStatusView extends StatelessWidget {
     this.emptyIcon,
     this.emptyActionLabel,
     this.onEmptyAction,
+    this.onRefresh,
     this.errorTitle,
     this.message,
     this.onRetry,
@@ -165,6 +170,10 @@ class AppStatusView extends StatelessWidget {
   final String? emptyActionLabel;
   final VoidCallback? onEmptyAction;
 
+  /// Lets the empty state be pulled to reload. Usually re-dispatches the load
+  /// event and returns `bloc.stream.first`, so the spinner waits for it.
+  final RefreshCallback? onRefresh;
+
   /// Copy for the failed state. [message] is the state's `errorMessage`.
   final String? errorTitle;
   final String? message;
@@ -187,6 +196,7 @@ class AppStatusView extends StatelessWidget {
           icon: emptyIcon ?? Icons.inbox_outlined,
           actionLabel: emptyActionLabel,
           onAction: onEmptyAction,
+          onRefresh: onRefresh,
         ),
       AppStatus.success => builder(context),
     };

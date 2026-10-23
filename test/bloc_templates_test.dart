@@ -78,6 +78,14 @@ void main() {
       expect(riverpod.actionBase(), contains('ActionState'));
     });
 
+    test('AppStatusView hands its empty state a pull to refresh', () {
+      final output = bloc.AsyncTemplates.appStatusView();
+
+      expect(output, contains('this.onRefresh,'));
+      expect(output, contains('final RefreshCallback? onRefresh;'));
+      expect(output, contains('onRefresh: onRefresh,'));
+    });
+
     test('the status is shared so a widget can switch over it', () {
       // One enum for every screen rather than one per feature: AppStatusView
       // cannot switch over a type it does not know.

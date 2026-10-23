@@ -23,6 +23,7 @@ import '../../core/errors/app_exception.dart';
 ///   value: ref.watch(homeNotifierProvider),
 ///   onRetry: () => ref.invalidate(homeNotifierProvider),
 ///   isEmpty: (state) => state.items.isEmpty,
+///   onRefresh: () => ref.refresh(homeNotifierProvider.future),
 ///   skeleton: (context) => const HomeSkeleton(),
 ///   builder: _body,
 /// )
@@ -43,6 +44,7 @@ class AppAsyncView<T> extends StatelessWidget {
     this.emptyIcon,
     this.emptyActionLabel,
     this.onEmptyAction,
+    this.onRefresh,
     this.errorTitle,
     this.errorMessage,
     this.onRetry,
@@ -62,6 +64,7 @@ class AppAsyncView<T> extends StatelessWidget {
     this.emptyIcon,
     this.emptyActionLabel,
     this.onEmptyAction,
+    this.onRefresh,
     this.errorTitle,
     this.errorMessage,
     this.onRetry,
@@ -81,6 +84,7 @@ class AppAsyncView<T> extends StatelessWidget {
     this.emptyIcon,
     this.emptyActionLabel,
     this.onEmptyAction,
+    this.onRefresh,
     this.errorTitle,
     this.errorMessage,
     this.onRetry,
@@ -108,6 +112,10 @@ class AppAsyncView<T> extends StatelessWidget {
   final IconData? emptyIcon;
   final String? emptyActionLabel;
   final VoidCallback? onEmptyAction;
+
+  /// Lets the empty state be pulled to reload, e.g.
+  /// `() => ref.refresh(homeNotifierProvider.future)`.
+  final RefreshCallback? onRefresh;
 
   /// Copy for the failed state. [errorMessage] overrides the exception's own.
   final String? errorTitle;
@@ -174,6 +182,7 @@ class AppAsyncView<T> extends StatelessWidget {
         icon: emptyIcon ?? Icons.inbox_outlined,
         actionLabel: emptyActionLabel,
         onAction: onEmptyAction,
+        onRefresh: onRefresh,
       );
     }
 
