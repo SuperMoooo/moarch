@@ -591,10 +591,11 @@ void main() {
         withPushNotifications: true,
       );
 
-      // Login, register, Google, and the session Firebase restored at start-up.
+      // Login, register, Google, Apple, and the session Firebase restored at
+      // start-up.
       expect(
         'unawaited(_repo.syncDeviceToken());'.allMatches(notifier).length,
-        equals(4),
+        equals(5),
       );
       // Nothing to register when the app opened signed out.
       expect(

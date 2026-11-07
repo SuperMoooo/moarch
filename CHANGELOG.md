@@ -2,6 +2,130 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 10.2.0
+
+### Breaking
+
+- **No Android build workflow.** `init` no longer writes
+  `.github/workflows/build_apk.yml`: an Android release needs no Mac, so it is
+  cheaper built locally (`fvm flutter build appbundle --release`, signed with
+  the keystore from `GENERATE_JKS_FILE.md`). A project that has the file keeps
+  it — `update` no longer manages it, so delete it by hand, with the four
+  `ANDROID_*` / `KEYSTORE_*` secrets.
+- **Every shape enum of the kit starts with `square`** (`AppButtonShape`,
+  `AppInputShape`, `AppTextButtonShape`, `AppIconButtonShape`,
+  `AppLeadingIconShape`). An exhaustive `switch` of your own over one needs
+  the new case. `AppIconButton.shape` (and the app bar's `backShape`, the
+  sheet's `dismissShape`, the search field's `clearShape`) is now nullable:
+  unset means a circle, or a square in a square app.
+
+### Added
+
+- **Sign in with Apple.** The Firebase auth feature always has it, through
+  FirebaseAuth's `AppleAuthProvider` — App Store review requires it in an app
+  that offers Google sign-in — and deleting the account revokes the Apple
+  grant, which review also requires. The REST auth feature gets it from the
+  new **Sign in with Apple** checklist option: `sign_in_with_apple` returns
+  the identity token and `POST /auth/apple` trades it for a session; the
+  backend verifies it. `Runner.entitlements` declares the capability, and
+  `docs/AUTH.md` / `docs/FIREBASE_SETUP.md` have the Apple-side steps.
+- **Password reset and email verification** in both auth features: a
+  forgot-password screen (a Firebase link, or a REST code to
+  `/auth/password/forgot` then `/auth/password/reset`), and a verify-email
+  screen the router holds a signed-in user on until the address is verified
+  (Firebase sends the email at sign-up; REST reads `email_verified` off
+  `GET /auth/me`, true when the API sends none). Existing projects:
+  `moarch doctor --fix` writes the two screens and their `AppRoutes` paths,
+  then `moarch update router auth`.
+- **`moarch release bump <major|minor|patch|build>`** raises `version:` in
+  `pubspec.yaml`, always with a higher build number, as both stores require.
+  `--changelog` adds a `## x.y.z` entry to `CHANGELOG.md`.
+- **`moarch l10n extract`** moves hard-coded strings in screens
+  (`Text(...)`, `title:`, `label:`, `hintText:`…) into every translation
+  file — `.arb` or easy_localization JSON — and rewrites each to read its key,
+  removing a `const` that would no longer compile. What it cannot move safely
+  (an interpolation, braces, no `BuildContext`) is listed instead. `--dry-run`
+  previews it; the UI kit is never touched.
+- **One corner setting.** `AppConstants.corners` (`square`, `soft`,
+  `rounded`) scales every radius token, so the theme and the whole kit follow
+  it — a square app is one line. True circles stay round. Existing projects:
+  add the block from `moarch update constants --diff` to `app_constants.dart`;
+  until then the widgets read their corners as rounded.
+
+### Changed
+
+- **The iOS workflow compiles once.** `flutter build ios --config-only`
+  configures the project and `xcodebuild archive` is the only build, which
+  roughly halves the macOS minutes. It now asks for an export method
+  (development, ad hoc or App Store), obfuscates the Dart code and keeps the
+  debug symbols as an artifact, and with an App Store Connect API key in the
+  secrets uploads the IPA to TestFlight. The build number is `pubspec.yaml`'s
+  — raise it with `moarch release bump`. `moarch update workflow-ios`.
+- **CI does each check once.** The separate SAST job is gone (its analyze and
+  format check ran again what the unit job runs), along with its report step;
+  formatting is checked in the unit job, a newer push cancels the stale run,
+  and every job has a timeout. `moarch update workflow-ci`.
+- **No workflow runs on a schedule.** The supply-chain report runs on release
+  tags and by hand, so an untouched repository no longer fails on its own and
+  emails you weekly. `moarch update workflow-scan`.
+- **Screens are split by section, not by widget.** The agent guide, the
+  build-screen skill and `docs/CODE_STANDARDS.md` now say to extract a
+  screen's large parts — header, summary, list item, form, footer — and keep a
+  single `AppInput` or `AppButton` inline, never one file per text field.
+  `moarch update agents ai docs`.
+- Firebase projects with Firebase Auth no longer import `firebase_core` beside
+  `firebase_auth` in `app_exception.dart` and `safe_firebase_call.dart`; the
+  `unnecessary_import` it caused failed `flutter analyze`.
+  `moarch update exception safe-firebase-call`.
+- `analysis_options.yaml` excludes the platform folders itself. Flutter
+  3.47's `pub get` appended them otherwise, and `moarch update` then reported
+  the file as edited in every new project. `moarch update analysis-options`.
+
+### Offline-first, guides and codegen
+
+- **`moarch create table <feature>`: a drift table per feature, read from its
+  model.** In an offline-first project, once a feature's freezed model has its
+  fields, the command writes `data/tables/<feature>_table.dart` with one
+  column per field and `@UseRowClass`, so drift returns the model itself and
+  there is still one data type per feature. Primitives and `DateTime` get
+  their own column type, an enum is stored by name, a nested model or a `List`
+  / `Map<String, …>` is stored as JSON; a field nothing fits is reported and
+  nothing is written. It registers the table in `AppDatabase`, bumps
+  `schemaVersion`, moves the feature's local datasource and its locator
+  registration from `LocalCache` onto the table, and keeps the API's order in
+  a `listOrder` column. Offline, the datasource can now filter, sort and
+  search in SQL. Run it again after changing the model: the table and the
+  datasource's row mapping follow, and the queries you added stay. A file you
+  edited is never rewritten; the change is printed instead.
+- **Migrations.** `AppDatabase` now rebuilds every table that copies the API
+  on an upgrade (the cache and each feature table), skipping the sync queue,
+  and `LocalCache.clearAll()` empties every table on sign-out. `build.yaml`
+  configures drift's `make-migrations`, so
+  `fvm dart run drift_dev make-migrations` saves each schema version and
+  writes the upgrade tests. Existing projects: `moarch update app-database
+  local-cache build-yaml`.
+- **Online means the API answers.** With Dio, `ConnectivityService` no
+  longer trusts a network interface alone: it sends a `HEAD` to `BASE_URL`
+  (3-second timeout), and any response counts. Wifi behind a captive portal
+  now reads as offline. Firestore-only projects keep the interface check.
+  Existing projects: `moarch update connectivity`.
+- **The README is a front page, and every topic has a guide.** The generated
+  `README.md` keeps what the project is, getting started, the tech stack and
+  the folder tree, and links a guide per topic in `docs/`, each written only
+  when the project has it: `ARCHITECTURE.md`, `STATE_MANAGEMENT.md`,
+  `NETWORKING.md`, `AUTH.md`, `ROUTING.md`, `THEME.md`, `LOCALIZATION.md`,
+  `NOTIFICATIONS.md`, `SERVICES.md`, `TESTING.md`, `FLAVORS.md`,
+  `BUILD_AND_RELEASE.md` and `CODE_STANDARDS.md`. `OFFLINE_FIRST.md` covers
+  feature tables, migrations and the API check. Existing projects:
+  `moarch doctor --fix` writes the guides, then `moarch update readme` moves
+  the topics out of the README.
+- **freezed 4 in new projects.** Flutter 3.47 (Dart 3.13), what `.fvmrc`'s
+  `stable` resolves to since August 2026, unblocks it: new projects get
+  freezed `^4.0.1`, build_runner `^2.15.2`, json_serializable `^6.15.2` and
+  drift `^2.35.3`. The model shape is unchanged. Existing projects keep their
+  pubspec.
+- The agent guide and skills describe feature tables and `make-migrations`.
+
 ## 10.1.1
 
 - **An empty screen can be pulled to refresh.** `AppStatusView` (bloc) and

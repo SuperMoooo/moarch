@@ -9,9 +9,13 @@ abstract final class AppRoutes {
   static const splash = '/splash';
   static const login = '/login';
   static const register = '/register';
+  static const forgotPassword = '/forgot-password';
+
+  /// Where the router holds a signed-in user whose email is not verified.
+  static const verifyEmail = '/verify-email';
 
   /// Routes reachable without a session. Everything else redirects to [login].
-  static const publicRoutes = {login, register};
+  static const publicRoutes = {login, register, forgotPassword};
 
   // `moarch create feature` adds each feature's path above the next line —
   // keep it.

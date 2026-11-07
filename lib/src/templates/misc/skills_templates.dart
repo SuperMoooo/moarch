@@ -308,7 +308,9 @@ fvm flutter test
 ${o.withLocalCache ? '''
    With the local datasource, the repository caches: `fetchAll` saves the
    API's list to `LocalCache` and answers from it offline, and `watchAll`
-   follows it.${o.withSync ? """ Its `create` / `update` / `delete` change the cache and queue
+   follows it. Once the model has its fields, `moarch create table <name>`
+   gives the feature a drift table of its own, for screens that filter or
+   search offline.${o.withSync ? """ Its `create` / `update` / `delete` change the cache and queue
    the `SyncRequest` the remote datasource describes; point those at the
    real API.""" : ''}''' : '''
    `--all` also adds a local cache datasource.'''}''';
@@ -570,7 +572,8 @@ where cache-then-network is decided.${o.withLocalCache ? '''
 
 A read the screen should have offline follows `fetchAll`: save the result
 through the local datasource, and on `NetworkException` read it back from
-there.${o.withSync ? '''
+there. A filtered or sorted read offline is a query on the local datasource,
+once the feature has its own table (`moarch create table <name>`).${o.withSync ? '''
 
 A write goes through the queue: the remote datasource returns a
 `SyncRequest` (method, path, body) instead of calling Dio, and the repository
@@ -819,12 +822,16 @@ A screen is `presentation/views/<name>_view.dart` in its feature — or
   (tonal) or `.tertiary` (outlined); secondary text is
   `colorScheme.onSurfaceVariant`.
 - **Theme, not colors.** Read $colors. A literal `Color` is a bug${o.withDarkTheme ? ' in one of\n  the two themes' : ''}.
-- **One widget per file.** Split the screen into public widget classes, each
-  in its own file in the feature's `presentation/widgets/`
-  (`order_header.dart` → `OrderHeader`) — or `lib/shared/widgets/` for a
-  screen in `lib/shared/views/`, or once a second feature needs it. Never a
-  private `_Header` class in the view file, never a `Widget _buildHeader()`
-  method. `const` wherever it compiles.
+- **Split by section, not by widget.** Split the screen into its large
+  parts — a header, a summary card, a list item, a form, a footer: a block
+  with a name and a job of its own. Each is a public class in its own file in
+  the feature's `presentation/widgets/` (`order_header.dart` →
+  `OrderHeader`) — or `lib/shared/widgets/` for a screen in
+  `lib/shared/views/`, or once a second feature needs it. A single kit widget
+  — one `AppInput`, one `AppButton`, a styled `Text` — stays inline in its
+  section: wrapping it in a feature widget only moves a line to another
+  file. Never a private `_Header` class in the view file, never a
+  `Widget _buildHeader()` method. `const` wherever it compiles.
 - **The space it gets, not the device.** Branch on a widget's own
   `LayoutBuilder` constraints, or `context.isTablet` for the whole screen —
   never on the platform or the orientation, and never lock the orientation.

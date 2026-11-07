@@ -59,10 +59,7 @@ abstract final class PackageVersions {
     // and `.g.dart` parts reference them — while the generators below are
     // dev-only.
     //
-    // Capped below freezed 4 on purpose, and not because of the API: 4.0.0
-    // raised its floor to Dart 3.13, which no released Flutter stable ships
-    // yet. The class shape moarch writes (`abstract class X with _$X`) is the
-    // same in both, so this is a floor to raise, not a rewrite.
+    // freezed 4 still uses the 3.x annotations.
     'freezed_annotation': '^3.1.0',
     'json_annotation': '^4.12.0',
 
@@ -73,13 +70,12 @@ abstract final class PackageVersions {
     'flutter_secure_storage': '^11.2.0',
 
     // ── Offline-first cache ─────────────────────────────────────────────────
-    // Floored at the first drift_dev that takes analyzer 10, the one version
-    // freezed 3.x (<11) and json_serializable 6.14 (>=10) agree on; pub then
-    // stops at 2.34.0, the last before drift_dev moved to analyzer 13. Raise
-    // it with freezed's floor.
-    'drift': '^2.30.0',
-    'drift_flutter': '^0.3.0',
-    'drift_dev': '^2.32.0',
+    // Floored at the drift_dev that takes analyzer 14, the line freezed 4
+    // needs. `create table` writes `@UseRowClass` tables, which drift has
+    // supported for freezed classes since well before this.
+    'drift': '^2.35.3',
+    'drift_flutter': '^0.3.1',
+    'drift_dev': '^2.35.2',
     // Floored at the 0.10 line, where the plugin registers the iOS task
     // handler itself: background_sync.dart and SYNC_SETUP.md rely on
     // AppDelegate.swift needing no change. Needs Flutter 3.38+.
@@ -95,6 +91,9 @@ abstract final class PackageVersions {
     // API — `GoogleSignIn.instance`, `initialize()` and `authenticate()`
     // replaced the constructor and `signIn()` of 6.x.
     'google_sign_in': '^7.2.0',
+    // The REST auth feature's Apple sheet. Floored at 8, the line on Flutter
+    // 3.44+ that the generated datasource is written against.
+    'sign_in_with_apple': '^8.0.0',
 
     // ── Device ──────────────────────────────────────────────────────────────
     // Floored at 12, which is where file_picker stopped depending on win32
@@ -121,23 +120,21 @@ abstract final class PackageVersions {
     'easy_localization': '^3.0.8',
 
     // ── Dev ─────────────────────────────────────────────────────────────────
-    // Floored low on purpose: build_runner >=2.15.2 needs analyzer 13.3+,
-    // which wants meta ^1.18.3, while flutter_test on older Flutter SDKs
-    // pins meta 1.18.0 — a caret at 2.16 simply fails to resolve there.
-    // This range still picks the newest build_runner an SDK allows.
-    'build_runner': '^2.15.1',
+    // Floored at the first build_runner on analyzer 13.3, where freezed 4
+    // starts. Not higher: 2.17.1 moved to `build` 5 while envied_generator
+    // still wants `build` ^4, so pub has to be able to back off to 2.17.0.
+    'build_runner': '^2.15.2',
     'envied_generator': '^1.3.10',
-    // See the annotation packages above for why this stops below 4.
-    'freezed': '^3.2.5',
-    'json_serializable': '^6.14.1',
+    // freezed 4 needs Dart 3.13 (Flutter 3.47), what `stable` in .fvmrc
+    // resolves to since August 2026. The class shape moarch writes is the
+    // same as in 3.x.
+    'freezed': '^4.0.1',
+    'json_serializable': '^6.15.2',
     'flutter_lints': '^6.0.0',
-    // Floored at 0.4.1 rather than 0.4.2 so pub has somewhere to back off to.
-    // 0.4.2 needs `_fe_analyzer_shared >=100`, which only analyzer 13 brings,
-    // while freezed 3.x caps analyzer below 11 — the two do not resolve
-    // together. 0.4.1 accepts `_fe_analyzer_shared` down to 93, which is what
-    // analyzer 10 ships. A bloc project takes 0.4.1; raise this the release
-    // freezed's floor moves to analyzer 13.
-    'bloc_lint': '^0.4.1',
+    // 0.4.3 caps `_fe_analyzer_shared` at 108, so in a bloc project pub holds
+    // analyzer at 13.3 — the reason freezed is floored at 4.0.1, the last
+    // that takes analyzer 13. Raise both when a bloc_lint takes a newer one.
+    'bloc_lint': '^0.4.2',
     // What the tests `moarch create tests` writes import. The generator runs
     // inside moarch, so unlike the mogen packages it replaced it adds no
     // analyzer to the app's dependency graph.

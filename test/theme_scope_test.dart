@@ -41,6 +41,64 @@ void main() {
       }
     });
 
+    test('one corner setting drives every radius, pills included', () {
+      final output = CoreTemplates.appConstants();
+
+      expect(output, contains('enum AppCorners {'));
+      expect(
+        output,
+        contains('static const AppCorners corners = AppCorners.rounded;'),
+      );
+      for (final radius in [4, 8, 12, 16, 24]) {
+        expect(
+          output,
+          contains('static const double radius$radius'),
+          reason: 'radius$radius',
+        );
+        expect(output, contains('$radius * _cornerScale'));
+      }
+      expect(
+        output,
+        contains('static const double radiusFull = squareCorners ? 0 : 999;'),
+      );
+    });
+
+    test('every shape enum can be square, and icon buttons follow the app', () {
+      final kit = [
+        for (final spec in WidgetCatalog.all)
+          WidgetCatalog.sourceFor(
+            spec,
+            const WidgetVariants(hasMotionTokens: true, hasCornerTokens: true),
+          ),
+      ].join('\n');
+
+      for (final shape in [
+        'AppButtonShape',
+        'AppInputShape',
+        'AppTextButtonShape',
+        'AppIconButtonShape',
+        'AppLeadingIconShape',
+      ]) {
+        expect(
+          kit,
+          contains(RegExp('enum $shape \\{ square,')),
+          reason: '$shape has no square',
+        );
+      }
+      expect(kit, contains('AppConstants.squareCorners'));
+    });
+
+    test('a project without the corner setting never reads it', () {
+      final kit = [
+        for (final spec in WidgetCatalog.all)
+          WidgetCatalog.sourceFor(
+            spec,
+            const WidgetVariants(hasMotionTokens: true),
+          ),
+      ].join('\n');
+      expect(kit, isNot(contains('AppConstants.squareCorners')));
+    });
+
     test('declares no token the generated code never reads', () {
       // The kit is the only consumer; a token nothing reads is dead weight in
       // every project moarch generates.
@@ -50,6 +108,7 @@ void main() {
         hasDio: true,
         hasStatusColors: true,
         hasMotionTokens: true,
+        hasCornerTokens: true,
       );
 
       final used = <String>{
@@ -61,9 +120,11 @@ void main() {
           ..._referenced(WidgetCatalog.sourceFor(spec, everything)),
       };
 
-      // radius4 is read by borderRadius4 inside the class, unprefixed.
+      // radius4 is read by borderRadius4 inside the class, unprefixed, and
+      // the private corner scale only by the radii.
       final unused = _declared(CoreTemplates.appConstants()).difference(used)
-        ..remove('radius4');
+        ..remove('radius4')
+        ..remove('_cornerScale');
       expect(unused, isEmpty, reason: 'unused constants: $unused');
     });
   });

@@ -9,23 +9,115 @@ abstract final class OfflineDocsTemplates {
   /// The page. [withSync] adds the write path, the queue and the background
   /// task; [bloc] picks how the screen section reads; [withAuthFeature] says
   /// who clears the cache on sign-out.
+  ///
+  /// [withApiProbe] (a project with Dio) adds how `ConnectivityService`
+  /// decides it is offline.
   static String doc({
     bool withSync = false,
     bool bloc = false,
     bool withAuthFeature = false,
+    bool withApiProbe = false,
   }) => [
     _intro(withSync),
     withSync ? _bigPictureSync : _bigPictureCache,
     withSync ? _filesSync : _filesCache,
     withSync ? _tablesSync : _tablesCache,
+    _featureTables,
+    _migrations,
     _readPath,
     bloc ? _screenBloc : _screenRiverpod,
     if (withSync) ...[_writePath, _drain, _serverWins, _background],
     _signOut(withSync: withSync, withAuthFeature: withAuthFeature),
     withSync ? _timelineSync : _timelineCache,
-    _questions(withSync),
+    _questions(withSync, withApiProbe: withApiProbe),
     _whereToChange(withSync),
   ].join('\n');
+
+  static const _featureTables = r'''
+## A feature's own table: `moarch create table`
+
+JSON in `CacheEntries` is enough to show a list offline. It is not enough to
+**query** it: offline, the screen can read the whole list back and nothing
+else. Once a feature's model has its fields, give it a real table:
+
+```bash
+moarch create table orders
+fvm dart run build_runner build -d
+```
+
+That reads `OrderModel`'s fields and writes
+`lib/features/orders/data/tables/orders_table.dart`:
+
+```dart
+@UseRowClass(OrderModel)
+class OrderRows extends Table {
+  IntColumn get id => integer()();
+  TextColumn get title => text()();
+  DateTimeColumn get dueAt => dateTime().nullable()();
+  TextColumn get status => textEnum<OrderStatus>()();
+  TextColumn get tags => text().map(OrderRows.tagsConverter)();
+  IntColumn get listOrder => integer()();   // the API's order, not a field
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+```
+
+- **The rows are the model.** `@UseRowClass` makes drift build an
+  `OrderModel` from each row, so there is no second class and no mapping to
+  keep in step — the same rule as everywhere else in the project.
+- **One column per field**: `int`, `double`, `String`, `bool` and `DateTime`
+  get their own column type, an enum is stored by name, and a nested model
+  or a `List` / `Map` is stored as JSON in a text column. A field no column
+  fits is reported, and nothing is written.
+- It also registers the table in `AppDatabase`, bumps `schemaVersion`, moves
+  the feature's local datasource onto the table and its registration in
+  `lib/config/di/` onto `AppDatabase`. A file you edited is left alone and
+  the change is printed for you to make instead.
+
+The repository does not change: the local datasource keeps the same
+`readAll` / `watchAll` / `saveAll` / `save` / `remove`. What changes is that
+the datasource can now answer **queries**, in SQL, offline:
+
+```dart
+// orders_local_datasource.dart
+Stream<List<OrderModel>> watchOpen() {
+  return (_db.select(_table)
+        ..where((row) => row.status.equalsValue(OrderStatus.open))
+        ..orderBy([(row) => OrderingTerm.desc(row.dueAt)]))
+      .watch();
+}
+```
+
+**Changing the model later:** run `moarch create table orders` again. It
+rewrites the table and the datasource's row mapping (your queries stay), and
+bumps `schemaVersion` again.
+''';
+
+  static const _migrations = r'''
+## Schema versions and migrations
+
+`schemaVersion` in `app_database.dart` goes up whenever a table changes. On
+the next launch, `onUpgrade` runs. The tables that are a **copy of the API**
+— `CacheEntries` and every feature table — are simply dropped and created
+again: the next `fetchAll()` fills them. Nothing is lost that the server does
+not have.
+
+A table that holds something the server does **not** have — the sync queue,
+or a table you add for drafts or settings — must never be dropped. Skip it in
+the `onUpgrade` loop and migrate it step by step. drift writes the tooling
+for that, configured in `build.yaml`:
+
+```bash
+fvm dart run drift_dev make-migrations
+```
+
+Run it after every `schemaVersion` bump. It saves the schema of each version
+under `drift_schemas/`, generates a step-by-step migration helper, and writes
+a test under `test/drift/` that upgrades a database from every old version.
+Commit `drift_schemas/`: it is the history the next migration is checked
+against.
+''';
 
   static String _intro(bool withSync) =>
       '''
@@ -160,6 +252,9 @@ their datasources and `SyncService`.
 - `position` keeps the list in the order the API returned it.
 - It is disposable: it can always be fetched again. That's why a schema
   upgrade simply wipes and rebuilds this table.
+- It cannot be queried: offline, a feature reads its whole list back. A
+  feature that needs to filter or sort offline gets a table of its own
+  (below).
 ''';
 
   static const _tablesCache = '''
@@ -494,8 +589,15 @@ $who
 ```
 ''';
 
-  static String _questions(bool withSync) => [
+  static String _questions(bool withSync, {bool withApiProbe = false}) => [
     '## Common questions\n',
+    if (withApiProbe)
+      r'''**Why does the app say it is offline when the wifi is on?** Being online
+means the API answers, not that a network is connected: once an interface is
+up, `ConnectivityService` sends a `HEAD` to `BASE_URL` (3-second timeout), and
+any response — even a 404 — counts. Wifi behind a captive portal, a router
+with no uplink, or the API itself being down all read as offline.
+''',
     if (withSync) ...[
       r'''**Why store requests (method, path, body) rather than call the datasource
 later?** "Later" may be a different isolate with no datasources, or a newer
@@ -522,7 +624,7 @@ before: it shows the cached list.${withSync ? ' Make a change: the pending count
 ''',
     '''**How do I look inside the database?** It is a SQLite file called
 `app_cache`. On Android, Android Studio's App Inspection → Database Inspector
-shows `cache_entries`${withSync ? ' and `pending_writes`' : ''} live.
+shows `cache_entries`${withSync ? ', `pending_writes`' : ''} and each feature table live.
 ''',
   ].join('\n');
 
@@ -538,7 +640,9 @@ shows `cache_entries`${withSync ? ' and `pending_writes`' : ''} live.
       '| change how often the background task runs | `registerBackgroundSync()` in `background_sync.dart` (15 minutes is Android\'s minimum) |',
     ],
     '| show the cached list first and refresh behind it | the screen\'s first load: `readAll()`, then `fetchAll()` |',
-    '| add a real table instead of JSON in the cache | `app_database.dart`, bump `schemaVersion`, write a migration |',
+    '| filter, sort or search a list offline | `moarch create table <feature>`, then a query in its local datasource |',
+    '| change a feature table | its model, then `moarch create table <feature>` again |',
+    '| add a table holding data the API does not have | `app_database.dart`: skip it in `onUpgrade`, then `fvm dart run drift_dev make-migrations` |',
     '',
   ].join('\n');
 }

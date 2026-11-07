@@ -6,14 +6,36 @@ class IosTemplates {
   ///
   /// `aps-environment` is the APNs entitlement remote push needs. Exporting
   /// with an App Store profile upgrades `development` to `production`.
-  static String runnerEntitlements() => r'''
+  /// [withAppleSignIn] adds `com.apple.developer.applesignin`, which needs
+  /// the Sign in with Apple capability on the App ID.
+  static String runnerEntitlements({
+    bool withPush = true,
+    bool withAppleSignIn = false,
+  }) =>
+      '''
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+${withPush ? _apsEntry : ''}${withAppleSignIn ? _appleSignInEntry : ''}${withPush ? _voipNote : ''}</dict>
+</plist>
+''';
+
+  static const String _apsEntry = '''
     <key>aps-environment</key>
     <string>development</string>
 
+''';
+
+  static const String _appleSignInEntry = '''
+    <key>com.apple.developer.applesignin</key>
+    <array>
+        <string>Default</string>
+    </array>
+
+''';
+
+  static const String _voipNote = '''
     <!--
     <key>com.apple.developer.voip</key>
     <true/>
@@ -21,19 +43,19 @@ class IosTemplates {
     <key>com.apple.developer.pushkit.unrestricted-voip</key>
     <true/>
     -->
-</dict>
-</plist>
 ''';
 
   /// Returns the RunnerProfile.entitlements file used by Profile builds.
-  static String runnerProfileEntitlements() => '''
+  static String runnerProfileEntitlements({
+    bool withPush = true,
+    bool withAppleSignIn = false,
+  }) =>
+      '''
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-\t<key>aps-environment</key>
-\t<string>development</string>
-</dict>
+${withPush ? '\t<key>aps-environment</key>\n\t<string>development</string>\n' : ''}${withAppleSignIn ? '\t<key>com.apple.developer.applesignin</key>\n\t<array>\n\t\t<string>Default</string>\n\t</array>\n' : ''}</dict>
 </plist>
 ''';
 

@@ -98,11 +98,16 @@ void main() {
       expect(source, contains('// moarch:registrations'));
     });
 
-    test('puts every widget in its own file, on both stacks', () {
+    test('splits a screen by section, on both stacks', () {
       for (final stack in StateManagement.values) {
         final source = agents(stack);
-        expect(source, contains('**Every widget gets its own file.**'));
-        expect(source, contains("widgets/      # the screens' pieces"));
+        expect(
+          source,
+          contains('**Split a screen by section, not by widget.**'),
+        );
+        expect(source, contains("widgets/      # the screens' sections"));
+        // One text field is not a section of its own.
+        expect(source, contains('never one file per text field'));
         expect(source, isNot(contains('split into private widget')));
       }
     });

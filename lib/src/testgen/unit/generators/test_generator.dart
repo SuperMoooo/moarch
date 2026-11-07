@@ -173,10 +173,7 @@ class TestGenerator {
         .toList();
 
     final buildName = n.buildMethod?.name;
-    final methodNames = [
-      if (buildName != null) buildName,
-      ...publicMethods.map((m) => m.name),
-    ];
+    final methodNames = [?buildName, ...publicMethods.map((m) => m.name)];
 
     final callsByMethod = <String, Map<String, List<RepositoryMethodCall>>>{};
     for (final name in methodNames) {

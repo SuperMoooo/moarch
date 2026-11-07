@@ -37,20 +37,16 @@ class WorkflowTemplates {
 # Runs all jobs in order. Build only triggers if every check passes.
 #
 # Job order:
-#   1. unit              — analyze + unit tests (no network needed)
-#   2. integration       — integration tests against real API (needs secrets)
-#   3. sast              — static analysis + formatting check
-#   4. secrets           — scans for leaked secrets
-#   5. dependency-review — CVE + license check (PRs only)
+#   1. unit              — format check, analyze, unit tests (no network)
+#   2. integration       — integration tests against the real API
+#   3. secrets           — scans for leaked secrets
+#   4. dependency-review — CVE + license check (pull requests only)
 #
 # Required GitHub secrets (Settings → Secrets and variables → Actions):
 #   BASE_URL — your API base URL e.g. https://api.yourapp.com
-
 #
-# Note on CVE gating: dependency-review-action only runs on PRs (it diffs
-# base vs head). osv-scan runs on every push too, so it's the source of
-# truth for CVE gating on main/develop. dependency-review-action stays as
-# an early PR-only signal plus license-deny enforcement.
+# A newer push to the same branch cancels the run still going for the old
+# one, so a burst of commits costs one run, not one per commit.
 
 name: CI
 
@@ -61,10 +57,15 @@ on:
         branches: [main]
     workflow_dispatch: {}
 
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
+
 jobs:
-    # ── 1. Unit tests ────────────────────────────────────────────────────────────
+    # ── 1. Format, analyze, unit tests ───────────────────────────────────────────
     unit:
         runs-on: ubuntu-latest
+        timeout-minutes: 20
 
         steps:
             - uses: actions/checkout@v4
@@ -84,8 +85,11 @@ jobs:
                   EOF
                   dart run build_runner build --delete-conflicting-outputs
 
+            - name: Check formatting
+              run: dart format --output=none --set-exit-if-changed .
+
             - name: Analyze
-              run: flutter analyze --no-fatal-warnings
+              run: flutter analyze
 {{bloc_lint}}
             - name: Unit tests
               run: |
@@ -100,6 +104,7 @@ jobs:
     # If your API is sometimes flaky, add: continue-on-error: true
     integration:
         runs-on: ubuntu-latest
+        timeout-minutes: 20
         needs: unit
 
         steps:
@@ -129,60 +134,10 @@ jobs:
                   fi
               continue-on-error: true
 
-    # ── 3. SAST ──────────────────────────────────────────────────────────────────
-    sast:
-        runs-on: ubuntu-latest
-        needs: unit
-
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0
-
-            - uses: subosito/flutter-action@v2
-              with:
-                  flutter-version-file: .fvmrc
-                  cache: true
-
-            - name: Install dependencies
-              run: flutter pub get
-
-            - name: Create .env & generate env code
-              run: |
-                  cat <<EOF > .env
-                  BASE_URL=${{ secrets.BASE_URL }}
-                  EOF
-                  dart run build_runner build --delete-conflicting-outputs
-
-            - name: Run Flutter analyzer
-              run: |
-                  echo "🔍 Running Flutter analyzer..."
-                  flutter analyze
-
-            - name: Check formatting
-              run: |
-                  echo "📐 Checking code formatting..."
-                  dart format . --set-exit-if-changed
-
-            - name: Generate SAST report
-              if: always()
-              run: |
-                  echo "=== SAST Analysis Report ===" > sast-report.txt
-                  echo "Flutter SDK: $(flutter --version)" >> sast-report.txt
-                  echo "Time: $(date)" >> sast-report.txt
-                  cat sast-report.txt
-
-            - name: Upload SAST report
-              if: always()
-              uses: actions/upload-artifact@v4
-              with:
-                  name: sast-report
-                  path: sast-report.txt
-                  retention-days: 30
-
-    # ── 4. Secrets scan ──────────────────────────────────────────────────────────
+    # ── 3. Secrets scan ──────────────────────────────────────────────────────────
     secrets:
         runs-on: ubuntu-latest
+        timeout-minutes: 10
         needs: unit
 
         steps:
@@ -225,12 +180,12 @@ jobs:
                   path: secrets-report.json
                   retention-days: 30
 
-    # ── 5. Dependency review ─────────────────────────────────────────────────────
-    # Only runs on pull requests — requires a base and head to compare.
-    # PR-only early signal + license-deny enforcement. CVE gating on
-    # push/main is handled by osv-scan below.
+    # ── 4. Dependency review ─────────────────────────────────────────────────────
+    # Only runs on pull requests — it compares the base with the head, and
+    # fails a PR that adds a dependency with a known high-severity CVE.
     dependency-review:
         runs-on: ubuntu-latest
+        timeout-minutes: 10
         needs: unit
         if: github.event_name == 'pull_request'
 
@@ -248,10 +203,15 @@ jobs:
 
   /// BUILD IOS WORKFLOW
   ///
-  /// [withFirebase] adds a step that recreates GoogleService-Info.plist from
-  /// a secret and links it into the Xcode project via add_files_to_xcode.rb.
+  /// [withFirebase] adds a step that links GoogleService-Info.plist into the
+  /// Xcode project via add_files_to_xcode.rb.
   /// [withPushEntitlements] signs the archive with Runner.entitlements so
   /// the APNs (push) capability is embedded in the IPA.
+  ///
+  /// The app is compiled once: `flutter build ios --config-only` writes the
+  /// Xcode configuration (build number, obfuscation) and installs the pods,
+  /// and `xcodebuild archive` does the only build. A macOS runner costs ten
+  /// times a Linux one, so a second compile is the expensive part to avoid.
   static String buildIOS({
     bool withFirebase = false,
     bool withPushEntitlements = false,
@@ -271,27 +231,49 @@ jobs:
         : '';
 
     const head = r'''
-
-# Secret
-# IOS_P12_BASE64   - base64 of your .p12 (cert + key)
-# IOS_P12_PASSWORD   - password you set above
-# IOS_PROVISIONING_PROFILE_BASE64  - base64 of your .mobileprovision file
-# IOS_TEAM_ID    - Apple Developer Team ID
+# Builds a signed IPA on a GitHub macOS runner, on demand
+# (Actions → Build IOS IPA → Run workflow).
 #
+# Secrets — docs/STEPS_FOR_WORKFLOW.md produces each one:
+#   BASE_URL                         the API the build talks to
+#   IOS_P12_BASE64                   base64 of your .p12 (certificate + key)
+#   IOS_P12_PASSWORD                 the password you set exporting it
+#   IOS_PROVISIONING_PROFILE_BASE64  base64 of your .mobileprovision
+#   IOS_TEAM_ID                      your Apple Developer Team ID
+# For TestFlight (export method app-store), also:
+#   APP_STORE_CONNECT_KEY_ID         the App Store Connect API key's id
+#   APP_STORE_CONNECT_ISSUER_ID      its issuer id
+#   APP_STORE_CONNECT_KEY_BASE64     base64 of its AuthKey_<id>.p8
+#
+# The certificate and the profile must match the export method you pick:
+#   development — an Apple Development certificate + a development profile
+#   ad-hoc      — an Apple Distribution certificate + an ad hoc profile
+#   app-store   — an Apple Distribution certificate + an App Store profile
 
 name: Build IOS IPA
 
 on:
-    workflow_dispatch: {}
+    workflow_dispatch:
+        inputs:
+            export_method:
+                description: development (your devices), ad-hoc (registered testers) or app-store (TestFlight)
+                type: choice
+                options: [development, ad-hoc, app-store]
+                default: development
+
+concurrency:
+    group: build-ipa-${{ github.ref }}
+    cancel-in-progress: true
 
 jobs:
     # ── 1. Check for Apple credentials ──────────────────────────────────────────
-    # Determines whether iOS secrets are present so the build job can skip
-    # cleanly instead of failing when they're not configured.
+    # On a Linux runner, so a fork or a fresh clone without the secrets skips
+    # the build without paying for a macOS one.
     check-ios-secrets:
         runs-on: ubuntu-latest
         outputs:
             has_secrets: ${{ steps.check.outputs.has_secrets }}
+            has_app_store_key: ${{ steps.check.outputs.has_app_store_key }}
         steps:
             - name: Check required secrets
               id: check
@@ -305,12 +287,19 @@ jobs:
                     echo "has_secrets=false" >> "$GITHUB_OUTPUT"
                     echo "⚠️ iOS signing secrets not fully configured — iOS build will be skipped."
                   fi
-# ── 2. Build iOS ─────────────────────────────────────────────────────────────
-    # Only runs if unit/integration/sast/secrets pass AND Apple secrets exist.
-    # macOS runner is required — this is the only place a "Mac" is involved,
-    # and GitHub provides it for you, so you don't need your own.
+                  if [ -n "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" ] && \
+                     [ -n "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" ] && \
+                     [ -n "${{ secrets.APP_STORE_CONNECT_KEY_BASE64 }}" ]; then
+                    echo "has_app_store_key=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "has_app_store_key=false" >> "$GITHUB_OUTPUT"
+                  fi
+
+    # ── 2. Build iOS ─────────────────────────────────────────────────────────────
+    # The macOS runner is the only "Mac" involved, and GitHub provides it.
     build-ios:
         runs-on: macos-latest
+        timeout-minutes: 45
         needs: [check-ios-secrets]
         if: needs.check-ios-secrets.outputs.has_secrets == 'true'
         steps:
@@ -365,15 +354,28 @@ jobs:
 ''';
 
     const mid =
-        r'''            - name: Build iOS (no codesign step, just compile)
-              run: flutter build ios --release --no-codesign
+        r'''            # Writes Generated.xcconfig (obfuscation, and the version and
+            # build number from pubspec.yaml — raise them with
+            # `moarch release bump`) and installs the pods, without
+            # compiling. The archive below is the one build.
+            - name: Configure the Xcode project
+              run: |
+                  flutter build ios --config-only --release \
+                    --obfuscate --split-debug-info=${{ github.workspace }}/build/debug-info/ios
 
             - name: Archive and export IPA
               env:
                   TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
                   PROFILE_NAME: ${{ steps.profile_info.outputs.profile_name }}
                   BUNDLE_ID: ${{ steps.profile_info.outputs.bundle_id }}
+                  METHOD: ${{ inputs.export_method }}
               run: |
+                  case "$METHOD" in
+                    development) IDENTITY="Apple Development";  EXPORT_METHOD=debugging ;;
+                    ad-hoc)      IDENTITY="Apple Distribution"; EXPORT_METHOD=release-testing ;;
+                    *)           IDENTITY="Apple Distribution"; EXPORT_METHOD=app-store-connect ;;
+                  esac
+
                   cd ios
                   xcodebuild -workspace Runner.xcworkspace \
                     -scheme Runner \
@@ -385,7 +387,7 @@ jobs:
                     DEVELOPMENT_TEAM="$TEAM_ID" \
                     PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \''';
 
-    const tail = r'''                    CODE_SIGN_IDENTITY="Apple Development"
+    const tail = r'''                    CODE_SIGN_IDENTITY="$IDENTITY"
 
                   cat > ExportOptions.plist << EOF
                   <?xml version="1.0" encoding="UTF-8"?>
@@ -393,7 +395,7 @@ jobs:
                   <plist version="1.0">
                   <dict>
                       <key>method</key>
-                      <string>development</string>
+                      <string>$EXPORT_METHOD</string>
                       <key>teamID</key>
                       <string>$TEAM_ID</string>
                       <key>signingStyle</key>
@@ -415,14 +417,39 @@ jobs:
             - name: Upload IPA artifact
               uses: actions/upload-artifact@v4
               with:
-                  name: release-ipa
+                  name: release-ipa-${{ inputs.export_method }}-${{ github.run_number }}
                   path: ios/build/ipa/*.ipa
                   retention-days: 30
+
+            # The symbols for this exact build: without them its crash stack
+            # traces stay unreadable, and they cannot be regenerated later.
+            - name: Upload debug symbols
+              uses: actions/upload-artifact@v4
+              with:
+                  name: debug-info-ios-${{ github.run_number }}
+                  path: build/debug-info/ios/
+                  retention-days: 90
+
+            - name: Upload to TestFlight
+              if: inputs.export_method == 'app-store' && needs.check-ios-secrets.outputs.has_app_store_key == 'true'
+              env:
+                  KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+                  ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+                  KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_BASE64 }}
+              run: |
+                  mkdir -p ~/.appstoreconnect/private_keys
+                  echo "$KEY_BASE64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_$KEY_ID.p8
+                  IPA=$(ls ios/build/ipa/*.ipa | head -n 1)
+                  xcrun altool --upload-app --type ios --file "$IPA" \
+                    --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID"
+                  VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+                  echo "Uploaded $VERSION — it shows in TestFlight once Apple has processed it." >> $GITHUB_STEP_SUMMARY
 
             - name: Cleanup keychain
               if: always()
               run: |
                   rm -f certificate.p12
+                  rm -rf ~/.appstoreconnect/private_keys
                   security delete-keychain build.keychain || true
 ''';
 
@@ -431,111 +458,19 @@ jobs:
     return '$head$firebaseStep$mid$entitlementsArg\n$tail';
   }
 
-  /// BUILD ANDROID APK
-  static String buildANDROID() => r'''
-
-# Secret
-# ANDROID_KEYSTORE_BASE64   - base64 of your .jks keystore
-# KEYSTORE_STORE_PASSWORD   - the keystore's store password
-# KEYSTORE_KEY_PASSWORD     - the key's password
-# KEYSTORE_KEY_ALIAS        - the key alias, e.g. my-key-alias
-#
-
-name: Build ANDROID APK
-
-on:
-    workflow_dispatch: {}
-
-jobs:
-    # ── 1. Check for the signing keystore ───────────────────────────────────────
-    # Determines whether the keystore secrets are present so the build job can
-    # skip cleanly instead of failing when they're not configured.
-    check-android-secrets:
-        runs-on: ubuntu-latest
-        outputs:
-            has_secrets: ${{ steps.check.outputs.has_secrets }}
-        steps:
-            - name: Check required secrets
-              id: check
-              env:
-                  KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-                  STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
-                  KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD }}
-                  KEY_ALIAS: ${{ secrets.KEYSTORE_KEY_ALIAS }}
-              run: |
-                  if [ -n "$KEYSTORE_BASE64" ] && [ -n "$STORE_PASSWORD" ] && \
-                     [ -n "$KEY_PASSWORD" ] && [ -n "$KEY_ALIAS" ]; then
-                    echo "has_secrets=true" >> "$GITHUB_OUTPUT"
-                  else
-                    echo "has_secrets=false" >> "$GITHUB_OUTPUT"
-                    echo "⚠️ Android signing secrets not fully configured — Android build will be skipped."
-                  fi
-
-    # ── 2. Build Android ─────────────────────────────────────────────────────────
-    # Only runs if every keystore secret exists.
-    build-android:
-        runs-on: ubuntu-latest
-        needs: [check-android-secrets]
-        if: needs.check-android-secrets.outputs.has_secrets == 'true'
-
-        env:
-            GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -Dorg.gradle.daemon=false"
-
-        steps:
-            - uses: actions/checkout@v4
-
-            - name: Decode Keystore
-              run: |
-                  echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-key.jks
-
-            - name: Create key.properties
-              run: |
-                  cat <<EOF > android/key.properties
-                  storePassword=${{ secrets.KEYSTORE_STORE_PASSWORD }}
-                  keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
-                  keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
-                  storeFile=release-key.jks
-                  EOF
-
-            - uses: subosito/flutter-action@v2
-              with:
-                  flutter-version-file: .fvmrc
-                  cache: true
-
-            - name: Install dependencies
-              run: flutter pub get
-
-            - name: Create .env & generate env code
-              run: |
-                  cat <<EOF > .env
-                  BASE_URL=${{ secrets.BASE_URL }}
-                  EOF
-                  dart run build_runner build --delete-conflicting-outputs
-
-            - name: Build APK
-              run: flutter build apk --release --obfuscate --split-debug-info=build/debug-info/android --verbose
-
-            - name: Upload APK artifact
-              uses: actions/upload-artifact@v4
-              with:
-                  name: release-apk
-                  path: build/app/outputs/flutter-apk/app-release.apk
-                  retention-days: 30
-''';
-
   /// Returns the supply chain analysis (reporting) workflow.
   /// Non-blocking: SBOM + license report, scheduled weekly and on release tags.
   static String csaWorkflow() => r'''
 # ── Supply Chain Analysis (Reporting) ─────────────────────────────────────────
 # Non-blocking compliance artifacts: SBOM + license report.
-# Runs weekly and on release tags — does not gate merges or builds.
-# CVE gating lives in ci.yml (dependency-review-action + OSV-Scanner job).
+# Runs on release tags and by hand — never on a schedule, so a repository
+# nobody touched for a week does not fail on its own and email you about it.
+# It does not gate merges or builds; CVE checks on pull requests live in
+# unified_workflow.yml (dependency-review).
 
 name: CSA
 
 on:
-    schedule:
-        - cron: '0 3 * * 1'
     push:
         tags:
             - 'v*'
@@ -622,7 +557,7 @@ jobs:
               run: |
                   echo "## Supply Chain Analysis — $(date -u +%Y-%m-%d)" >> $GITHUB_STEP_SUMMARY
                   echo "- SBOM (CycloneDX) and license/health report generated." >> $GITHUB_STEP_SUMMARY
-                  echo "- CVE gating is handled separately in ci.yml (OSV-Scanner + dependency-review)." >> $GITHUB_STEP_SUMMARY
+                  echo "- CVE checks on pull requests run in unified_workflow.yml (dependency-review)." >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
                   echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
                   find reports -type f >> $GITHUB_STEP_SUMMARY

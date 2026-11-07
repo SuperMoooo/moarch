@@ -197,9 +197,19 @@ class StackTemplates {
   String appBlocObserver() => bloc.AppTemplates.appBlocObserver();
 
   /// The GoRouter setup.
-  String appRouter({bool withAuth = false}) => isBloc
-      ? bloc.AppTemplates.appRouter(withAuth: withAuth)
-      : riverpod.AppTemplates.appRouter(withAuth: withAuth);
+  ///
+  /// [withAccountScreens] adds the forgot-password and verify-email routes,
+  /// and holds an unverified user on the second.
+  String appRouter({bool withAuth = false, bool withAccountScreens = false}) =>
+      isBloc
+      ? bloc.AppTemplates.appRouter(
+          withAuth: withAuth,
+          withAccountScreens: withAccountScreens,
+        )
+      : riverpod.AppTemplates.appRouter(
+          withAuth: withAuth,
+          withAccountScreens: withAccountScreens,
+        );
 
   /// Where the Firebase instances come from — a signpost to the locator, in
   /// both stacks.
@@ -218,8 +228,13 @@ class StackTemplates {
       : riverpod.AppTemplates.languageService();
 
   /// The REST client. One body for both stacks — see [CoreTemplates.dioClient].
-  String dioClient({bool withAuthFeature = false}) =>
-      CoreTemplates.dioClient(withAuthFeature: withAuthFeature);
+  String dioClient({
+    bool withAuthFeature = false,
+    bool withAppleSignIn = false,
+  }) => CoreTemplates.dioClient(
+    withAuthFeature: withAuthFeature,
+    withAppleSignIn: withAppleSignIn,
+  );
 
   /// Whether this stack has a `config/di/presentation_module.dart`.
   ///
@@ -603,13 +618,18 @@ class StackTemplates {
       ? bloc.AuthTemplates.userModel()
       : riverpod.AuthTemplates.userModel();
 
-  /// The auth datasource.
-  String authRemoteDatasource({bool withPushNotifications = false}) => isBloc
+  /// The auth datasource. [withAppleSignIn] adds Sign in with Apple.
+  String authRemoteDatasource({
+    bool withPushNotifications = false,
+    bool withAppleSignIn = false,
+  }) => isBloc
       ? bloc.AuthTemplates.remoteDatasource(
           withPushNotifications: withPushNotifications,
+          withAppleSignIn: withAppleSignIn,
         )
       : riverpod.AuthTemplates.remoteDatasource(
           withPushNotifications: withPushNotifications,
+          withAppleSignIn: withAppleSignIn,
         );
 
   /// The auth repository. [withLocalCache] empties the
@@ -617,22 +637,29 @@ class StackTemplates {
   String authRepository({
     bool withPushNotifications = false,
     bool withLocalCache = false,
+    bool withAppleSignIn = false,
   }) => isBloc
       ? bloc.AuthTemplates.repository(
           withPushNotifications: withPushNotifications,
           withLocalCache: withLocalCache,
+          withAppleSignIn: withAppleSignIn,
         )
       : riverpod.AuthTemplates.repository(
           withPushNotifications: withPushNotifications,
           withLocalCache: withLocalCache,
+          withAppleSignIn: withAppleSignIn,
         );
 
-  /// The auth state.
-  String authState() =>
-      isBloc ? bloc.AuthTemplates.state() : riverpod.AuthTemplates.state();
+  /// The auth state. [withEmailVerification] reads `UserModel.emailVerified`.
+  String authState({bool withEmailVerification = false}) => isBloc
+      ? bloc.AuthTemplates.state(withEmailVerification: withEmailVerification)
+      : riverpod.AuthTemplates.state(
+          withEmailVerification: withEmailVerification,
+        );
 
   /// The auth event family — bloc only.
-  String authEvent() => bloc.AuthTemplates.event();
+  String authEvent({bool withAppleSignIn = false}) =>
+      bloc.AuthTemplates.event(withAppleSignIn: withAppleSignIn);
 
   /// The auth state holder.
   ///
@@ -640,14 +667,27 @@ class StackTemplates {
   String authHolder({
     bool withPushNotifications = false,
     bool withConcurrency = false,
+    bool withAppleSignIn = false,
   }) => isBloc
       ? bloc.AuthTemplates.bloc(
           withPushNotifications: withPushNotifications,
           withConcurrency: withConcurrency,
+          withAppleSignIn: withAppleSignIn,
         )
       : riverpod.AuthTemplates.notifier(
           withPushNotifications: withPushNotifications,
+          withAppleSignIn: withAppleSignIn,
         );
+
+  /// The forgot-password screen: a code by email, then a new password.
+  String authForgotPasswordView() => isBloc
+      ? bloc.AuthTemplates.forgotPasswordView()
+      : riverpod.AuthTemplates.forgotPasswordView();
+
+  /// The verify-email screen the router holds an unverified user on.
+  String authVerifyEmailView() => isBloc
+      ? bloc.AuthTemplates.verifyEmailView()
+      : riverpod.AuthTemplates.verifyEmailView();
 
   /// The login screen.
   String authLoginView() => isBloc
@@ -730,6 +770,16 @@ class StackTemplates {
   String firebaseAuthRegisterView() => isBloc
       ? bloc.FirebaseAuthTemplates.registerView()
       : riverpod.FirebaseAuthTemplates.registerView();
+
+  /// The Firebase forgot-password screen: Firebase emails a reset link.
+  String firebaseAuthForgotPasswordView() => isBloc
+      ? bloc.FirebaseAuthTemplates.forgotPasswordView()
+      : riverpod.FirebaseAuthTemplates.forgotPasswordView();
+
+  /// The Firebase verify-email screen.
+  String firebaseAuthVerifyEmailView() => isBloc
+      ? bloc.FirebaseAuthTemplates.verifyEmailView()
+      : riverpod.FirebaseAuthTemplates.verifyEmailView();
 }
 
 /// The facade for this stack.

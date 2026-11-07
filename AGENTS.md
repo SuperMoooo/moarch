@@ -49,9 +49,10 @@ command is constructed with.
 
 ## Architecture
 
-`bin/main.dart` → `MoarchRunner` (`lib/src/runner.dart`) → four `args`
+`bin/main.dart` → `MoarchRunner` (`lib/src/runner.dart`) → six `args`
 subcommands in `lib/src/commands/`: `init`, `create` (with the subcommands in
-`commands/create/`), `update`, `doctor`.
+`commands/create/`), `update`, `doctor`, `release` (`bump`: the pubspec
+version and build number) and `l10n` (`extract`).
 
 ### Two stacks, one facade
 
@@ -155,6 +156,55 @@ are supported — `InjectorTemplates.singleFileInjector` exists so
 handing it a root that calls modules it does not have. Do not delete it
 without a migration.
 
+### `l10n extract` rewrites screens, so it reads them first
+
+`lib/src/l10n/string_extractor.dart` finds UI strings with the same unresolved
+`parseString` the test generator uses, and the same rule: decide by structure
+and source text, never by analyzer classes that moved between 10 and 14 (it
+matches `FormalParameter`, not `DefaultFormalParameter`). A string is
+rewritten only when nothing can go wrong — a plain literal in `Text(...)` or a
+label-like named argument, a `BuildContext` in scope for the generated
+accessor, no braces — and the `const` on every enclosing expression goes with
+it. Anything else is reported. It never touches `lib/shared/widgets/`, which
+`update` owns.
+
+### Corners are one token
+
+`AppConstants.corners` scales every radius token, so the kit must keep
+reading radii through `AppConstants` — never `BorderRadius.circular(n)` —
+or that widget stops following it. A widget that is a circle by default
+(the icon button) reads `AppConstants.squareCorners`; a project whose
+constants predate it gets `false` inlined (`CoreTemplates.cornerTokenLiterals`).
+A new shape enum starts with `square`.
+
+### Feature tables are read from the model
+
+`moarch create table <feature>` (`commands/create/create_table_command.dart`)
+is the drift counterpart of the JSON cache: `DriftTableBuilder`
+(`utils/drift_table_builder.dart`) maps the freezed model's fields, read by
+`ModelFieldParser`, to columns, and `CacheTemplates.featureTable` writes a
+`@UseRowClass` table whose rows are the model — so the no-second-class rule
+holds. A field no column fits is refused rather than guessed. `AppDatabase`
+is rendered from what is on disk (`ScaffoldContext.featureTables`,
+`databaseSchemaVersion`), which is what lets `update app-database` refresh it
+without dropping a table. The command rewrites a file only while it is still
+what moarch wrote (the JSON datasource template, a manifest hash) and prints
+the edit otherwise; a datasource already on a table gets only its `_row`
+mapping replaced, so the queries a developer added survive a re-run.
+
+### The guides are one table
+
+`templates/misc/project_docs_templates.dart` lists every guide under `docs/`
+as a `ProjectDoc` (`ProjectDocsTemplates.all`): its slug, which projects get
+it (`applies`, over `DocsOptions`) and, for the topic guides written there,
+`render`. `init`, the catalog's `docs` group, the README's guides table and
+`doctor`'s offer of missing guides all read that list, so a new guide is one
+entry. `DocsOptions` is filled from `ScaffoldContext.docsOptions` everywhere
+but `init`. The README sections that became guides (architecture, state,
+flavors, build & release, code standards) still live in `readme_templates.dart`
+and are rendered through `_asDoc`; refer to another guide by its `docs/` path,
+never by a README section number — a test fails on `section N`.
+
 ### The test generator reads the project, it does not template it
 
 `moarch create tests` (`commands/create/create_tests_command.dart`) is the one
@@ -238,7 +288,7 @@ lib/config/di/{injector,external_module,core_module,data_module,feature_module,
                presentation_module}.dart
 lib/config/{env,theme,router,firebase}
 lib/core/{constants,database,errors,network,security,services,sync,utils}
-lib/features/<feature>/{data/{datasources,models,repositories},
+lib/features/<feature>/{data/{datasources,models,repositories,tables},
                         presentation/{notifiers|blocs,states,views,pages}}
 lib/shared/{widgets,views}/      README.md   docs/*.md   .moarch.yaml   .fvmrc
 AGENTS.md   CLAUDE.md   .agents/skills/   .claude/{skills,settings.json}   .gemini/   .mcp.json

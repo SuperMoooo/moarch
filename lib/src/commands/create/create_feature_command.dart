@@ -316,6 +316,7 @@ class CreateFeatureCommand extends Command<int> {
           libPath,
           templates,
           withCache: withCache,
+          withApiProbe: hasDio,
         );
       }
       if (selected.contains(_kRepository)) {
@@ -701,6 +702,7 @@ class CreateFeatureCommand extends Command<int> {
     String libPath,
     StackTemplates templates, {
     bool withCache = false,
+    bool withApiProbe = false,
   }) async {
     await FileUtils.writeFile(
       p.join(fp, 'data', 'datasources', '${name}_local_datasource.dart'),
@@ -720,6 +722,7 @@ class CreateFeatureCommand extends Command<int> {
       p.join(c, 'services', 'connectivity_service.dart'),
       ServicesTemplates.connectivityService(
         stateManagement: templates.stateManagement,
+        withApiProbe: withApiProbe,
       ),
     );
   }

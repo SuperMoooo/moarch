@@ -68,9 +68,10 @@ as it has run.
       it means never updating the app on Play again. `GENERATE_JKS_FILE.md`
 - [ ] Signing config reading `key.properties` — `GENERATE_JKS_FILE.md`
 - [ ] `android:debuggable` not set in the manifest
-- [ ] Built as an **app bundle** for Play (`flutter build appbundle`) — the
-      generated `build_apk.yml` produces an APK, which is for testing and
-      direct distribution, not for the store
+- [ ] Built as an **app bundle** for Play (`fvm flutter build appbundle
+      --release`), on your machine — an APK is for testing and direct
+      distribution, not for the store. There is no Android CI build:
+      `docs/BUILD_AND_RELEASE.md` has the commands
 - [ ] Tested on a physical device
 
 ## iOS
@@ -399,15 +400,16 @@ The compiled binary should be hardened against reverse engineering.
 
 - [x] R8 keep rules configured for Android — `android/app/proguard-rules.pro`,
       written by `init` and reproduced below
-- [x] The Android CI build obfuscates the Dart code — `build_apk.yml` passes
-      `--obfuscate --split-debug-info=build/debug-info/android`
+- [ ] The Android release build obfuscates the Dart code — build it with
+      `--obfuscate --split-debug-info=build/debug-info/android` (below)
 - [ ] R8 itself turned on. Writing the rules is not enabling them: without the
       gradle block below, the Java/Kotlin side is neither shrunk nor renamed
-- [ ] Symbols kept. `build/debug-info/` is **not** uploaded by the generated
-      workflow, so today it dies with the runner — see below
-- [ ] The iOS CI build obfuscates too. `build_ipa.yml` compiles with
-      `flutter build ios --release --no-codesign` and archives through
-      `xcodebuild`, which does not carry the Dart obfuscation flags — see below
+- [x] The iOS CI build obfuscates the Dart code — `build_ipa.yml` configures
+      the project with `flutter build ios --config-only --obfuscate`, which the
+      archive's build phase reads, and uploads the symbols as an artifact
+- [ ] Symbols kept for every release — the CI artifact expires after 90 days,
+      and an Android build's `build/debug-info/` lives only on the machine
+      that built it — see below
 - [ ] App integrity / tamper detection, for high-risk apps
 
 ### Obfuscation
@@ -430,36 +432,21 @@ flutter build ipa --release \
 > Crashlytics and in both store consoles — and you cannot regenerate them
 > afterwards.
 
-**Keeping the symbols in CI** — add to `build_apk.yml`, next to the APK upload:
-
-```yaml
-- name: Upload debug symbols
-  uses: actions/upload-artifact@v4
-  with:
-      name: debug-info-android
-      path: build/debug-info/
-      retention-days: 90
-```
+**Keeping the symbols.** `build_ipa.yml` uploads the iOS build's symbols as
+the `debug-info-ios-<run number>` artifact, next to the IPA. For Android, keep
+the `build/debug-info/android` folder of each build you upload to Play.
 
 > 90 days is an artifact retention limit, not a crash-report lifetime. For
 > anything you actually shipped, move the folder somewhere permanent, or upload
 > it to Crashlytics.
 
-**Obfuscating the iOS build.** The `xcodebuild archive` step re-invokes the
-Flutter tool through the Xcode build phase, so the flags on `flutter build ios`
-do not reach it. Pass them to the archive instead:
-
-```yaml
-xcodebuild -workspace Runner.xcworkspace \
-  ... \
-  EXTRA_GEN_SNAPSHOT_OPTIONS="--obfuscate" \
-  EXTRA_FRONT_END_OPTIONS="--obfuscate" \
-  archive
-```
-
-Verify it worked before trusting it — build once with and once without, and
-check that `flutter symbolize` is needed to read a stack trace from the
-obfuscated one.
+**How the iOS CI build obfuscates.** `xcodebuild archive` runs the Flutter
+tool again through the Xcode build phase, so flags given to a separate
+`flutter build ios` would not reach it. The workflow runs
+`flutter build ios --config-only --obfuscate --split-debug-info=…` instead,
+which writes the flags into `ios/Flutter/Generated.xcconfig`, where the build
+phase reads them. Verify it once before trusting it: a stack trace from that
+build should need `flutter symbolize` to read.
 
 **`android/app/build.gradle.kts` — enable R8:**
 ```kotlin
@@ -753,8 +740,7 @@ keytool -genkeypair -v -keystore my-release-key.jks -alias my-key-alias -keyalg 
 > its passwords in a password manager; losing it means you can never update
 > the app on Google Play again.
 
-Place the keystore in `android/app/` so `storeFile` can be a plain filename
-(this matches what the build_apk workflow does in CI).
+Place the keystore in `android/app/` so `storeFile` can be a plain filename.
 
 ## 2. Create `android/key.properties`
 
@@ -916,7 +902,12 @@ keytool -keystore my-release-key.jks -list -v
           ..writeln(
             'written for the user — see '
             '`AppException.fromFirebaseAuthError`.',
-          );
+          )
+          ..writeln(
+            '- **Apple** — enable it. Required by App Store review in an '
+            'app that offers Google;',
+          )
+          ..writeln('  the next section has the Apple side.');
       }
       buffer.writeln();
     }
@@ -1038,7 +1029,8 @@ keytool -keystore my-release-key.jks -list -v
           'raises a clear error',
         )
         ..writeln('rather than failing silently there.')
-        ..writeln();
+        ..writeln()
+        ..write(_appleSignInSetup);
     }
 
     if (withFirestore) {
@@ -1096,6 +1088,31 @@ keytool -keystore my-release-key.jks -list -v
     return buffer.toString();
   }
 
+  static const String _appleSignInSetup = '''
+---
+
+## 6. Sign in with Apple
+
+The datasource uses FirebaseAuth's `AppleAuthProvider`: the native sheet on
+iOS and macOS, Apple's web flow on Android.
+
+1. **developer.apple.com → Identifiers →** your App ID → enable
+   **Sign in with Apple**, then regenerate the provisioning profiles — a
+   profile made before the capability fails codesigning.
+2. **Xcode → Runner → Signing & Capabilities → + Capability → Sign in with
+   Apple.** `ios/Runner/Runner.entitlements` already declares it; this links
+   the file to the target.
+3. **Android** — Apple's web flow returns through Firebase: in
+   developer.apple.com create a **Services ID**, enable Sign in with Apple
+   on it with the return URL Firebase console shows under the Apple
+   provider, and paste the Services ID, your Team ID and a **key** (Keys →
+   + → Sign in with Apple) into the provider's settings.
+
+Deleting an account revokes the Apple grant as App Store review requires;
+that step asks the user to confirm with Apple once more.
+
+''';
+
   /// Returns the CI/CD secrets setup guide for the build workflows.
   static String stepsForWorkflow() => r'''
 # CI/CD Workflow Setup
@@ -1112,10 +1129,12 @@ Steps to produce every GitHub secret the generated workflows need
 | `IOS_P12_PASSWORD` | build_ipa | password you set when exporting the `.p12` |
 | `IOS_PROVISIONING_PROFILE_BASE64` | build_ipa | base64 of your `.mobileprovision` |
 | `IOS_TEAM_ID` | build_ipa | Apple Developer Team ID |
-| `ANDROID_KEYSTORE_BASE64` | build_apk | base64 of your `.jks` keystore |
-| `KEYSTORE_STORE_PASSWORD` | build_apk | keystore store password |
-| `KEYSTORE_KEY_PASSWORD` | build_apk | key password |
-| `KEYSTORE_KEY_ALIAS` | build_apk | key alias (e.g. `my-key-alias`) |
+| `APP_STORE_CONNECT_KEY_ID` | build_ipa (TestFlight) | the App Store Connect API key's id |
+| `APP_STORE_CONNECT_ISSUER_ID` | build_ipa (TestFlight) | the API key's issuer id |
+| `APP_STORE_CONNECT_KEY_BASE64` | build_ipa (TestFlight) | base64 of the key's `AuthKey_<id>.p8` |
+
+Android has no CI build: release builds are signed on your machine with the
+keystore from `GENERATE_JKS_FILE.md`, so it needs no secrets.
 
 ---
 
@@ -1177,15 +1196,48 @@ Only needed when the project uses Firebase push notifications:
 
 ---
 
-## Android — release keystore
+## iOS — which certificate and profile for which build
 
-Generate the `.jks` first (see `GENERATE_JKS_FILE.md`), then base64-encode it
-(PowerShell):
+`build_ipa.yml` asks for an export method when you run it. The `.p12` and the
+`.mobileprovision` in the secrets have to match it:
 
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("<name>.jks")) | Out-File release-key-base64.txt
+| Export method | Certificate | Provisioning profile | Installs on |
+|---|---|---|---|
+| `development` | Apple Development | iOS App Development | the devices listed in the profile |
+| `ad-hoc` | Apple Distribution | Ad Hoc | the devices listed in the profile, no Xcode needed |
+| `app-store` | Apple Distribution | App Store Connect | TestFlight, then the App Store |
+
+The steps above produce whichever certificate you pick on
+developer.apple.com — choose **Apple Distribution** there for the last two.
+One set of secrets holds one pair, so switching method means switching
+secrets.
+
+## iOS — TestFlight upload (optional)
+
+With `app-store` and these three secrets, the workflow uploads the IPA to
+TestFlight itself. Without them it only keeps the IPA as an artifact, to
+upload with Transporter.
+
+1. App Store Connect → **Users and Access → Integrations → App Store Connect
+   API** → generate a key with the **App Manager** role.
+2. Note its **Key ID** and the **Issuer ID** above the list:
+   `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`.
+3. Download `AuthKey_<id>.p8` (only once — Apple never shows it again) and
+   base64 it into `APP_STORE_CONNECT_KEY_BASE64`:
+
+   ```powershell
+   [Convert]::ToBase64String([IO.File]::ReadAllBytes("AuthKey_<id>.p8")) | Out-File asc-key-base64.txt
+   ```
+
+The version and the build number come from `version:` in `pubspec.yaml`
+(`1.2.0+14`). App Store Connect refuses a build number it has seen, so raise
+it before every upload:
+
+```bash
+moarch release bump build    # 1.2.0+14 → 1.2.0+15, same version
+moarch release bump patch    # 1.2.0+14 → 1.2.1+15
 ```
 
-Add the four `ANDROID_*`/`KEYSTORE_*` secrets from the table above.
+Commit the bump, then run the workflow.
 ''';
 }

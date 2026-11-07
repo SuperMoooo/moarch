@@ -12,6 +12,7 @@ import 'package:moarch/src/templates/misc/android_templates.dart';
 import 'package:moarch/src/templates/misc/dev_templates.dart';
 import 'package:moarch/src/templates/misc/docs_templates.dart';
 import 'package:moarch/src/templates/misc/offline_docs_templates.dart';
+import 'package:moarch/src/templates/misc/project_docs_templates.dart';
 import 'package:moarch/src/templates/misc/ios_templates.dart';
 import 'package:moarch/src/templates/misc/readme_templates.dart';
 import 'package:moarch/src/templates/misc/workflow_templates.dart';
@@ -59,6 +60,7 @@ const _kSync = 'Offline sync (outbox + background)';
 // What gets generated into lib/ beyond the bare minimum.
 
 const _kAuthFeature = 'Auth feature (login/register/refresh/logout/delete)';
+const _kAppleSignIn = 'Sign in with Apple (REST auth)';
 const _kRouter = 'Router (GoRouter)';
 const _kWorkflows = 'Workflows (security, tests, build)';
 const _kMediaService = 'Media Service (Image Picker and File Picker)';
@@ -249,6 +251,14 @@ class InitCommand extends Command<int> {
               description:
                   'Follows the backend above: Firebase Auth (email/password + Google) '
                   'when selected, otherwise REST with tokens in secure storage.',
+            ),
+            const ChecklistItem(
+              _kAppleSignIn,
+              defaultOn: false,
+              description:
+                  'For the REST auth feature: the Apple sheet, then its '
+                  'identity token POSTed to /auth/apple. Your backend verifies '
+                  'it. (Firebase auth always has Apple sign-in.)',
             ),
             const ChecklistItem(
               _kRouter,
@@ -599,6 +609,7 @@ class InitCommand extends Command<int> {
         PackageVersions.entry('firebase_auth'),
       if (stack.contains(_kFirestore)) PackageVersions.entry('cloud_firestore'),
       if (firebaseAuthFeature) PackageVersions.entry('google_sign_in'),
+      if (_restAppleSignIn(stack)) PackageVersions.entry('sign_in_with_apple'),
       if (stack.contains(_kMediaService)) PackageVersions.entry('file_picker'),
       if (stack.contains(_kMediaService)) PackageVersions.entry('image_picker'),
       PackageVersions.entry('permission_handler'),
@@ -671,6 +682,7 @@ class InitCommand extends Command<int> {
             templates,
             withPushNotifications: stack.contains(_kFirebaseNotifications),
             withLocalCache: stack.contains(_kOfflineFirst),
+            withAppleSignIn: _restAppleSignIn(stack),
           );
         }
       }
@@ -761,7 +773,7 @@ class InitCommand extends Command<int> {
       // [DevTemplates.buildYaml] for why the one option in it is load-bearing.
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), 'build.yaml'),
-        DevTemplates.buildYaml(),
+        DevTemplates.buildYaml(withDrift: stack.contains(_kOfflineFirst)),
       );
 
       await FileUtils.writeFile(
@@ -780,36 +792,58 @@ class InitCommand extends Command<int> {
       // list is empty here and the section generates as the setup walkthrough.
       // `moarch update readme` re-reads flavorizr.yaml and rewrites it with
       // the real flavors once they exist.
+      final docsOptions = DocsOptions(
+        projectName: ScaffoldContext.detect(p.absolute(targetPath)).projectName,
+        stateManagement: stateManagement,
+        withDio: stack.contains(_kDio),
+        withRouter: stack.contains(_kRouter),
+        withAuthFeature: stack.contains(_kAuthFeature),
+        withFirebaseAuthFeature: firebaseAuthFeature,
+        withFirebase:
+            stack.contains(_kFirestore) ||
+            stack.contains(_kFirebaseAuth) ||
+            stack.contains(_kCrashlytics) ||
+            stack.contains(_kFirebaseNotifications),
+        withFirestore: stack.contains(_kFirestore),
+        withCrashlytics: stack.contains(_kCrashlytics),
+        withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
+        withNotifications: stack.contains(_kNotificationsService),
+        withLocalization: stack.contains(_kLocalizations),
+        withEasyLocalization: stack.contains(_kEasyLocalization),
+        withBiometric: stack.contains(_kBiometricAuth),
+        withDarkTheme: stack.contains(_kDarkTheme),
+        withThemeMode: stack.contains(_kDarkTheme),
+        withStatusColors: true,
+        withMoAdapt: stack.contains(_kMoAdapt),
+        withWorkflows: stack.contains(_kWorkflows),
+        withLocalCache: stack.contains(_kOfflineFirst),
+        withSync: stack.contains(_kSync),
+        withOfflineGate: stack.contains(_kOfflineGate),
+        withDeepLinks: stack.contains(_kDeepLinks),
+        withMaintenanceGate: stack.contains(_kMaintenanceGate),
+        withUpdateGate: stack.contains(_kUpdateGate),
+        withMediaService: stack.contains(_kMediaService),
+        withUrlService: stack.contains(_kLaunchUrlService),
+        withDebouncer: stack.contains(_kDebouncerService),
+        withAppLifecycle: stack.contains(_kAppLifecycle),
+        withPreferences: stack.contains(_kDarkTheme),
+        withAppleSignIn: _appleSignIn(stack),
+      );
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), 'README.md'),
-        ReadmeTemplates.projectReadme(
-          projectName: ScaffoldContext.detect(
-            p.absolute(targetPath),
-          ).projectName,
-          stateManagement: stateManagement,
-          withDio: stack.contains(_kDio),
-          withRouter: stack.contains(_kRouter),
-          withAuthFeature: stack.contains(_kAuthFeature),
-          withFirebaseAuthFeature: firebaseAuthFeature,
-          withFirebase:
-              stack.contains(_kFirestore) ||
-              stack.contains(_kFirebaseAuth) ||
-              stack.contains(_kCrashlytics) ||
-              stack.contains(_kFirebaseNotifications),
-          withFirestore: stack.contains(_kFirestore),
-          withCrashlytics: stack.contains(_kCrashlytics),
-          withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
-          withNotifications: stack.contains(_kNotificationsService),
-          withLocalization: stack.contains(_kLocalizations),
-          withEasyLocalization: stack.contains(_kEasyLocalization),
-          withBiometric: stack.contains(_kBiometricAuth),
-          withDarkTheme: stack.contains(_kDarkTheme),
-          withWorkflows: stack.contains(_kWorkflows),
-          withLocalCache: stack.contains(_kOfflineFirst),
-          withSync: stack.contains(_kSync),
-        ),
+        ReadmeTemplates.projectReadme(docsOptions),
         overwriteWhen: _isFlutterStockReadme,
       );
+
+      // One guide per topic the project has, from the same table the README
+      // links them from.
+      for (final doc in ProjectDocsTemplates.written) {
+        if (!doc.applies(docsOptions)) continue;
+        await FileUtils.writeFile(
+          p.joinAll([p.absolute(targetPath), ...p.posix.split(doc.path)]),
+          doc.render!(docsOptions),
+        );
+      }
 
       // The same project described for coding agents: rules rather than
       // reasons, and the commands that prove a change is done. CLAUDE.md is
@@ -917,6 +951,7 @@ class InitCommand extends Command<int> {
             withSync: stack.contains(_kSync),
             bloc: stateManagement.isBloc,
             withAuthFeature: stack.contains(_kAuthFeature),
+            withApiProbe: stack.contains(_kDio),
           ),
         );
       }
@@ -991,17 +1026,9 @@ class InitCommand extends Command<int> {
                 stack.contains(_kFirebaseAuth) ||
                 stack.contains(_kCrashlytics) ||
                 stack.contains(_kFirebaseNotifications),
-            withPushEntitlements: stack.contains(_kFirebaseNotifications),
+            withPushEntitlements:
+                stack.contains(_kFirebaseNotifications) || _appleSignIn(stack),
           ),
-        );
-        await FileUtils.writeFile(
-          p.join(
-            p.absolute(targetPath),
-            '.github',
-            'workflows',
-            'build_apk.yml',
-          ),
-          WorkflowTemplates.buildANDROID(),
         );
       }
 
@@ -1131,6 +1158,7 @@ class InitCommand extends Command<int> {
           p.join(lib, 'core', 'services', 'connectivity_service.dart'),
           ServicesTemplates.connectivityService(
             stateManagement: stateManagement,
+            withApiProbe: stack.contains(_kDio),
           ),
         );
         if (stack.contains(_kOfflineGate)) {
@@ -1195,10 +1223,12 @@ class InitCommand extends Command<int> {
           stack.contains(_kCrashlytics) ||
           stack.contains(_kFirebaseNotifications);
 
-      if (stack.contains(_kFirebaseNotifications)) {
-        // APNs entitlements for remote push. Local-only notifications don't
-        // get these: aps-environment makes codesigning fail when the
-        // provisioning profile lacks the push capability.
+      // APNs for remote push, and Sign in with Apple. Local-only
+      // notifications get neither: an entitlement the provisioning profile
+      // lacks makes codesigning fail.
+      final withPush = stack.contains(_kFirebaseNotifications);
+      final withApple = _appleSignIn(stack);
+      if (withPush || withApple) {
         await FileUtils.writeFile(
           p.join(
             p.absolute(targetPath),
@@ -1206,7 +1236,10 @@ class InitCommand extends Command<int> {
             'Runner',
             'Runner.entitlements',
           ),
-          IosTemplates.runnerEntitlements(),
+          IosTemplates.runnerEntitlements(
+            withPush: withPush,
+            withAppleSignIn: withApple,
+          ),
         );
         await FileUtils.writeFile(
           p.join(
@@ -1215,7 +1248,10 @@ class InitCommand extends Command<int> {
             'Runner',
             'RunnerProfile.entitlements',
           ),
-          IosTemplates.runnerProfileEntitlements(),
+          IosTemplates.runnerProfileEntitlements(
+            withPush: withPush,
+            withAppleSignIn: withApple,
+          ),
         );
       }
 
@@ -1848,6 +1884,7 @@ class InitCommand extends Command<int> {
     final dioConfig = stack.contains(_kDio) && !stack.contains(_kFirestore);
     return CoreTemplates.apiConstants(
       withAuthFeature: restAuthFeature,
+      withAppleSignIn: _restAppleSignIn(stack),
       withDeviceToken:
           restAuthFeature && stack.contains(_kFirebaseNotifications),
       withMaintenanceGate: dioConfig && stack.contains(_kMaintenanceGate),
@@ -1942,7 +1979,10 @@ class InitCommand extends Command<int> {
     if (stack.contains(_kDio)) {
       await FileUtils.writeFile(
         p.join(c, 'network', 'dio_client.dart'),
-        templates.dioClient(withAuthFeature: restAuthFeature),
+        templates.dioClient(
+          withAuthFeature: restAuthFeature,
+          withAppleSignIn: _restAppleSignIn(stack),
+        ),
       );
       await FileUtils.writeFile(
         p.join(c, 'network', 'safe_api_call.dart'),
@@ -2050,6 +2090,7 @@ class InitCommand extends Command<int> {
     StackTemplates templates, {
     required bool withPushNotifications,
     required bool withLocalCache,
+    bool withAppleSignIn = false,
   }) async {
     final f = p.join(libPath, 'features', 'auth');
 
@@ -2065,6 +2106,7 @@ class InitCommand extends Command<int> {
       p.join(f, 'data', 'datasources', 'auth_remote_datasource.dart'),
       templates.authRemoteDatasource(
         withPushNotifications: withPushNotifications,
+        withAppleSignIn: withAppleSignIn,
       ),
     );
     await FileUtils.writeFile(
@@ -2072,16 +2114,17 @@ class InitCommand extends Command<int> {
       templates.authRepository(
         withPushNotifications: withPushNotifications,
         withLocalCache: withLocalCache,
+        withAppleSignIn: withAppleSignIn,
       ),
     );
     await FileUtils.writeFile(
       p.join(f, 'presentation', templates.stateDir, 'auth_state.dart'),
-      templates.authState(),
+      templates.authState(withEmailVerification: true),
     );
     if (templates.isBloc) {
       await FileUtils.writeFile(
         p.join(f, 'presentation', 'blocs', 'auth_event.dart'),
-        templates.authEvent(),
+        templates.authEvent(withAppleSignIn: withAppleSignIn),
       );
     }
     await FileUtils.writeFile(
@@ -2094,6 +2137,7 @@ class InitCommand extends Command<int> {
       templates.authHolder(
         withPushNotifications: withPushNotifications,
         withConcurrency: templates.isBloc,
+        withAppleSignIn: withAppleSignIn,
       ),
     );
     await FileUtils.writeFile(
@@ -2104,7 +2148,28 @@ class InitCommand extends Command<int> {
       p.join(f, 'presentation', 'views', 'register_view.dart'),
       templates.authRegisterView(),
     );
+    await FileUtils.writeFile(
+      p.join(f, 'presentation', 'views', 'forgot_password_view.dart'),
+      templates.authForgotPasswordView(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'presentation', 'views', 'verify_email_view.dart'),
+      templates.authVerifyEmailView(),
+    );
   }
+
+  /// The REST auth feature with Sign in with Apple: the checklist option,
+  /// and only when the auth feature is not the Firebase one, which has it
+  /// built in.
+  bool _appleSignIn(Set<String> stack) =>
+      _restAppleSignIn(stack) ||
+      (stack.contains(_kAuthFeature) && stack.contains(_kFirebaseAuth));
+
+  /// The REST variant alone — see [_appleSignIn].
+  bool _restAppleSignIn(Set<String> stack) =>
+      stack.contains(_kAppleSignIn) &&
+      stack.contains(_kAuthFeature) &&
+      !stack.contains(_kFirebaseAuth);
 
   /// The same feature against Firebase Auth: email/password and Google
   /// sign-in, with no token storage — Firebase persists the session itself.
@@ -2170,6 +2235,14 @@ class InitCommand extends Command<int> {
       p.join(f, 'presentation', 'views', 'register_view.dart'),
       templates.firebaseAuthRegisterView(),
     );
+    await FileUtils.writeFile(
+      p.join(f, 'presentation', 'views', 'forgot_password_view.dart'),
+      templates.firebaseAuthForgotPasswordView(),
+    );
+    await FileUtils.writeFile(
+      p.join(f, 'presentation', 'views', 'verify_email_view.dart'),
+      templates.firebaseAuthVerifyEmailView(),
+    );
   }
 
   Future<void> _buildConfig(
@@ -2196,7 +2269,10 @@ class InitCommand extends Command<int> {
     if (stack.contains(_kRouter)) {
       await FileUtils.writeFile(
         p.join(c, 'router', 'app_router.dart'),
-        templates.appRouter(withAuth: stack.contains(_kAuthFeature)),
+        templates.appRouter(
+          withAuth: stack.contains(_kAuthFeature),
+          withAccountScreens: stack.contains(_kAuthFeature),
+        ),
       );
       await FileUtils.writeFile(
         p.join(c, 'router', 'app_routes.dart'),
@@ -2296,6 +2372,7 @@ class InitCommand extends Command<int> {
       hasStatusColors: true,
       // AppConstants is written by _buildCore, with the curves.
       hasMotionTokens: true,
+      hasCornerTokens: true,
       // And ApiConstants, with every path this checklist calls.
       apiEndpoints: CoreTemplates.declaredEndpoints(_apiConstants(stack)),
       stateManagement: stateManagement,

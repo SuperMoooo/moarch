@@ -257,6 +257,14 @@ $firestoreField
           // updateDisplayName does not touch the cached user object.
           await user.reload();
         }
+        // The router holds the new user on the verify screen until the link
+        // in this email is followed. A failed send is not a failed sign-up:
+        // the verify screen sends it again.
+        try {
+          await user.sendEmailVerification();
+        } on FirebaseAuthException {
+          // Resent from the verify screen.
+        }
         return AuthUserModel.fromFirebaseUser(_auth.currentUser ?? user);
       },
     );
@@ -303,9 +311,55 @@ $firestoreField
     );
   }
 
+  /// Sign in with Apple: the native sheet on iOS and macOS, Apple's web flow
+  /// elsewhere, exchanged for a Firebase session.
+  Future<AuthUserModel> signInWithApple() {
+    return safeFirebaseCall<AuthUserModel>(
+      call: () async {
+        final provider = AppleAuthProvider()
+          ..addScope('email')
+          ..addScope('name');
+        final UserCredential credential;
+        try {
+          credential = await _auth.signInWithProvider(provider);
+        } on FirebaseAuthException catch (error) {
+          if (_cancelCodes.contains(error.code)) throw AppException.cancelled();
+          rethrow;
+        }
+        return AuthUserModel.fromFirebaseUser(credential.user!);
+      },
+    );
+  }
+
+  /// What FirebaseAuth reports when the user closes a provider's sheet.
+  static const _cancelCodes = {
+    'canceled',
+    'web-context-canceled',
+    'web-context-cancelled',
+  };
+
   Future<void> sendPasswordResetEmail({required String email}) {
     return safeFirebaseCall<void>(
       call: () => _auth.sendPasswordResetEmail(email: email),
+    );
+  }
+
+  /// Sends the signed-in user's verification email again.
+  Future<void> sendEmailVerification() {
+    return safeFirebaseCall<void>(
+      call: () async => _auth.currentUser?.sendEmailVerification(),
+    );
+  }
+
+  /// The signed-in user, read again from Firebase — what picks up a
+  /// verification done in the browser, which no auth event reports.
+  Future<AuthUserModel?> reloadUser() {
+    return safeFirebaseCall<AuthUserModel?>(
+      call: () async {
+        await _auth.currentUser?.reload();
+        final user = _auth.currentUser;
+        return user == null ? null : AuthUserModel.fromFirebaseUser(user);
+      },
     );
   }
 
@@ -333,6 +387,20 @@ $firestoreField
         // Revokes the grant as well as the session, so deleting the account
         // really does undo the connection.
         if (linkedToGoogle) await _googleSignIn.disconnect();
+
+        final linkedToApple = user.providerData.any(
+          (provider) => provider.providerId == 'apple.com',
+        );
+        if (linkedToApple) {
+          // App Store review requires the Apple grant to be revoked with the
+          // account. Apple hands out the code for it only at sign-in, so ask
+          // once more — which also answers `requires-recent-login`.
+          final again = await user.reauthenticateWithProvider(
+            AppleAuthProvider(),
+          );
+          final code = again.additionalUserInfo?.authorizationCode;
+          if (code != null) await _auth.revokeTokenWithAuthorizationCode(code);
+        }
 
         // Throws requires-recent-login when the session is old — the message
         // tells the user to sign in again.
@@ -439,6 +507,10 @@ $firestoreMethods$deviceTokenMethod}
 '''
         : '';
 
+    final saveProfileOnApple = withFirestore
+        ? '\n    // First Apple sign-in — create the profile document.\n    await _remote.saveProfile(user);'
+        : '';
+
     return '''
 $cacheImport${pushImports}import '../datasources/auth_remote_datasource.dart';
 import '../models/auth_user_model.dart';
@@ -492,9 +564,25 @@ class AuthRepository {
     return user;
   }
 
+  /// Sign in with Apple, exchanged for a Firebase session.
+  ///
+  /// Throws an [AppException] of type `cancelled` when the user dismisses the
+  /// Apple sheet — nothing failed, so there is nothing to report.
+  Future<AuthUserModel> signInWithApple() async {
+    final user = await _remote.signInWithApple();$saveProfileOnApple
+    return user;
+  }
+
   /// Sends the password reset email Firebase hosts.
   Future<void> sendPasswordResetEmail({required String email}) =>
       _remote.sendPasswordResetEmail(email: email);
+
+  /// Sends the verification email again.
+  Future<void> sendEmailVerification() => _remote.sendEmailVerification();
+
+  /// The signed-in user, read again — after a verification, or a profile
+  /// change made elsewhere.
+  Future<AuthUserModel?> reloadUser() => _remote.reloadUser();
 
   /// Ends the session — Google's too, when that is how the user signed in.
   $logout
@@ -546,6 +634,7 @@ final class AuthAuthenticated extends AuthState {
     this.email,
     this.displayName,
     this.photoUrl,
+    this.emailVerified = true,
   });
 
   final String userId;
@@ -553,8 +642,18 @@ final class AuthAuthenticated extends AuthState {
   final String? displayName;
   final String? photoUrl;
 
+  /// Whether the address is verified. The router holds the user on the
+  /// verify screen until it is; `AuthUserReloadRequested` picks it up.
+  final bool emailVerified;
+
   @override
-  List<Object?> get props => [userId, email, displayName, photoUrl];
+  List<Object?> get props => [
+    userId,
+    email,
+    displayName,
+    photoUrl,
+    emailVerified,
+  ];
 }
 
 /// Signed out, and nothing went wrong getting here.
@@ -654,6 +753,20 @@ final class AuthGoogleSignInRequested extends AuthEvent {
   const AuthGoogleSignInRequested();
 }
 
+final class AuthAppleSignInRequested extends AuthEvent {
+  const AuthAppleSignInRequested();
+}
+
+/// Send the verification email again.
+final class AuthVerificationEmailRequested extends AuthEvent {
+  const AuthVerificationEmailRequested();
+}
+
+/// Read the user again — after following the verification link.
+final class AuthUserReloadRequested extends AuthEvent {
+  const AuthUserReloadRequested();
+}
+
 final class AuthPasswordResetRequested extends AuthEvent {
   const AuthPasswordResetRequested({required this.email});
 
@@ -691,7 +804,10 @@ final class AuthAccountDeleted extends AuthEvent {
             'AuthLoginRequested',
             'AuthRegisterRequested',
             'AuthGoogleSignInRequested',
+            'AuthAppleSignInRequested',
             'AuthPasswordResetRequested',
+            'AuthVerificationEmailRequested',
+            'AuthUserReloadRequested',
             'AuthLogoutRequested',
             'AuthAccountDeleted',
           ])
@@ -713,7 +829,8 @@ final class AuthAccountDeleted extends AuthEvent {
               '\n      unawaited(_repo.syncDeviceToken());'
         : '';
 
-    // Same call one level deeper, inside the try of the Google flow.
+    // Same call one level deeper, inside the try of the Google and Apple
+    // flows.
     final syncAfterGoogle = withPushNotifications
         ? '\n      unawaited(_repo.syncDeviceToken());'
         : '';
@@ -737,7 +854,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthLoginRequested>(_onLogin);
     on<AuthRegisterRequested>(_onRegister);
     on<AuthGoogleSignInRequested>(_onGoogleSignIn);
+    on<AuthAppleSignInRequested>(_onAppleSignIn);
     on<AuthPasswordResetRequested>(_onPasswordReset);
+    on<AuthVerificationEmailRequested>(_onVerificationEmail);
+    on<AuthUserReloadRequested>(_onUserReload);
     on<AuthLogoutRequested>(_onLogout);
     on<AuthAccountDeleted>(_onDeleteAccount);
   }
@@ -818,6 +938,53 @@ $syncOnRestore
     }
   }
 
+  Future<void> _onAppleSignIn(
+    AuthAppleSignInRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final current = state;
+    emit(const AuthLoading());
+    try {
+      final user = await _repo.signInWithApple();$syncAfterGoogle
+      emit(_stateFrom(user));
+    } on CancelledException {
+      // Dismissing the Apple sheet is not a failure worth showing.
+      emit(current);
+    } on AppException catch (e) {
+      emit(AuthFailure(e.message));
+    }
+  }
+
+  Future<void> _onVerificationEmail(
+    AuthVerificationEmailRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    // The session does not change; only a failure is worth a state, and the
+    // screen confirms the send itself.
+    final current = state;
+    if (current is! AuthAuthenticated) return;
+    try {
+      await _repo.sendEmailVerification();
+    } on AppException catch (e) {
+      emit(AuthFailure(e.message, userId: current.userId));
+    }
+  }
+
+  Future<void> _onUserReload(
+    AuthUserReloadRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    // No AuthLoading, for the reason given in _onDeleteAccount. A verification
+    // done in the browser raises no auth event, so this is what reports it.
+    final current = state;
+    if (current is! AuthAuthenticated) return;
+    try {
+      emit(_stateFrom(await _repo.reloadUser()));
+    } on AppException catch (e) {
+      emit(AuthFailure(e.message, userId: current.userId));
+    }
+  }
+
   Future<void> _onPasswordReset(
     AuthPasswordResetRequested event,
     Emitter<AuthState> emit,
@@ -879,6 +1046,7 @@ $syncOnRestore
       email: user.email,
       displayName: user.displayName,
       photoUrl: user.photoUrl,
+      emailVerified: user.emailVerified,
     );
   }
 
@@ -900,7 +1068,8 @@ import 'package:flutter/material.dart';
 // TODO: build your login UI and dispatch
 // context.read<AuthBloc>().add(AuthLoginRequested(email: ..., password: ...))
 // context.read<AuthBloc>().add(const AuthGoogleSignInRequested())
-// context.read<AuthBloc>().add(AuthPasswordResetRequested(email: ...))
+// context.read<AuthBloc>().add(const AuthAppleSignInRequested())
+// and link "Forgot password?" to AppRoutes.forgotPassword.
 
 class LoginView extends StatelessWidget {
   const LoginView({super.key});
@@ -909,6 +1078,51 @@ class LoginView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Login')),
+      body: const SizedBox.shrink(),
+    );
+  }
+}
+''';
+
+  /// Returns the generated forgot-password view template: Firebase emails a
+  /// link to its own reset page.
+  static String forgotPasswordView() => r'''
+import 'package:flutter/material.dart';
+
+// TODO: ask for the email and call
+// context.read<AuthBloc>().add(AuthPasswordResetRequested(email: ...))
+// then tell the user to check their inbox and go back to the login screen.
+
+class ForgotPasswordView extends StatelessWidget {
+  const ForgotPasswordView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Reset password')),
+      body: const SizedBox.shrink(),
+    );
+  }
+}
+''';
+
+  /// Returns the generated verify-email view template — where the router
+  /// holds a signed-in user whose address is not verified yet.
+  static String verifyEmailView() => r'''
+import 'package:flutter/material.dart';
+
+// TODO: say where the email went, and call
+// context.read<AuthBloc>().add(const AuthVerificationEmailRequested())
+// context.read<AuthBloc>().add(const AuthUserReloadRequested())  ("I've verified it")
+// The router moves on by itself once the address is verified.
+
+class VerifyEmailView extends StatelessWidget {
+  const VerifyEmailView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Verify your email')),
       body: const SizedBox.shrink(),
     );
   }

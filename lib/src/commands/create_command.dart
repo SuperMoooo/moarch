@@ -6,6 +6,7 @@ import 'package:moarch/src/commands/create/create_feature_command.dart';
 import 'package:moarch/src/commands/create/create_flavors_command.dart';
 import 'package:moarch/src/commands/create/create_model_command.dart';
 import 'package:moarch/src/commands/create/create_scope_command.dart';
+import 'package:moarch/src/commands/create/create_table_command.dart';
 import 'package:moarch/src/commands/create/create_tests_command.dart';
 import 'package:moarch/src/commands/create/create_theme_command.dart';
 import 'package:moarch/src/commands/create/create_widget_command.dart';
@@ -23,6 +24,7 @@ class CreateCommand extends Command<int> {
     addSubcommand(CreateFlavorsCommand(logger: logger));
     addSubcommand(CreateTestsCommand(logger: logger));
     addSubcommand(CreateScopeCommand(logger: logger));
+    addSubcommand(CreateTableCommand(logger: logger));
   }
 
   final Logger _logger;

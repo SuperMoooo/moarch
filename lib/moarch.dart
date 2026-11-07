@@ -1,4 +1,4 @@
-library moarch;
+library;
 
 export 'src/runner.dart';
 

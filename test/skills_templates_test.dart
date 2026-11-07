@@ -193,10 +193,11 @@ void main() {
       expect(firestore, isNot(contains('integration test')));
     });
 
-    test('build-screen puts every widget in its own file', () {
+    test('build-screen splits by section, not by widget', () {
       for (final stack in StateManagement.values) {
         final source = render('build-screen', options(stack));
-        expect(source, contains('**One widget per file.**'));
+        expect(source, contains('**Split by section, not by widget.**'));
+        expect(source, contains('stays inline in its'));
         expect(source, contains('presentation/widgets/'));
         expect(source, isNot(contains('Split a growing `build` into private')));
       }

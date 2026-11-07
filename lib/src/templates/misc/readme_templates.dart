@@ -1,12 +1,16 @@
-import '../../utils/state_management.dart';
+import 'project_docs_templates.dart';
 
-/// The project README `moarch init` writes at the project root.
+/// The project README `moarch init` writes at the project root, and the
+/// guides under `docs/` that grew out of it.
 ///
-/// The other documents under `docs/` are task lists — this is the one aimed at
-/// a person: what the project is, how to run it the first time, what each
-/// layer is for, how the chosen state stack works, and where `docs/` picks up.
-/// It is written for someone who has never touched a Clean Architecture
-/// Flutter app, so it explains the reasoning and not only the commands.
+/// The README is the front page: what the project is, how to run it the first
+/// time, what it is built with and where things are, then a table of every
+/// guide in `docs/`. Each topic — the architecture, state management, flavors,
+/// building and releasing, code standards — is a guide of its own
+/// ([architectureDoc] and the rest), so the front page stays short enough to
+/// read and each guide can be refreshed on its own. It is written for someone
+/// who has never touched a Clean Architecture Flutter app, so it explains the
+/// reasoning and not only the commands.
 ///
 /// Every section is built from what the project actually has — the stack, the
 /// packages, the flavors — so nothing here describes a file that was never
@@ -18,91 +22,151 @@ class ReadmeTemplates {
 
   /// Returns the README for a project.
   ///
-  /// [flavors] is the flavor set read off `flavorizr.yaml`; empty means the
-  /// project has not run `moarch create flavors` yet, and the flavors section
-  /// becomes the setup walkthrough instead of the per-flavor build commands.
-  static String projectReadme({
-    required String projectName,
-    required StateManagement stateManagement,
-    List<String> flavors = const [],
-    bool withDio = false,
-    bool withRouter = false,
-    bool withAuthFeature = false,
-    bool withFirebaseAuthFeature = false,
-    bool withFirebase = false,
-    bool withFirestore = false,
-    bool withCrashlytics = false,
-    bool withFirebaseNotifications = false,
-    bool withNotifications = false,
-    bool withLocalization = false,
-    bool withEasyLocalization = false,
-    bool withBiometric = false,
-    bool withDarkTheme = false,
-    bool withWorkflows = false,
-    bool withLocalCache = false,
-    bool withSync = false,
-  }) {
-    final bloc = stateManagement.isBloc;
+  /// `flavors` in [o] is the flavor set read off `flavorizr.yaml`; empty means
+  /// the project has not run `moarch create flavors` yet.
+  static String projectReadme(DocsOptions o) {
+    final bloc = o.bloc;
     return <String>[
-      _header(projectName, bloc: bloc),
-      _overview(bloc: bloc, withRouter: withRouter, withDio: withDio),
+      _header(o.projectName, bloc: bloc),
+      _overview(bloc: bloc, withRouter: o.withRouter, withDio: o.withDio),
       _gettingStarted(
-        flavors: flavors,
-        withDio: withDio,
-        withFirebase: withFirebase,
-        withLocalization: withLocalization,
+        flavors: o.flavors,
+        withDio: o.withDio,
+        withFirebase: o.withFirebase,
+        withLocalization: o.withLocalization,
       ),
       _techStack(
         bloc: bloc,
-        withDio: withDio,
-        withRouter: withRouter,
-        withFirebase: withFirebase,
-        withFirestore: withFirestore,
-        withCrashlytics: withCrashlytics,
-        withFirebaseNotifications: withFirebaseNotifications,
-        withNotifications: withNotifications,
-        withLocalization: withLocalization,
-        withEasyLocalization: withEasyLocalization,
-        withBiometric: withBiometric,
-        withFirebaseAuthFeature: withFirebaseAuthFeature,
-        withFlavors: flavors.isNotEmpty,
-        withLocalCache: withLocalCache,
-        withSync: withSync,
+        withDio: o.withDio,
+        withRouter: o.withRouter,
+        withFirebase: o.withFirebase,
+        withFirestore: o.withFirestore,
+        withCrashlytics: o.withCrashlytics,
+        withFirebaseNotifications: o.withFirebaseNotifications,
+        withNotifications: o.withNotifications,
+        withLocalization: o.withLocalization,
+        withEasyLocalization: o.withEasyLocalization,
+        withBiometric: o.withBiometric,
+        withFirebaseAuthFeature: o.withFirebaseAuthFeature,
+        withFlavors: o.flavors.isNotEmpty,
+        withLocalCache: o.withLocalCache,
+        withSync: o.withSync,
       ),
       _structure(
         bloc: bloc,
-        withRouter: withRouter,
-        withAuthFeature: withAuthFeature,
-        withFirebase: withFirebase,
-        withFlavors: flavors.isNotEmpty,
-        withLocalization: withLocalization || withEasyLocalization,
+        withRouter: o.withRouter,
+        withAuthFeature: o.withAuthFeature,
+        withFirebase: o.withFirebase,
+        withFlavors: o.flavors.isNotEmpty,
+        withLocalization: o.withAnyLocalization,
       ),
-      _architecture(bloc: bloc, withDio: withDio),
-      bloc ? _blocGuide() : _riverpodGuide(),
-      _addingAFeature(bloc: bloc, withRouter: withRouter),
-      _flavorsSection(
-        flavors: flavors,
-        projectName: projectName,
-        withFirebase: withFirebase,
-      ),
-      _building(flavors: flavors),
-      _cicd(withWorkflows: withWorkflows, withFirebase: withFirebase),
-      _standards(bloc: bloc, withDarkTheme: withDarkTheme),
-      _contacts(withFirebase: withFirebase),
+      _guides(o),
+      _contacts(withFirebase: o.withFirebase),
       _links(
         bloc: bloc,
-        withDio: withDio,
-        withRouter: withRouter,
-        withFirebase: withFirebase,
-        withLocalization: withLocalization,
-        withEasyLocalization: withEasyLocalization,
-        withBiometric: withBiometric,
+        withDio: o.withDio,
+        withRouter: o.withRouter,
+        withFirebase: o.withFirebase,
+        withLocalization: o.withLocalization,
+        withEasyLocalization: o.withEasyLocalization,
+        withBiometric: o.withBiometric,
       ),
       _footer,
       // Each section ends with its own `---` rule and no trailing blank line;
       // joining on one puts the blank line between the rule and the next
       // heading, which is what keeps the markdown readable in a plain editor.
     ].join('\n');
+  }
+
+  /// `docs/ARCHITECTURE.md`: one piece of data from the API to the screen,
+  /// the locator, the errors, and adding a feature.
+  static String architectureDoc(DocsOptions o) => _asDoc(
+    title: 'Architecture',
+    purpose: 'How a feature is put together, and how to add one.',
+    sections: [
+      _architecture(bloc: o.bloc, withDio: o.withDio),
+      _addingAFeature(
+        bloc: o.bloc,
+        withRouter: o.withRouter,
+        withLocalCache: o.withLocalCache,
+      ),
+    ],
+  );
+
+  /// `docs/STATE_MANAGEMENT.md`: the project's stack, step by step.
+  static String stateManagementDoc(DocsOptions o) => _asDoc(
+    title: 'State management — ${o.bloc ? 'Bloc' : 'Riverpod'}',
+    purpose: 'How a screen holds its state.',
+    sections: [o.bloc ? _blocGuide() : _riverpodGuide()],
+  );
+
+  /// `docs/FLAVORS.md`: the setup walkthrough, or the project's flavors.
+  static String flavorsDoc(DocsOptions o) => _asDoc(
+    title: 'Flavors & environments',
+    purpose: 'Several builds of the same app, side by side.',
+    sections: [
+      _flavorsSection(
+        flavors: o.flavors,
+        projectName: o.projectName,
+        withFirebase: o.withFirebase,
+      ),
+    ],
+  );
+
+  /// `docs/BUILD_AND_RELEASE.md`: the builds, then CI and its secrets.
+  static String buildAndReleaseDoc(DocsOptions o) => _asDoc(
+    title: 'Build & release',
+    purpose: 'Building each platform, and what CI does with it.',
+    sections: [
+      _building(flavors: o.flavors),
+      _cicd(withWorkflows: o.withWorkflows, withFirebase: o.withFirebase),
+    ],
+  );
+
+  /// `docs/CODE_STANDARDS.md`: the conventions the analyzer cannot check.
+  static String codeStandardsDoc(DocsOptions o) => _asDoc(
+    title: 'Code standards',
+    purpose: 'The conventions every change follows.',
+    sections: [_standards(bloc: o.bloc, withDarkTheme: o.withDarkTheme)],
+  );
+
+  /// A README-style section turned into a guide of its own: the numbered
+  /// `## N. Title` line goes, every `###` becomes a `##`, the closing rule
+  /// goes, and the guide gets its title and the link back to the README.
+  static String _asDoc({
+    required String title,
+    required String purpose,
+    required List<String> sections,
+  }) {
+    final body = [
+      for (final section in sections)
+        section
+            .replaceFirst(RegExp(r'^\n?## \d+\. [^\n]*\n'), '')
+            .replaceAll(RegExp(r'^### ', multiLine: true), '## ')
+            .replaceFirst(RegExp(r'\n---\n$'), '\n')
+            .trim(),
+    ].join('\n\n');
+    return '${ProjectDocsTemplates.header(title, purpose)}\n$body\n';
+  }
+
+  /// Section 5 — every guide the project has, one line each.
+  static String _guides(DocsOptions o) {
+    final rows = [
+      for (final doc in ProjectDocsTemplates.all)
+        if (doc.applies(o)) '| [${doc.title}](${doc.path}) | ${doc.answers} |',
+    ];
+    return '''
+## 5. Guides
+
+Everything past the first run is in `docs/`, one guide per topic. Start with
+**Architecture** and **State management**: the rest make sense after them.
+
+| Guide | What it answers |
+|---|---|
+${rows.join('\n')}
+
+---
+''';
   }
 
   /// The title block and table of contents.
@@ -115,10 +179,10 @@ class ReadmeTemplates {
 > **Primary platform:** Flutter (iOS & Android)
 > **Architecture:** Clean Architecture (data + presentation) + ${bloc ? 'flutter_bloc' : 'Riverpod'} + get_it
 
-This is the guide to the project: what it is, how to get it running, how it is
-put together and how it ships. It assumes no prior experience with this
-codebase or with Clean Architecture — read it top to bottom the first time,
-then use it as a reference.
+This is the front page of the project: what it is, how to get it running and
+where everything is. Each topic — the architecture, state, networking, the
+release process — has a guide of its own in `docs/`, listed in section 5. It
+assumes no prior experience with this codebase or with Clean Architecture.
 
 The scaffolding was generated by [moarch](https://pub.dev/packages/moarch);
 everything below describes **this** project, not the generator.
@@ -131,15 +195,9 @@ everything below describes **this** project, not the generator.
 2. [Getting started](#2-getting-started)
 3. [Tech stack & tools](#3-tech-stack--tools)
 4. [Project structure](#4-project-structure)
-5. [How the architecture works](#5-how-the-architecture-works)
-6. [State management — ${bloc ? 'Bloc' : 'Riverpod'}](#6-state-management--${bloc ? 'bloc' : 'riverpod'})
-7. [Adding a feature](#7-adding-a-feature)
-8. [Flavors & environments](#8-flavors--environments)
-9. [Building the app](#9-building-the-app)
-10. [CI/CD & GitHub secrets](#10-cicd--github-secrets)
-11. [Code standards](#11-code-standards)
-12. [Contacts & access](#12-contacts--access)
-13. [Documentation & links](#13-documentation--links)
+5. [Guides](#5-guides)
+6. [Contacts & access](#6-contacts--access)
+7. [Learning & links](#7-learning--links)
 
 ---
 ''';
@@ -191,7 +249,7 @@ same class the API parsed.
 **Why it is worth the extra folders:** a screen that talks to Dio directly
 cannot be tested without a network, cannot be reused when the endpoint changes,
 and spreads error handling across the UI. A repository between them avoids all
-three.
+three. `docs/ARCHITECTURE.md` follows one piece of data through every layer.
 
 ### Generated, and still refreshable
 
@@ -359,14 +417,17 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
     );
 
     if (bloc) {
-      row('flutter_bloc', 'State management — see section 6.');
+      row('flutter_bloc', 'State management — see `docs/STATE_MANAGEMENT.md`.');
       row('bloc', 'The pure-Dart half, so blocs import no Flutter.');
       row(
         'equatable',
         'Value equality on states and events. Without it every emit repaints.',
       );
     } else {
-      row('flutter_riverpod', 'State management — see section 6.');
+      row(
+        'flutter_riverpod',
+        'State management — see `docs/STATE_MANAGEMENT.md`.',
+      );
     }
     row(
       'get_it',
@@ -458,7 +519,7 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
     if (withFlavors) {
       row(
         'flutter_flavorizr',
-        'Dev dependency. Generates the native flavor configuration — see section 8.',
+        'Dev dependency. Generates the native flavor configuration — see `docs/FLAVORS.md`.',
       );
     }
     row('build_runner', 'Dev dependency. Runs the code generators.');
@@ -531,12 +592,12 @@ ${packages.toString().trimRight()}
 │           ├── blocs/                   # events, states and the bloc
 │           ├── pages/                   # the route target: provides the bloc
 │           ├── views/                   # the screen itself
-│           └── widgets/                 # its pieces, one widget per file'''
+│           └── widgets/                 # its sections (header, list item…), one per file'''
         : '''│       └── presentation/
 │           ├── notifiers/               # the AsyncNotifier
 │           ├── states/                  # its immutable state class
 │           ├── views/                   # the screens
-│           └── widgets/                 # their pieces, one widget per file''';
+│           └── widgets/                 # their sections (header, list item…), one per file''';
 
     return '''
 ## 4. Project structure
@@ -575,11 +636,11 @@ At the root:
 | `pubspec.yaml` | Dependencies and the app version |
 | `.fvmrc` | The pinned Flutter version — see section 2 |
 | `.env` / `.env.example` | Environment values; the first is gitignored, the second is not |
-| `analysis_options.yaml` | The lint contract — see section 11 |
+| `analysis_options.yaml` | The lint contract — see `docs/CODE_STANDARDS.md` |
 | `.moarch.yaml` | Hashes of every generated file, so `moarch update` knows what you edited |
-| `flutter_native_splash.yaml` | Native splash configuration |${withFlavors ? '\n| `flavorizr.yaml` | The flavor definitions — see section 8 |' : ''}
-| `docs/` | The guides — see section 13 |
-| `.github/workflows/` | CI and release builds — see section 10 |
+| `flutter_native_splash.yaml` | Native splash configuration |${withFlavors ? '\n| `flavorizr.yaml` | The flavor definitions — see `docs/FLAVORS.md` |' : ''}
+| `docs/` | The guides — see section 5 |
+| `.github/workflows/` | CI and release builds — see `docs/BUILD_AND_RELEASE.md` |
 | `android/` `ios/` | The native shells: signing, permissions, platform config |
 | `test/` | `unit/` and `integration/` |
 
@@ -741,8 +802,8 @@ try {
 }
 ```
 
-Two rules follow from that, and section 11 repeats them because they are the
-ones most often broken:
+Two rules follow from that, and `docs/CODE_STANDARDS.md` repeats them
+because they are the ones most often broken:
 
 1. **Never leave a `catch` empty.** Log it or handle it.
 2. **Never show a raw error.** Show `AppException.message`.
@@ -1101,6 +1162,7 @@ state. The ruleset is in `analysis_options.yaml`.
   static String _addingAFeature({
     required bool bloc,
     required bool withRouter,
+    required bool withLocalCache,
   }) {
     final stateStep = bloc
         ? '''3. **Hold the screen's state.** Add the fields to `profile_state.dart`
@@ -1135,7 +1197,7 @@ Then the part that is yours:
 $stateStep
 4. **Draw it.** Build the view out of `lib/shared/widgets/` rather than raw
    Material widgets — the kit is catalogued in `docs/UI_KIT.md`.
-${withRouter ? '5. **Route to it.** Add the path to `lib/config/router/app_routes.dart` and\n   the route to `app_router.dart`.\n' : ''}
+${withRouter ? '5. **Route to it.** `moarch create feature` already added `AppRoutes.profile`\n   and its `GoRoute`; point the route at the screen if it needs parameters\n   (`docs/ROUTING.md`).\n' : ''}
 ### The other generators
 
 | Command | What it does |
@@ -1146,32 +1208,14 @@ ${withRouter ? '5. **Route to it.** Add the path to `lib/config/router/app_route
 | `moarch create empty-factories [feature]` | Injects `.empty()` factories into every model |
 | `moarch create tests [feature]` | Unit tests for every state holder, integration tests for every GET endpoint |
 | `moarch create theme` | Switches the project between one theme and light + dark |
-| `moarch create flavors [names…]` | See section 8 |
+| `moarch create flavors [names…]` | See `docs/FLAVORS.md` |${withLocalCache ? '\n| `moarch create table <feature>` | Gives a feature its own drift table, read from its model (`docs/OFFLINE_FIRST.md`) |' : ''}
 | `moarch update --list` | Which generated files are out of date, and which you have edited |
 | `moarch doctor` | Checks the project for known problems (`--fix` applies what it can) |
 
 ### Tests
 
-Tests live in `test/unit/` and `test/integration/`:
-
-```bash
-fvm flutter test
-```
-
-The scaffold ships no tests of its own beyond the smoke test. Once a
-feature has real methods, generate them from the code:
-
-```bash
-moarch create tests            # every feature
-moarch create tests profile    # one feature
-```
-
-That writes a unit test per ${bloc ? 'bloc' : 'notifier'} under `test/unit/features/` — every
-dependency mocked, a success and an error test per ${bloc ? 'event' : 'method'} — and an
-integration test per GET endpoint a remote datasource calls, under
-`test/integration/features/`, against the real API (`BASE_URL` in `.env`).
-Re-run it as the code grows. A generated file you edit keeps your edits once
-you delete its first line, the `GENERATED BY moarch` marker.
+Once the feature has real methods, `moarch create tests profile` writes its
+tests from the code. `docs/TESTING.md` covers what to test and how.
 
 ---
 ''';
@@ -1195,7 +1239,7 @@ you delete its first line, the `GENERATED BY moarch` marker.
 fvm flutter run --flavor $first
 ```
 
-Building a particular flavor is section 9.
+Building a particular flavor is in `docs/BUILD_AND_RELEASE.md`.
 '''
         : '''This project does **not** have flavors yet. Add them the day it needs more
 than one environment installed at a time:
@@ -1208,7 +1252,8 @@ dart run flutter_flavorizr
 
 Review the app names and ids in the generated `flavorizr.yaml` before running
 the second command. Until then `fvm flutter run` builds the single app, and
-per-environment values come from `.env` (section 2, step 3).
+per-environment values come from `.env` (the README's Getting started, step
+3).
 ''';
 
     return '''
@@ -1289,8 +1334,8 @@ keystore and wiring it into Gradle is `docs/GENERATE_JKS_FILE.md`.
 
 ### iOS
 
-Needs a Mac with Xcode — or the GitHub Actions workflow in section 10, which is
-there precisely so that a Mac is not required.
+Needs a Mac with Xcode — or the GitHub Actions workflow below, which is there
+precisely so that a Mac is not required.
 
 ```bash
 fvm flutter build ipa$flag --release
@@ -1300,6 +1345,19 @@ fvm flutter build ipa$flag --release
 Distribute it with Transporter or Xcode's Organizer. Producing the signing
 certificate and the provisioning profile — including without a Mac — is
 `docs/STEPS_FOR_WORKFLOW.md`.
+
+### Version and build number
+
+`version:` in `pubspec.yaml` is both: `1.4.2+37` is version `1.4.2`, build
+`37` (Android's `versionCode`, iOS's `CFBundleVersion`). Both stores refuse a
+build number they have seen, so raise it before every upload:
+
+```bash
+moarch release bump patch --changelog   # 1.4.2+37 → 1.4.3+38, CHANGELOG entry
+moarch release bump build               # 1.4.2+37 → 1.4.2+38, a rebuild
+```
+
+`major`, `minor` and `patch` raise the build number too.
 
 ### Before shipping
 
@@ -1336,18 +1394,23 @@ encoding) and `docs/GENERATE_JKS_FILE.md` (the Android keystore).
     return '''
 ## 10. CI/CD & GitHub secrets
 
-Four workflows live in `.github/workflows/`:
+Three workflows live in `.github/workflows/`:
 
 | Workflow | File | Runs on | What it does |
 |---|---|---|---|
-| CI | `unified_workflow.yml` | push to `main`/`develop`, PRs to `main` | format, analyze, test, build |
-| CSA | `csa.yml` | push and manual | code scanning: SAST, secret scan, SBOM, licence report |
-| Build IOS IPA | `build_ipa.yml` | manual | signs and builds the IPA, uploaded as the `release-ipa` artifact |
-| Build ANDROID APK | `build_apk.yml` | manual | signs and builds the APK, uploaded as the `release-apk` artifact |
+| CI | `unified_workflow.yml` | push to `main`/`develop`, PRs to `main` | format check, analyze, unit tests, then integration tests, a secret scan and (PRs) a dependency CVE review |
+| CSA | `csa.yml` | release tags (`v*`) and manual | SBOM and licence report — never on a schedule |
+| Build IOS IPA | `build_ipa.yml` | manual | signs and builds the IPA (development, ad hoc or App Store), keeps it and its debug symbols as artifacts, and with an App Store Connect key uploads it to TestFlight |
 
-"Manual" means **Actions → the workflow → Run workflow**. Both build workflows
-check for their secrets first and **skip cleanly** when they are missing, rather
-than failing — so a fresh clone or a fork stays green until signing is set up.
+"Manual" means **Actions → the workflow → Run workflow**. The iOS workflow
+checks for its secrets first, on a cheap Linux runner, and **skips cleanly**
+when they are missing — so a fresh clone or a fork stays green until signing
+is set up. A newer push cancels the CI run still going for the same branch.
+
+There is no Android workflow: an Android release build needs no Mac, so it is
+cheaper on your own machine than on a runner —
+`fvm flutter build appbundle --release`, signed with the keystore from
+`docs/GENERATE_JKS_FILE.md`.
 
 ### The secrets
 
@@ -1360,10 +1423,9 @@ Repository → **Settings → Secrets and variables → Actions**.
 | `IOS_P12_PASSWORD` | `build_ipa` | the password you set when exporting the `.p12` |
 | `IOS_PROVISIONING_PROFILE_BASE64` | `build_ipa` | base64 of your `.mobileprovision` |
 | `IOS_TEAM_ID` | `build_ipa` | your Apple Developer Team ID |
-| `ANDROID_KEYSTORE_BASE64` | `build_apk` | base64 of your `.jks` keystore |
-| `KEYSTORE_STORE_PASSWORD` | `build_apk` | the keystore's store password |
-| `KEYSTORE_KEY_PASSWORD` | `build_apk` | the key's password |
-| `KEYSTORE_KEY_ALIAS` | `build_apk` | the key alias, e.g. `my-key-alias` |
+| `APP_STORE_CONNECT_KEY_ID` | `build_ipa`, TestFlight only | the App Store Connect API key's id |
+| `APP_STORE_CONNECT_ISSUER_ID` | `build_ipa`, TestFlight only | its issuer id |
+| `APP_STORE_CONNECT_KEY_BASE64` | `build_ipa`, TestFlight only | base64 of its `AuthKey_<id>.p8` |
 
 **Why base64?** A GitHub secret holds text, and a `.p12`, a `.mobileprovision`
 and a `.jks` are binary files. Base64 is how a binary becomes a secret: the
@@ -1405,14 +1467,19 @@ keychain, and that keychain dies with the job.
 
 ### Widgets
 
-- **Small and reusable beats one long `build`.** When a `build` method grows a
-  section, extract it as a widget class, not as a `Widget _buildHeader()`
-  method. A class gets its own `const` constructor and its own rebuild
-  boundary; a method is rebuilt with its parent every time.
-- **Every widget gets its own file.** The class is public and lives in the
-  feature's `presentation/widgets/` (`profile_header.dart` → `ProfileHeader`),
-  never as a private `_ProfileHeader` at the bottom of the view. A widget a
-  second feature needs moves to `lib/shared/widgets/`.
+- **Split a screen by section, not by widget.** When a `build` method grows a
+  section — a header, a summary card, a list item, a form, a footer — extract
+  it as a widget class, not as a `Widget _buildHeader()` method. A class gets
+  its own `const` constructor and its own rebuild boundary; a method is
+  rebuilt with its parent every time.
+- **One section per file.** The class is public and lives in the feature's
+  `presentation/widgets/` (`profile_header.dart` → `ProfileHeader`), never as
+  a private `_ProfileHeader` at the bottom of the view. A widget a second
+  feature needs moves to `lib/shared/widgets/`.
+- **A single kit widget is not a section.** One `AppInput`, one `AppButton`
+  or a styled `Text` stays inline where it is used: a feature widget that
+  only wraps it moves a line to another file and gains nothing. Extract a
+  part when it has a name, its own data, or repeats (a list item).
 - **`const` wherever it compiles.** A `const` widget is skipped entirely on
   rebuild.
 
@@ -1431,7 +1498,8 @@ AppButton(label: 'Save');         // ❌ when it could have been const
 - Never show a raw error or a stack trace in the UI. Catch `AppException` and
   show its `message`.
 - Translate at the boundary: the datasource turns transport errors into
-  `AppException`, so the UI has one type to handle. Section 5 has the pattern.
+  `AppException`, so the UI has one type to handle. `docs/ARCHITECTURE.md`
+  has the pattern.
 
 ### Before every commit
 
@@ -1443,7 +1511,7 @@ fvm flutter test
 
 The CI workflow checks formatting, runs the analyzer and runs the tests, and
 fails the build on any of them — so running all three locally only ever saves a
-round trip. The rules themselves are in `analysis_options.yaml`.${bloc ? "\n\n`bloc lint .` is separate: the bloc team's ruleset is not part of CI, and\nsection 6 has the one-time setup it needs." : ''}
+round trip. The rules themselves are in `analysis_options.yaml`.${bloc ? "\n\n`bloc lint .` is separate: the bloc team's ruleset is not part of CI, and\n`docs/STATE_MANAGEMENT.md` has the one-time setup it needs." : ''}
 
 ---
 ''';
@@ -1453,7 +1521,7 @@ round trip. The rules themselves are in `analysis_options.yaml`.${bloc ? "\n\n`b
   /// noticed.
   static String _contacts({required bool withFirebase}) =>
       '''
-## 12. Contacts & access
+## 6. Contacts & access
 
 > 🔐 **Passwords and tokens must never be stored in this file.** It is in the
 > repository; the repository is not a vault.
@@ -1508,17 +1576,7 @@ round trip. The rules themselves are in `analysis_options.yaml`.${bloc ? "\n\n`b
         : '- [Riverpod](https://riverpod.dev) — providers, `AsyncValue`, and when to watch vs. read';
 
     return '''
-## 13. Documentation & links
-
-### In this repository
-
-| Document | What it answers |
-|---|---|
-| `docs/UI_KIT.md` | Every shared widget, what it takes and what it looks like |
-| `docs/CHECKLIST_BEFORE_DEPLOYMENT.md` | What still needs doing before a release |
-| `docs/SECURITY_BEFORE_DEPLOYMENT.md` | The security review, mapped to the OWASP Mobile Top 10 |
-| `docs/GENERATE_JKS_FILE.md` | Creating the Android signing keystore, and its base64 |
-| `docs/STEPS_FOR_WORKFLOW.md` | Every GitHub secret the workflows need, produced step by step |${withFirebase ? '\n| `docs/FIREBASE_SETUP.md` | The console and platform steps the generated Firebase code depends on |' : ''}
+## 7. Learning & links
 
 ### If Flutter is new to you
 
@@ -1531,7 +1589,7 @@ Read these in order — a day, and the rest of this file will read easily:
 3. [Effective Dart](https://dart.dev/effective-dart) — the style the analyzer
    enforces here.
 4. ${bloc ? '[Bloc: core concepts](https://bloclibrary.dev/bloc-concepts/)' : '[Riverpod: getting started](https://riverpod.dev/docs/introduction/getting_started)'}
-   — then re-read section 6 of this file.
+   — then re-read `docs/STATE_MANAGEMENT.md`.
 5. [Flutter Cookbook](https://docs.flutter.dev/cookbook) — the recipe you need,
    when you need it.
 

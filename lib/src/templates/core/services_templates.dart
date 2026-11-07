@@ -951,31 +951,43 @@ class PreferencesService {
   /// additionally gets `hasInternetProvider` over it and bloc a
   /// `ConnectivityCubit` — connectivity *is* state, and a widget wants to
   /// watch it rather than resolve it once.
+  ///
+  /// [withApiProbe] (a project with Dio) makes "online" mean the API answered
+  /// a HEAD, not only that a network interface is up: wifi behind a captive
+  /// portal, or a router with no uplink, reads as offline. A Firestore-only
+  /// project keeps the interface check, since Firestore queues its own writes.
   static String connectivityService({
     StateManagement stateManagement = StateManagement.riverpod,
+    bool withApiProbe = false,
   }) {
     final isBloc = stateManagement.isBloc;
 
     final imports = isBloc
         ? "import 'package:bloc/bloc.dart';\n"
         : "import 'package:flutter_riverpod/flutter_riverpod.dart';\n";
+    final dioImport = withApiProbe ? "import 'package:dio/dio.dart';\n" : '';
 
     final holder = isBloc ? _connectivityCubit : _hasInternetProvider;
 
     final locatorImport = isBloc
         ? ''
         : "import '../../config/di/injector.dart';\n";
+    final envImport = withApiProbe
+        ? "import '../../config/env/app_env.dart';\n"
+        : '';
+
+    final checks = withApiProbe ? _probeChecks : _interfaceChecks;
 
     return '''
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
-$imports
-${locatorImport}import '../utils/app_logger.dart';
+$dioImport$imports
+$locatorImport${envImport}import '../utils/app_logger.dart';
 
 final _log = appLogger.scoped('Connectivity');
 $holder
-$_connectivityServiceBody''';
+${withApiProbe ? _probeClassHead : _interfaceClassHead}$checks$_connectivityServiceTail''';
   }
 
   static const String _hasInternetProvider = '''
@@ -1010,12 +1022,38 @@ class ConnectivityCubit extends Cubit<bool> {
 }
 ''';
 
-  static const String _connectivityServiceBody =
+  static const String _interfaceClassHead =
       r'''/// Whether the device has a network connection, and what to do when it comes
 /// back. An interface is not a working internet, so requests still handle
 /// `NetworkException`.
 class ConnectivityService {
   final Connectivity _connectivity = Connectivity();
+''';
+
+  static const String _probeClassHead =
+      r'''/// Whether the API can be reached, and what to do when it can again.
+///
+/// An interface coming up is only the first check: the API then has to answer
+/// a HEAD, so wifi behind a captive portal reads as offline. Requests still
+/// handle `NetworkException`, since the connection can drop between the check
+/// and the call.
+class ConnectivityService {
+  final Connectivity _connectivity = Connectivity();
+
+  /// Any response counts, even a 404 or a 500: the server answered. Only a
+  /// request that gets no response at all means offline.
+  final Dio _probe = Dio(
+    BaseOptions(
+      connectTimeout: _probeTimeout,
+      receiveTimeout: _probeTimeout,
+      validateStatus: (_) => true,
+    ),
+  );
+
+  static const _probeTimeout = Duration(seconds: 3);
+''';
+
+  static const String _interfaceChecks = r'''
 
   /// `true` while online: the current state, then each change (repeats dropped).
   Stream<bool> get hasInternetStream => _states().distinct();
@@ -1030,6 +1068,37 @@ class ConnectivityService {
 
   Future<bool> hasInternet() async =>
       _isOnline(await _connectivity.checkConnectivity());
+''';
+
+  static const String _probeChecks = r'''
+
+  /// `true` while online: the current state, then each change (repeats dropped).
+  Stream<bool> get hasInternetStream => _states().distinct();
+
+  Stream<bool> _states() async* {
+    yield await hasInternet();
+    yield* _connectivity.onConnectivityChanged.asyncMap((results) async {
+      _log.d('$results');
+      return _isOnline(results) && await _reachesApi();
+    });
+  }
+
+  Future<bool> hasInternet() async =>
+      _isOnline(await _connectivity.checkConnectivity()) &&
+      await _reachesApi();
+
+  Future<bool> _reachesApi() async {
+    try {
+      await _probe.head<void>(AppEnv.baseUrl);
+      return true;
+    } on DioException catch (error) {
+      _log.d('API unreachable: ${error.type}');
+      return false;
+    }
+  }
+''';
+
+  static const String _connectivityServiceTail = r'''
 
   /// Runs [action] each time the device comes back online — only on the way
   /// back from offline, never on start. Sync what was saved while offline,

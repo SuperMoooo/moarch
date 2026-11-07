@@ -19,7 +19,10 @@ class ErrorTemplates {
         r"    appLogger.e('[AppException] — $message', error: error, stackTrace: stackTrace);";
     final imports = [
       if (hasDio) "import 'package:dio/dio.dart';",
-      if (withFirebase) "import 'package:firebase_core/firebase_core.dart';",
+      // firebase_auth re-exports FirebaseException; importing firebase_core
+      // beside it is an `unnecessary_import`, which fails `flutter analyze`.
+      if (withFirebase && !hasFirebaseAuth)
+        "import 'package:firebase_core/firebase_core.dart';",
       if (hasFirebaseAuth) "import 'package:firebase_auth/firebase_auth.dart';",
       if (hasCrashlytics)
         "import 'package:firebase_crashlytics/firebase_crashlytics.dart';",

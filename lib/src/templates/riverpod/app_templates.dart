@@ -477,11 +477,17 @@ mixin ActionNotifierMixin<S extends ActionState<S>> on AsyncNotifier<S> {
   /// [withAuth] wires the redirect to `authNotifierProvider` and parks the
   /// router on a splash route until the session is restored, so neither login
   /// nor home flashes on startup.
-  static String appRouter({bool withAuth = false}) {
+  static String appRouter({
+    bool withAuth = false,
+    bool withAccountScreens = false,
+  }) {
+    final accountScreens = withAuth && withAccountScreens;
     final relativeImports = withAuth
         ? "import '../../features/auth/presentation/notifiers/auth_notifier.dart';\n"
+              "${accountScreens ? "import '../../features/auth/presentation/views/forgot_password_view.dart';\n" : ''}"
               "import '../../features/auth/presentation/views/login_view.dart';\n"
               "import '../../features/auth/presentation/views/register_view.dart';\n"
+              "${accountScreens ? "import '../../features/auth/presentation/views/verify_email_view.dart';\n" : ''}"
               "import '../../shared/widgets/loadings/app_loading_data.dart';\n"
               "import './app_routes.dart';"
         : "import './app_routes.dart';";
@@ -505,12 +511,48 @@ mixin ActionNotifierMixin<S extends ActionState<S>> on AsyncNotifier<S> {
       GoRoute(
         path: AppRoutes.register,
         builder: (context, state) => const RegisterView(),
+      ),${accountScreens ? '''
+      GoRoute(
+        path: AppRoutes.forgotPassword,
+        builder: (context, state) => const ForgotPasswordView(),
       ),
+      GoRoute(
+        path: AppRoutes.verifyEmail,
+        builder: (context, state) => const VerifyEmailView(),
+      ),''' : ''}
 '''
         : '';
 
-    final authGuard = withAuth
-        ? r'''
+    final authGuard = !withAuth
+        ? ''
+        : accountScreens
+        ? _authGuard
+              .replaceFirst('{{verify}}', _riverpodVerify)
+              .replaceFirst('{{home}}', 'signedInHome')
+              .replaceFirst('{{home}}', 'signedInHome')
+              .replaceFirst('{{verify_rules}}', _verifyRules)
+        : _authGuard
+              .replaceFirst('{{verify}}', '')
+              .replaceFirst('{{home}}', 'from ?? AppRoutes.home')
+              .replaceFirst('{{home}}', 'from ?? AppRoutes.home')
+              .replaceFirst('{{verify_rules}}', '');
+
+    return _appRouter(relativeImports, options, authRoutes, authGuard);
+  }
+
+  static const String _riverpodVerify = r'''
+  // Signed in, but the address is not verified yet: held on the verify
+  // screen, which moves on by itself once it is.
+  final verified = auth.value?.emailVerified ?? true;
+  final onVerify = state.matchedLocation == AppRoutes.verifyEmail;
+  final signedInHome = verified ? from ?? AppRoutes.home : AppRoutes.verifyEmail;
+''';
+
+  static const String _verifyRules = r'''
+  if (isAuthenticated && !verified && !onVerify) return AppRoutes.verifyEmail;
+  if (verified && onVerify) return AppRoutes.home;''';
+
+  static const String _authGuard = r'''
 
 
 /// Re-runs [_redirect] whenever the auth state changes.
@@ -531,10 +573,10 @@ String? _redirect(Ref ref, GoRouterState state) {
     return onSplash ? null : _withFrom(AppRoutes.splash, state.uri.toString());
   }
 
-  final isAuthenticated = auth.value?.authenticated ?? false;
+  final isAuthenticated = auth.value?.authenticated ?? false;{{verify}}
   if (onSplash) {
     return isAuthenticated
-        ? from ?? AppRoutes.home
+        ? {{home}}
         : _withFrom(AppRoutes.login, from);
   }
 
@@ -542,7 +584,7 @@ String? _redirect(Ref ref, GoRouterState state) {
   if (!isAuthenticated && !onPublicRoute) {
     return _withFrom(AppRoutes.login, state.uri.toString());
   }
-  if (isAuthenticated && onPublicRoute) return from ?? AppRoutes.home;
+  if (isAuthenticated && onPublicRoute) return {{home}};{{verify_rules}}
   return null;
 }
 
@@ -559,9 +601,14 @@ String? _fromOf(GoRouterState state) {
     return null;
   }
   return from;
-}'''
-        : '';
+}''';
 
+  static String _appRouter(
+    String relativeImports,
+    String options,
+    String authRoutes,
+    String authGuard,
+  ) {
     return '''
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

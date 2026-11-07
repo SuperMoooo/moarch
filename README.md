@@ -73,6 +73,7 @@ moarch create theme --dark         # add the dark palette, AppTheme.dark and the
 moarch create theme --no-dark      # ...and drop back to the single brand theme
 moarch create tests [feature]      # unit tests for every notifier/bloc, integration tests for every GET endpoint
 moarch create scope <feature> <name> [--blocs A,B] [--parent XScope]  # carry a screen's blocs to what it opens (bloc)
+moarch create table <feature>      # a drift table read from the feature's model, for offline queries (offline-first)
 
 moarch update        # refresh every generated file against the current templates
 moarch update <name> # ...or just one (e.g. validation, extensions, theme)
@@ -80,12 +81,16 @@ moarch update <group># ...or one group (widgets, core, security, config, docs...
 moarch update --list # list every name and group update accepts
 moarch doctor        # check the project for common scaffolding issues
 moarch doctor --fix  # ...and apply the ones that don't need a decision
+
+moarch release bump <major|minor|patch|build> [--changelog]  # raise version+build in pubspec.yaml
+moarch l10n extract [--dry-run]    # move hard-coded screen strings into the translation files
 ```
 
 ## What it generates
 
 - `lib/main.dart`, `core/`, `config/`, `shared/`, and `features/`
-- `README.md` — the project's own guide, written for someone who has never worked on a Clean Architecture Flutter app: the first run through FVM, a layer-by-layer walkthrough of the generated code, a state-management section for whichever stack you picked, flavors, the build commands, and the CI secrets (pointing at `docs/` for the step-by-step). It replaces the stock `flutter create` README and only that one — a README you wrote is left alone, and `moarch update readme --diff` shows what a refresh would change
+- `README.md` — the project's front page, written for someone who has never worked on a Clean Architecture Flutter app: what it is, the first run through FVM, the tech stack, the folder tree, and a table linking every guide in `docs/`. It replaces the stock `flutter create` README and only that one — a README you wrote is left alone, and `moarch update readme --diff` shows what a refresh would change
+- `docs/` — one guide per topic, each written only when the project has it: `ARCHITECTURE.md` (one piece of data through every layer, the locator, errors, adding a feature), `STATE_MANAGEMENT.md` (the stack you picked, step by step), `NETWORKING.md` (Dio, endpoints, errors, the token refresh, retries, pagination), `AUTH.md`, `ROUTING.md`, `THEME.md` (the tokens, the theme, dark mode, the kit), `LOCALIZATION.md`, `NOTIFICATIONS.md`, `SERVICES.md` (every service under `lib/core/`), `TESTING.md`, `FLAVORS.md`, `BUILD_AND_RELEASE.md` (the builds, CI and its secrets) and `CODE_STANDARDS.md`, beside the setup guides and checklists below. Each is in the catalog's `docs` group, so `moarch update docs` refreshes them; a project from before 10.2.0 gets them from `moarch doctor --fix`, then `moarch update readme`
 - Riverpod **or** flutter_bloc (see below) + optional GoRouter setup
 - Envied-based `.env` support
 - secure storage, logger, helpers, and a full shared UI kit / design system (see below)
@@ -99,6 +104,7 @@ moarch doctor --fix  # ...and apply the ones that don't need a decision
 - `AGENTS.md` + `CLAUDE.md` — the project's rules for coding agents (Codex, Cursor, Copilot, Gemini CLI, Claude Code): the layout, no entity layer, the state stack's patterns, the UI kit and tokens, and the commands that prove a change is done. `CLAUDE.md` is only `@AGENTS.md`, so there is one set of instructions. Both are catalog entries, so `moarch update agents claude-md` keeps them in step with the templates; a project from before 9.0.0 gets them from `moarch doctor --fix`
 - `.agents/skills/` — step-by-step skills for the tasks agents get asked most, written for the project's stack and options: `moarch-add-feature`, `moarch-plan-feature` (an interview that settles a feature's data, screens, actions, route and platform needs before any code, one round of questions at a time, each with a recommended answer), `moarch-add-endpoint`, `moarch-add-action`, `moarch-add-model`, `moarch-build-screen`, `moarch-preview-widget` (`@Preview` functions for Flutter's widget previewer, in the app's theme through a project `AppPreview` annotation), `moarch-add-env-key`, `moarch-write-tests`, `moarch-fix-bug` (reproduce first: a failing test at the layer that owns the symptom, then the fix), `moarch-update-scaffold` and `moarch-review` (a checklist review of a diff against the rules). Codex, Cursor, Copilot and Gemini CLI read `.agents/skills/`; Claude Code reads only `.claude/skills/`, so each skill has a pointer there, the same way `CLAUDE.md` imports `AGENTS.md`. Alongside them: `.claude/settings.json` allows the format / analyze / test / build_runner commands without a prompt and denies reading `.env` and editing `*.g.dart`, `*.freezed.dart` and `.moarch.yaml`, and `.gemini/settings.json` points Gemini CLI at `AGENTS.md`. `.mcp.json` (Claude Code) and `.gemini/settings.json` both start the Dart MCP server through FVM (`fvm dart mcp-server`), so an agent can launch the app, hot reload it and read its runtime errors and widget tree; `AGENTS.md` and the build-screen and fix-bug skills tell it to when the server is there. All of it is the `ai` group: `moarch update ai` refreshes it, a project from before 9.1.0 gets it from `moarch doctor --fix`, and so does a project that has the skills but not the ones added since, or no `.mcp.json`. Generic skills can be installed beside these — Flutter ones (like `flutter/skills`' `flutter-fix-layout-issues`) and process ones (like `mattpocock/skills`' `grill-me`); `AGENTS.md` says that where one disagrees with the project's rules, the rules win
 - `.vscode/` — `settings.json` pointing the Dart extension at the fvm SDK `.fvmrc` pins, and `launch.json` with debug/profile/release entries plus a flavored pair for `dev`, `staging` and `prod` (ready for when the native side declares them)
+- `.github/workflows/` (optional) — CI on every push and pull request (format check, analyze, unit tests, then integration tests, a secret scan and a dependency CVE review on PRs, a newer push cancelling the stale run), the supply-chain report on release tags and by hand, and an iOS build on demand: development, ad hoc or App Store, compiled once on the macOS runner, obfuscated, with its debug symbols kept, and uploaded to TestFlight when an App Store Connect key is in the secrets. Nothing runs on a schedule, so an untouched repository never fails on its own. There is no Android workflow: an Android release needs no Mac, so it is cheaper built on your machine (`docs/BUILD_AND_RELEASE.md`)
 - `android/app/proguard-rules.pro` — the R8 keep rules for the Flutter engine, Firebase, OkHttp and coroutines. Inert until you enable minification for the release build type, so it costs the debug build nothing; the gradle block that turns it on is in `docs/SECURITY_BEFORE_DEPLOYMENT.md`
 
 ## Riverpod or flutter_bloc
@@ -363,7 +369,7 @@ names, the same `AppException` reaching the same `AppAsyncView`.
 | model `id` | `int` | `String` — a document id |
 | model shape | freezed + json_serializable | plus `fromDoc`, an id kept out of the body, and dates stored as `Timestamp` |
 | errors mapped by | `AppException.fromDioError` | `fromFirebaseError` + `fromFirebaseAuthError` |
-| auth feature | tokens in secure storage, refresh interceptor, the user from `GET /auth/me` | Firebase Auth, email/password + Google |
+| auth feature | tokens in secure storage, refresh interceptor, the user from `GET /auth/me`; Sign in with Apple opt-in | Firebase Auth, email/password, Google and Apple |
 
 `moarch create feature <name>` follows the same choice. In a Firestore project
 the datasource comes out with `fetchAll` / `fetchOne` / `watchAll` /
@@ -382,10 +388,26 @@ Firestore applies them to the local cache before the server confirms, and the
 subscription re-emits. The REST feature is unchanged — a `Future`, and a `TODO`
 where the fetch goes.
 
+Both auth features come with **password reset** and **email verification**: a
+forgot-password screen (Firebase emails a link to its page; REST emails a code
+to `POST /auth/password/forgot`, then sets the new password at
+`/auth/password/reset`), and a verify-email screen the router holds a signed-in
+user on until the address is verified (REST reads `email_verified` off
+`GET /auth/me`, true when the API sends none). Both screens are stubs with the
+calls they make, like login and register.
+
+**Sign in with Apple** is in the Firebase auth feature always — App Store review
+requires it in an app that offers Google sign-in — through FirebaseAuth's
+`AppleAuthProvider`, and deleting the account revokes the Apple grant, which
+review also requires. The REST feature gets it from the **Sign in with Apple**
+checklist option: `sign_in_with_apple` returns Apple's identity token and
+`POST /auth/apple` trades it for a session; your backend verifies the token.
+Either way `Runner.entitlements` declares the capability.
+
 Selecting **Firebase Auth** together with the auth feature generates it against
-Firebase instead of REST: email/password, Google sign-in, password reset, account
-deletion, and a session restored from `authStateChanges()` rather than from a
-stored refresh token. With Firestore also selected it keeps a `users/{uid}`
+Firebase instead of REST: email/password, Google and Apple sign-in, password
+reset, email verification, account deletion, and a session restored from
+`authStateChanges()` rather than from a stored refresh token. With Firestore also selected it keeps a `users/{uid}`
 profile document in step with the account. Dio is not pulled in for it, and no
 tokens are stored — Firebase persists the session itself.
 
@@ -562,6 +584,45 @@ deletion, and the REST variant also empties it at every sign-in, which covers a
 session that expired while the app was away. Anything else that switches
 accounts calls `getIt<LocalCache>().clearAll()`.
 
+#### A feature's own table
+
+JSON is enough to show a list offline, not to query it. Once a feature's model
+has its fields, `moarch create table <feature>` gives it a drift table read
+from the model — Room's `@Entity`, without a second class:
+
+```dart
+// lib/features/orders/data/tables/orders_table.dart — written from OrderModel
+@UseRowClass(OrderModel)
+class OrderRows extends Table {
+  IntColumn get id => integer()();
+  TextColumn get title => text()();
+  DateTimeColumn get dueAt => dateTime().nullable()();
+  TextColumn get status => textEnum<OrderStatus>()();
+  TextColumn get tags => text().map(OrderRows.tagsConverter)();  // List<String> as JSON
+  IntColumn get listOrder => integer()();                          // the API's order
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+```
+
+`@UseRowClass` makes drift return the freezed model itself, so there is still
+one data type per feature. Primitives and `DateTime` get their own column, an
+enum is stored by name, a nested model or a `List` / `Map` as JSON; a field
+nothing fits is reported and nothing is written. The command also registers the
+table in `AppDatabase`, bumps `schemaVersion`, moves the local datasource (and
+its locator registration) from `LocalCache` onto the table, and makes
+`LocalCache.clearAll()` empty it on sign-out. The repository is unchanged; the
+datasource can now answer SQL queries offline. After changing the model, run it
+again: the table and the datasource's row mapping follow, the queries you added
+stay. A file you edited is never rewritten — the change is printed instead.
+
+On a schema upgrade the cache and the feature tables are rebuilt from the API.
+Anything that holds data the server does not have — the sync queue, a table of
+drafts — is migrated instead: `build.yaml` configures drift's
+`make-migrations`, which saves each version's schema under `drift_schemas/` and
+writes a test per upgrade step under `test/drift/`.
+
 ### Offline sync
 
 Tick **Offline sync (outbox + background)** as well, and writes stop needing a
@@ -595,9 +656,11 @@ trigger a background run on each platform, and `docs/OFFLINE_FIRST.md` (written
 with the cache, sync or not) explains the whole flow step by step, with a
 timeline.
 
-A connection is a network interface, not a working internet: a captive portal
-reads as online. The gate decides what to show; requests still handle
-`NetworkException`.
+A network interface is not a working internet, so with Dio `ConnectivityService`
+checks the API: once an interface is up, a `HEAD` to `BASE_URL` (3-second
+timeout) has to get an answer — any status counts. Wifi behind a captive
+portal reads as offline. A Firestore-only project keeps the interface check.
+The gate decides what to show; requests still handle `NetworkException`.
 
 ### Deep links
 
@@ -644,6 +707,14 @@ from them, and a **lean common set** of widgets under `lib/shared/widgets/`: inp
 `AppInputFormat`, `AppInputStyle`, `InputTitle`), `AppButton`, `AppLeadingIcon`, the
 state screens (`AppAsyncView`, `ErrorView`, `EmptyView`, `AppLoadingData`) and
 overlays (`AppToast`, `AppConfirmDialog`, dialog/bottom-sheet helpers).
+
+**Corners are one setting.** `static const AppCorners corners =
+AppCorners.rounded;` in `AppConstants` — `square`, `soft` (half) or
+`rounded` — drives every radius token, so the theme and every widget (cards,
+sheets, dialogs, inputs, buttons, chips, tabs, toasts, pills) follow it, and
+icon buttons go square in a square app. True circles (avatars, radios, an
+explicit `circle`) stay round. Every shape option of the kit also has a
+`square` value for the one widget that differs.
 
 The palette is laid out by the **60-30-10 rule**:
 
@@ -1492,7 +1563,7 @@ its own:
 | `config` | `theme`, `env`, `router`, `routes`, `firebase-providers`, `injector` |
 | `auth` | the generated auth feature, REST or Firebase, notifier or bloc |
 | `docs` | `ui-kit`, `deploy-checklist`, `security-checklist`, `jks-doc`, `workflow-doc`, `firebase-doc` |
-| `workflows` | the four GitHub Actions workflows |
+| `workflows` | the three GitHub Actions workflows |
 | `project` | `analysis-options`, `splash`, `fvmrc`, `widget-test`, `vscode-settings`, `vscode-launch` |
 | `ios` | `ios-entitlements`, `ios-profile-entitlements`, `xcode-script` |
 | `android` | `proguard` |

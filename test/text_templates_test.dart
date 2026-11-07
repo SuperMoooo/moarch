@@ -19,7 +19,10 @@ void main() {
         output,
         contains('enum AppTextButtonType { plain, underlined, tonal }'),
       );
-      expect(output, contains('enum AppTextButtonShape { rounded, pill }'));
+      expect(
+        output,
+        contains('enum AppTextButtonShape { square, rounded, pill }'),
+      );
       expect(
         output,
         contains('enum AppTextButtonSize { small, medium, large }'),

@@ -42,6 +42,7 @@ class WidgetVariants {
     this.hasDarkTheme = false,
     this.hasStatusColors = false,
     this.hasMotionTokens = false,
+    this.hasCornerTokens = false,
     this.apiEndpoints = const {},
     this.stateManagement = StateManagement.riverpod,
   });
@@ -59,6 +60,7 @@ class WidgetVariants {
     hasDarkTheme: hasDarkThemeIn(libPath),
     hasStatusColors: hasStatusColorsIn(libPath),
     hasMotionTokens: hasMotionTokensIn(libPath),
+    hasCornerTokens: hasCornerTokensIn(libPath),
     apiEndpoints: apiEndpointsIn(libPath),
     stateManagement: StateManagement.detect(libPath),
   );
@@ -82,6 +84,16 @@ class WidgetVariants {
     );
     return file.existsSync() &&
         file.readAsStringSync().contains('curveStandard');
+  }
+
+  /// Whether `lib/core/constants/app_constants.dart` declares the corner
+  /// setting (10.2.0) — see [CoreTemplates.cornerTokenLiterals].
+  static bool hasCornerTokensIn(String libPath) {
+    final file = File(
+      p.join(libPath, 'core', 'constants', 'app_constants.dart'),
+    );
+    return file.existsSync() &&
+        file.readAsStringSync().contains('squareCorners');
   }
 
   /// Whether `lib/config/theme/app_status_colors.dart` exists — the theme
@@ -155,6 +167,10 @@ class WidgetVariants {
   /// `AppConstants` declares the motion curves. Without them every widget is
   /// written with the literal curve instead of the token.
   final bool hasMotionTokens;
+
+  /// `AppConstants` declares the corner setting. Without it a widget reads
+  /// its corners as never square.
+  final bool hasCornerTokens;
 
   /// The constants `ApiConstants` declares. A gate whose config path is not
   /// among them is written with the literal path instead.
@@ -1154,9 +1170,12 @@ abstract final class WidgetCatalog {
       spec.variantTemplate?.call(variants) ?? spec.template(),
       variants.apiEndpoints,
     );
-    return variants.hasMotionTokens
+    final withCorners = variants.hasCornerTokens
         ? source
-        : CoreTemplates.inlineMissingTokens(source);
+        : CoreTemplates.inlineMissingCornerTokens(source);
+    return variants.hasMotionTokens
+        ? withCorners
+        : CoreTemplates.inlineMissingTokens(withCorners);
   }
 
   /// Looks up a spec by its CLI slug, or null if unknown.

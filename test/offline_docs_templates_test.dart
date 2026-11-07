@@ -4,6 +4,19 @@ import 'package:test/test.dart';
 
 void main() {
   group('docs/OFFLINE_FIRST.md', () {
+    test('explains feature tables, migrations and the API probe', () {
+      final doc = OfflineDocsTemplates.doc(withSync: true, withApiProbe: true);
+      expect(doc, contains("## A feature's own table: `moarch create table`"));
+      expect(doc, contains('@UseRowClass(OrderModel)'));
+      expect(doc, contains('fvm dart run drift_dev make-migrations'));
+      expect(doc, contains('Commit `drift_schemas/`'));
+      expect(doc, contains('sends a `HEAD` to `BASE_URL`'));
+      expect(
+        OfflineDocsTemplates.doc(),
+        isNot(contains('sends a `HEAD` to `BASE_URL`')),
+      );
+    });
+
     test('a cache-only project gets the read path and nothing of sync', () {
       final doc = OfflineDocsTemplates.doc();
 

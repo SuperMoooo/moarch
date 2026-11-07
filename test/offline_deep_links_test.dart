@@ -42,6 +42,37 @@ void main() {
       );
       expect(blocSource, isNot(contains('flutter_riverpod')));
     });
+
+    test('without Dio, an interface being up is online', () {
+      final source = ServicesTemplates.connectivityService();
+      expect(source, isNot(contains('package:dio/dio.dart')));
+      expect(source, isNot(contains('_reachesApi')));
+      expect(source, contains('return _isOnline(results);'));
+    });
+
+    test('with Dio, online means the API answered a HEAD', () {
+      for (final stateManagement in StateManagement.values) {
+        final source = ServicesTemplates.connectivityService(
+          stateManagement: stateManagement,
+          withApiProbe: true,
+        );
+        expect(source, contains("import 'package:dio/dio.dart';"));
+        expect(source, contains("import '../../config/env/app_env.dart';"));
+        expect(source, contains('await _probe.head<void>(AppEnv.baseUrl);'));
+        // Any status is an answer; only no response is offline.
+        expect(source, contains('validateStatus: (_) => true'));
+        expect(
+          source,
+          contains('return _isOnline(results) && await _reachesApi();'),
+        );
+        expect(source, contains('.asyncMap('));
+        // The reconnect hook is shared with the interface-only variant.
+        expect(
+          source,
+          contains('final cameBack = previous == false && online;'),
+        );
+      }
+    });
   });
 
   group('the offline gate', () {

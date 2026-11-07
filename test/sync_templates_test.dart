@@ -4,6 +4,7 @@ import 'package:moarch/src/templates/config/injector_templates.dart';
 import 'package:moarch/src/templates/core/cache_templates.dart';
 import 'package:moarch/src/templates/core/sync_templates.dart';
 import 'package:moarch/src/templates/misc/agents_templates.dart';
+import 'package:moarch/src/templates/misc/project_docs_templates.dart';
 import 'package:moarch/src/templates/misc/readme_templates.dart';
 import 'package:moarch/src/templates/misc/skills_templates.dart';
 import 'package:moarch/src/templates/stack_templates.dart';
@@ -38,17 +39,26 @@ void main() {
       expect(
         synced,
         contains(
-          '          await m.createTable(cacheEntries);\n'
-          '          // PendingWrites holds writes the server has not seen',
+          '          for (final table in allTables) {\n'
+          '            if (table == pendingWrites) continue;\n'
+          '            await m.deleteTable(table.actualTableName);',
         ),
       );
-      expect(synced, isNot(contains('deleteTable(pendingWrites')));
+      expect(
+        synced,
+        contains('// PendingWrites holds writes the server has not seen'),
+      );
+      expect(CacheTemplates.appDatabase(), isNot(contains('pendingWrites')));
     });
 
     test('clearAll empties the queue too, only with sync', () {
       final synced = CacheTemplates.localCache(withSync: true);
 
-      expect(synced, contains('await _db.delete(_db.pendingWrites).go();'));
+      expect(synced, contains('for (final table in _db.allTables) {'));
+      expect(
+        synced,
+        contains('if (table == _db.pendingWrites && dropped > 0)'),
+      );
       expect(synced, contains("appLogger.scoped('LocalCache')"));
       expect(CacheTemplates.localCache(), isNot(contains('pendingWrites')));
     });
@@ -370,9 +380,11 @@ void main() {
 
       expect(
         ReadmeTemplates.projectReadme(
-          projectName: 'demo',
-          stateManagement: StateManagement.bloc,
-          withSync: true,
+          const DocsOptions(
+            projectName: 'demo',
+            stateManagement: StateManagement.bloc,
+            withSync: true,
+          ),
         ),
         contains('pub.dev/packages/workmanager'),
       );

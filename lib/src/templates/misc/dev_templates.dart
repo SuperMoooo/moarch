@@ -52,6 +52,15 @@ analyzer:
         - ios/Flutter/**
         - "**/*.g.dart"
         - "**/*.freezed.dart"
+        # The platform folders, in the order Flutter 3.47's `pub get` appends
+        # them when they are missing — written here so that rewrite never
+        # happens and `moarch update` does not see the file as edited.
+        - android/**
+        - ios/**
+        - web/**
+        - windows/**
+        - macos/**
+        - linux/**
     language:
         strict-raw-types: true
 
@@ -82,7 +91,26 @@ linter:
   /// `createdAt` field reads and writes `created_at` with no annotation. Only
   /// a key that breaks the convention needs `@JsonKey(name: …)`, which is all
   /// `JsonModelBuilder` writes.
-  static String buildYaml() => r'''
+  ///
+  /// [withDrift] adds drift_dev's `make-migrations` setup: where the schema
+  /// of each `schemaVersion` is saved, and where the migration tests go.
+  static String buildYaml({bool withDrift = false}) =>
+      _buildYaml + (withDrift ? _driftBuildYaml : '');
+
+  static const String _driftBuildYaml = r'''
+            drift_dev:
+                options:
+                    # `fvm dart run drift_dev make-migrations` saves the schema
+                    # of each schemaVersion here and writes a test per step,
+                    # so a migration that would lose data fails a test rather
+                    # than an update. Run it after every schemaVersion bump.
+                    databases:
+                        app_database: lib/core/database/app_database.dart
+                    schema_dir: drift_schemas/
+                    test_dir: test/drift/
+''';
+
+  static const String _buildYaml = r'''
 targets:
     $default:
         builders:

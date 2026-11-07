@@ -15,6 +15,7 @@ import '../templates/misc/android_templates.dart';
 import '../templates/misc/dev_templates.dart';
 import '../templates/misc/docs_templates.dart';
 import '../templates/misc/offline_docs_templates.dart';
+import '../templates/misc/project_docs_templates.dart';
 import '../templates/misc/ios_templates.dart';
 import '../templates/misc/readme_templates.dart';
 import '../templates/misc/skills_templates.dart';
@@ -156,6 +157,142 @@ class ScaffoldContext {
   /// `LocalCache` over it. The locator registers both, and `create feature`
   /// writes a feature's local datasource and repository against it.
   bool get hasLocalCache => hasFile('lib/core/database/local_cache.dart');
+
+  /// The REST auth feature has Sign in with Apple: `sign_in_with_apple` is a
+  /// dependency. The Firebase one always has it, through FirebaseAuth.
+  bool get hasRestAppleSignIn =>
+      hasRestAuthFeature && hasPackage('sign_in_with_apple');
+
+  /// Sign in with Apple, on either backend.
+  bool get hasAppleSignIn => hasFirebaseAuthFeature || hasRestAppleSignIn;
+
+  /// The REST `UserModel` declares `emailVerified` (10.2.0). It is the team's
+  /// file, so the state only reads the field once it is there.
+  bool get hasRestEmailVerification {
+    final file = File(resolve('lib/features/auth/data/models/user_model.dart'));
+    return file.existsSync() &&
+        file.readAsStringSync().contains('emailVerified');
+  }
+
+  /// The forgot-password and verify-email screens exist and `AppRoutes`
+  /// declares their paths (10.2.0) — what the router needs to route to them.
+  bool get hasAuthAccountScreens {
+    final routes = File(resolve('lib/config/router/app_routes.dart'));
+    return hasFile(
+          'lib/features/auth/presentation/views/verify_email_view.dart',
+        ) &&
+        hasFile(
+          'lib/features/auth/presentation/views/forgot_password_view.dart',
+        ) &&
+        routes.existsSync() &&
+        routes.readAsStringSync().contains('verifyEmail');
+  }
+
+  /// What `Runner.entitlements` already declares, read back so `update`
+  /// never adds a capability the App ID was not given: codesigning fails on
+  /// an entitlement the provisioning profile lacks.
+  bool _entitlement(String key) {
+    final file = File(resolve('ios/Runner/Runner.entitlements'));
+    return file.existsSync() && file.readAsStringSync().contains(key);
+  }
+
+  /// `Runner.entitlements` declares push.
+  bool get hasPushEntitlement => _entitlement('aps-environment');
+
+  /// `Runner.entitlements` declares Sign in with Apple.
+  bool get hasAppleSignInEntitlement =>
+      _entitlement('com.apple.developer.applesignin');
+
+  /// The image and file pickers were generated.
+  bool get hasMediaService => hasFile('lib/core/services/media_service.dart');
+
+  /// The external-link service was generated.
+  bool get hasUrlService =>
+      hasFile('lib/core/services/url_launcher_service.dart');
+
+  /// The debouncer was generated.
+  bool get hasDebouncer => hasFile('lib/core/services/debouncer_service.dart');
+
+  /// What the README and the guides in `docs/` vary with, read off the
+  /// project.
+  DocsOptions get docsOptions => DocsOptions(
+    projectName: projectName,
+    stateManagement: stateManagement,
+    flavors: flavorNames,
+    withDio: hasDio,
+    withRouter: hasRouter,
+    withAuthFeature: hasAuthFeature,
+    withFirebaseAuthFeature: hasFirebaseAuthFeature,
+    withFirebase: hasAnyFirebase,
+    withFirestore: hasFirestore,
+    withCrashlytics: hasCrashlytics,
+    withFirebaseNotifications: hasFirebaseNotifications,
+    withNotifications: hasNotifications,
+    withLocalization: hasLocalization,
+    withEasyLocalization: hasEasyLocalization,
+    withBiometric: hasBiometric,
+    withDarkTheme: hasDarkTheme,
+    withThemeMode: hasThemeMode,
+    withStatusColors: hasStatusColors,
+    withMoAdapt: hasMoAdapt,
+    withWorkflows: hasWorkflows,
+    withLocalCache: hasLocalCache,
+    withSync: hasSync,
+    withOfflineGate: hasOfflineGate,
+    withDeepLinks: hasDeepLinks,
+    withMaintenanceGate: hasMaintenanceGate,
+    withUpdateGate: hasUpdateGate,
+    withMediaService: hasMediaService,
+    withUrlService: hasUrlService,
+    withDebouncer: hasDebouncer,
+    withAppLifecycle: hasAppLifecycle,
+    withPreferences: hasPreferences,
+    withAppleSignIn: hasAppleSignIn,
+  );
+
+  /// The tables `moarch create table` wrote, one per feature that has one,
+  /// sorted by path so `app_database.dart` lists them in a stable order.
+  List<FeatureTableRef> get featureTables {
+    final features = Directory(resolve('lib/features'));
+    if (!features.existsSync()) return const [];
+    final tables = <FeatureTableRef>[];
+    final files =
+        features
+            .listSync()
+            .whereType<Directory>()
+            .expand((feature) {
+              final dir = Directory(p.join(feature.path, 'data', 'tables'));
+              return dir.existsSync()
+                  ? dir.listSync().whereType<File>()
+                  : const <File>[];
+            })
+            .where((file) => file.path.endsWith('_table.dart'))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
+    for (final file in files) {
+      final match = RegExp(
+        r'^class\s+(\w+)\s+extends\s+Table\b',
+        multiLine: true,
+      ).firstMatch(file.readAsStringSync());
+      if (match == null) continue;
+      final relative = p
+          .relative(file.path, from: resolve('lib/core/database'))
+          .replaceAll(r'\', '/');
+      tables.add((className: match.group(1)!, importPath: relative));
+    }
+    return tables;
+  }
+
+  /// The `schemaVersion` `app_database.dart` declares, or 1 when there is
+  /// none to read.
+  int get databaseSchemaVersion {
+    final file = File(resolve('lib/core/database/app_database.dart'));
+    if (!file.existsSync()) return 1;
+    final match = RegExp(
+      r'int\s+get\s+schemaVersion\s*=>\s*(\d+)\s*;',
+    ).firstMatch(file.readAsStringSync());
+    return match == null ? 1 : int.parse(match.group(1)!);
+  }
 
   /// Offline sync was generated: the queue in the database, the service that
   /// sends it and the background task. Repositories queue their writes, and
@@ -442,10 +579,14 @@ abstract final class ScaffoldCatalog {
       title: 'AppDatabase',
       path: 'lib/core/database/app_database.dart',
       category: 'Core',
-      template: (c) => CacheTemplates.appDatabase(withSync: c.hasSync),
+      template: (c) => CacheTemplates.appDatabase(
+        withSync: c.hasSync,
+        featureTables: c.featureTables,
+        schemaVersion: c.databaseSchemaVersion,
+      ),
       description:
-          'The drift database behind the offline-first cache: one table of '
-          'records as JSON, keyed by feature.',
+          'The drift database behind the offline-first cache: records as '
+          "JSON keyed by feature, plus each feature's own table.",
     ),
     ScaffoldSpec(
       name: 'local-cache',
@@ -557,6 +698,7 @@ abstract final class ScaffoldCatalog {
       category: 'Core',
       template: (c) => CoreTemplates.apiConstants(
         withAuthFeature: c.hasRestAuthFeature,
+        withAppleSignIn: c.hasRestAppleSignIn,
         withDeviceToken: c.hasRestAuthFeature && c.hasFirebaseNotifications,
         withMaintenanceGate:
             c.hasMaintenanceGate && c.hasDio && !c.hasFirestore,
@@ -597,7 +739,13 @@ abstract final class ScaffoldCatalog {
       title: 'DioClient',
       path: 'lib/core/network/dio_client.dart',
       category: 'Network',
-      template: (c) => c.stack.dioClient(withAuthFeature: c.hasRestAuthFeature),
+      template: (c) => CoreTemplates.inlineMissingEndpoints(
+        c.stack.dioClient(
+          withAuthFeature: c.hasRestAuthFeature,
+          withAppleSignIn: c.hasRestAppleSignIn,
+        ),
+        c.apiEndpoints,
+      ),
       description:
           'REST client with retry and the secure-storage auth/refresh interceptor.',
     ),
@@ -747,10 +895,11 @@ abstract final class ScaffoldCatalog {
       category: 'Services',
       template: (c) => ServicesTemplates.connectivityService(
         stateManagement: c.stateManagement,
+        withApiProbe: c.hasDio,
       ),
       description:
-          'Online / offline as a stream, and onReconnect for what runs when '
-          'the connection is back.',
+          'Online / offline as a stream (with Dio, checked against the API), '
+          'and onReconnect for what runs when the connection is back.',
     ),
     ScaffoldSpec(
       name: 'offline-gate',
@@ -836,7 +985,10 @@ abstract final class ScaffoldCatalog {
       title: 'AppRouter',
       path: 'lib/config/router/app_router.dart',
       category: 'Config',
-      template: (c) => c.stack.appRouter(withAuth: c.hasAuthFeature),
+      template: (c) => c.stack.appRouter(
+        withAuth: c.hasAuthFeature,
+        withAccountScreens: c.hasAuthAccountScreens,
+      ),
       description:
           'GoRouter with the auth-aware redirect and rootNavigatorKey.',
     ),
@@ -1022,6 +1174,7 @@ abstract final class ScaffoldCatalog {
           : CoreTemplates.inlineMissingEndpoints(
               c.stack.authRemoteDatasource(
                 withPushNotifications: c.hasFirebaseNotifications,
+                withAppleSignIn: c.hasRestAppleSignIn,
               ),
               c.apiEndpoints,
             ),
@@ -1046,6 +1199,7 @@ abstract final class ScaffoldCatalog {
           : c.stack.authRepository(
               withPushNotifications: c.hasFirebaseNotifications,
               withLocalCache: c.hasLocalCache,
+              withAppleSignIn: c.hasRestAppleSignIn,
             ),
       description:
           'What the state holder calls: the datasource and the session storage.',
@@ -1058,7 +1212,9 @@ abstract final class ScaffoldCatalog {
       category: 'Auth feature',
       template: (c) => c.hasFirebaseAuthFeature
           ? c.stack.firebaseAuthState()
-          : c.stack.authState(),
+          : c.stack.authState(
+              withEmailVerification: c.hasRestEmailVerification,
+            ),
       description: 'The state the auth notifier or bloc exposes.',
     ),
     ScaffoldSpec(
@@ -1074,6 +1230,7 @@ abstract final class ScaffoldCatalog {
           : c.stack.authHolder(
               withPushNotifications: c.hasFirebaseNotifications,
               withConcurrency: c.hasBlocConcurrency,
+              withAppleSignIn: c.hasRestAppleSignIn,
             ),
       description:
           'Login, register, refresh, logout, delete and session '
@@ -1092,6 +1249,7 @@ abstract final class ScaffoldCatalog {
           : c.stack.authHolder(
               withPushNotifications: c.hasFirebaseNotifications,
               withConcurrency: c.hasBlocConcurrency,
+              withAppleSignIn: c.hasRestAppleSignIn,
             ),
       description:
           'Login, register, refresh, logout, delete and session '
@@ -1104,7 +1262,7 @@ abstract final class ScaffoldCatalog {
       category: 'Auth feature',
       template: (c) => c.hasFirebaseAuthFeature
           ? c.stack.firebaseAuthEvent()
-          : c.stack.authEvent(),
+          : c.stack.authEvent(withAppleSignIn: c.hasRestAppleSignIn),
       description: 'The sealed event family AuthBloc handles (flutter_bloc).',
     ),
     ScaffoldSpec(
@@ -1127,6 +1285,30 @@ abstract final class ScaffoldCatalog {
           : c.stack.authRegisterView(),
       description: 'The register screen built from the UI kit.',
     ),
+    ScaffoldSpec(
+      name: 'auth-forgot-password-view',
+      title: 'ForgotPasswordView',
+      path: 'lib/features/auth/presentation/views/forgot_password_view.dart',
+      category: 'Auth feature',
+      template: (c) => c.hasFirebaseAuthFeature
+          ? c.stack.firebaseAuthForgotPasswordView()
+          : c.stack.authForgotPasswordView(),
+      description:
+          'Password reset: a Firebase reset link, or a REST code and a new '
+          'password.',
+    ),
+    ScaffoldSpec(
+      name: 'auth-verify-email-view',
+      title: 'VerifyEmailView',
+      path: 'lib/features/auth/presentation/views/verify_email_view.dart',
+      category: 'Auth feature',
+      template: (c) => c.hasFirebaseAuthFeature
+          ? c.stack.firebaseAuthVerifyEmailView()
+          : c.stack.authVerifyEmailView(),
+      description:
+          'Where the router holds a signed-in user until their email is '
+          'verified.',
+    ),
 
     // ── Docs ────────────────────────────────────────────────────────────────
     ScaffoldSpec(
@@ -1134,31 +1316,22 @@ abstract final class ScaffoldCatalog {
       title: 'Project README',
       path: 'README.md',
       category: 'Docs',
-      template: (c) => ReadmeTemplates.projectReadme(
-        projectName: c.projectName,
-        stateManagement: c.stateManagement,
-        flavors: c.flavorNames,
-        withDio: c.hasDio,
-        withRouter: c.hasRouter,
-        withAuthFeature: c.hasAuthFeature,
-        withFirebaseAuthFeature: c.hasFirebaseAuthFeature,
-        withFirebase: c.hasAnyFirebase,
-        withFirestore: c.hasFirestore,
-        withCrashlytics: c.hasCrashlytics,
-        withFirebaseNotifications: c.hasFirebaseNotifications,
-        withNotifications: c.hasNotifications,
-        withLocalization: c.hasLocalization,
-        withEasyLocalization: c.hasEasyLocalization,
-        withBiometric: c.hasBiometric,
-        withDarkTheme: c.hasDarkTheme,
-        withWorkflows: c.hasWorkflows,
-        withLocalCache: c.hasLocalCache,
-        withSync: c.hasSync,
-      ),
+      template: (c) => ReadmeTemplates.projectReadme(c.docsOptions),
       description:
-          'The onboarding guide: how to run the project, how it is laid out, '
-          'how it ships.',
+          'The front page: how to run the project, what it is built with, '
+          'where things are, and a link to every guide in docs/.',
     ),
+    // The topic guides, one per thing the project has. Listed from the same
+    // table the README's guides section reads, so the two cannot disagree.
+    for (final doc in ProjectDocsTemplates.written)
+      ScaffoldSpec(
+        name: doc.slug,
+        title: '${doc.title} guide',
+        path: doc.path,
+        category: 'Docs',
+        template: (c) => doc.render!(c.docsOptions),
+        description: '${doc.answers}.',
+      ),
     ScaffoldSpec(
       name: 'agents',
       title: 'AGENTS.md',
@@ -1240,6 +1413,7 @@ abstract final class ScaffoldCatalog {
         withSync: c.hasSync,
         bloc: c.hasBloc,
         withAuthFeature: c.hasAuthFeature,
+        withApiProbe: c.hasDio,
       ),
       description:
           'How the cache (and the sync queue) work at runtime: the tables, '
@@ -1370,17 +1544,13 @@ abstract final class ScaffoldCatalog {
       category: 'Workflows',
       template: (c) => WorkflowTemplates.buildIOS(
         withFirebase: c.hasAnyFirebase,
-        withPushEntitlements: c.hasFirebaseNotifications,
+        // Signs with Runner.entitlements whenever it declares anything.
+        withPushEntitlements:
+            c.hasPushEntitlement || c.hasAppleSignInEntitlement,
       ),
-      description: 'Signs and builds the IPA.',
-    ),
-    ScaffoldSpec(
-      name: 'workflow-android',
-      title: 'Android build workflow',
-      path: '.github/workflows/build_apk.yml',
-      category: 'Workflows',
-      template: (_) => WorkflowTemplates.buildANDROID(),
-      description: 'Signs and builds the APK/AAB.',
+      description:
+          'Signs and builds the IPA (development, ad hoc or App Store), and '
+          'uploads to TestFlight with an App Store Connect key.',
     ),
 
     // ── Project ─────────────────────────────────────────────────────────────
@@ -1408,7 +1578,7 @@ abstract final class ScaffoldCatalog {
       title: 'build.yaml',
       path: 'build.yaml',
       category: 'Project',
-      template: (_) => DevTemplates.buildYaml(),
+      template: (c) => DevTemplates.buildYaml(withDrift: c.hasLocalCache),
       description:
           'How build_runner writes the models: nested toJson, and '
           'snake_case keys.',
@@ -1455,15 +1625,21 @@ abstract final class ScaffoldCatalog {
       title: 'Runner.entitlements',
       path: 'ios/Runner/Runner.entitlements',
       category: 'iOS',
-      template: (_) => IosTemplates.runnerEntitlements(),
-      description: 'APNs entitlements for remote push.',
+      template: (c) => IosTemplates.runnerEntitlements(
+        withPush: c.hasPushEntitlement,
+        withAppleSignIn: c.hasAppleSignInEntitlement,
+      ),
+      description: 'Push and Sign in with Apple entitlements.',
     ),
     ScaffoldSpec(
       name: 'ios-profile-entitlements',
       title: 'RunnerProfile.entitlements',
       path: 'ios/Runner/RunnerProfile.entitlements',
       category: 'iOS',
-      template: (_) => IosTemplates.runnerProfileEntitlements(),
+      template: (c) => IosTemplates.runnerProfileEntitlements(
+        withPush: c.hasPushEntitlement,
+        withAppleSignIn: c.hasAppleSignInEntitlement,
+      ),
       description: 'The profile-build counterpart of Runner.entitlements.',
     ),
     ScaffoldSpec(

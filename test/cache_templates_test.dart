@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:moarch/src/templates/config/injector_templates.dart';
 import 'package:moarch/src/templates/core/cache_templates.dart';
 import 'package:moarch/src/templates/misc/agents_templates.dart';
+import 'package:moarch/src/templates/misc/project_docs_templates.dart';
 import 'package:moarch/src/templates/misc/readme_templates.dart';
 import 'package:moarch/src/templates/misc/skills_templates.dart';
 import 'package:moarch/src/templates/stack_templates.dart';
@@ -37,14 +38,42 @@ void main() {
       expect(source, contains("driftDatabase(name: 'app_cache')"));
     });
 
-    test('rebuilds only the cache table on a schema upgrade', () {
+    test('rebuilds every table on a schema upgrade', () {
       expect(source, contains('int get schemaVersion => 1;'));
       expect(
         source,
-        contains('await m.deleteTable(cacheEntries.actualTableName);'),
+        contains(
+          '          for (final table in allTables) {\n'
+          '            await m.deleteTable(table.actualTableName);\n'
+          '            await m.createTable(table);\n'
+          '          }',
+        ),
       );
-      expect(source, contains('await m.createTable(cacheEntries);'));
-      expect(source, isNot(contains('allTables')));
+    });
+
+    test('registers the feature tables it is handed, at their version', () {
+      final source = CacheTemplates.appDatabase(
+        featureTables: [
+          (
+            className: 'TodoRows',
+            importPath: '../../features/todo/data/tables/todo_table.dart',
+          ),
+        ],
+        schemaVersion: 4,
+      );
+      expect(
+        source,
+        contains(
+          "import '../../features/todo/data/tables/todo_table.dart';\n"
+          '\n'
+          "part 'app_database.g.dart';",
+        ),
+      );
+      expect(
+        source,
+        contains('@DriftDatabase(tables: [CacheEntries, TodoRows])'),
+      );
+      expect(source, contains('int get schemaVersion => 4;'));
     });
   });
 
@@ -416,10 +445,12 @@ void main() {
     test('the README lists drift only with the cache', () {
       String readme({required bool withLocalCache}) =>
           ReadmeTemplates.projectReadme(
-            projectName: 'demo',
-            stateManagement: StateManagement.riverpod,
-            withDio: true,
-            withLocalCache: withLocalCache,
+            DocsOptions(
+              projectName: 'demo',
+              stateManagement: StateManagement.riverpod,
+              withDio: true,
+              withLocalCache: withLocalCache,
+            ),
           );
 
       expect(readme(withLocalCache: true), contains('pub.dev/packages/drift'));

@@ -466,7 +466,11 @@ $localizationConfig$routerConfig      debugShowCheckedModeBanner: false,
   /// [withAuth] wires the redirect to the app-wide `AuthBloc` and parks the
   /// router on a splash route until the session is restored, so neither login
   /// nor home flashes on startup.
-  static String appRouter({bool withAuth = false}) {
+  static String appRouter({
+    bool withAuth = false,
+    bool withAccountScreens = false,
+  }) {
+    final accountScreens = withAuth && withAccountScreens;
     final imports = withAuth
         ? "import 'package:flutter/foundation.dart';\n"
               "import 'package:flutter/material.dart';\n"
@@ -474,8 +478,10 @@ $localizationConfig$routerConfig      debugShowCheckedModeBanner: false,
               '\n'
               "import '../../features/auth/presentation/blocs/auth_bloc.dart';\n"
               "import '../../features/auth/presentation/blocs/auth_state.dart';\n"
+              "${accountScreens ? "import '../../features/auth/presentation/views/forgot_password_view.dart';\n" : ''}"
               "import '../../features/auth/presentation/views/login_view.dart';\n"
               "import '../../features/auth/presentation/views/register_view.dart';\n"
+              "${accountScreens ? "import '../../features/auth/presentation/views/verify_email_view.dart';\n" : ''}"
               "import '../../shared/widgets/loadings/app_loading_data.dart';\n"
               "import '../di/injector.dart';\n"
               "import './app_routes.dart';"
@@ -505,12 +511,48 @@ $localizationConfig$routerConfig      debugShowCheckedModeBanner: false,
     GoRoute(
       path: AppRoutes.register,
       builder: (context, state) => const RegisterView(),
+    ),${accountScreens ? '''
+    GoRoute(
+      path: AppRoutes.forgotPassword,
+      builder: (context, state) => const ForgotPasswordView(),
     ),
+    GoRoute(
+      path: AppRoutes.verifyEmail,
+      builder: (context, state) => const VerifyEmailView(),
+    ),''' : ''}
 '''
         : '';
 
-    final authGuard = withAuth
-        ? r'''
+    final authGuard = !withAuth
+        ? ''
+        : accountScreens
+        ? _authGuard
+              .replaceFirst('{{verify}}', _blocVerify)
+              .replaceFirst('{{home}}', 'signedInHome')
+              .replaceFirst('{{home}}', 'signedInHome')
+              .replaceFirst('{{verify_rules}}', _verifyRules)
+        : _authGuard
+              .replaceFirst('{{verify}}', '')
+              .replaceFirst('{{home}}', 'from ?? AppRoutes.home')
+              .replaceFirst('{{home}}', 'from ?? AppRoutes.home')
+              .replaceFirst('{{verify_rules}}', '');
+
+    return _appRouter(imports, options, authRoutes, authGuard, withAuth);
+  }
+
+  static const String _blocVerify = r'''
+  // Signed in, but the address is not verified yet: held on the verify
+  // screen, which moves on by itself once it is.
+  final verified = auth is AuthAuthenticated ? auth.emailVerified : true;
+  final onVerify = state.matchedLocation == AppRoutes.verifyEmail;
+  final signedInHome = verified ? from ?? AppRoutes.home : AppRoutes.verifyEmail;
+''';
+
+  static const String _verifyRules = r'''
+  if (isAuthenticated && !verified && !onVerify) return AppRoutes.verifyEmail;
+  if (verified && onVerify) return AppRoutes.home;''';
+
+  static const String _authGuard = r'''
 
 String? _redirect(BuildContext context, GoRouterState state) {
   final auth = getIt<AuthBloc>().state;
@@ -525,10 +567,10 @@ String? _redirect(BuildContext context, GoRouterState state) {
 
   // A failure that kept the session keeps the user signed in.
   final isAuthenticated =
-      auth is AuthAuthenticated || (auth is AuthFailure && auth.authenticated);
+      auth is AuthAuthenticated || (auth is AuthFailure && auth.authenticated);{{verify}}
   if (onSplash) {
     return isAuthenticated
-        ? from ?? AppRoutes.home
+        ? {{home}}
         : _withFrom(AppRoutes.login, from);
   }
 
@@ -536,7 +578,7 @@ String? _redirect(BuildContext context, GoRouterState state) {
   if (!isAuthenticated && !onPublicRoute) {
     return _withFrom(AppRoutes.login, state.uri.toString());
   }
-  if (isAuthenticated && onPublicRoute) return from ?? AppRoutes.home;
+  if (isAuthenticated && onPublicRoute) return {{home}};{{verify_rules}}
   return null;
 }
 
@@ -570,9 +612,15 @@ class GoRouterRefreshStream extends ChangeNotifier {
     _subscription.cancel();
     super.dispose();
   }
-}'''
-        : '';
+}''';
 
+  static String _appRouter(
+    String imports,
+    String options,
+    String authRoutes,
+    String authGuard,
+    bool withAuth,
+  ) {
     final asyncImport = withAuth ? "import 'dart:async';\n\n" : '';
 
     return '''

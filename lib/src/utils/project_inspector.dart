@@ -5,6 +5,7 @@ import 'package:yaml_edit/yaml_edit.dart';
 
 import '../templates/config/config_templates.dart';
 import '../templates/misc/deep_links_templates.dart';
+import '../templates/misc/project_docs_templates.dart';
 import '../templates/misc/skills_templates.dart';
 import 'api_constants_utils.dart';
 import 'file_utils.dart';
@@ -97,18 +98,85 @@ abstract final class ProjectInspector {
       ..._codegen(libPath),
       ..._theme(root, libPath),
       ..._auth(root),
+      ..._authAccountScreens(root),
       ..._paging(root),
       ..._endpoints(libPath),
       ..._platforms(root),
       ..._agents(root),
       ..._skills(root),
       ..._newSkills(root),
+      ..._newGuides(root),
       ..._dartMcp(root),
       ..._widgets(root, libPath, pubspec),
     ];
   }
 
   // ── Auth ────────────────────────────────────────────────────────────────────
+
+  /// An auth feature from before 10.2.0: no forgot-password or verify-email
+  /// screen, and no route to either.
+  ///
+  /// `update` never adds a file, and the router only routes to the screens
+  /// once they and their `AppRoutes` paths exist — so this is the step that
+  /// gives an existing project both. Gated on the manifest like the skills:
+  /// a screen it has a record of was deleted on purpose.
+  static List<Diagnostic> _authAccountScreens(String root) {
+    final context = ScaffoldContext.detect(root);
+    if (!context.hasAuthFeature || context.hasAuthAccountScreens) {
+      return const [];
+    }
+    final manifest = ProjectManifest.load(root);
+    const verify =
+        'lib/features/auth/presentation/views/verify_email_view.dart';
+    if (manifest?.files[verify] != null) return const [];
+
+    return [
+      Diagnostic.info(
+        'No password-reset or email-verification screens in the auth feature',
+        hint:
+            'Generate them and their routes with `moarch doctor --fix`, then '
+            '`moarch update router` (and the auth files) to wire them up.',
+        fix: () async {
+          final result = await _generate(root, const [
+            'auth-forgot-password-view',
+            'auth-verify-email-view',
+          ], 'the screens already exist');
+          final routes = _addAccountRoutes(context);
+          return '$result$routes — run `moarch update router` and '
+              '`moarch update auth` to wire them up';
+        },
+      ),
+    ];
+  }
+
+  /// Adds `forgotPassword` and `verifyEmail` to `AppRoutes`, and the first to
+  /// `publicRoutes`. A file that no longer has the lines to anchor on gets
+  /// nothing, and the message says so.
+  static String _addAccountRoutes(ScaffoldContext context) {
+    final file = File(context.resolve('lib/config/router/app_routes.dart'));
+    if (!file.existsSync()) return '';
+    var source = file.readAsStringSync();
+    if (source.contains('verifyEmail')) return '';
+    const anchor = "  static const register = '/register';";
+    final public = RegExp(r'static const publicRoutes = \{([^}]*)\};');
+    if (!source.contains(anchor) || !public.hasMatch(source)) {
+      return '; add `forgotPassword` and `verifyEmail` to AppRoutes by hand';
+    }
+    source = source.replaceFirst(
+      anchor,
+      "$anchor\n"
+      "  static const forgotPassword = '/forgot-password';\n"
+      '\n'
+      '  /// Where the router holds a signed-in user whose email is not verified.\n'
+      "  static const verifyEmail = '/verify-email';",
+    );
+    source = source.replaceFirstMapped(
+      public,
+      (m) => 'static const publicRoutes = {${m[1]!.trim()}, forgotPassword};',
+    );
+    file.writeAsStringSync(source);
+    return ', added their paths to AppRoutes';
+  }
 
   /// A REST auth feature from before 9.3.0, which read the user id out of the
   /// access token instead of asking `GET /auth/me`.
@@ -375,6 +443,45 @@ abstract final class ProjectInspector {
           ], 'the files already exist');
           return '$result — run `moarch update agents` to list them in '
               'AGENTS.md';
+        },
+      ),
+    ];
+  }
+
+  /// A project without the topic guides in `docs/` that apply to it — every
+  /// project from before 10.2.0, when the README was split into them.
+  ///
+  /// Gated like [_newSkills]: a guide the manifest has a record of was
+  /// generated here and deleted since, and stays deleted. Only projects that
+  /// have a README moarch wrote are offered them, since the README's guides
+  /// table is what links them.
+  static List<Diagnostic> _newGuides(String root) {
+    final context = ScaffoldContext.detect(root);
+    final manifest = ProjectManifest.load(root);
+    if (manifest?.files['README.md'] == null) return const [];
+    final options = context.docsOptions;
+    final missing = [
+      for (final doc in ProjectDocsTemplates.written)
+        if (doc.applies(options) &&
+            !context.hasFile(doc.path) &&
+            manifest?.files[doc.path] == null)
+          doc,
+    ];
+    if (missing.isEmpty) return const [];
+
+    return [
+      Diagnostic.info(
+        'Guides in docs/ this project does not have yet: '
+        '${missing.map((doc) => doc.file).join(', ')}',
+        hint:
+            'Generate them with `moarch doctor --fix`, then '
+            '`moarch update readme` to link them (the topics move out of the '
+            'README into them).',
+        fix: () async {
+          final result = await _generate(root, [
+            for (final doc in missing) doc.slug,
+          ], 'the files already exist');
+          return '$result — run `moarch update readme` to link them';
         },
       ),
     ];

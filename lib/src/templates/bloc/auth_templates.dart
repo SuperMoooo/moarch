@@ -46,6 +46,10 @@ abstract class UserModel with _$UserModel {
     required String id,
     required String email,
     String? name,
+
+    /// The API's `email_verified`. True when it sends none, so an API without
+    /// email verification never holds anyone on the verify screen.
+    @Default(true) bool emailVerified,
   }) = _UserModel;
 
   factory UserModel.fromJson(Map<String, dynamic> json) =>
@@ -62,7 +66,21 @@ abstract class UserModel with _$UserModel {
   ///
   /// [withPushNotifications] adds the call that registers this device's FCM
   /// token against the signed-in user.
-  static String remoteDatasource({bool withPushNotifications = false}) {
+  ///
+  /// [withAppleSignIn] adds Sign in with Apple: the Apple sheet, then its
+  /// identity token traded for a session at `POST /auth/apple`.
+  static String remoteDatasource({
+    bool withPushNotifications = false,
+    bool withAppleSignIn = false,
+  }) {
+    final appleImports = withAppleSignIn
+        ? "import 'package:sign_in_with_apple/sign_in_with_apple.dart';\n"
+        : '';
+    final appleExceptionImport = withAppleSignIn
+        ? "import '../../../../core/errors/app_exception.dart';\n"
+        : '';
+    final appleOptions = withAppleSignIn ? _appleWebOptions : '';
+    final apple = withAppleSignIn ? _appleSignIn : '';
     final saveDeviceToken = withPushNotifications
         ? '''
 
@@ -85,12 +103,12 @@ abstract class UserModel with _$UserModel {
 
     return '''
 import 'package:dio/dio.dart';
-
+$appleImports
 import '../../../../core/constants/api_constants.dart';
-import '../../../../core/network/safe_api_call.dart';
+${appleExceptionImport}import '../../../../core/network/safe_api_call.dart';
 import '../models/auth_tokens_model.dart';
 import '../models/user_model.dart';
-
+$appleOptions
 class AuthRemoteDataSource {
   const AuthRemoteDataSource(this._dio);
 
@@ -174,9 +192,101 @@ class AuthRemoteDataSource {
       },
     );
   }
-$saveDeviceToken}
+
+  /// Asks the API to email [email] a reset code. It should answer the same
+  /// whether or not the address has an account, so it cannot be probed.
+  Future<void> requestPasswordReset({required String email}) {
+    return safeApiCall<void>(
+      apiCall: () async {
+        await _dio.post<dynamic>(ApiConstants.authPasswordForgot, data: {
+          'email': email,
+        });
+      },
+    );
+  }
+
+  /// Sets [newPassword] with the [code] the reset email carried.
+  Future<void> resetPassword({
+    required String code,
+    required String newPassword,
+  }) {
+    return safeApiCall<void>(
+      apiCall: () async {
+        await _dio.post<dynamic>(ApiConstants.authPasswordReset, data: {
+          'code': code,
+          'password': newPassword,
+        });
+      },
+    );
+  }
+
+  /// Sends the signed-in user's verification email again.
+  Future<void> resendVerificationEmail() {
+    return safeApiCall<void>(
+      apiCall: () async {
+        await _dio.post<dynamic>(ApiConstants.authEmailResend);
+      },
+    );
+  }
+$apple$saveDeviceToken}
 ''';
   }
+
+  static const String _appleWebOptions = r"""
+
+/// Android and the web have no native Apple sheet: they sign in through
+/// Apple's website, which needs a Services ID and a redirect URL your backend
+/// serves (docs/AUTH.md). Null on iOS and macOS, where the native sheet is
+/// used.
+const WebAuthenticationOptions? kAppleWebAuthentication = null;
+""";
+
+  static const String _appleSignIn = r"""
+
+  /// The Apple sheet, then its identity token traded for a session.
+  ///
+  /// Your API verifies the token against Apple's public keys
+  /// (https://appleid.apple.com/auth/keys). Apple sends the name on the first
+  /// sign-in only, so it travels with that request.
+  Future<AuthTokensModel> signInWithApple() async {
+    final AuthorizationCredentialAppleID credential;
+    try {
+      credential = await SignInWithApple.getAppleIDCredential(
+        scopes: const [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        webAuthenticationOptions: kAppleWebAuthentication,
+      );
+    } on SignInWithAppleAuthorizationException catch (error) {
+      if (error.code == AuthorizationErrorCode.canceled) {
+        throw AppException.cancelled();
+      }
+      throw AppException.fromError(error, StackTrace.current);
+    }
+
+    final identityToken = credential.identityToken;
+    if (identityToken == null) {
+      throw AppException.fromError(
+        'Apple returned no identity token',
+        StackTrace.current,
+      );
+    }
+
+    return safeApiCall<AuthTokensModel>(
+      apiCall: () async {
+        final response = await _dio.post<dynamic>(ApiConstants.authApple, data: {
+          'identity_token': identityToken,
+          'authorization_code': credential.authorizationCode,
+          if (credential.givenName != null) 'given_name': credential.givenName,
+          if (credential.familyName != null)
+            'family_name': credential.familyName,
+        });
+        return AuthTokensModel.fromJson(response.data as Map<String, dynamic>);
+      },
+    );
+  }
+""";
 
   // ── Data — Repository ───────────────────────────────────────────────────────
 
@@ -188,7 +298,20 @@ $saveDeviceToken}
   static String repository({
     bool withPushNotifications = false,
     bool withLocalCache = false,
+    bool withAppleSignIn = false,
   }) {
+    final apple = withAppleSignIn
+        ? '''
+
+  /// Sign in with Apple: the Apple sheet, then a session like a login.
+  ///
+  /// Throws a `CancelledException` when the user dismisses the sheet —
+  /// nothing failed, so there is nothing to report.
+  Future<UserModel> signInWithApple() async {
+    final tokens = await _remote.signInWithApple();
+    return _startSession(tokens);
+  }'''
+        : '';
     // The offline-first cache holds the signed-in account's data, so every
     // way a session ends or changes hands empties it.
     final cacheImport = withLocalCache
@@ -360,6 +483,21 @@ class AuthRepository {
     await _remote.delete();
     await _tokens.clearSession();$clearCacheOnDelete
   }
+$apple
+  /// Emails [email] a reset code. No session involved.
+  Future<void> requestPasswordReset({required String email}) =>
+      _remote.requestPasswordReset(email: email);
+
+  /// Sets [newPassword] with the emailed [code]. The user then signs in
+  /// with it.
+  Future<void> resetPassword({
+    required String code,
+    required String newPassword,
+  }) => _remote.resetPassword(code: code, newPassword: newPassword);
+
+  /// Sends the verification email again. Reload the user afterwards to see
+  /// whether the address has been verified.
+  Future<void> resendVerificationEmail() => _remote.resendVerificationEmail();
 $syncDeviceToken}
 ''';
   }
@@ -367,7 +505,16 @@ $syncDeviceToken}
   // ── Presentation — State ────────────────────────────────────────────────────
 
   /// Returns the generated auth state template.
-  static String state() => r'''
+  ///
+  /// [withEmailVerification] reads `emailVerified` off the user — only when
+  /// the project's `UserModel` declares it, since that file is the team's.
+  static String state({bool withEmailVerification = false}) =>
+      _state.replaceFirst(
+        '{{email_verified}}',
+        withEmailVerification ? 'user?.emailVerified ?? true' : 'true',
+      );
+
+  static const String _state = r'''
 import 'package:equatable/equatable.dart';
 
 import '../../data/models/user_model.dart';
@@ -398,6 +545,10 @@ final class AuthAuthenticated extends AuthState {
   /// The user from `GET /auth/me`. Null after an offline start, until
   /// `AuthUserReloadRequested` succeeds.
   final UserModel? user;
+
+  /// Whether the address is verified. The router holds the user on the
+  /// verify screen until it is; reload the user to see the change.
+  bool get emailVerified => {{email_verified}};
 
   @override
   List<Object?> get props => [user];
@@ -436,8 +587,19 @@ final class AuthFailure extends AuthState {
 
   // ── Presentation — Events ───────────────────────────────────────────────────
 
-  /// Returns the generated auth event template.
-  static String event() => r'''
+  /// Returns the generated auth event template. [withAppleSignIn] adds
+  /// `AuthAppleSignInRequested`.
+  static String event({bool withAppleSignIn = false}) =>
+      _event + (withAppleSignIn ? _appleEvent : '');
+
+  static const String _appleEvent = r'''
+
+final class AuthAppleSignInRequested extends AuthEvent {
+  const AuthAppleSignInRequested();
+}
+''';
+
+  static const String _event = r'''
 import 'package:equatable/equatable.dart';
 
 /// Everything that can happen to the session, as values.
@@ -486,9 +648,84 @@ final class AuthLogoutRequested extends AuthEvent {
 final class AuthAccountDeleted extends AuthEvent {
   const AuthAccountDeleted();
 }
+
+/// Email [email] a reset code. Signed out; the screen confirms the send.
+final class AuthPasswordResetRequested extends AuthEvent {
+  const AuthPasswordResetRequested({required this.email});
+
+  final String email;
+
+  @override
+  List<Object?> get props => [email];
+}
+
+/// Set [newPassword] with the emailed [code].
+final class AuthPasswordResetConfirmed extends AuthEvent {
+  const AuthPasswordResetConfirmed({
+    required this.code,
+    required this.newPassword,
+  });
+
+  final String code;
+  final String newPassword;
+
+  @override
+  List<Object?> get props => [code, newPassword];
+}
+
+/// Send the verification email again.
+final class AuthVerificationEmailRequested extends AuthEvent {
+  const AuthVerificationEmailRequested();
+}
 ''';
 
   // ── Presentation — Views ────────────────────────────────────────────────────
+
+  /// Returns the generated forgot-password view template: a code by email,
+  /// then a new password with it.
+  static String forgotPasswordView() => r'''
+import 'package:flutter/material.dart';
+
+// TODO: build the two steps and call
+// 1. context.read<AuthBloc>().add(AuthPasswordResetRequested(email: ...))
+// 2. context.read<AuthBloc>().add(AuthPasswordResetConfirmed(code: ..., newPassword: ...))
+// then send the user back to the login screen.
+
+class ForgotPasswordView extends StatelessWidget {
+  const ForgotPasswordView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Reset password')),
+      body: const SizedBox.shrink(),
+    );
+  }
+}
+''';
+
+  /// Returns the generated verify-email view template — where the router
+  /// holds a signed-in user whose address is not verified yet.
+  static String verifyEmailView() => r'''
+import 'package:flutter/material.dart';
+
+// TODO: say where the email went, and call
+// context.read<AuthBloc>().add(const AuthVerificationEmailRequested())
+// context.read<AuthBloc>().add(const AuthUserReloadRequested())  ("I've verified it")
+// The router moves on by itself once the address is verified.
+
+class VerifyEmailView extends StatelessWidget {
+  const VerifyEmailView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Verify your email')),
+      body: const SizedBox.shrink(),
+    );
+  }
+}
+''';
 
   /// Returns the generated login view template.
   static String loginView() => r'''
@@ -570,20 +807,54 @@ class RegisterView extends StatelessWidget {
   static String bloc({
     bool withPushNotifications = false,
     bool withConcurrency = false,
+    bool withAppleSignIn = false,
   }) {
-    final source = _bloc(withPushNotifications: withPushNotifications);
+    final source = _bloc(
+      withPushNotifications: withPushNotifications,
+      withAppleSignIn: withAppleSignIn,
+    );
     return withConcurrency
-        ? withDroppable(source, const [
+        ? withDroppable(source, [
             'AuthLoginRequested',
             'AuthRegisterRequested',
+            if (withAppleSignIn) 'AuthAppleSignInRequested',
             'AuthUserReloadRequested',
+            'AuthPasswordResetRequested',
+            'AuthPasswordResetConfirmed',
+            'AuthVerificationEmailRequested',
             'AuthLogoutRequested',
             'AuthAccountDeleted',
           ])
         : source;
   }
 
-  static String _bloc({bool withPushNotifications = false}) {
+  static String _bloc({
+    bool withPushNotifications = false,
+    bool withAppleSignIn = false,
+  }) {
+    final appleRegistration = withAppleSignIn
+        ? '\n    on<AuthAppleSignInRequested>(_onAppleSignIn);'
+        : '';
+    final appleHandler = withAppleSignIn
+        ? '''
+
+  Future<void> _onAppleSignIn(
+    AuthAppleSignInRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final current = state;
+    emit(const AuthLoading());
+    try {
+      final user = await _repo.signInWithApple();${withPushNotifications ? '\n      unawaited(_repo.syncDeviceToken());' : ''}
+      emit(AuthAuthenticated(user: user));
+    } on CancelledException {
+      // Dismissing the Apple sheet is not a failure worth showing.
+      emit(current);
+    } on AppException catch (e) {
+      emit(AuthFailure(e.message));
+    }
+  }'''
+        : '';
     final syncOnRestore = withPushNotifications
         ? '''
 
@@ -616,7 +887,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthStarted>(_onStarted);
     on<AuthLoginRequested>(_onLogin);
     on<AuthRegisterRequested>(_onRegister);
-    on<AuthUserReloadRequested>(_onUserReload);
+    on<AuthUserReloadRequested>(_onUserReload);$appleRegistration
+    on<AuthPasswordResetRequested>(_onPasswordReset);
+    on<AuthPasswordResetConfirmed>(_onPasswordResetConfirmed);
+    on<AuthVerificationEmailRequested>(_onVerificationEmail);
     on<AuthLogoutRequested>(_onLogout);
     on<AuthAccountDeleted>(_onDeleteAccount);
   }
@@ -720,7 +994,56 @@ $syncOnRestore
     } on AppException catch (e) {
       emit(AuthFailure(e.message, session: current));
     }
+  }$appleHandler
+
+  // The three below do not change the session, so only a failure is a state;
+  // the screen confirms the send itself. A failure carries the session it
+  // found, so a signed-in user stays signed in.
+
+  Future<void> _onPasswordReset(
+    AuthPasswordResetRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final current = state;
+    try {
+      await _repo.requestPasswordReset(email: event.email);
+    } on AppException catch (e) {
+      emit(AuthFailure(e.message, session: _sessionOf(current)));
+    }
   }
+
+  Future<void> _onPasswordResetConfirmed(
+    AuthPasswordResetConfirmed event,
+    Emitter<AuthState> emit,
+  ) async {
+    final current = state;
+    try {
+      await _repo.resetPassword(
+        code: event.code,
+        newPassword: event.newPassword,
+      );
+    } on AppException catch (e) {
+      emit(AuthFailure(e.message, session: _sessionOf(current)));
+    }
+  }
+
+  Future<void> _onVerificationEmail(
+    AuthVerificationEmailRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final current = state;
+    try {
+      await _repo.resendVerificationEmail();
+    } on AppException catch (e) {
+      emit(AuthFailure(e.message, session: _sessionOf(current)));
+    }
+  }
+
+  AuthAuthenticated? _sessionOf(AuthState state) => switch (state) {
+    AuthAuthenticated() => state,
+    AuthFailure(:final session) => session,
+    _ => null,
+  };
 }
 ''';
   }

@@ -852,7 +852,10 @@ dependencies:
         ),
       );
       expect(model.readAsStringSync(), contains('abstract class UserModel'));
-      expect(await ProjectInspector.inspect(root), isEmpty);
+      expect(
+        matching(await ProjectInspector.inspect(root), 'UserModel'),
+        isEmpty,
+      );
     });
 
     test('finds a UserModel still under domain/, from before 10.0.0', () async {
@@ -868,7 +871,10 @@ dependencies:
         ),
       ).create(recursive: true);
 
-      expect(await ProjectInspector.inspect(root), isEmpty);
+      expect(
+        matching(await ProjectInspector.inspect(root), 'UserModel'),
+        isEmpty,
+      );
     });
 
     test('leaves a Firebase auth feature alone', () async {
@@ -884,8 +890,64 @@ dependencies:
         ),
       ).create(recursive: true);
 
-      expect(await ProjectInspector.inspect(root), isEmpty);
+      expect(
+        matching(await ProjectInspector.inspect(root), 'UserModel'),
+        isEmpty,
+      );
     });
+
+    test(
+      'offers the account screens and their routes to an older feature',
+      () async {
+        await writeRestAuth();
+        final routes = File(
+          p.join(libPath, 'config', 'router', 'app_routes.dart'),
+        );
+        await routes.create(recursive: true);
+        await routes.writeAsString('''
+abstract final class AppRoutes {
+  static const login = '/login';
+  static const register = '/register';
+
+  static const publicRoutes = {login, register};
+}
+''');
+
+        final finding = matching(
+          await ProjectInspector.inspect(root),
+          'password-reset',
+        ).single;
+        await finding.fix!();
+
+        final views = p.join(
+          libPath,
+          'features',
+          'auth',
+          'presentation',
+          'views',
+        );
+        expect(
+          File(p.join(views, 'forgot_password_view.dart')).existsSync(),
+          isTrue,
+        );
+        expect(
+          File(p.join(views, 'verify_email_view.dart')).existsSync(),
+          isTrue,
+        );
+        final source = routes.readAsStringSync();
+        expect(source, contains("static const verifyEmail = '/verify-email';"));
+        expect(
+          source,
+          contains(
+            'static const publicRoutes = {login, register, forgotPassword};',
+          ),
+        );
+        expect(
+          matching(await ProjectInspector.inspect(root), 'password-reset'),
+          isEmpty,
+        );
+      },
+    );
   });
 
   group('paging', () {

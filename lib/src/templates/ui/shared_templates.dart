@@ -320,8 +320,10 @@ enum AppButtonVariant { primary, secondary, tertiary, danger }
 /// - [ghost]: transparent background, no border, variant-colored label.
 enum AppButtonType { filled, outlined, ghost }
 
-/// Corner shape of [AppButton].
-enum AppButtonShape { rounded, pill }
+/// Corner shape of [AppButton]. [rounded] and [pill] follow
+/// `AppConstants.corners`, so in a square app they are square too; [square]
+/// is square in any app.
+enum AppButtonShape { square, rounded, pill }
 
 enum AppButtonSize { large, medium, small }
 
@@ -483,6 +485,7 @@ $classDeclaration
               showsBusy ? foregroundColor : disabledForeground,
           shape: RoundedRectangleBorder(
             borderRadius: switch (shape) {
+              AppButtonShape.square => BorderRadius.zero,
               AppButtonShape.rounded => AppConstants.borderRadius12,
               AppButtonShape.pill => AppConstants.borderRadiusFull,
             },
@@ -580,8 +583,9 @@ enum AppLeadingIconVariant { primary, secondary, tertiary, danger }
 /// - [plain]: no container, just the variant-colored icon.
 enum AppLeadingIconType { filled, tonal, outlined, plain }
 
-/// Corner shape of the container.
-enum AppLeadingIconShape { rounded, circle }
+/// Corner shape of the container. [rounded] follows `AppConstants.corners`;
+/// [circle] stays a circle in any app.
+enum AppLeadingIconShape { square, rounded, circle }
 
 enum AppLeadingIconSize { small, medium, large }
 
@@ -678,7 +682,11 @@ class AppLeadingIcon extends StatelessWidget {
       decoration: BoxDecoration(
         color: backgroundColor,
         shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
-        borderRadius: isCircle ? null : AppConstants.borderRadius12,
+        borderRadius: isCircle
+            ? null
+            : shape == AppLeadingIconShape.square
+            ? BorderRadius.zero
+            : AppConstants.borderRadius12,
         border: type == AppLeadingIconType.outlined
             ? Border.all(color: accent, width: _outlinedBorderWidth)
             : null,
@@ -708,8 +716,9 @@ enum AppInputVariant { primary, secondary, tertiary, danger }
 enum AppInputType { filled, outlined, underline }
 
 /// Corner shape of an input. Ignored by [AppInputType.underline], which has no
-/// corners to round.
-enum AppInputShape { rounded, pill }
+/// corners to round. [rounded] and [pill] follow `AppConstants.corners`;
+/// [square] is square in any app.
+enum AppInputShape { square, rounded, pill }
 
 /// Text scale of an input — drives the value text, the hint, the icons and the
 /// vertical padding together so the field grows as one.
@@ -1079,6 +1088,7 @@ class AppInputStyle {
       switch (type) {
         AppInputType.underline => BorderRadius.zero,
         _ => switch (shape) {
+          AppInputShape.square => BorderRadius.zero,
           AppInputShape.rounded => AppConstants.borderRadius12,
           AppInputShape.pill => AppConstants.borderRadiusFull,
         },
@@ -6753,8 +6763,9 @@ enum AppIconButtonVariant { primary, secondary, tertiary, danger }
 /// - [ghost]: no container at all — just the variant-colored icon.
 enum AppIconButtonType { filled, tonal, outlined, ghost }
 
-/// Corner shape of the tap target.
-enum AppIconButtonShape { rounded, circle }
+/// Corner shape of the tap target. Left unset, it is a circle — or a square
+/// in a square app (`AppConstants.corners`). An explicit [circle] stays one.
+enum AppIconButtonShape { square, rounded, circle }
 
 enum AppIconButtonSize { small, medium, large }
 
@@ -6771,7 +6782,7 @@ class AppIconButton extends StatelessWidget {
     this.onPressed,
     this.variant = AppIconButtonVariant.primary,
     this.type = AppIconButtonType.ghost,
-    this.shape = AppIconButtonShape.circle,
+    this.shape,
     this.size = AppIconButtonSize.medium,
     this.tooltip,
     this.semanticLabel,
@@ -6785,8 +6796,16 @@ class AppIconButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final AppIconButtonVariant variant;
   final AppIconButtonType type;
-  final AppIconButtonShape shape;
+
+  /// Null: a circle, or a square in a square app.
+  final AppIconButtonShape? shape;
   final AppIconButtonSize size;
+
+  AppIconButtonShape get _shape =>
+      shape ??
+      (AppConstants.squareCorners
+          ? AppIconButtonShape.square
+          : AppIconButtonShape.circle);
 
   /// Long-press label. Worth setting on every icon button — an icon on its own
   /// rarely names itself, and it is what a screen reader reads when
@@ -6924,12 +6943,14 @@ class AppIconButton extends StatelessWidget {
     final painted = Material(
       color: resolvedBackground,
       clipBehavior: Clip.antiAlias,
-      shape: shape == AppIconButtonShape.circle
-          ? CircleBorder(side: border)
-          : RoundedRectangleBorder(
-              borderRadius: AppConstants.borderRadius12,
-              side: border,
-            ),
+      shape: switch (_shape) {
+        AppIconButtonShape.circle => CircleBorder(side: border),
+        AppIconButtonShape.square => RoundedRectangleBorder(side: border),
+        AppIconButtonShape.rounded => RoundedRectangleBorder(
+          borderRadius: AppConstants.borderRadius12,
+          side: border,
+        ),
+      },
       child: InkWell(
         onTap: handleTap,
         child: SizedBox.square(
@@ -7192,7 +7213,7 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.backIcon = Icons.arrow_back,
     this.backVariant = AppIconButtonVariant.primary,
     this.backType = AppIconButtonType.tonal,
-    this.backShape = AppIconButtonShape.circle,
+    this.backShape,
     this.backSize = AppIconButtonSize.medium,
   });
 
@@ -7232,7 +7253,7 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// How the back button wears its color. [AppIconButtonType.tonal] gives the
   /// soft tinted container; [AppIconButtonType.ghost] the bare arrow.
   final AppIconButtonType backType;
-  final AppIconButtonShape backShape;
+  final AppIconButtonShape? backShape;
   final AppIconButtonSize backSize;
 
   @override
@@ -7346,7 +7367,7 @@ class AppBanner extends StatelessWidget {
     this.onDismiss,
     this.dismissIcon = Icons.close,
     this.dismissType = AppIconButtonType.ghost,
-    this.dismissShape = AppIconButtonShape.circle,
+    this.dismissShape,
   });
 
   final String message;
@@ -7373,7 +7394,7 @@ class AppBanner extends StatelessWidget {
   /// quiet; [AppIconButtonType.tonal] gives the close a soft container of its
   /// own, which helps when the banner is long enough to hunt for it.
   final AppIconButtonType dismissType;
-  final AppIconButtonShape dismissShape;
+  final AppIconButtonShape? dismissShape;
 
   static const double _fillOpacity = 0.10;
   static const double _borderOpacity = 0.35;
@@ -7629,7 +7650,7 @@ $_appSearchFieldBody''';
     this.clearIcon = Icons.close,
     this.clearVariant = AppIconButtonVariant.primary,
     this.clearType = AppIconButtonType.ghost,
-    this.clearShape = AppIconButtonShape.circle,
+    this.clearShape,
   });
 
   /// Optional external controller — pass one to read or clear the query from
@@ -7656,7 +7677,7 @@ $_appSearchFieldBody''';
   /// How the clear button wears its color. [AppIconButtonType.tonal] turns it
   /// into a small filled chip, which is easier to hit on a busy toolbar.
   final AppIconButtonType clearType;
-  final AppIconButtonShape clearShape;
+  final AppIconButtonShape? clearShape;
 
   @override
   State<AppSearchField> createState() => _AppSearchFieldState();

@@ -493,6 +493,18 @@ const _unaccented = 'AAAAAAaaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuNnCc';
     return '''
 import 'package:flutter/material.dart';
 
+/// How round the app's corners are — see [AppConstants.corners].
+enum AppCorners {
+  /// No radius anywhere: cards, inputs, buttons, sheets, chips and pills.
+  square,
+
+  /// Half the default radii.
+  soft,
+
+  /// The default radii.
+  rounded,
+}
+
 abstract final class AppConstants {
   // ── Brand palette — 60-30-10 ──────────────────────────────────────────────
   // 60  surface: the scaffold, the large calm background.
@@ -585,13 +597,33 @@ $darkPalette
   // ── Touch targets — iOS HIG 44pt minimum, Material 48dp ───────────────────
   static const double touchTarget = 48;
 
+  // ── Corners ───────────────────────────────────────────────────────────────
+  /// How round the whole app is. Every radius below follows it — the kit,
+  /// the theme, the pills — so a square app is this one line:
+  ///
+  ///   static const AppCorners corners = AppCorners.square;
+  ///
+  /// True circles (avatars, radios, an icon button asked for as `circle`)
+  /// stay round. A single widget still overrides it with its `shape:`.
+  static const AppCorners corners = AppCorners.rounded;
+
+  /// Whether [corners] is square. What a widget whose default shape is a
+  /// circle (an icon button) reads to square off with the rest.
+  static const bool squareCorners = corners == AppCorners.square;
+
+  static const double _cornerScale = corners == AppCorners.square
+      ? 0.0
+      : corners == AppCorners.soft
+          ? 0.5
+          : 1.0;
+
   // ── Border radius — Material medium = 12, iOS cards ≈ 10–13 ──────────────
-  static const double radius4  = 4;
-  static const double radius8  = 8;
-  static const double radius12 = 12; // Material medium / iOS card
-  static const double radius16 = 16; // Material large
-  static const double radius24 = 24; // bottom sheets, large cards
-  static const double radiusFull = 999; // pills / chips
+  static const double radius4  = 4 * _cornerScale;
+  static const double radius8  = 8 * _cornerScale;
+  static const double radius12 = 12 * _cornerScale; // Material medium / iOS card
+  static const double radius16 = 16 * _cornerScale; // Material large
+  static const double radius24 = 24 * _cornerScale; // bottom sheets, large cards
+  static const double radiusFull = squareCorners ? 0 : 999; // pills / chips
 
   static final borderRadius4    = BorderRadius.circular(radius4);
   static final borderRadius8    = BorderRadius.circular(radius8);
@@ -626,6 +658,22 @@ $darkPalette
     'AppConstants.curveEnter': 'Curves.easeOutCubic',
     'AppConstants.curveExit': 'Curves.easeInCubic',
   };
+
+  /// The corner tokens a widget reads (10.2.0), and the literal each stands
+  /// for in a project whose `AppConstants` predates them: its corners are the
+  /// fixed rounded ones, so it is never square.
+  static const Map<String, String> cornerTokenLiterals = {
+    'AppConstants.squareCorners': 'false',
+  };
+
+  /// [source] with every [cornerTokenLiterals] token replaced by its literal.
+  static String inlineMissingCornerTokens(String source) {
+    var out = source;
+    cornerTokenLiterals.forEach((token, literal) {
+      out = out.replaceAll(token, literal);
+    });
+    return out;
+  }
 
   /// [source] with every [tokenLiterals] token replaced by its literal — for
   /// a project whose `AppConstants` predates them.
@@ -690,6 +738,7 @@ $darkPalette
   /// [withUpdateGate] add the config paths the Dio-backed gates poll.
   static String apiConstants({
     bool withAuthFeature = false,
+    bool withAppleSignIn = false,
     bool withDeviceToken = false,
     bool withMaintenanceGate = false,
     bool withUpdateGate = false,
@@ -714,7 +763,17 @@ $darkPalette
   static const authLogout = '/auth/logout';
 
   /// The signed-in account: GET reads the user, DELETE deletes the account.
-  static const authAccount = '/auth/me';$deviceToken'''
+  static const authAccount = '/auth/me';
+
+  /// Emails a reset code; then the code and a new password set it.
+  static const authPasswordForgot = '/auth/password/forgot';
+  static const authPasswordReset = '/auth/password/reset';
+
+  /// Sends the signed-in user's verification email again.
+  static const authEmailResend = '/auth/email/resend';${withAppleSignIn ? '''
+
+  /// Trades Apple's identity token for a session.
+  static const authApple = '/auth/apple';''' : ''}$deviceToken'''
         : '';
 
     final maintenance = withMaintenanceGate
@@ -755,6 +814,10 @@ abstract final class ApiConstants {
   /// writes these in place of an undeclared constant.
   static const Map<String, String> endpointLiterals = {
     'authDeviceToken': '/auth/device-token',
+    'authPasswordForgot': '/auth/password/forgot',
+    'authPasswordReset': '/auth/password/reset',
+    'authEmailResend': '/auth/email/resend',
+    'authApple': '/auth/apple',
     'configMaintenance': '/config/maintenance',
     'configAppVersion': '/config/app-version',
   };
@@ -1073,9 +1136,11 @@ class PagedList<T> {
   /// [withAuth] adds the `FirebaseAuthException` arm, which must come first —
   /// it is a subtype of `FirebaseException`.
   static String safeFirebaseCall({bool withAuth = false}) {
-    final authImport = withAuth
-        ? "import 'package:firebase_auth/firebase_auth.dart';\n"
-        : '';
+    // firebase_auth re-exports FirebaseException, so firebase_core is only
+    // imported without it — beside it the import is `unnecessary_import`.
+    final firebaseImport = withAuth
+        ? "import 'package:firebase_auth/firebase_auth.dart';"
+        : "import 'package:firebase_core/firebase_core.dart';";
 
     final authCatch = withAuth
         ? '\n  } on FirebaseAuthException catch (e) {'
@@ -1095,8 +1160,8 @@ class PagedList<T> {
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:firebase_core/firebase_core.dart';
-$authImport
+$firebaseImport
+
 import '../errors/app_exception.dart';
 
 /// Anything that comes back wrong arrives as an [AppException], the same as
@@ -1225,13 +1290,18 @@ class NullableTimestampConverter implements JsonConverter<DateTime?, Object?> {
   /// `TokenStorage` the locator holds, and `injector.dart` registers the
   /// result as a lazy singleton. Nothing about a REST client depends on how
   /// state is held, so there is one of these rather than two.
-  static String dioClient({bool withAuthFeature = false}) {
+  static String dioClient({
+    bool withAuthFeature = false,
+    bool withAppleSignIn = false,
+  }) {
     final publicEndpoints = withAuthFeature
-        ? r'''
+        ? '''
   // Routes that never get the Authorization header or a refresh retry.
   ApiConstants.authLogin,
   ApiConstants.authRegister,
-  ApiConstants.authRefresh,'''
+  ApiConstants.authRefresh,
+  ApiConstants.authPasswordForgot,
+  ApiConstants.authPasswordReset,${withAppleSignIn ? '\n  ApiConstants.authApple,' : ''}'''
         : r'''
   // Routes that never receive the Authorization header (and are never
   // retried after a token refresh). Add your API's sign-in routes here.''';

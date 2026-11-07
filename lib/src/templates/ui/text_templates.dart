@@ -29,7 +29,10 @@ enum AppTextButtonType { plain, underlined, tonal }
 
 /// Corner shape of the [AppTextButtonType.tonal] pill. Ignored by the other
 /// two types, which paint no container to shape.
-enum AppTextButtonShape { rounded, pill }
+///
+/// [rounded] and [pill] follow `AppConstants.corners`; [square] is square in
+/// any app.
+enum AppTextButtonShape { square, rounded, pill }
 
 enum AppTextButtonSize { small, medium, large }
 
@@ -332,6 +335,7 @@ class AppTextButton extends StatelessWidget {
             dense ? MaterialTapTargetSize.shrinkWrap : MaterialTapTargetSize.padded,
         shape: RoundedRectangleBorder(
           borderRadius: switch (shape) {
+            AppTextButtonShape.square => BorderRadius.zero,
             AppTextButtonShape.rounded => AppConstants.borderRadius8,
             AppTextButtonShape.pill => AppConstants.borderRadiusFull,
           },
