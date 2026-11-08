@@ -100,6 +100,8 @@ abstract final class ProjectInspector {
       ..._auth(root),
       ..._authAccountScreens(root),
       ..._paging(root),
+      ..._syncStatus(root, libPath),
+      if (pubspec != null) ..._databaseEncryption(root, pubspec),
       ..._endpoints(libPath),
       ..._platforms(root),
       ..._agents(root),
@@ -108,6 +110,82 @@ abstract final class ProjectInspector {
       ..._newGuides(root),
       ..._dartMcp(root),
       ..._widgets(root, libPath, pubspec),
+    ];
+  }
+
+  // ── Sync ────────────────────────────────────────────────────────────────────
+
+  /// An offline-sync project from before 10.3.0: no `sync_status.dart`, so a
+  /// write the server refuses is undone on screen without a word.
+  ///
+  /// `update` never adds a file. Gated on the manifest like the skills: a
+  /// file it has a record of was deleted on purpose.
+  static List<Diagnostic> _syncStatus(String root, String libPath) {
+    final context = ScaffoldContext.detect(root);
+    const path = 'lib/shared/widgets/sync_status.dart';
+    if (!context.hasSync || context.hasSyncStatus) return const [];
+    if (ProjectManifest.load(root)?.files[path] != null) return const [];
+
+    return [
+      Diagnostic.info(
+        'Offline sync without SyncStatusListener — refused writes are undone '
+        'without telling the user',
+        hint:
+            'Generate $path with `moarch doctor --fix`, then '
+            '`moarch update main` to mount the listener.',
+        fix: () async {
+          final result = await _generate(root, [
+            'sync-status',
+          ], 'the file already exists');
+          // SyncStatusBanner is an AppBanner.
+          final manifest = ProjectManifest.loadOrCreate(root);
+          for (final spec in WidgetCatalog.resolve([
+            'banner',
+          ], stateManagement: context.stateManagement)) {
+            final file = spec.pathIn(libPath);
+            final content = widgetSource(libPath, spec);
+            if (await FileUtils.writeFile(file, content)) {
+              manifest.record(root, file, content);
+            }
+          }
+          await manifest.save(root);
+          return '$result — run `moarch update main` to mount the listener';
+        },
+      ),
+    ];
+  }
+
+  /// An encrypted database whose pubspec does not select the cipher build.
+  ///
+  /// Plain SQLite ignores `PRAGMA key`, so the app would write the "encrypted"
+  /// database in the clear; only a debug build's assert notices.
+  static List<Diagnostic> _databaseEncryption(String root, String pubspec) {
+    if (!ScaffoldContext.detect(root).hasEncryptedDatabase) return const [];
+    final source = PubspecUtils.hookUserDefine(pubspec, 'sqlite3', 'source');
+    if (source == 'sqlite3mc') return const [];
+
+    return [
+      Diagnostic.error(
+        source == null
+            ? 'The database is meant to be encrypted, but pubspec.yaml does '
+                  'not select the cipher build of SQLite'
+            : 'The database key is for SQLite3MultipleCiphers, but pubspec.yaml '
+                  'selects sqlite3 source "$source"',
+        hint:
+            'Add hooks: user_defines: sqlite3: source: sqlite3mc to '
+            'pubspec.yaml, then rebuild the app.',
+        fix: source != null
+            ? null
+            : () async {
+                await PubspecUtils.ensureHookUserDefine(
+                  root,
+                  package: 'sqlite3',
+                  key: 'source',
+                  value: 'sqlite3mc',
+                );
+                return 'set hooks.user_defines.sqlite3.source: sqlite3mc';
+              },
+      ),
     ];
   }
 

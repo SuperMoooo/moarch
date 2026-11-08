@@ -6,7 +6,9 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../../templates/config/flavor_templates.dart';
+import '../../templates/misc/dev_templates.dart';
 import '../../utils/file_utils.dart';
+import '../../utils/package_versions.dart';
 import '../../utils/project_manifest.dart';
 import '../../utils/pubspec_utils.dart';
 import '../../utils/scaffold_catalog.dart';
@@ -110,16 +112,27 @@ class CreateFlavorsCommand extends Command<int> {
 
     final manifest = ProjectManifest.loadOrCreate(root);
     bool wrote;
+    final icons = <String>[];
     try {
       wrote = await FileUtils.writeFile(configPath, content);
-      if (wrote) {
-        manifest.record(root, configPath, content);
-        await manifest.save(root);
+      if (wrote) manifest.record(root, configPath, content);
+      // One icon per flavor, so the builds are told apart on a home screen.
+      for (final flavor in flavors) {
+        final path = p.join(root, 'flutter_launcher_icons-$flavor.yaml');
+        final icon = DevTemplates.launcherIconsFlavor(flavor);
+        if (await FileUtils.writeFile(path, icon)) {
+          manifest.record(root, path, icon);
+          icons.add(p.basename(path));
+        }
       }
+      await manifest.save(root);
       await PubspecUtils.ensureDependencies(
         root,
         dependencies: const [],
-        devDependencies: ['flutter_flavorizr: '],
+        devDependencies: [
+          'flutter_flavorizr: ',
+          PackageVersions.entry('flutter_launcher_icons'),
+        ],
       );
       progress.complete('Done');
     } catch (e) {
@@ -135,6 +148,9 @@ class CreateFlavorsCommand extends Command<int> {
       _logger.info('  · flavorizr.yaml already exists — left untouched.');
       _logger.info('    Delete it and re-run to regenerate.');
     }
+    for (final icon in icons) {
+      _logger.info('  + $icon');
+    }
     _logger.info('  + flutter_flavorizr added to dev_dependencies');
     _logger.info('');
     _logger.info('  Review the app names and ids in flavorizr.yaml, then:');
@@ -146,6 +162,16 @@ class CreateFlavorsCommand extends Command<int> {
     );
     _logger.info('        — lib/main.dart is not touched)');
     _logger.info('    3. flutter run --flavor ${flavors.first}');
+    if (icons.isNotEmpty) {
+      _logger.info(
+        '    4. put assets/icon/<flavor>.png (1024x1024) for each flavor, '
+        'then dart run flutter_launcher_icons',
+      );
+      _logger.info(
+        '       (iOS: set each configuration\'s '
+        'ASSETCATALOG_COMPILER_APPICON_NAME to AppIcon-<flavor>)',
+      );
+    }
     _logger.info('');
     if (flavors.toSet().containsAll(defaultFlavors)) {
       _logger.info(

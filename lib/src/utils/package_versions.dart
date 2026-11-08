@@ -39,6 +39,8 @@ abstract final class PackageVersions {
     // ── Core ────────────────────────────────────────────────────────────────
     'get_it': '^9.3.0',
     'flutter_native_splash': '^2.4.8',
+    // Dev only: makes the icons once, nothing of it ships in the app.
+    'flutter_launcher_icons': '^0.14.4',
     'envied': '^1.3.10',
     'skeletonizer': '^2.1.3',
     // Deliberately unconstrained, and the only one: `flutter_localizations`
@@ -76,6 +78,9 @@ abstract final class PackageVersions {
     'drift': '^2.35.3',
     'drift_flutter': '^0.3.1',
     'drift_dev': '^2.35.2',
+    // Where the encrypted database's file is, so a key-less one can be
+    // deleted. drift_flutter already depends on it.
+    'path_provider': '^2.1.5',
     // Floored at the 0.10 line, where the plugin registers the iOS task
     // handler itself: background_sync.dart and SYNC_SETUP.md rely on
     // AppDelegate.swift needing no change. Needs Flutter 3.38+.
@@ -85,6 +90,7 @@ abstract final class PackageVersions {
     'firebase_core': '^4.15.0',
     'firebase_messaging': '^16.7.0',
     'firebase_crashlytics': '^5.4.0',
+    'firebase_analytics': '^12.4.5',
     'firebase_auth': '^6.7.0',
     'cloud_firestore': '^6.10.0',
     // Floored because the generated Google flow is written against the 7.x
@@ -125,8 +131,8 @@ abstract final class PackageVersions {
     // still wants `build` ^4, so pub has to be able to back off to 2.17.0.
     'build_runner': '^2.15.2',
     'envied_generator': '^1.3.10',
-    // freezed 4 needs Dart 3.13 (Flutter 3.47), what `stable` in .fvmrc
-    // resolves to since August 2026. The class shape moarch writes is the
+    // freezed 4 needs Dart 3.13 (Flutter 3.47), the line the .fvmrc pin
+    // (`DevTemplates.flutterVersion`) is on. The class shape moarch writes is the
     // same as in 3.x.
     'freezed': '^4.0.1',
     'json_serializable': '^6.15.2',

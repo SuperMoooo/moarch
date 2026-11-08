@@ -1,3 +1,5 @@
+import '../core/analytics_templates.dart';
+
 /// The flutter_bloc flavor of the app-level templates — the mirror of
 /// `templates/riverpod/app_templates.dart`.
 ///
@@ -30,8 +32,12 @@ class AppTemplates {
     bool withAuthFeature = false,
     bool withBlocObserver = false,
     bool withSync = false,
+    bool? withSyncStatus,
   }) {
     if (withEasyLocalization) withLocalization = false;
+    // A project from before sync_status.dart existed has sync but no
+    // listener to mount, until `moarch doctor --fix` writes it.
+    final syncStatus = withSyncStatus ?? withSync;
     // The saved choice only means something with two themes to choose from.
     withThemeMode = withThemeMode && withDarkTheme;
 
@@ -138,6 +144,7 @@ ${[if (withNotificationsService) _guardedInit('NotificationService', 'Notificati
         "\nimport 'core/sync/background_sync.dart';",
         "\nimport 'core/sync/sync_service.dart';",
       ],
+      if (syncStatus) "\nimport 'shared/widgets/sync_status.dart';",
     ].join();
 
     final moAdaptImport = [
@@ -175,12 +182,15 @@ ${[if (withNotificationsService) _guardedInit('NotificationService', 'Notificati
       if (withMaintenanceGate) 'MaintenanceGate(child: ',
       if (withUpdateGate) 'UpdateGate(child: ',
       if (withOfflineGate) 'OfflineGate(child: ',
+      // Toasts the writes the server refused, wherever the user is.
+      if (syncStatus) 'SyncStatusListener(child: ',
     ].join();
     final maintenanceClose =
         ')' *
         ((withMaintenanceGate ? 1 : 0) +
             (withUpdateGate ? 1 : 0) +
-            (withOfflineGate ? 1 : 0));
+            (withOfflineGate ? 1 : 0) +
+            (syncStatus ? 1 : 0));
 
     // Offline sync: the queue is sent now, on every reconnect and resume, and
     // from the background task.
@@ -469,6 +479,7 @@ $localizationConfig$routerConfig      debugShowCheckedModeBanner: false,
   static String appRouter({
     bool withAuth = false,
     bool withAccountScreens = false,
+    bool withAnalytics = false,
   }) {
     final accountScreens = withAuth && withAccountScreens;
     final imports = withAuth
@@ -537,7 +548,16 @@ $localizationConfig$routerConfig      debugShowCheckedModeBanner: false,
               .replaceFirst('{{home}}', 'from ?? AppRoutes.home')
               .replaceFirst('{{verify_rules}}', '');
 
-    return _appRouter(imports, options, authRoutes, authGuard, withAuth);
+    final observer = withAnalytics
+        ? '\n${AnalyticsTemplates.routerObserver('  ')}'
+        : '';
+    return _appRouter(
+      withAnalytics ? AnalyticsTemplates.withRouterImports(imports) : imports,
+      '$options$observer',
+      authRoutes,
+      authGuard,
+      withAuth,
+    );
   }
 
   static const String _blocVerify = r'''

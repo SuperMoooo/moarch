@@ -134,8 +134,17 @@ targets:
                     field_rename: snake
 ''';
 
+  /// The Flutter release `.fvmrc` pins in a new project.
+  ///
+  /// An exact version, not the `stable` channel: a channel is whatever commit
+  /// each machine installed it at, while CI's `flutter-version-file` resolves
+  /// the newest stable, so two checkouts of one project could build on two
+  /// SDKs. Raise it when a dependency in `package_versions.dart` needs a
+  /// newer Dart; a project changes its own `.fvmrc` by hand.
+  static const flutterVersion = '3.47.9';
+
   /// The FVM pin written at the project root.
-  static String fvmrc() => '{\n  "flutter": "stable"\n}\n';
+  static String fvmrc() => '{\n  "flutter": "$flutterVersion"\n}\n';
 
   /// The workspace settings written to `.vscode/settings.json`, pointing the
   /// Dart/Flutter extension at the SDK [fvmrc] pins.
@@ -263,6 +272,50 @@ targets:
               color: '#FFFFFF' # BG COLOR (light mode)
               color_dark: '#000000' # BG COLOR (dark mode)
     ''';
+
+  /// The app icon configuration `flutter_launcher_icons` reads, beside the
+  /// splash's.
+  ///
+  /// One 1024×1024 PNG makes every size both platforms need. The adaptive
+  /// icon (Android 8+) is left commented: it needs a second, padded image.
+  static String launcherIcons() => '''
+# The app icon on Android and iOS, every size made from one image.
+#
+#   1. Put a 1024x1024 PNG at assets/icon/icon.png (no transparency for iOS).
+#   2. fvm dart run flutter_launcher_icons
+#
+# With flavors (`moarch create flavors`), each flavor has its own
+# flutter_launcher_icons-<flavor>.yaml and this file is not read.
+flutter_launcher_icons:
+  image_path: assets/icon/icon.png
+  android: true
+  ios: true
+  # The App Store refuses an icon with an alpha channel.
+  remove_alpha_ios: true
+  # Android 8+ masks icons to the launcher's shape. For a clean result, give
+  # it the logo on a transparent, padded canvas and a background color:
+  # adaptive_icon_foreground: assets/icon/icon_foreground.png
+  # adaptive_icon_background: '#FFFFFF'
+''';
+
+  /// `flutter_launcher_icons-<flavor>.yaml`, which `create flavors` writes per
+  /// flavor so dev and prod builds are told apart on the home screen.
+  static String launcherIconsFlavor(String flavor) =>
+      '''
+# The $flavor build's app icon. `fvm dart run flutter_launcher_icons` makes
+# every flavor's icons at once, from its own image:
+#
+#   assets/icon/$flavor.png    1024x1024, no transparency for iOS
+#
+# Android uses it from the flavor's source set (android/app/src/$flavor/res).
+# iOS gets an AppIcon-$flavor set: point the $flavor build configurations'
+# ASSETCATALOG_COMPILER_APPICON_NAME at it in Xcode (docs/FLAVORS.md).
+flutter_launcher_icons:
+  image_path: assets/icon/$flavor.png
+  android: true
+  ios: true
+  remove_alpha_ios: true
+''';
 
   /// Replaces the counter test `flutter create` writes, which pumps the demo
   /// app the scaffold removes and would fail on a fresh project.

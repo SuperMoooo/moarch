@@ -578,7 +578,8 @@ once the feature has its own table (`moarch create table <name>`).${o.withSync ?
 A write goes through the queue: the remote datasource returns a
 `SyncRequest` (method, path, body) instead of calling Dio, and the repository
 changes the cache (`_local.save` / `_local.remove`) then calls
-`_sync.enqueue(collection, request)`. `SyncService` sends it and refetches.''' : ''} Otherwise, do **not** catch here: the''' : ''' Do **not** catch here: the'''}
+`_sync.enqueue(collection, request, recordId: item.id)`. `SyncService` sends
+it and refetches.''' : ''} Otherwise, do **not** catch here: the''' : ''' Do **not** catch here: the'''}
 `AppException` the datasource throws goes up to `runAction`, which shows it.
 
 ## After

@@ -27,10 +27,14 @@ abstract final class CacheTemplates {
   /// [featureTables] are the tables `create table` wrote, as found on disk,
   /// and [schemaVersion] the one the project's database is at: both are read
   /// back so `update` refreshes the file without dropping either.
+  ///
+  /// [encrypted] opens it with the key from `database_key.dart`, through the
+  /// SQLite3MultipleCiphers build `pubspec.yaml` selects.
   static String appDatabase({
     bool withSync = false,
     List<FeatureTableRef> featureTables = const [],
     int schemaVersion = 1,
+    bool encrypted = false,
   }) {
     final queueTable = withSync ? _pendingWritesTable : '';
     final tables = [
@@ -44,13 +48,54 @@ abstract final class CacheTemplates {
     final skipQueue = withSync
         ? '\n            if (table == pendingWrites) continue;'
         : '';
-    final open = withSync
+    final open = encrypted
+        ? '_openEncrypted()'
+        : withSync
         ? r'''driftDatabase(
               name: 'app_cache',
               // The background sync task opens it from its own isolate.
               native: const DriftNativeOptions(shareAcrossIsolates: true),
             )'''
         : "driftDatabase(name: 'app_cache')";
+    final share = withSync
+        ? '''
+            // The background sync task opens it from its own isolate.
+            shareAcrossIsolates: true,
+'''
+        : '';
+    final openEncrypted = encrypted
+        ? '''
+
+
+  /// Opens the database encrypted with [DatabaseKey]. The key is read first,
+  /// so the connection waits for it.
+  static QueryExecutor _openEncrypted() {
+    return LazyDatabase(() async {
+      final key = await DatabaseKey.obtain();
+      return driftDatabase(
+        name: 'app_cache',
+        native: DriftNativeOptions(
+          databasePath: DatabaseKey.databasePath,
+$share            setup: (db) {
+            db.execute("PRAGMA key = '\$key';");
+            // A plain SQLite build ignores the key and writes in the clear.
+            assert(
+              db.select('PRAGMA cipher').isNotEmpty,
+              'Not SQLite3MultipleCiphers: pubspec.yaml needs '
+              'hooks.user_defines.sqlite3.source: sqlite3mc',
+            );
+          },
+        ),
+      );
+    });
+  }'''
+        : '';
+    // After the table imports, which end on a newline of their own.
+    final keyImport = !encrypted
+        ? ''
+        : tableImports.isEmpty
+        ? "\nimport 'database_key.dart';\n"
+        : "import 'database_key.dart';\n";
     final keep = withSync
         ? r'''
 
@@ -58,10 +103,35 @@ abstract final class CacheTemplates {
           // it. Migrate it step by step instead, keyed on `from`
           // (`fvm dart run drift_dev make-migrations`, docs/OFFLINE_FIRST.md).'''
         : '';
+    final beforeOpen = withSync
+        ? r'''
+        // Columns the queue gained after an app first created it. Added in
+        // place on every open, since the queue is never rebuilt.
+        beforeOpen: (details) => _addMissingQueueColumns(),
+'''
+        : '';
+    final queueColumns = withSync
+        ? r'''
+
+
+  Future<void> _addMissingQueueColumns() async {
+    final rows = await customSelect('PRAGMA table_info(pending_writes)').get();
+    final existing = {for (final row in rows) row.read<String>('name')};
+    final migrator = createMigrator();
+    for (final column in [
+      pendingWrites.recordId,
+      pendingWrites.idempotencyKey,
+    ]) {
+      if (!existing.contains(column.name)) {
+        await migrator.addColumn(pendingWrites, column);
+      }
+    }
+  }'''
+        : '';
     return '''
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
-$tableImports
+$tableImports$keyImport
 part 'app_database.g.dart';
 
 /// One row per cached record: its JSON, under the collection the feature
@@ -108,7 +178,7 @@ class AppDatabase extends _\$AppDatabase {
             await m.createTable(table);
           }$keep
         },
-      );
+$beforeOpen      );$queueColumns$openEncrypted
 }
 ''';
   }
@@ -128,9 +198,63 @@ class PendingWrites extends Table {
 
   /// JSON, or null for a request without a body.
   TextColumn get body => text().nullable()();
+
+  /// The record the write changes, as the app knows it: a negative id for one
+  /// created offline, until the server answers with its own.
+  TextColumn get recordId => text().nullable()();
+
+  /// Sent as the `Idempotency-Key` header, the same on every retry.
+  TextColumn get idempotencyKey => text().nullable()();
   IntColumn get attempts => integer().withDefault(const Constant(0))();
   DateTimeColumn get lastTriedAt => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime()();
+}
+''';
+
+  /// `lib/core/database/database_key.dart` — the key the encrypted database
+  /// is opened with, made once and kept in the platform keystore.
+  static String databaseKey() => r'''
+import 'dart:io';
+import 'dart:math';
+
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:path_provider/path_provider.dart';
+
+/// The key the local database is encrypted with: made on the first open and
+/// kept in the Keychain / Android Keystore, never in the app's files.
+///
+/// It does not travel with a backup. A database restored onto a device that
+/// never had its key cannot be read, so [obtain] deletes it and the app starts
+/// over: the cache refills from the API, but writes that were never sent are
+/// lost with it.
+abstract final class DatabaseKey {
+  static const _storage = FlutterSecureStorage();
+  static const _name = 'app_database_key';
+
+  /// Where the database lives. AppDatabase opens it here.
+  static Future<String> databasePath() async {
+    final directory = await getApplicationDocumentsDirectory();
+    return '${directory.path}/app_cache.sqlite';
+  }
+
+  /// The key, made the first time it is asked for.
+  static Future<String> obtain() async {
+    final existing = await _storage.read(key: _name);
+    if (existing != null) return existing;
+    // No key yet: a database already here was written with another one.
+    final path = await databasePath();
+    for (final suffix in ['', '-wal', '-shm', '-journal']) {
+      final file = File('$path$suffix');
+      if (file.existsSync()) await file.delete();
+    }
+    final random = Random.secure();
+    final key = [
+      for (var i = 0; i < 32; i++)
+        random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ].join();
+    await _storage.write(key: _name, value: key);
+    return key;
+  }
 }
 ''';
 
@@ -535,21 +659,45 @@ $values
   /// Shown at once under a temporary negative id, sent when the connection
   /// allows. The refetch after the sync brings the server's id.
   Future<void> create(${cls}Model item) async {
-    await _local.save(item.copyWith(id: -DateTime.now().microsecondsSinceEpoch));
-    await _sync.enqueue(${cls}LocalDataSource.collection, _remote.create(item));
+    final temporaryId = -DateTime.now().microsecondsSinceEpoch;
+    await _local.save(item.copyWith(id: temporaryId));
+    await _sync.enqueue(
+      ${cls}LocalDataSource.collection,
+      _remote.create(item),
+      recordId: temporaryId,
+    );
   }
 
   /// Applied to the cache now, sent to the API when it can be.
   Future<void> update(${cls}Model item) async {
     await _local.save(item);
-    await _sync.enqueue(${cls}LocalDataSource.collection, _remote.update(item));
+    await _sync.enqueue(
+      ${cls}LocalDataSource.collection,
+      _remote.update(item),
+      recordId: item.id,
+    );
   }
 
   /// Applied to the cache now, sent to the API when it can be.
   Future<void> delete(int id) async {
     await _local.remove(id);
-    await _sync.enqueue(${cls}LocalDataSource.collection, _remote.delete(id));
+    await _sync.enqueue(
+      ${cls}LocalDataSource.collection,
+      _remote.delete(id),
+      recordId: id,
+    );
   }'''
+        : '';
+    // With sync, unsent writes exist only in the cache: replacing it with the
+    // API's list would hide them until the sync sends them and refetches.
+    final keepPending = withSync
+        ? '''
+      // Unsent writes show only through the cache: keep it until the sync
+      // has sent them, then refetches.
+      if (await _sync.hasPending(${cls}LocalDataSource.collection)) {
+        return _local.readAll();
+      }
+'''
         : '';
     return '''
 import '../../../../core/errors/app_exception.dart';
@@ -568,7 +716,7 @@ $ctor
   Future<List<${cls}Model>> fetchAll() async {
     try {
       final items = await _remote.fetchAll();
-      await _local.saveAll(items);
+$keepPending      await _local.saveAll(items);
       return items;
     } on NetworkException {
       final cached = await _local.readAll();

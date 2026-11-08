@@ -36,6 +36,9 @@ class AgentsTemplates {
     bool withLocalCache = false,
     bool withSync = false,
     bool withDartMcp = false,
+    bool withEncryptedDatabase = false,
+    bool withAnalytics = false,
+    bool withFeatureFlags = false,
   }) {
     final bloc = stateManagement.isBloc;
     return <String>[
@@ -63,6 +66,13 @@ class AgentsTemplates {
           bloc: bloc,
           withAuthFeature: withAuthFeature,
           withSync: withSync,
+          withEncryption: withEncryptedDatabase,
+        ),
+      if (withAnalytics || withFeatureFlags)
+        _analyticsAndFlags(
+          bloc: bloc,
+          withAnalytics: withAnalytics,
+          withFeatureFlags: withFeatureFlags,
         ),
       if (withDeepLinks || withOfflineGate)
         _linksAndConnectivity(
@@ -366,6 +376,7 @@ test/
     required bool bloc,
     required bool withAuthFeature,
     required bool withSync,
+    bool withEncryption = false,
   }) =>
       '''
 ## Offline-first
@@ -397,7 +408,7 @@ ${withAuthFeature ? '''- The auth repository empties the cache whenever a sessio
   rebuilt on upgrade, so a table holding anything the API does not have is
   skipped in `onUpgrade` and migrated step by step: run
   `fvm dart run drift_dev make-migrations` after the bump and commit
-  `drift_schemas/`.${withSync ? _sync : ''}
+  `drift_schemas/`.${withEncryption ? _encryption : ''}${withSync ? _sync : ''}
 ''';
 
   static const String _sync = '''
@@ -411,12 +422,37 @@ ${withAuthFeature ? '''- The auth repository empties the cache whenever a sessio
 - `SyncService` (`lib/core/sync/`) sends the queue in order. After a sync it
   refetches every collection it touched, so the server's answer wins: do not
   merge on the client.
-- A record created offline has a temporary negative id until that refetch;
-  do not let the UI edit or delete it before then.
-- Refused writes arrive on `SyncService.rejected` — surface them.
+- Pass `recordId:` to `enqueue`: the id of the record the write changes (the
+  temporary negative one for a create). It is how an edit made to a record
+  created offline is pointed at the server's id once the POST is answered
+  (`SyncService.createdIdOf` reads it from the response).
+- While a collection has unsent writes, its `fetchAll` answers from the cache
+  (`_sync.hasPending`): keep that check in a repository you write by hand.
+- Refused writes arrive on `SyncService.rejected`; `SyncStatusListener` in the
+  app shell shows them. Show the pending count with `SyncStatusBanner`.
 - `PendingWrites` (in `app_database.dart`) is never dropped on a schema
   upgrade: changing it needs a real migration. `docs/SYNC_SETUP.md` covers the
   rules and the iOS background setup.''';
+
+  static const String _encryption = '''
+- The database is encrypted (SQLite3MultipleCiphers): keep
+  `hooks: user_defines: sqlite3: source: sqlite3mc` in `pubspec.yaml` and open
+  it only through `AppDatabase`, which reads the key from `DatabaseKey`. Never
+  log, export or hard-code the key.''';
+
+  static String _analyticsAndFlags({
+    required bool bloc,
+    required bool withAnalytics,
+    required bool withFeatureFlags,
+  }) =>
+      '${['## Analytics and feature flags\n', if (withAnalytics) '- Log through `AnalyticsService` (`getIt<AnalyticsService>()`), never '
+            'the\n  Firebase SDK: `logEvent` with a snake_case name, `setUser` '
+            'with an opaque\n  id (never an email). Screen views are logged by '
+            '`AnalyticsRouteObserver`;\n  do not log them by hand.', if (withFeatureFlags) '- A remote switch is a getter on `FeatureFlags`\n'
+            '  (`lib/core/services/feature_flags.dart`) with the value it has '
+            'while the\n  backend has not answered — never a raw map lookup in '
+            'a screen. Read them\n  through '
+            '${bloc ? '`FeatureFlagsCubit`' : '`featureFlagsProvider`'}.'].join('\n')}\n';
 
   static String _linksAndConnectivity({
     required bool withDeepLinks,

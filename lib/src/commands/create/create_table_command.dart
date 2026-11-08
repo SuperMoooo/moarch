@@ -212,6 +212,7 @@ class CreateTableCommand extends Command<int> {
       withSync: context.hasSync,
       featureTables: tables,
       schemaVersion: tableChanged ? version + 1 : version,
+      encrypted: context.hasEncryptedDatabase,
     );
     if (_normalize(current) == _normalize(next)) return;
 
@@ -224,6 +225,7 @@ class CreateTableCommand extends Command<int> {
           if (t.className != table) t,
       ],
       schemaVersion: version,
+      encrypted: context.hasEncryptedDatabase,
     );
     final recorded = manifest.recordedHash(root, path);
     final untouched =

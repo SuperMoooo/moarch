@@ -2,6 +2,69 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 10.3.0
+
+### Fixed
+
+- **Editing or deleting a record created offline lost the change.** The write
+  was queued under the record's temporary negative id (`PUT /orders/-1712…`),
+  the server answered 404 and it was dropped — and a delete let the record
+  come back with the POST. Each queued write now records the record it
+  changes (`enqueue(…, recordId:)`); when a create is answered, the server's
+  id (`SyncService.createdIdOf`, the response's `id` by default) replaces the
+  temporary one in the path and body of every write queued for it, and a
+  create the server refuses takes them with it.
+- **A refresh hid changes that were not sent yet.** `fetchAll` replaced the
+  cache with the server's list while writes were still queued for it (a 5xx
+  backing off), so the change vanished until the sync. While a collection has
+  unsent writes, `fetchAll` now answers from the cache, and the refetch after
+  the sync brings the server's list.
+
+  Existing projects: `moarch update sync-queue sync-service app-database`,
+  then pass `recordId:` in each synced repository's `create` / `update` /
+  `delete` and add the `_sync.hasPending` check to its `fetchAll` (a feature
+  created from now on has both). The queue's two new columns are added to an
+  existing database when it opens; nothing is dropped.
+
+### Added
+
+- **An `Idempotency-Key` on every queued write**, the same across its
+  retries, so an API that honours it applies a write once even when its
+  answer was lost.
+- **Sync status on screen.** `lib/shared/widgets/sync_status.dart` has
+  `SyncStatusListener`, mounted around the app in `main.dart`, which shows a
+  toast for each write the server refused, and `SyncStatusBanner`, the count
+  of changes waiting with a "Sync now". A sync project from before this gets
+  them from `moarch doctor --fix`, then `moarch update main`.
+- **Encrypted local database**, a new `init` option beside the cache: the
+  drift database is encrypted with SQLite3MultipleCiphers (selected through
+  `hooks.user_defines.sqlite3.source` in `pubspec.yaml`) and a random key
+  kept in the Keychain / Keystore (`lib/core/database/database_key.dart`).
+  `doctor` flags a project whose pubspec lost the cipher build. New projects
+  only: a database already written in the clear is replaced on first open.
+- **Firebase Analytics**, a new `init` option: `AnalyticsService`
+  (`lib/core/services/analytics_service.dart`), an interface with a Firebase
+  implementation, registered in `core_module.dart`, and an
+  `AnalyticsRouteObserver` in the router that logs every screen view.
+- **Feature flags**, a new `init` option: typed switches with defaults in
+  `lib/core/services/feature_flags.dart`, read from where the gates read
+  theirs — the `config/flags` document with Firestore, `GET /config/flags`
+  with Dio — through `featureFlagsProvider` or `FeatureFlagsCubit`.
+- **App icons.** Every project gets `flutter_launcher_icons.yaml` (and the
+  dev dependency): one 1024px `assets/icon/icon.png`, then
+  `fvm dart run flutter_launcher_icons`. `moarch create flavors` writes one
+  `flutter_launcher_icons-<flavor>.yaml` per flavor; `docs/FLAVORS.md` says
+  how iOS picks each flavor's icon.
+
+### Changed
+
+- **`.fvmrc` pins an exact Flutter release** (`3.47.9`) instead of the
+  `stable` channel. A channel is whatever commit each machine installed it
+  at, while CI resolved the newest stable, so two checkouts could build on
+  two SDKs. To move to a newer Flutter, edit the version in `.fvmrc` and run
+  `fvm install` then `fvm use`. An existing project keeps its `.fvmrc` until
+  `moarch update fvmrc`.
+
 ## 10.2.0
 
 ### Breaking

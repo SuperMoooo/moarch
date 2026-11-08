@@ -1,5 +1,7 @@
 import '../../utils/injector_utils.dart';
 import '../../utils/state_management.dart';
+import '../core/analytics_templates.dart';
+import '../core/feature_flags_templates.dart';
 
 /// The `lib/config/di/` service locator, for both stacks.
 ///
@@ -184,9 +186,18 @@ ${_cascade(entries)}}
     bool withPreferences = false,
     bool withLocalCache = false,
     bool withSync = false,
+    bool withAnalytics = false,
+    bool withFeatureFlags = false,
+    bool flagsFromFirestore = false,
   }) {
+    final flagsOverDio = withFeatureFlags && !flagsFromFirestore;
+    final packageImports = [
+      if (withFeatureFlags && flagsFromFirestore)
+        "import 'package:cloud_firestore/cloud_firestore.dart';",
+      if (withSync || flagsOverDio) "import 'package:dio/dio.dart';",
+    ];
     final imports = <String>[
-      if (withSync) "import 'package:dio/dio.dart';\n",
+      if (packageImports.isNotEmpty) '${packageImports.join('\n')}\n',
       if (withLocalCache) ...[
         "import '../../core/database/app_database.dart';",
         "import '../../core/database/local_cache.dart';",
@@ -196,11 +207,13 @@ ${_cascade(entries)}}
         "import '../../core/sync/sync_queue.dart';",
         "import '../../core/sync/sync_service.dart';",
       ],
+      if (withAnalytics) "import '../../core/services/analytics_service.dart';",
       if (withAppLifecycle)
         "import '../../core/services/app_lifecycle_service.dart';",
       if (withConnectivity)
         "import '../../core/services/connectivity_service.dart';",
       if (withDebouncer) "import '../../core/services/debouncer_service.dart';",
+      if (withFeatureFlags) "import '../../core/services/feature_flags.dart';",
       if (withFirebaseNotifications)
         "import '../../core/services/firebase_notifications_service.dart';",
       if (withMedia) "import '../../core/services/media_service.dart';",
@@ -217,6 +230,9 @@ ${_cascade(entries)}}
     final entries = <String>[
       '    ..registerLazySingleton<PermissionService>(PermissionService.new)',
       if (withPreferences) _preferencesEntry,
+      if (withAnalytics) AnalyticsTemplates.registration,
+      if (withFeatureFlags)
+        FeatureFlagsTemplates.registration(withFirestore: flagsFromFirestore),
       if (withLocalCache)
         '    ..registerLazySingleton<LocalCache>(\n'
             '        () => LocalCache(getIt<AppDatabase>()))',

@@ -1,7 +1,10 @@
 import 'dart:convert';
 
 import 'package:moarch/src/templates/misc/dev_templates.dart';
+import 'package:moarch/src/utils/package_versions.dart';
+import 'package:moarch/src/utils/scaffold_catalog.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 /// Both files are JSON-with-comments, which VS Code accepts and `jsonDecode`
 /// does not. Dropping the comment lines is enough to check the rest is valid
@@ -22,6 +25,44 @@ void main() {
       expect(yaml, contains('json_serializable:'));
       expect(yaml, contains('explicit_to_json: true'));
       expect(yaml, contains('field_rename: snake'));
+    });
+  });
+
+  group('fvmrc', () {
+    test('pins an exact Flutter release, not a channel', () {
+      final pin = (jsonDecode(DevTemplates.fvmrc()) as Map)['flutter'];
+
+      expect(pin, DevTemplates.flutterVersion);
+      expect(pin, matches(RegExp(r'^\d+\.\d+\.\d+$')));
+    });
+  });
+
+  group('launcherIcons', () {
+    test('makes both platforms\' icons from one image', () {
+      final yaml = loadYaml(DevTemplates.launcherIcons()) as Map;
+      final icons = yaml['flutter_launcher_icons'] as Map;
+
+      expect(icons['image_path'], 'assets/icon/icon.png');
+      expect(icons['android'], isTrue);
+      expect(icons['ios'], isTrue);
+      expect(icons['remove_alpha_ios'], isTrue);
+    });
+
+    test('a flavor reads its own image and says how iOS picks it', () {
+      final source = DevTemplates.launcherIconsFlavor('dev');
+      final icons = (loadYaml(source) as Map)['flutter_launcher_icons'] as Map;
+
+      expect(icons['image_path'], 'assets/icon/dev.png');
+      expect(source, contains('AppIcon-dev'));
+      expect(source, contains('ASSETCATALOG_COMPILER_APPICON_NAME'));
+    });
+
+    test('is a catalog entry and a pinned dev dependency', () {
+      expect(
+        ScaffoldCatalog.byName('launcher-icons')?.path,
+        'flutter_launcher_icons.yaml',
+      );
+      expect(PackageVersions.packages, contains('flutter_launcher_icons'));
     });
   });
 

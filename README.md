@@ -40,13 +40,14 @@ Skip it and nothing errors: the Dart extension quietly falls back to the first
 Flutter on your `PATH`, so debug, hot reload and the analyzer all run the SDK
 the pin exists to avoid. `moarch doctor` flags it if you forget.
 
-The generated `.fvmrc` says `"flutter": "stable"` so a new project starts on the
-current stable. That is an alias, not a pin — `fvm install` on CI or a
-teammate's machine resolves it to whatever `stable` is *that day*, which can be
-a different SDK than your cache holds. Once the project ships, pin it for real:
+The generated `.fvmrc` pins an exact Flutter release (`"flutter": "3.47.9"`,
+the stable of this moarch version), not the `stable` channel: a channel is
+whatever commit each machine installed it at, while CI resolves the newest, so
+two checkouts could build on two SDKs. To move to another release, edit the
+version in `.fvmrc`, or:
 
 ```bash
-fvm use 3.41.4   # rewrites .fvmrc to that exact version
+fvm use 3.47.9   # rewrites .fvmrc to that exact version
 ```
 
 `fvm use` also rewrites `.vscode/settings.json` to a versioned path and strips
@@ -97,6 +98,9 @@ moarch l10n extract [--dry-run]    # move hard-coded screen strings into the tra
 - optional services such as notifications (local or Firebase push), URL launcher, media, debounce — each with what it needs declared in `AndroidManifest.xml` and `Info.plist` (camera and photo permissions for media, the exact-alarm permission and receivers for scheduled notifications, `<queries>` for the URL launcher, `INTERNET` for Dio's release build), since a missing declaration fails at runtime rather than at build time
 - `core/constants/api_constants.dart` — every endpoint path the app calls, never a string at the call site. `moarch create feature` declares each new feature's above a `// moarch:endpoints` anchor, the way it registers the data layer and the route
 - an optional maintenance gate — a backend flag that empties the app (see below)
+- optional feature flags — typed switches read from the backend the gates read, with a default each while it cannot be read (see below)
+- optional analytics — an `AnalyticsService` interface on Firebase Analytics, with every screen view logged by a router observer (see below)
+- `flutter_launcher_icons.yaml` — the app icon on both platforms, every size made from one 1024px `assets/icon/icon.png` (`fvm dart run flutter_launcher_icons`); `moarch create flavors` adds one `flutter_launcher_icons-<flavor>.yaml` per flavor, so dev and prod are told apart on a home screen
 - an optional offline screen over the app, and a hook that runs when the connection comes back — for a sync (see below)
 - optional deep links: https links open the app on the matching route, Android App Links and iOS Universal Links (see below)
 - optional localization: flutter_localizations (`lib/l10n/` + `.arb` files) or easy_localization (`assets/translations/` JSON files) — pick one, the checklist keeps them mutually exclusive
@@ -518,6 +522,36 @@ minimum changes with a release, not by the minute).
 moarch create widget update-gate   # or take it in the init checklist
 ```
 
+### Feature flags
+
+Tick **Feature flags** and `lib/core/services/feature_flags.dart` reads a map of
+switches from where the gates read theirs: the `config/flags` document, live,
+with Firestore; `GET /config/flags` (`ApiConstants.configFlags`) at first use,
+every 15 minutes and on resume, with Dio. Each flag is a getter on
+`FeatureFlags` with the value it has until the backend answers, so an
+unreachable backend leaves the app as it shipped:
+
+```dart
+// TODO in the generated class: one getter per flag.
+bool get newCheckout => flag('new_checkout', fallback: false);
+```
+
+Screens read them through `featureFlagsProvider` on Riverpod, or a
+`FeatureFlagsCubit` on bloc. A read that fails keeps the flags already there.
+Like the gates, the source is read signed in or not: add the endpoint to
+`_kPublicEndpoints`, or allow unauthenticated reads of the document.
+
+### Analytics
+
+Tick **Firebase Analytics** (it needs `flutterfire configure`, like
+Crashlytics) and the app logs through `AnalyticsService`
+(`lib/core/services/analytics_service.dart`): `logEvent`, `setUser`,
+`logScreen`. Its one implementation is on Firebase Analytics, so another
+provider is a second class registered in `core_module.dart`, and nothing that
+logs changes. With the router, `AnalyticsRouteObserver` logs a screen view for
+every page under its route's name or path pattern (`/orders/:id`), so no id
+ends up in a screen name.
+
 ### Offline screen and reconnect
 
 Tick **Offline screen + reconnect hook** in `init` and `OfflineGate` covers the
@@ -648,6 +682,28 @@ stops and waits; any other 4xx is dropped and reported on
 `SyncService.rejected`; a 5xx is retried with a growing wait. Afterwards it
 refetches every collection it touched, so the server's version wins, and a
 record created offline swaps its temporary negative id for the real one.
+
+Each queued write records the record it changes (`recordId:`). A record
+created offline can be edited and deleted before it syncs: when its POST is
+answered, the id the server gave it (`SyncService.createdIdOf`, the body's
+`id` by default) replaces the temporary one in every write queued for it, and
+a POST the server refuses takes them with it. While a collection has unsent
+writes, `fetchAll` answers from the cache instead of overwriting it, so a
+refresh never hides a pending change. Every write carries an
+`Idempotency-Key` header that stays the same across its retries, so an API
+that honours it never applies a write twice when an answer is lost.
+
+`SyncStatusListener`, mounted around the app in `main.dart`, shows a toast
+for each refused write, and `SyncStatusBanner` (`lib/shared/widgets/
+sync_status.dart`) shows how many changes are waiting, with a "Sync now".
+
+Tick **Encrypted local database** as well and the drift database is encrypted
+at rest: `pubspec.yaml` selects the SQLite3MultipleCiphers build of SQLite
+(`hooks: user_defines: sqlite3: source: sqlite3mc`), and
+`lib/core/database/database_key.dart` makes a random key on first open and
+keeps it in the Keychain / Keystore. A database restored onto a device that
+never had its key is deleted and refilled from the API. `moarch doctor` flags
+a project whose pubspec lost the cipher build.
 
 A `workmanager` task sends the queue every ~15 minutes while the app is closed.
 Android needs nothing; `init` adds the two `Info.plist` keys iOS needs, and
@@ -1564,7 +1620,7 @@ its own:
 | `auth` | the generated auth feature, REST or Firebase, notifier or bloc |
 | `docs` | `ui-kit`, `deploy-checklist`, `security-checklist`, `jks-doc`, `workflow-doc`, `firebase-doc` |
 | `workflows` | the three GitHub Actions workflows |
-| `project` | `analysis-options`, `splash`, `fvmrc`, `widget-test`, `vscode-settings`, `vscode-launch` |
+| `project` | `analysis-options`, `splash`, `launcher-icons`, `fvmrc`, `widget-test`, `vscode-settings`, `vscode-launch` |
 | `ios` | `ios-entitlements`, `ios-profile-entitlements`, `xcode-script` |
 | `android` | `proguard` |
 

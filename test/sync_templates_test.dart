@@ -12,6 +12,7 @@ import 'package:moarch/src/utils/injector_utils.dart';
 import 'package:moarch/src/utils/package_versions.dart';
 import 'package:moarch/src/utils/platform_requirements.dart';
 import 'package:moarch/src/utils/plist_utils.dart';
+import 'package:moarch/src/utils/project_inspector.dart';
 import 'package:moarch/src/utils/scaffold_catalog.dart';
 import 'package:moarch/src/utils/state_management.dart';
 import 'package:path/path.dart' as p;
@@ -83,10 +84,79 @@ void main() {
       );
       expect(
         source,
-        contains('Future<void> add(String collection, SyncRequest request)'),
+        contains(
+          'Future<void> add(String collection, SyncRequest request, {Object? recordId})',
+        ),
       );
       expect(source, contains('Stream<int> watchCount()'));
       expect(source, contains('OrderingTerm.asc(write.id)'));
+    });
+
+    test('every write gets an idempotency key, kept in the queue', () {
+      final queue = SyncTemplates.syncQueue();
+      final service = SyncTemplates.syncService();
+      final database = CacheTemplates.appDatabase(withSync: true);
+
+      expect(queue, contains('idempotencyKey: Value(_newKey()),'));
+      expect(queue, contains('Random.secure()'));
+      expect(service, contains("headers: {'Idempotency-Key': ?key},"));
+      expect(
+        database,
+        contains('TextColumn get idempotencyKey => text().nullable()();'),
+      );
+    });
+
+    test('a create resolves the writes queued for its temporary id', () {
+      final queue = SyncTemplates.syncQueue();
+      final service = SyncTemplates.syncService();
+
+      expect(
+        queue,
+        contains(
+          'Future<void> resolve(String collection, String temporaryId, Object id)',
+        ),
+      );
+      expect(
+        queue,
+        contains("path: Value(_swapSegment(write.path, temporaryId, '\$id')),"),
+      );
+      expect(queue, contains("return jsonEncode({...json, 'id': to});"));
+      expect(service, contains('static Object? createdIdOf(Object? response)'));
+      // The writes behind it changed, so the run reads the queue again.
+      expect(
+        service,
+        contains('if (await _resolveCreate(write, response)) break;'),
+      );
+      // A refused create takes its record's writes with it.
+      expect(
+        service,
+        contains(
+          'await _queue.removeRecord(write.collection, write.recordId!);',
+        ),
+      );
+      // A write made between the answer and the refetch is resolved too.
+      expect(
+        service,
+        contains("final created = _created['\$collection/\$recordId'];"),
+      );
+    });
+
+    test('an existing queue gains the new columns when it opens', () {
+      final synced = CacheTemplates.appDatabase(withSync: true);
+
+      expect(
+        synced,
+        contains('beforeOpen: (details) => _addMissingQueueColumns(),'),
+      );
+      expect(
+        synced,
+        contains("customSelect('PRAGMA table_info(pending_writes)')"),
+      );
+      expect(
+        synced,
+        contains('await migrator.addColumn(pendingWrites, column);'),
+      );
+      expect(CacheTemplates.appDatabase(), isNot(contains('beforeOpen')));
     });
 
     for (final stateManagement in StateManagement.values) {
@@ -267,13 +337,46 @@ void main() {
         source,
         contains(
           '    await _local.save(item);\n'
-          '    await _sync.enqueue(OrderLocalDataSource.collection, _remote.update(item));',
+          '    await _sync.enqueue(\n'
+          '      OrderLocalDataSource.collection,\n'
+          '      _remote.update(item),\n'
+          '      recordId: item.id,\n'
+          '    );',
         ),
       );
-      expect(source, contains('-DateTime.now().microsecondsSinceEpoch'));
+      expect(
+        source,
+        contains('final temporaryId = -DateTime.now().microsecondsSinceEpoch;'),
+      );
+      expect(source, contains('      recordId: temporaryId,\n'));
       expect(
         CacheTemplates.repository('order', 'Order'),
         isNot(contains('SyncService')),
+      );
+    });
+
+    test('a refetch keeps the cache while writes are unsent', () {
+      final synced = CacheTemplates.repository(
+        'order',
+        'Order',
+        withSync: true,
+      );
+
+      expect(
+        synced,
+        contains(
+          '      final items = await _remote.fetchAll();\n'
+          '      // Unsent writes show only through the cache: keep it until the sync\n'
+          '      // has sent them, then refetches.\n'
+          '      if (await _sync.hasPending(OrderLocalDataSource.collection)) {\n'
+          '        return _local.readAll();\n'
+          '      }\n'
+          '      await _local.saveAll(items);',
+        ),
+      );
+      expect(
+        CacheTemplates.repository('order', 'Order'),
+        isNot(contains('hasPending')),
       );
     });
 
@@ -321,6 +424,57 @@ void main() {
         expect(synced, contains('  await registerBackgroundSync();\n'));
         expect(synced, contains("import 'core/sync/background_sync.dart';"));
         expect(stack.mainDart(), isNot(contains('SyncService')));
+      }
+    });
+
+    test('the sync status file: a shared listener, a banner per stack', () {
+      final riverpod = const StackTemplates(
+        StateManagement.riverpod,
+      ).syncStatus();
+      final bloc = const StackTemplates(StateManagement.bloc).syncStatus();
+
+      for (final source in [riverpod, bloc]) {
+        expect(
+          source,
+          contains('class SyncStatusListener extends StatefulWidget'),
+        );
+        expect(
+          source,
+          contains('getIt<SyncService>().rejected.listen(_show);'),
+        );
+        // Above the Navigator: it brings the overlay the toast shows in.
+        expect(source, contains('Overlay(initialEntries: [_app])'));
+        expect(
+          source,
+          contains('KeyedSubtree(key: _inside, child: widget.child)'),
+        );
+        expect(source, contains('_app.markNeedsBuild();'));
+        expect(source, contains('AppToast.error('));
+        expect(source, contains("import 'feedback/app_banner.dart';"));
+        expect(source, contains("import 'overlays/app_toast.dart';"));
+        expect(source, contains("'\$pending changes waiting to sync'"));
+      }
+      expect(
+        riverpod,
+        contains('ref.watch(pendingSyncCountProvider).value ?? 0;'),
+      );
+      expect(riverpod, isNot(contains('flutter_bloc')));
+      expect(bloc, contains('BlocBuilder<PendingSyncCubit, int>('));
+      expect(bloc, isNot(contains('flutter_riverpod')));
+    });
+
+    test('main.dart mounts the listener only when the file is there', () {
+      for (final stateManagement in StateManagement.values) {
+        final stack = StackTemplates(stateManagement);
+        final synced = stack.mainDart(withSync: true);
+        final older = stack.mainDart(withSync: true, withSyncStatus: false);
+
+        expect(synced, contains('SyncStatusListener(child: child!)'));
+        expect(synced, contains("import 'shared/widgets/sync_status.dart';"));
+        expect(older, isNot(contains('SyncStatusListener')));
+        expect(older, isNot(contains('sync_status.dart')));
+        expect(older, contains('getIt<SyncService>().start();'));
+        expect(stack.mainDart(), isNot(contains('SyncStatusListener')));
       }
     });
 
@@ -401,7 +555,10 @@ void main() {
             ),
           ),
       ].join();
-      expect(skills, contains('`_sync.enqueue(collection, request)`'));
+      expect(
+        skills,
+        contains('`_sync.enqueue(collection, request, recordId: item.id)`'),
+      );
     });
   });
 
@@ -429,7 +586,63 @@ void main() {
       expect(byName['sync-service'], 'lib/core/sync/sync_service.dart');
       expect(byName['background-sync'], 'lib/core/sync/background_sync.dart');
       expect(byName['sync-setup'], 'docs/SYNC_SETUP.md');
+      expect(byName['sync-status'], 'lib/shared/widgets/sync_status.dart');
     });
+
+    test('hasSyncStatus reads sync_status.dart off disk', () async {
+      expect(ScaffoldContext.detect(tempDir.path).hasSyncStatus, isFalse);
+      await File(
+        p.join(tempDir.path, 'lib', 'shared', 'widgets', 'sync_status.dart'),
+      ).create(recursive: true);
+      expect(ScaffoldContext.detect(tempDir.path).hasSyncStatus, isTrue);
+    });
+
+    test(
+      'doctor offers the status file to a sync project without it',
+      () async {
+        await File(
+          p.join(tempDir.path, 'lib', 'core', 'sync', 'sync_service.dart'),
+        ).create(recursive: true);
+
+        final before = await ProjectInspector.inspect(tempDir.path);
+        final finding = before.singleWhere(
+          (d) => d.message.contains('SyncStatusListener'),
+        );
+        expect(finding.isFixable, isTrue);
+
+        await finding.fix!();
+        expect(
+          File(
+            p.join(
+              tempDir.path,
+              'lib',
+              'shared',
+              'widgets',
+              'sync_status.dart',
+            ),
+          ).existsSync(),
+          isTrue,
+        );
+        expect(
+          File(
+            p.join(
+              tempDir.path,
+              'lib',
+              'shared',
+              'widgets',
+              'feedback',
+              'app_banner.dart',
+            ),
+          ).existsSync(),
+          isTrue,
+        );
+        final after = await ProjectInspector.inspect(tempDir.path);
+        expect(
+          after.where((d) => d.message.contains('SyncStatusListener')),
+          isEmpty,
+        );
+      },
+    );
 
     test('workmanager carries a constraint', () {
       expect(PackageVersions.packages, contains('workmanager'));

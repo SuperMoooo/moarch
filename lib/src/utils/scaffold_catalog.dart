@@ -3,9 +3,11 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../templates/config/config_templates.dart';
+import '../templates/core/analytics_templates.dart';
 import '../templates/core/cache_templates.dart';
 import '../templates/core/core_templates.dart';
 import '../templates/core/error_templates.dart';
+import '../templates/core/feature_flags_templates.dart';
 import '../templates/core/security_templates.dart';
 import '../templates/core/services_templates.dart';
 import '../templates/core/sync_templates.dart';
@@ -97,6 +99,9 @@ class ScaffoldContext {
   /// Crash reporting is wired into the error handlers.
   bool get hasCrashlytics => hasPackage('firebase_crashlytics');
 
+  /// `AnalyticsService` was generated (10.3.0 on, with Firebase Analytics).
+  bool get hasAnalytics => hasFile('lib/core/services/analytics_service.dart');
+
   /// The GoRouter setup was generated.
   bool get hasRouter => hasFile('lib/config/router/app_router.dart');
 
@@ -130,6 +135,10 @@ class ScaffoldContext {
   bool get hasMaintenanceGate =>
       hasFile('lib/shared/widgets/maintenance_gate.dart');
 
+  /// `FeatureFlagsService` was generated (10.3.0 on). It reads the Firestore
+  /// document when the project has Firestore, the endpoint otherwise.
+  bool get hasFeatureFlags => hasFile('lib/core/services/feature_flags.dart');
+
   /// The update gate was generated — mounted in `MaterialApp.builder` beside
   /// the maintenance gate, for the same reason that has to be checked.
   bool get hasUpdateGate => hasFile('lib/shared/widgets/update_gate.dart');
@@ -157,6 +166,10 @@ class ScaffoldContext {
   /// `LocalCache` over it. The locator registers both, and `create feature`
   /// writes a feature's local datasource and repository against it.
   bool get hasLocalCache => hasFile('lib/core/database/local_cache.dart');
+
+  /// The local database is encrypted (10.3.0 on): its key's file is there.
+  bool get hasEncryptedDatabase =>
+      hasFile('lib/core/database/database_key.dart');
 
   /// The REST auth feature has Sign in with Apple: `sign_in_with_apple` is a
   /// dependency. The Firebase one always has it, through FirebaseAuth.
@@ -226,6 +239,7 @@ class ScaffoldContext {
     withFirebase: hasAnyFirebase,
     withFirestore: hasFirestore,
     withCrashlytics: hasCrashlytics,
+    withAnalytics: hasAnalytics,
     withFirebaseNotifications: hasFirebaseNotifications,
     withNotifications: hasNotifications,
     withLocalization: hasLocalization,
@@ -298,6 +312,10 @@ class ScaffoldContext {
   /// sends it and the background task. Repositories queue their writes, and
   /// `main.dart` starts it.
   bool get hasSync => hasFile('lib/core/sync/sync_service.dart');
+
+  /// The toast for refused writes and the pending-count banner (10.3.0 on,
+  /// with sync). `main.dart` mounts the listener only when it is there.
+  bool get hasSyncStatus => hasFile('lib/shared/widgets/sync_status.dart');
 
   /// The offline screen over the app, with the reconnect hook in main.dart.
   bool get hasOfflineGate => hasFile('lib/shared/widgets/offline_gate.dart');
@@ -583,10 +601,21 @@ abstract final class ScaffoldCatalog {
         withSync: c.hasSync,
         featureTables: c.featureTables,
         schemaVersion: c.databaseSchemaVersion,
+        encrypted: c.hasEncryptedDatabase,
       ),
       description:
           'The drift database behind the offline-first cache: records as '
           "JSON keyed by feature, plus each feature's own table.",
+    ),
+    ScaffoldSpec(
+      name: 'database-key',
+      title: 'DatabaseKey',
+      path: 'lib/core/database/database_key.dart',
+      category: 'Core',
+      template: (_) => CacheTemplates.databaseKey(),
+      description:
+          'The encrypted database\'s key: made on first open, kept in the '
+          'platform keystore.',
     ),
     ScaffoldSpec(
       name: 'local-cache',
@@ -629,6 +658,16 @@ abstract final class ScaffoldCatalog {
       description:
           'The workmanager task that sends the queue every ~15 minutes while '
           'the app is closed.',
+    ),
+    ScaffoldSpec(
+      name: 'sync-status',
+      title: 'SyncStatusListener / SyncStatusBanner',
+      path: 'lib/shared/widgets/sync_status.dart',
+      category: 'Core',
+      template: (c) => c.stack.syncStatus(),
+      description:
+          'A toast for every write the server refused, mounted around the '
+          'app, and a banner with the count of changes not yet sent.',
     ),
     ScaffoldSpec(
       name: 'extensions',
@@ -703,6 +742,7 @@ abstract final class ScaffoldCatalog {
         withMaintenanceGate:
             c.hasMaintenanceGate && c.hasDio && !c.hasFirestore,
         withUpdateGate: c.hasUpdateGate && c.hasDio && !c.hasFirestore,
+        withFeatureFlags: c.hasFeatureFlags && !c.hasFirestore,
       ),
       description: 'Every endpoint path, and the API timeouts.',
     ),
@@ -718,7 +758,7 @@ abstract final class ScaffoldCatalog {
         withNotificationsService: c.hasNotifications,
         withFirebaseNotifications: c.hasFirebaseNotifications,
         withCrashlytics: c.hasCrashlytics,
-        withFirebase: c.hasFirebase || c.hasCrashlytics,
+        withFirebase: c.hasFirebase || c.hasCrashlytics || c.hasAnalytics,
         withMaintenanceGate: c.hasMaintenanceGate,
         withUpdateGate: c.hasUpdateGate,
         withMoAdapt: c.hasMoAdapt,
@@ -728,6 +768,7 @@ abstract final class ScaffoldCatalog {
         withAuthFeature: c.hasAuthFeature,
         withBlocObserver: c.hasBlocObserver,
         withSync: c.hasSync,
+        withSyncStatus: c.hasSyncStatus,
       ),
       description:
           'The entry point: the root scope, theme, router and the services the project selected.',
@@ -902,6 +943,32 @@ abstract final class ScaffoldCatalog {
           'and onReconnect for what runs when the connection is back.',
     ),
     ScaffoldSpec(
+      name: 'analytics-service',
+      title: 'AnalyticsService',
+      path: 'lib/core/services/analytics_service.dart',
+      category: 'Services',
+      template: (_) => AnalyticsTemplates.analyticsService(),
+      description:
+          'Events, the signed-in user and screen views through one '
+          'interface, on Firebase Analytics.',
+    ),
+    ScaffoldSpec(
+      name: 'feature-flags',
+      title: 'FeatureFlags',
+      path: 'lib/core/services/feature_flags.dart',
+      category: 'Services',
+      template: (c) => CoreTemplates.inlineMissingEndpoints(
+        FeatureFlagsTemplates.featureFlags(
+          stateManagement: c.stateManagement,
+          withFirestore: c.hasFirestore,
+        ),
+        c.apiEndpoints,
+      ),
+      description:
+          'Typed backend switches with their defaults, read from where the '
+          'gates read theirs.',
+    ),
+    ScaffoldSpec(
       name: 'offline-gate',
       title: 'OfflineGate',
       path: 'lib/shared/widgets/offline_gate.dart',
@@ -988,6 +1055,7 @@ abstract final class ScaffoldCatalog {
       template: (c) => c.stack.appRouter(
         withAuth: c.hasAuthFeature,
         withAccountScreens: c.hasAuthAccountScreens,
+        withAnalytics: c.hasAnalytics,
       ),
       description:
           'GoRouter with the auth-aware redirect and rootNavigatorKey.',
@@ -1086,6 +1154,9 @@ abstract final class ScaffoldCatalog {
         withPreferences: c.hasPreferences,
         withLocalCache: c.hasLocalCache,
         withSync: c.hasSync,
+        withAnalytics: c.hasAnalytics,
+        withFeatureFlags: c.hasFeatureFlags,
+        flagsFromFirestore: c.hasFirestore,
       ),
       description: 'Core layer of the locator: the services under lib/core.',
     ),
@@ -1356,6 +1427,9 @@ abstract final class ScaffoldCatalog {
         withFeatureModule: c.hasFeatureModule,
         withSkills: c.hasAgentSkills,
         withDartMcp: c.hasDartMcp,
+        withEncryptedDatabase: c.hasEncryptedDatabase,
+        withAnalytics: c.hasAnalytics,
+        withFeatureFlags: c.hasFeatureFlags,
       ),
       description:
           'The rules coding agents (Codex, Cursor, Copilot, Claude) '
@@ -1414,6 +1488,7 @@ abstract final class ScaffoldCatalog {
         bloc: c.hasBloc,
         withAuthFeature: c.hasAuthFeature,
         withApiProbe: c.hasDio,
+        withEncryption: c.hasEncryptedDatabase,
       ),
       description:
           'How the cache (and the sync queue) work at runtime: the tables, '
@@ -1572,6 +1647,16 @@ abstract final class ScaffoldCatalog {
       category: 'Project',
       template: (_) => DevTemplates.nativeSplash(),
       description: 'Splash colors for light and dark, Android 12 included.',
+    ),
+    ScaffoldSpec(
+      name: 'launcher-icons',
+      title: 'flutter_launcher_icons.yaml',
+      path: 'flutter_launcher_icons.yaml',
+      category: 'Project',
+      template: (_) => DevTemplates.launcherIcons(),
+      description:
+          'The app icon on both platforms, every size made from one 1024px '
+          'image.',
     ),
     ScaffoldSpec(
       name: 'build-yaml',

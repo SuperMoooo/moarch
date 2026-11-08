@@ -1,3 +1,5 @@
+import '../core/analytics_templates.dart';
+
 /// The Riverpod flavor of the app-level templates: the entry point, the
 /// shared runAction notifier base, the GoRouter setup and the DI wiring that
 /// Riverpod itself provides. `templates/bloc/app_templates.dart` mirrors this
@@ -24,8 +26,12 @@ class AppTemplates {
     bool withThemeMode = false,
     bool withOfflineGate = false,
     bool withSync = false,
+    bool? withSyncStatus,
   }) {
     if (withEasyLocalization) withLocalization = false;
+    // A project from before sync_status.dart existed has sync but no
+    // listener to mount, until `moarch doctor --fix` writes it.
+    final syncStatus = withSyncStatus ?? withSync;
     // The saved choice only means something with two themes to choose from.
     withThemeMode = withThemeMode && withDarkTheme;
 
@@ -191,6 +197,7 @@ final locale = ref.watch(languageProvider).locale;
         "\nimport 'core/sync/background_sync.dart';",
         "\nimport 'core/sync/sync_service.dart';",
       ],
+      if (syncStatus) "\nimport 'shared/widgets/sync_status.dart';",
     ].join();
 
     final moAdaptImport = [
@@ -219,12 +226,15 @@ final locale = ref.watch(languageProvider).locale;
       if (withMaintenanceGate) 'MaintenanceGate(child: ',
       if (withUpdateGate) 'UpdateGate(child: ',
       if (withOfflineGate) 'OfflineGate(child: ',
+      // Toasts the writes the server refused, wherever the user is.
+      if (syncStatus) 'SyncStatusListener(child: ',
     ].join();
     final maintenanceClose =
         ')' *
         ((withMaintenanceGate ? 1 : 0) +
             (withUpdateGate ? 1 : 0) +
-            (withOfflineGate ? 1 : 0));
+            (withOfflineGate ? 1 : 0) +
+            (syncStatus ? 1 : 0));
 
     // Offline sync: the queue is sent now, on every reconnect and resume, and
     // from the background task.
@@ -480,6 +490,7 @@ mixin ActionNotifierMixin<S extends ActionState<S>> on AsyncNotifier<S> {
   static String appRouter({
     bool withAuth = false,
     bool withAccountScreens = false,
+    bool withAnalytics = false,
   }) {
     final accountScreens = withAuth && withAccountScreens;
     final relativeImports = withAuth
@@ -497,6 +508,9 @@ mixin ActionNotifierMixin<S extends ActionState<S>> on AsyncNotifier<S> {
     refreshListenable: _AuthRefresh(ref),
     redirect: (context, state) => _redirect(ref, state),'''
         : '    initialLocation: AppRoutes.home,';
+    final observer = withAnalytics
+        ? '\n${AnalyticsTemplates.routerObserver('    ')}'
+        : '';
 
     final authRoutes = withAuth
         ? '''
@@ -537,7 +551,14 @@ mixin ActionNotifierMixin<S extends ActionState<S>> on AsyncNotifier<S> {
               .replaceFirst('{{home}}', 'from ?? AppRoutes.home')
               .replaceFirst('{{verify_rules}}', '');
 
-    return _appRouter(relativeImports, options, authRoutes, authGuard);
+    return _appRouter(
+      withAnalytics
+          ? AnalyticsTemplates.withRouterImports(relativeImports)
+          : relativeImports,
+      '$options$observer',
+      authRoutes,
+      authGuard,
+    );
   }
 
   static const String _riverpodVerify = r'''

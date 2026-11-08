@@ -115,6 +115,66 @@ class PubspecUtils {
     await pubspecFile.writeAsString(editor.toString());
   }
 
+  /// Sets `hooks.user_defines.<package>.<key>` to [value] — how a package
+  /// with a build hook is configured (`sqlite3`'s `source`, for one).
+  ///
+  /// A value already there is left alone: it was chosen by someone.
+  static Future<void> ensureHookUserDefine(
+    String projectPath, {
+    required String package,
+    required String key,
+    required String value,
+  }) async {
+    final pubspecFile = File(p.join(projectPath, 'pubspec.yaml'));
+    if (!await pubspecFile.exists()) return;
+
+    final content = await pubspecFile.readAsString();
+    if (hookUserDefine(content, package, key) != null) return;
+    final editor = YamlEditor(content);
+    final root = loadYaml(content);
+    final hooks = root is Map ? root['hooks'] : null;
+    final defines = hooks is Map ? hooks['user_defines'] : null;
+    final forPackage = defines is Map ? defines[package] : null;
+
+    if (hooks is! Map) {
+      editor.update(
+        ['hooks'],
+        {
+          'user_defines': {
+            package: {key: value},
+          },
+        },
+      );
+    } else if (defines is! Map) {
+      editor.update(
+        ['hooks', 'user_defines'],
+        {
+          package: {key: value},
+        },
+      );
+    } else if (forPackage is! Map) {
+      editor.update(['hooks', 'user_defines', package], {key: value});
+    } else {
+      editor.update(['hooks', 'user_defines', package, key], value);
+    }
+
+    await pubspecFile.writeAsString(editor.toString());
+  }
+
+  /// The value of `hooks.user_defines.<package>.<key>` in [pubspec], or null.
+  static String? hookUserDefine(String pubspec, String package, String key) {
+    try {
+      final root = loadYaml(pubspec);
+      final hooks = root is Map ? root['hooks'] : null;
+      final defines = hooks is Map ? hooks['user_defines'] : null;
+      final forPackage = defines is Map ? defines[package] : null;
+      final value = forPackage is Map ? forPackage[key] : null;
+      return value?.toString();
+    } on YamlException {
+      return null;
+    }
+  }
+
   static void _ensureSection(
     YamlEditor editor,
     Object? root,

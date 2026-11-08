@@ -11,12 +11,14 @@ abstract final class OfflineDocsTemplates {
   /// who clears the cache on sign-out.
   ///
   /// [withApiProbe] (a project with Dio) adds how `ConnectivityService`
-  /// decides it is offline.
+  /// decides it is offline, and [withEncryption] how the database is
+  /// encrypted.
   static String doc({
     bool withSync = false,
     bool bloc = false,
     bool withAuthFeature = false,
     bool withApiProbe = false,
+    bool withEncryption = false,
   }) => [
     _intro(withSync),
     withSync ? _bigPictureSync : _bigPictureCache,
@@ -24,6 +26,7 @@ abstract final class OfflineDocsTemplates {
     withSync ? _tablesSync : _tablesCache,
     _featureTables,
     _migrations,
+    if (withEncryption) _encryption,
     _readPath,
     bloc ? _screenBloc : _screenRiverpod,
     if (withSync) ...[_writePath, _drain, _serverWins, _background],
@@ -32,6 +35,28 @@ abstract final class OfflineDocsTemplates {
     _questions(withSync, withApiProbe: withApiProbe),
     _whereToChange(withSync),
   ].join('\n');
+
+  static const _encryption = r'''
+## Encrypted at rest
+
+The database file is encrypted, so a copy of it (a rooted phone, a backup
+pulled off a laptop) is unreadable without the key:
+
+- `pubspec.yaml` selects the SQLite3MultipleCiphers build instead of plain
+  SQLite (`hooks: user_defines: sqlite3: source: sqlite3mc`). Remove that and
+  `PRAGMA key` silently does nothing; a debug build's assert says so, and
+  `moarch doctor` flags it.
+- `lib/core/database/database_key.dart` makes a random 256-bit key on the
+  first open and keeps it in the Keychain / Android Keystore
+  (`flutter_secure_storage`). `AppDatabase` reads it before it opens.
+- The key does not travel with a backup. A database file restored onto a
+  device that never had its key cannot be opened, so it is deleted on the
+  first open there: the cache refills from the API, and writes that were
+  never sent are lost.
+
+Everything else on this page is unchanged: the encryption is below drift,
+and nothing above it knows.
+''';
 
   static const _featureTables = r'''
 ## A feature's own table: `moarch create table`
@@ -307,6 +332,12 @@ Only `NetworkException` (the request never reached the server) falls back to
 the cache. A 500 or a 404 is a real answer and still reaches the screen: the
 cache is for "can't reach the server", not for "the server said no".
 
+With offline sync, there is one more rule: while the collection has writes
+the server has not seen (`_sync.hasPending('orders')`), `fetchAll` answers
+from the cache and leaves it as it is. Those writes exist only there, and the
+server's list would hide them until the sync sent them. The refetch after the
+sync brings the server's list instead.
+
 ### `watchAll()`: the screen follows the database
 
 ```dart
@@ -380,7 +411,8 @@ the path still lives in the datasource next to the GET.
 // orders_repository.dart
 Future<void> update(OrdersModel item) async {
   await _local.save(item);                              // cache → screen redraws NOW
-  await _sync.enqueue('orders', _remote.update(item));  // queue → sent later
+  await _sync.enqueue('orders', _remote.update(item),   // queue → sent later
+      recordId: item.id);                               // the record it changes
 }
 ```
 
@@ -392,8 +424,10 @@ screen back to what the server has (see "the server wins" below).
 
 ```dart
 Future<void> create(OrdersModel item) async {
-  await _local.save(item.copyWith(id: -DateTime.now().microsecondsSinceEpoch));
-  await _sync.enqueue('orders', _remote.create(item));  // POST, without the id
+  final temporaryId = -DateTime.now().microsecondsSinceEpoch;
+  await _local.save(item.copyWith(id: temporaryId));
+  await _sync.enqueue('orders', _remote.create(item),   // POST, without the id
+      recordId: temporaryId);
 }
 ```
 
@@ -402,9 +436,24 @@ a key. It gets a **negative** id, which can never clash with a real one. After
 the sync, the refetch replaces the list with the server's, and the record
 comes back with its real id.
 
-A record with a negative id **cannot be edited or deleted** until it has
-synced: `PUT /orders/-1712…` means nothing to the server, which answers 404,
-and the write is dropped. Hide or disable those actions while `id < 0`.
+The record can be edited and deleted before then. Those writes are queued
+under the temporary id (`PUT /orders/-1712…`), and when the POST is answered,
+`SyncService` reads the new id from the response (`SyncService.createdIdOf`:
+the body's `id` by default) and rewrites them, in their path and their body's
+`id`, before they are sent. If your API answers a create with a wrapped record
+(`{"data": {...}}`) or no body at all, change `createdIdOf`. Without an id,
+the edits after it get a 404 and are dropped. If the server refuses the
+POST, the writes queued for that record are dropped with it: there is nothing
+for them to change.
+
+### The same write, sent twice
+
+A POST whose answer was lost (a timeout after the server saved it) is retried,
+and could create the record twice. Every queued write has an
+`Idempotency-Key` header, a UUID made when it was queued and kept across its
+retries. An API that stores the keys it has seen can answer a repeat with the
+first result instead of applying it again. An API that ignores the header
+behaves as before.
 ''';
 
   static const _drain = r'''
@@ -417,11 +466,14 @@ drain()
      if empty → done
      for each write:
         still backing off?   → schedule a timer, STOP
-        send it (method, path, body through Dio)
+        send it (method, path, body and Idempotency-Key through Dio)
           2xx                → remove from the queue, note its collection
+                               (a create: point the writes queued for its
+                               temporary id at the server's id, read again)
           no connection      → STOP, keep everything
           401                → STOP, keep everything
           another 4xx        → remove, report on `rejected`, note its collection, go on
+                               (a create: its record's queued writes go too)
           5xx / timeout      → count the attempt, schedule a retry, STOP
                                (after 5 attempts: treated like a 4xx)
      read the queue again: writes added meanwhile are sent by this same run
@@ -467,7 +519,8 @@ has**. That one refetch settles every loose end:
 - A record created offline: its temporary id becomes the real one.
 - A refused write: the optimistic change disappears, because the server never
   applied it. That's why refusals are reported on `SyncService.rejected`:
-  show a toast, so the user knows why their change is gone.
+  the app shows a toast for each (`SyncStatusListener`, in the app shell), so
+  the user knows why their change is gone.
 - A change someone else made meanwhile: it appears.
 
 Conflicts are **not merged** on the device. If two devices edit the same
@@ -569,17 +622,21 @@ $who
          queue: [1] POST /orders {total: 8}
          enqueue → drain → NetworkException → stop. The queue keeps it.
 
-10:06  The user edits #3 (total 45) and deletes #1.
-         cache: #3 updated, #1 removed     → screen: #3 (45), (new)
-         queue: [1] POST, [2] PUT /orders/3, [3] DELETE /orders/1
+10:06  The user edits #3 (total 45), deletes #1 and changes the new
+       order's total to 9.
+         cache: #3 updated, #1 removed, (new) total 9
+                                            → screen: #3 (45), (new)
+         queue: [1] POST, [2] PUT /orders/3, [3] DELETE /orders/1,
+                [4] PUT /orders/-1712… {total: 9}
          every drain stops at [1]: offline.
 
 10:07  Signal is back → onReconnect → drain():
-         [1] POST   → 201 → removed
+         [1] POST   → 201 {id: 12} → removed; [4] becomes PUT /orders/12
          [2] PUT    → 200 → removed
          [3] DELETE → 404 (already deleted elsewhere) → dropped, `rejected` fires
-       refetch 'orders' → GET → [#3 (45), #12 (8)]
-         → screen: #3 (45), #12 (8)        the temporary id became #12
+         [4] PUT /orders/12 → 200 → removed
+       refetch 'orders' → GET → [#3 (45), #12 (9)]
+         → screen: #3 (45), #12 (9)        the temporary id became #12
 
 10:30  The app is closed with a write queued (the server was down: 503).
 10:45  Android runs the background task → drain → 201 → the queue is empty.
@@ -611,9 +668,11 @@ are not merged into one request.
 growing wait, then dropped and reported. Raise `maxAttempts` or change
 `_backoff` in `sync_service.dart` if the API has long outages.
 ''',
-      r'''**Can I show "3 changes not synced yet"?** Yes: the pending count
-(`pendingSyncCountProvider` on Riverpod, `PendingSyncCubit` on bloc) follows
-the queue table live.
+      r'''**Can I show "3 changes not synced yet"?** Yes: put `SyncStatusBanner`
+(`lib/shared/widgets/sync_status.dart`) where the user should see it. It
+takes no space while nothing is waiting, and its "Sync now" drains the queue.
+It reads the pending count (`pendingSyncCountProvider` on Riverpod,
+`PendingSyncCubit` on bloc), which follows the queue table live.
 ''',
     ],
     r'''**Does Firestore use any of this?** No. Firestore keeps its own offline copy
@@ -635,7 +694,7 @@ shows `cache_entries`${withSync ? ', `pending_writes`' : ''} and each feature ta
 |---|---|''',
     if (withSync) ...[
       '| use other HTTP methods or paths for writes | the `SyncRequest`s in `<feature>_remote_datasource.dart` |',
-      '| show refused writes to the user | listen to `getIt<SyncService>().rejected` (a toast) |',
+      '| show refused writes to the user | already done: `SyncStatusListener` in `main.dart` toasts each one — reword it in `sync_status.dart` |',
       '| change the retries | `maxAttempts` and `_backoff` in `sync_service.dart` |',
       '| change how often the background task runs | `registerBackgroundSync()` in `background_sync.dart` (15 minutes is Android\'s minimum) |',
     ],

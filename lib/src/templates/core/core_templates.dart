@@ -735,13 +735,15 @@ $darkPalette
   /// paths — `dio_client.dart` also reads the public ones, as the routes that
   /// go out without an `Authorization` header — and [withDeviceToken] the one
   /// the push token is registered at. [withMaintenanceGate] and
-  /// [withUpdateGate] add the config paths the Dio-backed gates poll.
+  /// [withUpdateGate] add the config paths the Dio-backed gates poll, and
+  /// [withFeatureFlags] the one `FeatureFlagsService` does.
   static String apiConstants({
     bool withAuthFeature = false,
     bool withAppleSignIn = false,
     bool withDeviceToken = false,
     bool withMaintenanceGate = false,
     bool withUpdateGate = false,
+    bool withFeatureFlags = false,
   }) {
     final deviceToken = withDeviceToken
         ? '''
@@ -782,13 +784,18 @@ $darkPalette
     final appVersion = withUpdateGate
         ? "\n  static const configAppVersion = '/config/app-version';"
         : '';
-    final configEndpoints = withMaintenanceGate || withUpdateGate
+    final flags = withFeatureFlags
+        ? "\n  static const configFlags = '/config/flags';"
+        : '';
+    final configEndpoints =
+        withMaintenanceGate || withUpdateGate || withFeatureFlags
         ? '''
 
 
   // ── Config ────────────────────────────────────────────────────────────────
-  // Polled by the gates in `shared/widgets/`, signed in or not — add them to
-  // `_kPublicEndpoints` in `dio_client.dart`.$maintenance$appVersion'''
+  // Read signed in or not, by the gates in `shared/widgets/` and by
+  // FeatureFlagsService — add them to `_kPublicEndpoints` in
+  // `dio_client.dart`.$maintenance$appVersion$flags'''
         : '';
 
     return '''
@@ -820,6 +827,7 @@ abstract final class ApiConstants {
     'authApple': '/auth/apple',
     'configMaintenance': '/config/maintenance',
     'configAppVersion': '/config/app-version',
+    'configFlags': '/config/flags',
   };
 
   /// The constant names [apiConstants] source declares.
@@ -843,7 +851,9 @@ abstract final class ApiConstants {
     if (out != source && !out.contains('ApiConstants.')) {
       out = out.replaceAll(
         RegExp(
-          r"^import '[./]*core/constants/api_constants\.dart';\n",
+          // From a feature or the kit (`../../core/constants/…`), or from
+          // beside it in core (`../constants/…`).
+          r"^import '[./]*(?:core/)?constants/api_constants\.dart';\n",
           multiLine: true,
         ),
         '',

@@ -135,6 +135,7 @@ class StackTemplates {
     bool withAuthFeature = false,
     bool withBlocObserver = false,
     bool withSync = false,
+    bool? withSyncStatus,
   }) => isBloc
       ? bloc.AppTemplates.mainDart(
           withRouter: withRouter,
@@ -153,6 +154,7 @@ class StackTemplates {
           withAuthFeature: withAuthFeature,
           withBlocObserver: withBlocObserver,
           withSync: withSync,
+          withSyncStatus: withSyncStatus,
         )
       : riverpod.AppTemplates.mainDart(
           withRouter: withRouter,
@@ -169,6 +171,7 @@ class StackTemplates {
           withThemeMode: withThemeMode,
           withOfflineGate: withOfflineGate,
           withSync: withSync,
+          withSyncStatus: withSyncStatus,
         );
 
   /// The stack's shared state vocabulary: bloc's `AppStatus` enum with the
@@ -200,15 +203,20 @@ class StackTemplates {
   ///
   /// [withAccountScreens] adds the forgot-password and verify-email routes,
   /// and holds an unverified user on the second.
-  String appRouter({bool withAuth = false, bool withAccountScreens = false}) =>
-      isBloc
+  String appRouter({
+    bool withAuth = false,
+    bool withAccountScreens = false,
+    bool withAnalytics = false,
+  }) => isBloc
       ? bloc.AppTemplates.appRouter(
           withAuth: withAuth,
           withAccountScreens: withAccountScreens,
+          withAnalytics: withAnalytics,
         )
       : riverpod.AppTemplates.appRouter(
           withAuth: withAuth,
           withAccountScreens: withAccountScreens,
+          withAnalytics: withAnalytics,
         );
 
   /// Where the Firebase instances come from — a signpost to the locator, in
@@ -299,9 +307,15 @@ class StackTemplates {
     bool withPreferences = false,
     bool withLocalCache = false,
     bool withSync = false,
+    bool withAnalytics = false,
+    bool withFeatureFlags = false,
+    bool flagsFromFirestore = false,
   }) => InjectorTemplates.coreModule(
     withLocalCache: withLocalCache,
     withSync: withSync,
+    withAnalytics: withAnalytics,
+    withFeatureFlags: withFeatureFlags,
+    flagsFromFirestore: flagsFromFirestore,
     withMedia: withMedia,
     withUrlLauncher: withUrlLauncher,
     withNotifications: withNotifications,
@@ -412,6 +426,12 @@ class StackTemplates {
   String offlineGate() => isBloc
       ? bloc.OfflineTemplates.offlineGate()
       : riverpod.OfflineTemplates.offlineGate();
+
+  /// `shared/widgets/sync_status.dart`: the toast for refused writes and the
+  /// pending-count banner. Offline sync only.
+  String syncStatus() => isBloc
+      ? bloc.OfflineTemplates.syncStatus()
+      : riverpod.OfflineTemplates.syncStatus();
 
   /// The maintenance gate.
   String maintenanceGate({bool withFirestore = false, bool withDio = false}) =>

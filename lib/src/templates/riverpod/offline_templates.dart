@@ -1,3 +1,5 @@
+import '../core/sync_templates.dart';
+
 /// Generates the offline gate for the Riverpod stack.
 ///
 /// The mirror of `templates/bloc/offline_templates.dart`: the same screen,
@@ -58,6 +60,47 @@ class OfflineView extends ConsumerWidget {
           onRetry: () => ref.invalidate(hasInternetProvider),
         ),
       ),
+    );
+  }
+}
+''';
+
+  /// Returns the `shared/widgets/sync_status.dart` source: the toast for
+  /// refused writes (the same in both stacks) and the pending-count banner,
+  /// which reads `pendingSyncCountProvider`.
+  static String syncStatus() =>
+      '''
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../config/di/injector.dart';
+import '../../core/sync/sync_service.dart';
+import 'feedback/app_banner.dart';
+import 'overlays/app_toast.dart';
+
+${SyncTemplates.syncStatusListener}
+$_syncBanner''';
+
+  static const String _syncBanner = r'''
+/// How many changes have not reached the server yet, with a button to send
+/// them now. Takes no space while there are none. Put it where the user should
+/// know: above a list, under an app bar.
+class SyncStatusBanner extends ConsumerWidget {
+  const SyncStatusBanner({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = ref.watch(pendingSyncCountProvider).value ?? 0;
+    if (pending == 0) return const SizedBox.shrink();
+    return AppBanner(
+      icon: Icons.cloud_upload_outlined,
+      message: pending == 1
+          ? '1 change waiting to sync'
+          : '$pending changes waiting to sync',
+      actionLabel: 'Sync now',
+      onAction: () => unawaited(getIt<SyncService>().drain()),
     );
   }
 }

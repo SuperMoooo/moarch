@@ -15,9 +15,76 @@ abstract final class SyncTemplates {
   /// `BGTaskSchedulerPermittedIdentifiers`.
   static const String taskId = 'outbox-sync';
 
+  /// `SyncStatusListener`, the half of `lib/shared/widgets/sync_status.dart`
+  /// that reads no state and so is the same in both stacks: a toast for every
+  /// write the server refused.
+  ///
+  /// It brings its own [Overlay]: it is mounted in `MaterialApp.builder`,
+  /// above the Navigator, where `AppToast` would find no overlay to show in.
+  static const String syncStatusListener = r'''
+/// Shows a toast for every write the server refused, on whatever screen the
+/// user is on: the change they made has been undone, and this says why.
+///
+/// Mounted once, around the app, in `MaterialApp.builder` (`main.dart`).
+class SyncStatusListener extends StatefulWidget {
+  const SyncStatusListener({required this.child, super.key});
+
+  /// The app.
+  final Widget child;
+
+  @override
+  State<SyncStatusListener> createState() => _SyncStatusListenerState();
+}
+
+class _SyncStatusListenerState extends State<SyncStatusListener> {
+  // Above the Navigator there is no overlay for a toast to show in, so the
+  // app is put inside one. A toast from any screen shows in it too.
+  final _inside = GlobalKey();
+  late final OverlayEntry _app = OverlayEntry(
+    maintainState: true,
+    builder: (_) => KeyedSubtree(key: _inside, child: widget.child),
+  );
+  late final StreamSubscription<RejectedWrite> _rejected;
+
+  @override
+  void initState() {
+    super.initState();
+    _rejected = getIt<SyncService>().rejected.listen(_show);
+  }
+
+  @override
+  void didUpdateWidget(SyncStatusListener oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The entry builds on its own: tell it the app changed.
+    if (oldWidget.child != widget.child) _app.markNeedsBuild();
+  }
+
+  void _show(RejectedWrite rejected) {
+    final context = _inside.currentContext;
+    if (context == null) return;
+    // TODO: say which change in your own words (rejected.write.collection).
+    AppToast.error(
+      context,
+      rejected.error.message,
+      title: 'A change could not be saved',
+    );
+  }
+
+  @override
+  void dispose() {
+    _rejected.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Overlay(initialEntries: [_app]);
+}
+''';
+
   /// `lib/core/sync/sync_queue.dart` — the `PendingWrites` table, oldest first.
   static String syncQueue() => r'''
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:drift/drift.dart';
 
@@ -46,7 +113,11 @@ class SyncQueue {
 
   final AppDatabase _db;
 
-  Future<void> add(String collection, SyncRequest request) {
+  static final _random = Random.secure();
+
+  /// Queues [request]. [recordId] is the record it changes, as the app knows
+  /// it — a negative id for one created offline (see SyncService).
+  Future<void> add(String collection, SyncRequest request, {Object? recordId}) {
     return _db.into(_db.pendingWrites).insert(
           PendingWritesCompanion.insert(
             collection: collection,
@@ -55,9 +126,48 @@ class SyncQueue {
             body: Value(
               request.body == null ? null : jsonEncode(request.body),
             ),
+            recordId: Value(recordId?.toString()),
+            idempotencyKey: Value(_newKey()),
             createdAt: DateTime.now(),
           ),
         );
+  }
+
+  /// Whether [collection] has writes the server has not seen yet.
+  Future<bool> hasPending(String collection) async {
+    final first = await (_db.select(_db.pendingWrites)
+          ..where((w) => w.collection.equals(collection))
+          ..limit(1))
+        .getSingleOrNull();
+    return first != null;
+  }
+
+  /// The server created the record [temporaryId] stood for, as [id]: every
+  /// write still queued for it names [id] from now on, in its path and in
+  /// its body's `id`.
+  Future<void> resolve(String collection, String temporaryId, Object id) {
+    return _db.transaction(() async {
+      for (final write in await _forRecord(collection, temporaryId).get()) {
+        await (_db.update(_db.pendingWrites)
+              ..where((w) => w.id.equals(write.id)))
+            .write(
+          PendingWritesCompanion(
+            recordId: Value('$id'),
+            path: Value(_swapSegment(write.path, temporaryId, '$id')),
+            body: Value(_swapId(write.body, temporaryId, id)),
+          ),
+        );
+      }
+    });
+  }
+
+  /// Drops every write queued for [recordId] in [collection].
+  Future<int> removeRecord(String collection, String recordId) {
+    return (_db.delete(_db.pendingWrites)
+          ..where(
+            (w) => w.collection.equals(collection) & w.recordId.equals(recordId),
+          ))
+        .go();
   }
 
   /// Every queued write, in the order it was made.
@@ -88,6 +198,41 @@ class SyncQueue {
         lastTriedAt: Value(DateTime.now()),
       ),
     );
+  }
+
+  SimpleSelectStatement<$PendingWritesTable, PendingWrite> _forRecord(
+    String collection,
+    String recordId,
+  ) {
+    return _db.select(_db.pendingWrites)
+      ..where(
+        (w) => w.collection.equals(collection) & w.recordId.equals(recordId),
+      );
+  }
+
+  static String _swapSegment(String path, String from, String to) {
+    return [
+      for (final segment in path.split('/')) segment == from ? to : segment,
+    ].join('/');
+  }
+
+  static String? _swapId(String? body, String from, Object to) {
+    if (body == null) return null;
+    final json = jsonDecode(body);
+    if (json is! Map<String, dynamic> || '${json['id']}' != from) return body;
+    return jsonEncode({...json, 'id': to});
+  }
+
+  /// A random (v4) UUID: one per write, kept across its retries.
+  static String _newKey() {
+    final bytes = List<int>.generate(16, (_) => _random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = [
+      for (final byte in bytes) byte.toRadixString(16).padLeft(2, '0'),
+    ].join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 }
 ''';
@@ -178,6 +323,14 @@ class RejectedWrite {
 /// After a sync, every collection it touched is refetched ([refreshOnSync]):
 /// the server's version replaces what was written offline, temporary ids
 /// included.
+///
+/// A record created offline has a temporary negative id until its POST is
+/// answered. Edits and deletes queued for it in the meantime name that id, so
+/// once the server answers with its own ([createdIdOf]) they are pointed at
+/// it before they are sent. A create the server refuses takes them with it.
+///
+/// Every write carries an `Idempotency-Key` header, the same on each retry:
+/// an API that honours it applies a write once even when its answer was lost.
 class SyncService {
   SyncService(this._queue, this._dio, this._connectivity);
 
@@ -189,6 +342,10 @@ class SyncService {
 
   final _rejected = StreamController<RejectedWrite>.broadcast();
   final _refreshers = <String, Future<void> Function()>{};
+
+  /// Temporary ids the server has answered for, until the refetch replaces
+  /// them in the cache: a write made in between still finds its record.
+  final _created = <String, Object>{};
   StreamSubscription<bool>? _reconnect;
   AppLifecycleListener? _lifecycle;
   Timer? _retry;
@@ -211,9 +368,31 @@ class SyncService {
 
   /// Queues [request] for [collection] and tries to send it straight away.
   /// Apply the change to the cache first, so the screen shows it now.
-  Future<void> enqueue(String collection, SyncRequest request) async {
-    await _queue.add(collection, request);
+  ///
+  /// [recordId] is the id of the record the write changes (for a create, the
+  /// temporary one it was cached under).
+  Future<void> enqueue(
+    String collection,
+    SyncRequest request, {
+    Object? recordId,
+  }) async {
+    await _queue.add(collection, request, recordId: recordId);
+    final created = _created['$collection/$recordId'];
+    if (created != null) {
+      await _queue.resolve(collection, '$recordId', created);
+    }
     unawaited(drain());
+  }
+
+  /// Whether [collection] has writes the server has not seen yet. While it
+  /// does, the cache is the only place they show, so a refetch must not
+  /// replace it.
+  Future<bool> hasPending(String collection) => _queue.hasPending(collection);
+
+  /// The id of the record a POST created, read from the response body.
+  /// TODO: if your API wraps the record (`{"data": {"id": …}}`), read it there.
+  static Object? createdIdOf(Object? response) {
+    return response is Map ? response['id'] : null;
   }
 
   /// [refresh] runs after a sync touched [collection]: the repository's
@@ -244,9 +423,11 @@ class SyncService {
             return;
           }
           try {
-            await _send(write);
+            final response = await _send(write);
             await _queue.remove(write.id);
             touched.add(write.collection);
+            // The writes behind it now name the server's id: read them again.
+            if (await _resolveCreate(write, response)) break;
           } on NetworkException {
             return;
           } on AppException catch (error) {
@@ -259,6 +440,12 @@ class SyncService {
               touched.add(write.collection);
               _log.w('${write.method} ${write.path} dropped', error: error);
               _rejected.add(RejectedWrite(write, error));
+              if (_createsRecord(write)) {
+                // Nothing was created, so what was queued for it has nothing
+                // to change.
+                await _queue.removeRecord(write.collection, write.recordId!);
+                break;
+              }
               continue;
             }
             await _queue.markFailed(write.id, attempts);
@@ -272,15 +459,45 @@ class SyncService {
     }
   }
 
-  Future<void> _send(PendingWrite write) {
+  /// Sends [write] and returns the response body.
+  Future<Object?> _send(PendingWrite write) {
     final body = write.body;
-    return safeApiCall<void>(
-      apiCall: () => _dio.request<Object?>(
-        write.path,
-        data: body == null ? null : jsonDecode(body),
-        options: Options(method: write.method),
-      ),
+    final key = write.idempotencyKey;
+    return safeApiCall<Object?>(
+      apiCall: () async {
+        final response = await _dio.request<Object?>(
+          write.path,
+          data: body == null ? null : jsonDecode(body),
+          options: Options(
+            method: write.method,
+            headers: {'Idempotency-Key': ?key},
+          ),
+        );
+        return response.data;
+      },
     );
+  }
+
+  static bool _createsRecord(PendingWrite write) {
+    final id = int.tryParse(write.recordId ?? '');
+    return write.method == 'POST' && id != null && id < 0;
+  }
+
+  /// Points what was queued for a record created offline at the id the
+  /// server gave it. Returns whether anything may have changed.
+  Future<bool> _resolveCreate(PendingWrite write, Object? response) async {
+    if (!_createsRecord(write)) return false;
+    final id = createdIdOf(response);
+    if (id == null) {
+      _log.w(
+        '${write.path} answered without an id: edits queued for '
+        '${write.recordId} will fail (see createdIdOf)',
+      );
+      return false;
+    }
+    _created['${write.collection}/${write.recordId}'] = id;
+    await _queue.resolve(write.collection, write.recordId!, id);
+    return true;
   }
 
   Future<void> _refresh(Set<String> collections) async {

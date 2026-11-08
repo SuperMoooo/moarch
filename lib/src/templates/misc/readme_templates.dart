@@ -42,6 +42,7 @@ class ReadmeTemplates {
         withFirebase: o.withFirebase,
         withFirestore: o.withFirestore,
         withCrashlytics: o.withCrashlytics,
+        withAnalytics: o.withAnalytics,
         withFirebaseNotifications: o.withFirebaseNotifications,
         withNotifications: o.withNotifications,
         withLocalization: o.withLocalization,
@@ -401,6 +402,7 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
     required bool withFirebase,
     required bool withFirestore,
     required bool withCrashlytics,
+    bool withAnalytics = false,
     required bool withFirebaseNotifications,
     required bool withNotifications,
     required bool withLocalization,
@@ -486,6 +488,10 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
     row('intl', 'Date, number and currency formatting.');
     row('permission_handler', 'Runtime permission requests.');
     row('flutter_native_splash', 'Generates the native splash screen.');
+    row(
+      'flutter_launcher_icons',
+      'Dev dependency. Makes the app icon in every size from one image.',
+    );
     if (withFirebase) {
       row(
         'firebase_core',
@@ -501,6 +507,12 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
       row(
         'firebase_crashlytics',
         'Crash reporting, wired into the app-wide error handlers.',
+      );
+    }
+    if (withAnalytics) {
+      row(
+        'firebase_analytics',
+        'Events and screen views, behind `AnalyticsService`.',
       );
     }
     if (withFirebaseNotifications) {
@@ -638,7 +650,8 @@ At the root:
 | `.env` / `.env.example` | Environment values; the first is gitignored, the second is not |
 | `analysis_options.yaml` | The lint contract — see `docs/CODE_STANDARDS.md` |
 | `.moarch.yaml` | Hashes of every generated file, so `moarch update` knows what you edited |
-| `flutter_native_splash.yaml` | Native splash configuration |${withFlavors ? '\n| `flavorizr.yaml` | The flavor definitions — see `docs/FLAVORS.md` |' : ''}
+| `flutter_native_splash.yaml` | Native splash configuration |
+| `flutter_launcher_icons.yaml` | The app icon, made from `assets/icon/icon.png` |${withFlavors ? '\n| `flavorizr.yaml` | The flavor definitions — see `docs/FLAVORS.md` |' : ''}
 | `docs/` | The guides — see section 5 |
 | `.github/workflows/` | CI and release builds — see `docs/BUILD_AND_RELEASE.md` |
 | `android/` `ios/` | The native shells: signing, permissions, platform config |
@@ -1284,6 +1297,21 @@ flavor off the generated `lib/flavors.dart` (`F.appFlavor`, `F.name`,
 
 To add or rename a flavor, edit `flavorizr.yaml` and re-run
 `dart run flutter_flavorizr`.
+
+### An icon per flavor
+
+`moarch create flavors` writes a `flutter_launcher_icons-<flavor>.yaml` for
+each flavor. Put a 1024x1024 PNG at `assets/icon/<flavor>.png` for each, then:
+
+```bash
+fvm dart run flutter_launcher_icons
+```
+
+Android picks each icon up from the flavor's own source set. iOS gets one
+`AppIcon-<flavor>` set per flavor, and Xcode has to be told which one a build
+uses: in **Runner → Build Settings**, set `ASSETCATALOG_COMPILER_APPICON_NAME`
+for each flavor's configurations (`Debug-dev`, `Release-dev`, …) to
+`AppIcon-<flavor>`.
 
 ### What catches people out
 

@@ -20,6 +20,7 @@ class DocsOptions {
     this.withFirebase = false,
     this.withFirestore = false,
     this.withCrashlytics = false,
+    this.withAnalytics = false,
     this.withFirebaseNotifications = false,
     this.withNotifications = false,
     this.withLocalization = false,
@@ -73,6 +74,9 @@ class DocsOptions {
 
   /// Crashlytics is installed.
   final bool withCrashlytics;
+
+  /// `AnalyticsService` on Firebase Analytics was generated.
+  final bool withAnalytics;
 
   /// FCM push notifications.
   final bool withFirebaseNotifications;

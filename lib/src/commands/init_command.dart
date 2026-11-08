@@ -20,8 +20,10 @@ import 'package:moarch/src/utils/checklist.dart';
 import 'package:path/path.dart' as p;
 
 import '../templates/config/config_templates.dart';
+import '../templates/core/analytics_templates.dart';
 import '../templates/core/cache_templates.dart';
 import '../templates/core/core_templates.dart';
+import '../templates/core/feature_flags_templates.dart';
 import '../templates/core/sync_templates.dart';
 import '../templates/stack_templates.dart';
 import '../utils/file_utils.dart';
@@ -53,8 +55,10 @@ const _kDio = 'Dio (REST API)';
 const _kFirestore = 'Firebase Firestore';
 const _kFirebaseAuth = 'Firebase Auth';
 const _kCrashlytics = 'Firebase Crashlytics';
+const _kAnalytics = 'Firebase Analytics';
 const _kOfflineFirst = 'Offline-first cache (drift)';
 const _kSync = 'Offline sync (outbox + background)';
+const _kEncryptedDb = 'Encrypted local database (SQLite3MultipleCiphers)';
 
 // ── Feature options ───────────────────────────────────────────────────────────
 // What gets generated into lib/ beyond the bare minimum.
@@ -72,6 +76,7 @@ const _kFirebaseNotifications = 'Firebase push notifications (FCM)';
 const _kBiometricAuth = 'Biometric authentication';
 const _kMaintenanceGate = 'Maintenance gate (backend kill switch)';
 const _kUpdateGate = 'Update gate (backend minimum version)';
+const _kFeatureFlags = 'Feature flags (backend switches)';
 const _kOfflineGate = 'Offline screen + reconnect hook';
 const _kDeepLinks = 'Deep links (App Links + Universal Links)';
 const _kDarkTheme = 'Dark theme + theme mode switch';
@@ -223,6 +228,13 @@ class InitCommand extends Command<int> {
                   'Crash reporting wired into the error handlers (requires Firebase setup).',
             ),
             const ChecklistItem(
+              _kAnalytics,
+              defaultOn: false,
+              description:
+                  'Events and screen views through an AnalyticsService '
+                  '(requires Firebase setup).',
+            ),
+            const ChecklistItem(
               _kOfflineFirst,
               defaultOn: false,
               description:
@@ -236,6 +248,13 @@ class InitCommand extends Command<int> {
                   'Writes land in the cache at once and are queued; sent on '
                   'reconnect, resume and every ~15 min in the background '
                   '(needs the cache above).',
+            ),
+            const ChecklistItem(
+              _kEncryptedDb,
+              defaultOn: false,
+              description:
+                  'The cache (and the queue) encrypted at rest, with a key '
+                  'kept in the Keychain / Keystore (needs the cache above).',
             ),
           ],
         );
@@ -332,6 +351,14 @@ class InitCommand extends Command<int> {
                   'Replaces the app with an "update required" screen '
                   'while the installed version is below a backend minimum; '
                   'fails open if it cannot be read.',
+            ),
+            const ChecklistItem(
+              _kFeatureFlags,
+              defaultOn: false,
+              description:
+                  'Typed switches read from the backend (the gates\' '
+                  'source: Firestore or a REST endpoint), with defaults '
+                  'while it cannot be read.',
             ),
             const ChecklistItem(
               _kOfflineGate,
@@ -442,6 +469,24 @@ class InitCommand extends Command<int> {
       stack.remove(_kSync);
       _logger.info(
         '  Note: offline sync skipped — it needs the offline-first cache.',
+      );
+    }
+    if (stack.contains(_kEncryptedDb) && !stack.contains(_kOfflineFirst)) {
+      stack.remove(_kEncryptedDb);
+      _logger.info(
+        '  Note: database encryption skipped — there is no database without '
+        'the offline-first cache.',
+      );
+    }
+    // The flags are read from the backend the gates read: a document or an
+    // endpoint. With neither there is nothing to read them from.
+    if (stack.contains(_kFeatureFlags) &&
+        !stack.contains(_kDio) &&
+        !stack.contains(_kFirestore)) {
+      stack.remove(_kFeatureFlags);
+      _logger.info(
+        '  Note: feature flags skipped — they are read over Dio or from '
+        'Firestore.',
       );
     }
     // An app that works offline has no business covering itself when the
@@ -593,18 +638,17 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kOfflineFirst))
         PackageVersions.entry('drift_flutter'),
       if (stack.contains(_kSync)) PackageVersions.entry('workmanager'),
+      if (stack.contains(_kEncryptedDb)) PackageVersions.entry('path_provider'),
       PackageVersions.entry('flutter_secure_storage'),
       if (stack.contains(_kDarkTheme))
         PackageVersions.entry('shared_preferences'),
-      if (stack.contains(_kFirebaseAuth) ||
-          stack.contains(_kFirestore) ||
-          stack.contains(_kCrashlytics) ||
-          stack.contains(_kFirebaseNotifications))
-        PackageVersions.entry('firebase_core'),
+      if (_usesFirebase(stack)) PackageVersions.entry('firebase_core'),
       if (stack.contains(_kFirebaseNotifications))
         PackageVersions.entry('firebase_messaging'),
       if (stack.contains(_kCrashlytics))
         PackageVersions.entry('firebase_crashlytics'),
+      if (stack.contains(_kAnalytics))
+        PackageVersions.entry('firebase_analytics'),
       if (stack.contains(_kFirebaseAuth))
         PackageVersions.entry('firebase_auth'),
       if (stack.contains(_kFirestore)) PackageVersions.entry('cloud_firestore'),
@@ -650,6 +694,8 @@ class InitCommand extends Command<int> {
       // part of moarch, so nothing of it lands in the app's pubspec.
       PackageVersions.entry('mocktail'),
       if (stateManagement.isBloc) PackageVersions.entry('bloc_test'),
+      // Makes the app icon from flutter_launcher_icons.yaml.
+      PackageVersions.entry('flutter_launcher_icons'),
       PackageVersions.entry('flutter_lints'),
       // The bloc team's own rules — file naming, no Flutter imports in a
       // bloc, no public fields on a state. Run with `bloc lint .` (see
@@ -717,7 +763,8 @@ class InitCommand extends Command<int> {
           withFirebase:
               stack.contains(_kFirestore) ||
               stack.contains(_kFirebaseAuth) ||
-              stack.contains(_kCrashlytics),
+              stack.contains(_kCrashlytics) ||
+              stack.contains(_kAnalytics),
           withMaintenanceGate: stack.contains(_kMaintenanceGate),
           withUpdateGate: stack.contains(_kUpdateGate),
           withMoAdapt: stack.contains(_kMoAdapt),
@@ -768,6 +815,10 @@ class InitCommand extends Command<int> {
         p.join(p.absolute(targetPath), 'flutter_native_splash.yaml'),
         DevTemplates.nativeSplash(),
       );
+      await FileUtils.writeFile(
+        p.join(p.absolute(targetPath), 'flutter_launcher_icons.yaml'),
+        DevTemplates.launcherIcons(),
+      );
 
       // How the model generators are configured — see
       // [DevTemplates.buildYaml] for why the one option in it is load-bearing.
@@ -799,13 +850,10 @@ class InitCommand extends Command<int> {
         withRouter: stack.contains(_kRouter),
         withAuthFeature: stack.contains(_kAuthFeature),
         withFirebaseAuthFeature: firebaseAuthFeature,
-        withFirebase:
-            stack.contains(_kFirestore) ||
-            stack.contains(_kFirebaseAuth) ||
-            stack.contains(_kCrashlytics) ||
-            stack.contains(_kFirebaseNotifications),
+        withFirebase: _usesFirebase(stack),
         withFirestore: stack.contains(_kFirestore),
         withCrashlytics: stack.contains(_kCrashlytics),
+        withAnalytics: stack.contains(_kAnalytics),
         withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
         withNotifications: stack.contains(_kNotificationsService),
         withLocalization: stack.contains(_kLocalizations),
@@ -873,6 +921,9 @@ class InitCommand extends Command<int> {
             withFeatureModule: true,
             withSkills: true,
             withDartMcp: true,
+            withEncryptedDatabase: stack.contains(_kEncryptedDb),
+            withAnalytics: stack.contains(_kAnalytics),
+            withFeatureFlags: stack.contains(_kFeatureFlags),
           ),
         );
         await FileUtils.writeFile(
@@ -952,6 +1003,7 @@ class InitCommand extends Command<int> {
             bloc: stateManagement.isBloc,
             withAuthFeature: stack.contains(_kAuthFeature),
             withApiProbe: stack.contains(_kDio),
+            withEncryption: stack.contains(_kEncryptedDb),
           ),
         );
       }
@@ -983,10 +1035,7 @@ class InitCommand extends Command<int> {
       // config files, sign-in providers, SHA fingerprints, the iOS URL
       // scheme. None of it is visible from the Dart, and all of it fails at
       // runtime rather than at build time.
-      if (stack.contains(_kFirestore) ||
-          stack.contains(_kFirebaseAuth) ||
-          stack.contains(_kCrashlytics) ||
-          stack.contains(_kFirebaseNotifications)) {
+      if (_usesFirebase(stack)) {
         await FileUtils.writeFile(
           p.join(p.absolute(targetPath), 'docs', 'FIREBASE_SETUP.md'),
           DocsTemplates.firebaseSetup(
@@ -1021,11 +1070,7 @@ class InitCommand extends Command<int> {
             'build_ipa.yml',
           ),
           WorkflowTemplates.buildIOS(
-            withFirebase:
-                stack.contains(_kFirestore) ||
-                stack.contains(_kFirebaseAuth) ||
-                stack.contains(_kCrashlytics) ||
-                stack.contains(_kFirebaseNotifications),
+            withFirebase: _usesFirebase(stack),
             withPushEntitlements:
                 stack.contains(_kFirebaseNotifications) || _appleSignIn(stack),
           ),
@@ -1094,6 +1139,16 @@ class InitCommand extends Command<int> {
           dependencies: defaultDependencies,
           devDependencies: devDependencies,
         );
+        // sqlite3's build hook downloads the SQLite3MultipleCiphers build
+        // instead of plain SQLite — what makes `PRAGMA key` mean anything.
+        if (stack.contains(_kEncryptedDb)) {
+          await PubspecUtils.ensureHookUserDefine(
+            p.absolute(targetPath),
+            package: 'sqlite3',
+            key: 'source',
+            value: 'sqlite3mc',
+          );
+        }
       }
 
       if (stack.contains(_kLocalizations)) {
@@ -1167,6 +1222,14 @@ class InitCommand extends Command<int> {
             templates.offlineGate(),
           );
         }
+        // What the user sees of the sync: refused writes, and how many are
+        // waiting. main.dart mounts the listener.
+        if (stack.contains(_kSync)) {
+          await FileUtils.writeFile(
+            p.join(lib, 'shared', 'widgets', 'sync_status.dart'),
+            templates.syncStatus(),
+          );
+        }
       }
 
       // Two themes are worth choosing between, so the dark theme brings the
@@ -1217,11 +1280,7 @@ class InitCommand extends Command<int> {
         );
       }
 
-      final hasFirebase =
-          stack.contains(_kFirestore) ||
-          stack.contains(_kFirebaseAuth) ||
-          stack.contains(_kCrashlytics) ||
-          stack.contains(_kFirebaseNotifications);
+      final hasFirebase = _usesFirebase(stack);
 
       // APNs for remote push, and Sign in with Apple. Local-only
       // notifications get neither: an entitlement the provisioning profile
@@ -1420,10 +1479,7 @@ class InitCommand extends Command<int> {
       _logger.info('');
       _logger.info('  Full guide: docs/FIREBASE_SETUP.md');
       _logger.info('');
-    } else if (stack.contains(_kFirestore) ||
-        stack.contains(_kFirebaseAuth) ||
-        stack.contains(_kCrashlytics) ||
-        stack.contains(_kFirebaseNotifications)) {
+    } else if (_usesFirebase(stack)) {
       _logger.info(
         '  Firebase selected — run `flutterfire configure` before the first',
       );
@@ -1889,6 +1945,7 @@ class InitCommand extends Command<int> {
           restAuthFeature && stack.contains(_kFirebaseNotifications),
       withMaintenanceGate: dioConfig && stack.contains(_kMaintenanceGate),
       withUpdateGate: dioConfig && stack.contains(_kUpdateGate),
+      withFeatureFlags: dioConfig && stack.contains(_kFeatureFlags),
     );
   }
 
@@ -1927,8 +1984,17 @@ class InitCommand extends Command<int> {
     if (stack.contains(_kOfflineFirst)) {
       await FileUtils.writeFile(
         p.join(c, 'database', 'app_database.dart'),
-        CacheTemplates.appDatabase(withSync: stack.contains(_kSync)),
+        CacheTemplates.appDatabase(
+          withSync: stack.contains(_kSync),
+          encrypted: stack.contains(_kEncryptedDb),
+        ),
       );
+      if (stack.contains(_kEncryptedDb)) {
+        await FileUtils.writeFile(
+          p.join(c, 'database', 'database_key.dart'),
+          CacheTemplates.databaseKey(),
+        );
+      }
       await FileUtils.writeFile(
         p.join(c, 'database', 'local_cache.dart'),
         CacheTemplates.localCache(withSync: stack.contains(_kSync)),
@@ -1946,6 +2012,21 @@ class InitCommand extends Command<int> {
       await FileUtils.writeFile(
         p.join(c, 'sync', 'background_sync.dart'),
         SyncTemplates.backgroundSync(withRestAuth: restAuthFeature),
+      );
+    }
+    if (stack.contains(_kAnalytics)) {
+      await FileUtils.writeFile(
+        p.join(c, 'services', 'analytics_service.dart'),
+        AnalyticsTemplates.analyticsService(),
+      );
+    }
+    if (stack.contains(_kFeatureFlags)) {
+      await FileUtils.writeFile(
+        p.join(c, 'services', 'feature_flags.dart'),
+        FeatureFlagsTemplates.featureFlags(
+          stateManagement: templates.stateManagement,
+          withFirestore: stack.contains(_kFirestore),
+        ),
       );
     }
     await FileUtils.writeFile(
@@ -2158,6 +2239,15 @@ class InitCommand extends Command<int> {
     );
   }
 
+  /// Whether anything selected needs Firebase: the config files, the
+  /// `firebase_core` dependency, `Firebase.initializeApp()`, the setup guide.
+  static bool _usesFirebase(Set<String> stack) =>
+      stack.contains(_kFirestore) ||
+      stack.contains(_kFirebaseAuth) ||
+      stack.contains(_kCrashlytics) ||
+      stack.contains(_kAnalytics) ||
+      stack.contains(_kFirebaseNotifications);
+
   /// The REST auth feature with Sign in with Apple: the checklist option,
   /// and only when the auth feature is not the Firebase one, which has it
   /// built in.
@@ -2272,6 +2362,7 @@ class InitCommand extends Command<int> {
         templates.appRouter(
           withAuth: stack.contains(_kAuthFeature),
           withAccountScreens: stack.contains(_kAuthFeature),
+          withAnalytics: stack.contains(_kAnalytics),
         ),
       );
       await FileUtils.writeFile(
@@ -2329,6 +2420,9 @@ class InitCommand extends Command<int> {
         withPreferences: stack.contains(_kDarkTheme),
         withLocalCache: stack.contains(_kOfflineFirst),
         withSync: stack.contains(_kSync),
+        withAnalytics: stack.contains(_kAnalytics),
+        withFeatureFlags: stack.contains(_kFeatureFlags),
+        flagsFromFirestore: stack.contains(_kFirestore),
       ),
     );
     await FileUtils.writeFile(
@@ -2394,6 +2488,9 @@ class InitCommand extends Command<int> {
         ...WidgetCatalog.resolve([
           'mo-adapt',
         ], stateManagement: stateManagement),
+      // SyncStatusBanner is an AppBanner.
+      if (stack.contains(_kSync))
+        ...WidgetCatalog.resolve(['banner'], stateManagement: stateManagement),
     ];
 
     for (final spec in {for (final spec in specs) spec.name: spec}.values) {

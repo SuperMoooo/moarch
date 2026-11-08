@@ -85,9 +85,10 @@ as it has run.
 - [ ] Correct Bundle ID in Xcode, and `PRODUCT_BUNDLE_IDENTIFIER` right per
       scheme
 - [ ] Signing certificate and provisioning profile configured
-- [ ] Icons and launch screen generated — the generated
-      `flutter_native_splash.yaml` is the config, `dart run
-      flutter_native_splash:create` is the step
+- [ ] Icons and launch screen generated — `assets/icon/icon.png` (1024x1024,
+      no transparency) and `fvm dart run flutter_launcher_icons` for the
+      icon, `flutter_native_splash.yaml` and `fvm dart run
+      flutter_native_splash:create` for the splash
 - [ ] Push: capability on the App ID, APNs key uploaded to Firebase, and the
       provisioning profile regenerated **after** enabling the capability
 - [ ] Tested on a physical device
@@ -661,7 +662,7 @@ window.setFlags(
 > iOS has no equivalent flag. The usual approach is covering the window in
 > `applicationWillResignActive` so the app-switcher snapshot shows a blank view.
 
-**Packages:** [`flutter_secure_storage`](https://pub.dev/packages/flutter_secure_storage), [`sqflite_sqlcipher`](https://pub.dev/packages/sqflite_sqlcipher) (encrypted DB)
+**Packages:** [`flutter_secure_storage`](https://pub.dev/packages/flutter_secure_storage). For an encrypted database, the `init` option **Encrypted local database** encrypts the drift cache with [SQLite3MultipleCiphers](https://pub.dev/packages/sqlite3) (see `docs/OFFLINE_FIRST.md`).
 
 ---
 
