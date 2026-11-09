@@ -17,6 +17,20 @@ void main() {
       );
     });
 
+    test('explains features with no API, and what changes for them', () {
+      final riverpod = OfflineDocsTemplates.doc();
+      final bloc = OfflineDocsTemplates.doc(bloc: true);
+
+      for (final doc in [riverpod, bloc]) {
+        expect(doc, contains('## Features with no API'));
+        expect(doc, contains('**Upgrades drop nothing**'));
+        expect(doc, contains("_cache.clear('orders')"));
+        expect(doc, contains('nothing is a copy any more'));
+      }
+      expect(riverpod, contains('follows\n`watchAll()`'));
+      expect(bloc, contains('the bloc loads `fetchAll()`'));
+    });
+
     test('a cache-only project gets the read path and nothing of sync', () {
       final doc = OfflineDocsTemplates.doc();
 

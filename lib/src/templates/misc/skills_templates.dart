@@ -300,7 +300,7 @@ fvm flutter test
         : '''
 
    It asks which layers to generate on stdin; an empty line takes the
-   defaults (remote datasource, ${o.withLocalCache ? 'local cache datasource, ' : ''}repository, ${o.bloc ? 'bloc' : 'notifier'}, view):
+   defaults (${o.withLocalCache && !o.withDio && !o.withFirestore ? 'local datasource' : 'remote datasource${o.withLocalCache ? ', local cache datasource' : ''}'}, repository, ${o.bloc ? 'bloc' : 'notifier'}, view):
 
    ```bash
    echo | moarch create feature <name>
@@ -312,7 +312,11 @@ ${o.withLocalCache ? '''
    gives the feature a drift table of its own, for screens that filter or
    search offline.${o.withSync ? """ Its `create` / `update` / `delete` change the cache and queue
    the `SyncRequest` the remote datasource describes; point those at the
-   real API.""" : ''}''' : '''
+   real API.""" : ''}
+
+   Unticking the remote datasource and keeping the local one makes a feature
+   with no API: the repository reads and writes `LocalCache` alone
+   (`create` / `update` / `delete` included)${o.bloc ? ', and the bloc loads it through `fetchAll`' : ', and the screen follows `watchAll`'}.''' : '''
    `--all` also adds a local cache datasource.'''}''';
     final stateFields = o.bloc
         ? 'the constructor, `copyWith` and `props`'

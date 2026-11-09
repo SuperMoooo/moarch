@@ -356,12 +356,16 @@ class ${cls}State implements ActionState<${cls}State> {
   /// or the cache's offline — then follows `watchAll()`, so every save to
   /// the cache redraws the screen. `refresh()` refetches without dropping the
   /// list for a loading screen.
+  ///
+  /// [localOnly] is [offlineFirst] for a feature with no API: the same
+  /// notifier, whose comments say it loads what is on the device.
   static String notifier(
     String name,
     String cls,
     String varName, {
     bool useFirestore = false,
     bool offlineFirst = false,
+    bool localOnly = false,
     bool hasRepository = true,
   }) {
     final dependency =
@@ -429,11 +433,11 @@ ${offlineFirst
     });
     ref.onDispose(subscription.cancel);
 
-    // The API's list, saved to the cache. Offline, the cached one.
+    // ${localOnly ? 'What is stored on the device.' : "The API's list, saved to the cache. Offline, the cached one."}
     return ${cls}State(items: await _repo.fetchAll());
   }
 
-  /// Refetches, keeping the list on screen (pull-to-refresh, a retry banner).
+  /// ${localOnly ? 'Rereads the list, keeping it on screen (pull-to-refresh).' : 'Refetches, keeping the list on screen (pull-to-refresh, a retry banner).'}
   Future<void> refresh() {
     return runAction((current) async {
       return current.copyWith(items: await _repo.fetchAll());

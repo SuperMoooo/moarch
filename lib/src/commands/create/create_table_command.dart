@@ -213,6 +213,7 @@ class CreateTableCommand extends Command<int> {
       featureTables: tables,
       schemaVersion: tableChanged ? version + 1 : version,
       encrypted: context.hasEncryptedDatabase,
+      keepRecords: context.keepsLocalRecords,
     );
     if (_normalize(current) == _normalize(next)) return;
 
@@ -226,6 +227,8 @@ class CreateTableCommand extends Command<int> {
       ],
       schemaVersion: version,
       encrypted: context.hasEncryptedDatabase,
+      // Whichever migration the file has now; `next` may switch it.
+      keepRecords: current.contains('_tableExists'),
     );
     final recorded = manifest.recordedHash(root, path);
     final untouched =

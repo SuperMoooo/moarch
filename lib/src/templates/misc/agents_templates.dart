@@ -397,6 +397,9 @@ repository, the cache or the sync.
   a `NetworkException` answers from the cache instead; `watchAll()` follows the
   cache. `moarch create feature` writes it that way, so keep new list reads the
   same shape rather than calling the remote datasource straight through.
+- A feature with a local datasource and no remote one has no API: its
+  repository reads and writes the cache alone, and the database is the only
+  copy of its records. Keep it that way rather than adding a remote call.
 ${bloc ? '- The bloc loads through `fetchAll()`, which is already the cached read.' : '''- The notifier's `build()` loads through `fetchAll()` and then follows
   `watchAll()`. Refetch with its `refresh()`, not `ref.invalidate`, which
   swaps the list for a loading screen.'''}
@@ -405,8 +408,9 @@ ${withAuthFeature ? '''- The auth repository empties the cache whenever a sessio
   `getIt<LocalCache>().clearAll()` itself.''' : '- Clear the cache on sign-out: `getIt<LocalCache>().clearAll()`.'}
 - A changed table bumps `schemaVersion` in `app_database.dart` (`create
   table` does it), then `build_runner`. The cache and the feature tables are
-  rebuilt on upgrade, so a table holding anything the API does not have is
-  skipped in `onUpgrade` and migrated step by step: run
+  rebuilt on upgrade, unless `onUpgrade` checks `_tableExists` (records that
+  live only on the device: then nothing is dropped). A table holding anything
+  the API does not have is never dropped and is migrated step by step: run
   `fvm dart run drift_dev make-migrations` after the bump and commit
   `drift_schemas/`.${withEncryption ? _encryption : ''}${withSync ? _sync : ''}
 ''';

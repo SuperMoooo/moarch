@@ -28,6 +28,7 @@ abstract final class OfflineDocsTemplates {
     _migrations,
     if (withEncryption) _encryption,
     _readPath,
+    _localOnly(bloc: bloc),
     bloc ? _screenBloc : _screenRiverpod,
     if (withSync) ...[_writePath, _drain, _serverWins, _background],
     _signOut(withSync: withSync, withAuthFeature: withAuthFeature),
@@ -142,6 +143,13 @@ under `drift_schemas/`, generates a step-by-step migration helper, and writes
 a test under `test/drift/` that upgrades a database from every old version.
 Commit `drift_schemas/`: it is the history the next migration is checked
 against.
+
+When some records live **only** on the device (an app with no API, or a
+feature with a local datasource and no remote one, see "Features with no
+API"), nothing is a copy any more. `onUpgrade` then drops no table: it
+creates the tables that are new (`_tableExists`) and every changed table is
+migrated step by step, the same way. `moarch create feature` switches
+`app_database.dart` to that variant when it writes the first such feature.
 ''';
 
   static String _intro(bool withSync) =>
@@ -307,6 +315,36 @@ $_queueTable''';
 - `id` is auto-increment, so it is also the **send order**: oldest first.
 - It is **not** disposable: these are changes the server hasn't seen. A
   schema upgrade never drops it; changing this table needs a real migration.
+''';
+
+  static String _localOnly({required bool bloc}) =>
+      '''
+## Features with no API
+
+Untick the remote datasource in `moarch create feature` and keep the local
+one: the records live in the database and nowhere else. The repository is
+the cache's and nothing more:
+
+```dart
+Future<List<NotesModel>> fetchAll() => _local.readAll();
+Stream<List<NotesModel>> watchAll() => _local.watchAll();
+Future<NotesModel> create(NotesModel item) async { /* new id, then save */ }
+Future<void> update(NotesModel item) => _local.save(item);
+Future<void> delete(int id) => _local.remove(id);
+```
+
+${bloc ? 'The screen is the cached feature\'s: the bloc loads `fetchAll()`; after a write, load again (or listen to `watchAll()` in the bloc).' : 'The screen is the cached feature\'s: it loads `fetchAll()` and follows\n`watchAll()`, so a save anywhere redraws it.'} In a project with no Dio and
+no Firestore this is what `create feature` asks for by default.
+
+The database is the only copy, so three things behave differently:
+
+- **Upgrades drop nothing** (see "Schema versions and migrations").
+- **Signing out empties the cache** (`LocalCache.clearAll()`), and these
+  records with it. If they should outlive a session, take that call out of
+  the auth repository, or clear only the collections that are API copies
+  (`_cache.clear('orders')`).
+- **An encrypted database restored without its key is deleted** on the
+  first open, and there is no API to refill it from.
 ''';
 
   static const _readPath = r'''

@@ -167,6 +167,27 @@ class ScaffoldContext {
   /// writes a feature's local datasource and repository against it.
   bool get hasLocalCache => hasFile('lib/core/database/local_cache.dart');
 
+  /// Some records live only in the local database, so an upgrade must not
+  /// rebuild it: an offline app (the cache, and neither Dio nor Firestore),
+  /// or a feature with a local datasource and no remote one (10.4.0 on).
+  /// `AppDatabase` is rendered with `keepRecords` then.
+  bool get keepsLocalRecords {
+    if (!hasLocalCache) return false;
+    if (!hasDio && !hasFirestore) return true;
+    final features = Directory(resolve('lib/features'));
+    if (!features.existsSync()) return false;
+    return features.listSync().whereType<Directory>().any((feature) {
+      final name = p.basename(feature.path);
+      final datasources = p.join(feature.path, 'data', 'datasources');
+      return File(
+            p.join(datasources, '${name}_local_datasource.dart'),
+          ).existsSync() &&
+          !File(
+            p.join(datasources, '${name}_remote_datasource.dart'),
+          ).existsSync();
+    });
+  }
+
   /// The local database is encrypted (10.3.0 on): its key's file is there.
   bool get hasEncryptedDatabase =>
       hasFile('lib/core/database/database_key.dart');
@@ -602,6 +623,7 @@ abstract final class ScaffoldCatalog {
         featureTables: c.featureTables,
         schemaVersion: c.databaseSchemaVersion,
         encrypted: c.hasEncryptedDatabase,
+        keepRecords: c.keepsLocalRecords,
       ),
       description:
           'The drift database behind the offline-first cache: records as '

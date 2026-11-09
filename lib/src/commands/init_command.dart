@@ -238,8 +238,9 @@ class InitCommand extends Command<int> {
               _kOfflineFirst,
               defaultOn: false,
               description:
-                  'A drift database the REST features cache into: screens '
-                  'follow the cache, and read it offline (needs Dio).',
+                  'A drift database: REST features cache into it and read '
+                  'it offline; without an API, features keep their records '
+                  'in it.',
             ),
             const ChecklistItem(
               _kSync,
@@ -247,7 +248,7 @@ class InitCommand extends Command<int> {
               description:
                   'Writes land in the cache at once and are queued; sent on '
                   'reconnect, resume and every ~15 min in the background '
-                  '(needs the cache above).',
+                  '(needs Dio and the cache above).',
             ),
             const ChecklistItem(
               _kEncryptedDb,
@@ -454,21 +455,23 @@ class InitCommand extends Command<int> {
         '  Note: flutter_localizations dropped — easy_localization selected.',
       );
     }
-    // The cache is filled from the REST client. Firestore keeps its own
-    // offline copy, so a project without Dio has nothing to cache.
-    if (stack.contains(_kOfflineFirst) && !stack.contains(_kDio)) {
-      stack.remove(_kOfflineFirst);
-      _logger.info(
-        '  Note: offline-first cache skipped — it caches the Dio features '
-        '(Firestore caches on its own).',
-      );
-    }
-    // The queue lives in the cache's database, and a write lands in the
-    // cache before it is sent.
+    // The cache stands without Dio: with no API it is where an offline
+    // app's features keep their records (`create feature` with only the
+    // local datasource). Firestore features are still not cached, since
+    // Firestore keeps its own offline copy.
+    //
+    // The queue lives in the cache's database, a write lands in the cache
+    // before it is sent, and SyncService sends it over Dio.
     if (stack.contains(_kSync) && !stack.contains(_kOfflineFirst)) {
       stack.remove(_kSync);
       _logger.info(
         '  Note: offline sync skipped — it needs the offline-first cache.',
+      );
+    }
+    if (stack.contains(_kSync) && !stack.contains(_kDio)) {
+      stack.remove(_kSync);
+      _logger.info(
+        '  Note: offline sync skipped — it sends the queue over Dio.',
       );
     }
     if (stack.contains(_kEncryptedDb) && !stack.contains(_kOfflineFirst)) {
@@ -1987,6 +1990,9 @@ class InitCommand extends Command<int> {
         CacheTemplates.appDatabase(
           withSync: stack.contains(_kSync),
           encrypted: stack.contains(_kEncryptedDb),
+          // No backend: the records an app like this keeps are the only
+          // copy (ScaffoldContext.keepsLocalRecords reads the same back).
+          keepRecords: !stack.contains(_kDio) && !stack.contains(_kFirestore),
         ),
       );
       if (stack.contains(_kEncryptedDb)) {

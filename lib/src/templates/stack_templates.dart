@@ -514,6 +514,9 @@ class StackTemplates {
   /// [offlineFirst] is a REST datasource and the cache together: the
   /// repository saves the API's list to the cache and answers from it
   /// offline. The same in both stacks.
+  ///
+  /// [localOnly] is the cache with no remote datasource: the repository
+  /// reads and writes the local database and nothing else.
   String featureRepository(
     String name,
     String cls,
@@ -522,8 +525,11 @@ class StackTemplates {
     required bool hasLocal,
     bool useFirestore = false,
     bool offlineFirst = false,
+    bool localOnly = false,
     bool withSync = false,
-  }) => offlineFirst
+  }) => localOnly
+      ? CacheTemplates.localRepository(name, cls)
+      : offlineFirst
       ? CacheTemplates.repository(name, cls, withSync: withSync)
       : isBloc
       ? bloc.FeatureTemplates.repository(
@@ -566,6 +572,8 @@ class StackTemplates {
   /// [offlineFirst] is Riverpod's alone, like [useFirestore]: the notifier
   /// loads through `fetchAll()` and then follows the cache. A bloc loads
   /// through `fetchAll()` either way, which answers from the cache offline.
+  /// [localOnly] goes with [offlineFirst] for a feature with no API, and
+  /// only changes what the notifier's comments say it loads.
   ///
   /// [repositoryName] / [repositoryClass] point the holder at a repository
   /// other than the one named after it — what `moarch create bloc` needs when
@@ -577,6 +585,7 @@ class StackTemplates {
     String varName, {
     bool useFirestore = false,
     bool offlineFirst = false,
+    bool localOnly = false,
     bool hasRepository = true,
     String? repositoryName,
     String? repositoryClass,
@@ -595,6 +604,7 @@ class StackTemplates {
           varName,
           useFirestore: useFirestore,
           offlineFirst: offlineFirst,
+          localOnly: localOnly,
           hasRepository: hasRepository,
         );
 

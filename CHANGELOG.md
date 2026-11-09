@@ -2,6 +2,38 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 10.4.0
+
+### Added
+
+- **Features with no API.** In a project with the cache, `moarch create
+  feature` with the local datasource and no remote one now writes a working
+  feature. Its repository reads and writes `LocalCache` alone (`fetchAll`,
+  `watchAll`, `create`, `update`, `delete`), and on Riverpod the notifier and
+  view follow `watchAll()` like a cached feature. Before, it got a stub
+  repository whose `fetchAll()` threw `UnimplementedError`.
+- **Offline apps.** The offline-first cache no longer needs Dio in `init`.
+  With neither Dio nor Firestore, the project is an offline app:
+  `create feature` starts with the remote datasource unticked. Offline sync
+  still needs Dio and is skipped without it.
+
+### Fixed
+
+- **A schema upgrade could wipe records that exist only on the device.**
+  `AppDatabase.onUpgrade` drops and recreates every table, which is right for
+  a copy of the API but wrong for a local-only feature. When the project has
+  one (`ScaffoldContext.keepsLocalRecords`), `onUpgrade` now creates only the
+  new tables and drops nothing; changed tables are migrated with `drift_dev
+  make-migrations`. `init` writes it that way for an offline app.
+  `create feature` switches an untouched `app_database.dart` over when it
+  writes the first local-only feature, and warns when the file was edited.
+
+  Existing projects: if a feature already has a local datasource and no
+  remote one, run `moarch update app-database`. Its stub repository is the
+  team's file and is left alone; replace it by hand with the shape in
+  `docs/OFFLINE_FIRST.md` → "Features with no API" (`moarch update
+  offline-doc` brings that section).
+
 ## 10.3.0
 
 ### Fixed

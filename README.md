@@ -610,13 +610,29 @@ local datasource by default and writes the data layer against the cache:
   without dropping the list. A bloc loads through `fetchAll()`, which already
   answers offline.
 
-It needs Dio: Firestore keeps its own offline copy, so a Firestore feature is
-never cached twice, and the option is skipped without Dio. It also replaces
-the offline screen, since an app that works offline has no business covering
-itself. The generated auth feature empties the cache on logout and account
+Firestore keeps its own offline copy, so a Firestore feature is never cached
+twice. The option also replaces the offline screen, since an app that works
+offline has no business covering itself. The generated auth feature empties the cache on logout and account
 deletion, and the REST variant also empties it at every sign-in, which covers a
 session that expired while the app was away. Anything else that switches
 accounts calls `getIt<LocalCache>().clearAll()`.
+
+#### Features with no API
+
+Untick the remote datasource and keep the local one, and the feature has no
+API at all: its repository reads and writes `LocalCache` alone (`fetchAll`,
+`watchAll`, `create`, `update`, `delete`), and the screen is a cached
+feature's (on Riverpod it follows `watchAll()`). That is the whole of an offline app: tick the cache in
+`init` without Dio or Firestore, and `create feature` starts with the remote
+datasource unticked.
+
+Those records exist nowhere else, so the database stops rebuilding itself on
+a schema upgrade: `onUpgrade` creates the new tables and drops none, and a
+changed table is migrated with `drift_dev make-migrations`. `init` writes it
+that way for an offline app, and `create feature` switches an existing
+`app_database.dart` over when it writes the first such feature (or says so,
+if the file was edited). Signing out still empties the whole cache; see
+`docs/OFFLINE_FIRST.md` for keeping these records across sessions.
 
 #### A feature's own table
 
@@ -659,7 +675,7 @@ writes a test per upgrade step under `test/drift/`.
 
 ### Offline sync
 
-Tick **Offline sync (outbox + background)** as well, and writes stop needing a
+Tick **Offline sync (outbox + background)** as well (it sends over Dio), and writes stop needing a
 connection. A cached feature's repository gets `create`, `update` and `delete`:
 each changes the cache at once, so the screen redraws, and queues the request
 the remote datasource *describes*:

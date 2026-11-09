@@ -30,11 +30,17 @@ abstract final class CacheTemplates {
   ///
   /// [encrypted] opens it with the key from `database_key.dart`, through the
   /// SQLite3MultipleCiphers build `pubspec.yaml` selects.
+  ///
+  /// [keepRecords] is a project whose features keep records only on the
+  /// device (`ScaffoldContext.keepsLocalRecords`): an upgrade then creates
+  /// the tables that are new and drops nothing, since there is no API to
+  /// refetch from. Changed tables are migrated step by step.
   static String appDatabase({
     bool withSync = false,
     List<FeatureTableRef> featureTables = const [],
     int schemaVersion = 1,
     bool encrypted = false,
+    bool keepRecords = false,
   }) {
     final queueTable = withSync ? _pendingWritesTable : '';
     final tables = [
@@ -96,7 +102,7 @@ $share            setup: (db) {
         : tableImports.isEmpty
         ? "\nimport 'database_key.dart';\n"
         : "import 'database_key.dart';\n";
-    final keep = withSync
+    final keep = withSync && !keepRecords
         ? r'''
 
           // PendingWrites holds writes the server has not seen: never drop
@@ -126,6 +132,34 @@ $share            setup: (db) {
         await migrator.addColumn(pendingWrites, column);
       }
     }
+  }'''
+        : '';
+    final upgrade = keepRecords
+        ? r'''          // Some features keep their records only on this device, with no
+          // API to refetch them from: nothing is dropped here. New tables are
+          // created; a changed one is migrated step by step, keyed on `from`
+          // (`fvm dart run drift_dev make-migrations`, docs/OFFLINE_FIRST.md).
+          for (final table in allTables) {
+            if (await _tableExists(table.actualTableName)) continue;
+            await m.createTable(table);
+          }'''
+        : '''          // The cache and the feature tables are a copy of what the API has:
+          // start them over. A table you add that holds anything the API does
+          // not have needs a real migration: skip it here and migrate it.
+          for (final table in allTables) {$skipQueue
+            await m.deleteTable(table.actualTableName);
+            await m.createTable(table);
+          }$keep''';
+    final tableExists = keepRecords
+        ? r'''
+
+
+  Future<bool> _tableExists(String name) async {
+    final rows = await customSelect(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+      variables: [Variable.withString(name)],
+    ).get();
+    return rows.isNotEmpty;
   }'''
         : '';
     return '''
@@ -170,15 +204,9 @@ class AppDatabase extends _\$AppDatabase {
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onUpgrade: (m, from, to) async {
-          // The cache and the feature tables are a copy of what the API has:
-          // start them over. A table you add that holds anything the API does
-          // not have needs a real migration: skip it here and migrate it.
-          for (final table in allTables) {$skipQueue
-            await m.deleteTable(table.actualTableName);
-            await m.createTable(table);
-          }$keep
+$upgrade
         },
-$beforeOpen      );$queueColumns$openEncrypted
+$beforeOpen      );$queueColumns$tableExists$openEncrypted
 }
 ''';
   }
@@ -730,6 +758,41 @@ $keepPending      await _local.saveAll(items);
 }
 ''';
   }
+
+  /// A feature's `data/repositories/<name>_repository.dart` when the cache
+  /// is all it has: no API behind it, so the local database is the one copy
+  /// and every write is final. `watchAll` is what the screen follows, as in
+  /// [repository], so the holder and view are the cached feature's.
+  static String localRepository(String name, String cls) =>
+      '''
+import '../datasources/${name}_local_datasource.dart';
+import '../models/${name}_model.dart';
+
+/// ${cls}Model records kept on the device. There is no API behind this
+/// feature: the local database is the one copy.
+class ${cls}Repository {
+  const ${cls}Repository(this._local);
+
+  final ${cls}LocalDataSource _local;
+
+  /// Everything stored.
+  Future<List<${cls}Model>> fetchAll() => _local.readAll();
+
+  /// [fetchAll] now, and again after every write.
+  Stream<List<${cls}Model>> watchAll() => _local.watchAll();
+
+  /// Stored under a new id, which the returned record carries.
+  Future<${cls}Model> create(${cls}Model item) async {
+    final created = item.copyWith(id: DateTime.now().microsecondsSinceEpoch);
+    await _local.save(created);
+    return created;
+  }
+
+  Future<void> update(${cls}Model item) => _local.save(item);
+
+  Future<void> delete(int id) => _local.remove(id);
+}
+''';
 
   /// The write calls a synced REST feature's remote datasource adds: each
   /// describes its request rather than sending it, since the queue sends it.

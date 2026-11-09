@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
+import 'package:moarch/src/templates/core/cache_templates.dart';
 import 'package:moarch/src/templates/core/core_templates.dart';
 import 'package:moarch/src/templates/core/services_templates.dart';
 import 'package:path/path.dart' as p;
@@ -154,6 +155,9 @@ class CreateFeatureCommand extends Command<int> {
     // The offline-first cache: a REST feature's local datasource is written
     // against it and asked for by default.
     final hasLocalCache = context.hasLocalCache;
+    // A project with the cache and no backend is an offline app: its
+    // features live in the local database, so the remote layer starts off.
+    final offlineApp = hasLocalCache && !hasDio && !hasFirestore;
 
     // Layer checklist
     final skipChecklist = argResults?['all'] as bool? ?? false;
@@ -190,7 +194,7 @@ class CreateFeatureCommand extends Command<int> {
             ] else
               ChecklistItem(
                 _kRemoteDatasource,
-                defaultOn: true,
+                defaultOn: !offlineApp,
                 description: useFirestore
                     ? 'Reads, writes and watches a Firestore collection.'
                     : 'Fetches data from an API via the Dio client.',
@@ -198,9 +202,12 @@ class CreateFeatureCommand extends Command<int> {
             ChecklistItem(
               _kLocalDatasource,
               defaultOn: hasLocalCache,
-              description: hasLocalCache
+              description: offlineApp
+                  ? 'Keeps the records in the local database; the screen '
+                        'follows it.'
+                  : hasLocalCache
                   ? 'Caches the API data in the local database; the screen '
-                        'reads it offline.'
+                        'reads it offline (alone: the records live there).'
                   : 'Cache fallback used when there is no connectivity.',
             ),
             const ChecklistItem(
@@ -245,6 +252,14 @@ class CreateFeatureCommand extends Command<int> {
     // repository is generated without one — it loads nothing and says so in a
     // TODO — rather than pulling in a data layer that was declined.
     final hasRepository = selected.contains(_kRepository);
+    // The cache with no remote datasource: the records live in the local
+    // database, whatever backend the rest of the app talks to.
+    final localOnly =
+        hasLocalCache &&
+        hasRepository &&
+        selected.contains(_kLocalDatasource) &&
+        !selected.contains(_kRemoteDatasource);
+    if (localOnly) useFirestore = false;
     // Firestore keeps its own offline copy, so only a REST feature is cached,
     // and only one with a local datasource to cache into.
     final withCache = hasLocalCache && !useFirestore;
@@ -258,7 +273,9 @@ class CreateFeatureCommand extends Command<int> {
     final synced = offlineFirst && context.hasSync;
     // Riverpod's live variant is built on the repository's `watchAll()`, so a
     // feature without one gets the plain state holder whatever the backend is.
-    final liveQuery = (useFirestore || offlineFirst) && hasRepository;
+    // A local-only feature follows the cache the way a cached one does.
+    final followsCache = offlineFirst || localOnly;
+    final liveQuery = (useFirestore || followsCache) && hasRepository;
 
     _logger.info('');
     _logger.info('🧱 Creating feature: $className');
@@ -278,6 +295,7 @@ class CreateFeatureCommand extends Command<int> {
     var routePatch = RoutePatchResult.noRouter;
     var endpointPatch = EndpointPatchResult.noConstants;
     var staleActionBase = false;
+    var databaseKeepsRecords = true;
 
     try {
       if (selected.contains(_kRemoteDatasource)) {
@@ -330,8 +348,12 @@ class CreateFeatureCommand extends Command<int> {
           hasLocal: selected.contains(_kLocalDatasource),
           useFirestore: useFirestore,
           offlineFirst: offlineFirst,
+          localOnly: localOnly,
           withSync: synced,
         );
+      }
+      if (localOnly) {
+        databaseKeepsRecords = await _keepLocalRecords(libPath);
       }
       if (needsDataLayer) {
         await _writeModel(
@@ -356,8 +378,9 @@ class CreateFeatureCommand extends Command<int> {
           className,
           varName,
           templates,
-          useFirestore: liveQuery && !offlineFirst,
-          offlineFirst: offlineFirst,
+          useFirestore: liveQuery && !followsCache,
+          offlineFirst: followsCache,
+          localOnly: localOnly,
           hasRepository: hasRepository,
         );
         // Both stacks' state/holder depend on the shared runAction helper —
@@ -386,7 +409,7 @@ class CreateFeatureCommand extends Command<int> {
           templates,
           hasHolder: selected.contains(holderItem),
           useFirestore: liveQuery,
-          offlineFirst: offlineFirst,
+          offlineFirst: followsCache,
           hasModel: needsDataLayer,
         );
         if (selected.contains(holderItem)) {
@@ -452,6 +475,30 @@ class CreateFeatureCommand extends Command<int> {
         '  Firestore-backed — point `collectionPath` in ${featureName}_remote_datasource.dart',
       );
       _logger.info('  at your collection, and check your security rules.');
+      _logger.info('');
+    }
+    if (localOnly) {
+      _logger.info(
+        '  Local-only — the repository reads and writes the local database;',
+      );
+      _logger.info(
+        templates.isBloc
+            ? '  the bloc loads it through fetchAll(). No API is involved.'
+            : '  the screen follows it. No API is involved.',
+      );
+      if (!databaseKeepsRecords) {
+        _logger.warn(
+          '  lib/core/database/app_database.dart was edited, so it still '
+          'drops every',
+        );
+        _logger.info(
+          "  table on upgrade — and this feature's records with it. "
+          '`moarch update',
+        );
+        _logger.info(
+          '  app-database --diff` shows the migration that keeps them.',
+        );
+      }
       _logger.info('');
     }
     if (offlineFirst) {
@@ -671,6 +718,38 @@ class CreateFeatureCommand extends Command<int> {
     if (wroteAny) await manifest.save(projectRoot);
   }
 
+  /// A local-only feature's records exist nowhere else, so `AppDatabase`
+  /// must stop rebuilding its tables on upgrade. Rewritten while it is still
+  /// what moarch wrote; false when it was edited and still rebuilds.
+  Future<bool> _keepLocalRecords(String libPath) async {
+    final root = p.dirname(p.absolute(libPath));
+    final context = ScaffoldContext.detect(root);
+    final path = context.resolve('lib/core/database/app_database.dart');
+    final file = File(path);
+    if (!file.existsSync()) return true;
+    final current = file.readAsStringSync().replaceAll('\r\n', '\n');
+    // Already keeps them (an offline app, or an earlier local feature).
+    if (current.contains('_tableExists')) return true;
+    String render({required bool keepRecords}) => CacheTemplates.appDatabase(
+      withSync: context.hasSync,
+      featureTables: context.featureTables,
+      schemaVersion: context.databaseSchemaVersion,
+      encrypted: context.hasEncryptedDatabase,
+      keepRecords: keepRecords,
+    );
+    final manifest = ProjectManifest.loadOrCreate(root);
+    final recorded = manifest.recordedHash(root, path);
+    final untouched =
+        current == render(keepRecords: false) ||
+        (recorded != null && recorded == ProjectManifest.hashContent(current));
+    if (!untouched) return false;
+    final next = render(keepRecords: true);
+    await FileUtils.writeFile(path, next, overwriteWhen: (_) => true);
+    manifest.record(root, path, next);
+    await manifest.save(root);
+    return true;
+  }
+
   Future<void> _writeRemoteDatasource(
     String fp,
     String name,
@@ -737,6 +816,7 @@ class CreateFeatureCommand extends Command<int> {
     required bool hasLocal,
     bool useFirestore = false,
     bool offlineFirst = false,
+    bool localOnly = false,
     bool withSync = false,
   }) async {
     await FileUtils.writeFile(
@@ -749,6 +829,7 @@ class CreateFeatureCommand extends Command<int> {
         hasLocal: hasLocal,
         useFirestore: useFirestore,
         offlineFirst: offlineFirst,
+        localOnly: localOnly,
         withSync: withSync,
       ),
     );
@@ -789,6 +870,7 @@ class CreateFeatureCommand extends Command<int> {
     StackTemplates templates, {
     bool useFirestore = false,
     bool offlineFirst = false,
+    bool localOnly = false,
     bool hasRepository = true,
   }) async {
     final eventFile = templates.eventFile(name);
@@ -811,6 +893,7 @@ class CreateFeatureCommand extends Command<int> {
         varName,
         useFirestore: useFirestore,
         offlineFirst: offlineFirst,
+        localOnly: localOnly,
         hasRepository: hasRepository,
       ),
     );

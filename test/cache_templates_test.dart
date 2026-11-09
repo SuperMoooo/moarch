@@ -51,6 +51,38 @@ void main() {
       );
     });
 
+    test('keeping records, an upgrade creates new tables and drops none', () {
+      final source = CacheTemplates.appDatabase(keepRecords: true);
+
+      expect(source, isNot(contains('deleteTable')));
+      expect(
+        source,
+        contains(
+          '          for (final table in allTables) {\n'
+          '            if (await _tableExists(table.actualTableName)) continue;\n'
+          '            await m.createTable(table);\n'
+          '          }',
+        ),
+      );
+      expect(source, contains('Future<bool> _tableExists(String name)'));
+      expect(source, contains("FROM sqlite_master WHERE type = 'table'"));
+      expect(source, contains('drift_dev make-migrations'));
+    });
+
+    test('keeping records with sync still adds the queue columns', () {
+      final source = CacheTemplates.appDatabase(
+        withSync: true,
+        keepRecords: true,
+      );
+
+      expect(source, isNot(contains('deleteTable')));
+      expect(source, isNot(contains('if (table == pendingWrites) continue;')));
+      expect(
+        source,
+        contains('beforeOpen: (details) => _addMissingQueueColumns()'),
+      );
+    });
+
     test('registers the feature tables it is handed, at their version', () {
       final source = CacheTemplates.appDatabase(
         featureTables: [
@@ -134,6 +166,69 @@ void main() {
         source,
         contains("import '../../../../core/errors/app_exception.dart';"),
       );
+    });
+
+    test('a local-only repository reads and writes the cache alone', () {
+      final source = CacheTemplates.localRepository('note', 'Note');
+
+      expect(source, contains('const NoteRepository(this._local);'));
+      expect(source, isNot(contains('_remote')));
+      expect(source, isNot(contains('NetworkException')));
+      expect(source, isNot(contains('remote_datasource')));
+      expect(
+        source,
+        contains('Future<List<NoteModel>> fetchAll() => _local.readAll();'),
+      );
+      expect(
+        source,
+        contains('Stream<List<NoteModel>> watchAll() => _local.watchAll();'),
+      );
+      expect(source, contains('Future<NoteModel> create(NoteModel item)'));
+      expect(source, contains('await _local.save(created);'));
+      expect(
+        source,
+        contains('Future<void> update(NoteModel item) => _local.save(item);'),
+      );
+      expect(
+        source,
+        contains('Future<void> delete(int id) => _local.remove(id);'),
+      );
+    });
+
+    test('localOnly picks the local repository on both stacks', () {
+      for (final stack in StateManagement.values) {
+        final source = StackTemplates(stack).featureRepository(
+          'note',
+          'Note',
+          'note',
+          hasRemote: false,
+          hasLocal: true,
+          localOnly: true,
+        );
+        expect(source, CacheTemplates.localRepository('note', 'Note'));
+      }
+    });
+
+    test('the local-only notifier follows the cache and says why', () {
+      const templates = StackTemplates(StateManagement.riverpod);
+      final local = templates.featureHolder(
+        'note',
+        'Note',
+        'note',
+        offlineFirst: true,
+        localOnly: true,
+      );
+      final cached = templates.featureHolder(
+        'note',
+        'Note',
+        'note',
+        offlineFirst: true,
+      );
+
+      expect(local, contains('_repo.watchAll().listen'));
+      expect(local, contains('// What is stored on the device.'));
+      expect(local, isNot(contains("The API's list")));
+      expect(cached, contains("// The API's list, saved to the cache."));
     });
 
     test('is the same data layer in both stacks', () {
@@ -422,6 +517,50 @@ void main() {
       await file.create(recursive: true);
 
       expect(ScaffoldContext.detect(tempDir.path).hasLocalCache, isTrue);
+    });
+
+    group('keepsLocalRecords', () {
+      Future<void> write(String path, [String content = '']) async {
+        final file = File(p.join(tempDir.path, path));
+        await file.create(recursive: true);
+        await file.writeAsString(content);
+      }
+
+      bool keeps() => ScaffoldContext.detect(tempDir.path).keepsLocalRecords;
+
+      test('is false without the cache', () async {
+        await write('pubspec.yaml', 'name: app\n');
+        expect(keeps(), isFalse);
+      });
+
+      test('is true for an offline app: the cache and no backend', () async {
+        await write('pubspec.yaml', 'name: app\ndependencies:\n  drift: any\n');
+        await write('lib/core/database/local_cache.dart');
+        expect(keeps(), isTrue);
+      });
+
+      test('with an API, once a feature has no remote datasource', () async {
+        await write('pubspec.yaml', 'name: app\ndependencies:\n  dio: any\n');
+        await write('lib/core/database/local_cache.dart');
+        const ds = 'data/datasources';
+        await write('lib/features/order/$ds/order_remote_datasource.dart');
+        await write('lib/features/order/$ds/order_local_datasource.dart');
+        expect(keeps(), isFalse);
+
+        await write('lib/features/note/$ds/note_local_datasource.dart');
+        expect(keeps(), isTrue);
+      });
+
+      test('the catalog renders app-database from it', () async {
+        await write('pubspec.yaml', 'name: app\n');
+        await write('lib/core/database/local_cache.dart');
+        final spec = ScaffoldCatalog.all.firstWhere(
+          (s) => s.name == 'app-database',
+        );
+        final source = spec.template(ScaffoldContext.detect(tempDir.path));
+        expect(source, contains('_tableExists'));
+        expect(source, isNot(contains('deleteTable')));
+      });
     });
 
     test('both files are catalog entries, so update can refresh them', () {
