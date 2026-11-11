@@ -2,6 +2,30 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 11.1.0
+
+### Added
+
+- **`moarch package-name <id>`** (alias `bundle-id`) replaces the
+  `com.example.<name>` id `flutter create` writes, which Google Play refuses.
+  It reads the ids the project declares (`applicationId`, `namespace`,
+  `MainActivity`'s package, the iOS and macOS bundle ids) and rewrites every
+  mention: Gradle, the Xcode project, entitlements, Linux, the Windows company
+  name and macOS copyright, `flavorizr.yaml` (flavor suffixes kept), fastlane,
+  the deep-link docs and the app's own code. `MainActivity` and the rest of
+  its package move to the new package's folder in every source set. The iOS
+  id defaults to the same one with snake_case segments in camelCase
+  (`my_shop` → `myShop`); `--ios-bundle-id` sets another, `--dry-run` lists
+  the changes. Build output and `.fvm/` are skipped, and Firebase configs are
+  reported rather than rewritten — register the new id and run
+  `flutterfire configure`. Files `.moarch.yaml` vouched for stay recorded as
+  untouched.
+- `moarch doctor` notes a project whose app id is still `com.example.*`
+  (informational: it builds, and doctor still exits 0).
+- The generated README lists `moarch package-name`, and
+  `docs/CHECKLIST_BEFORE_DEPLOYMENT.md` points to it from the `applicationId`
+  item. Existing projects: `moarch update readme deploy-checklist`.
+
 ## 11.0.0
 
 ### Breaking

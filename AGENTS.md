@@ -49,10 +49,26 @@ command is constructed with.
 
 ## Architecture
 
-`bin/main.dart` → `MoarchRunner` (`lib/src/runner.dart`) → six `args`
+`bin/main.dart` → `MoarchRunner` (`lib/src/runner.dart`) → seven `args`
 subcommands in `lib/src/commands/`: `init`, `create` (with the subcommands in
 `commands/create/`), `update`, `doctor`, `release` (`bump`: the pubspec
-version and build number) and `l10n` (`extract`).
+version and build number), `package-name` and `l10n` (`extract`).
+
+### The app id is renamed by detection, not by template
+
+`moarch package-name <id>` (`commands/package_name_command.dart`, alias
+`bundle-id`) replaces the `com.example.<name>` that `flutter create` writes.
+`utils/app_id_utils.dart` reads the ids the project declares now
+(`applicationId`, `namespace`, `MainActivity`'s package, the iOS and macOS
+`PRODUCT_BUNDLE_IDENTIFIER`), plans every edit and move before writing, and
+applies them in one pass so a new id containing the old one is never renamed
+twice. It walks the whole project rather than a list of files, because
+flavorizr, fastlane, deep-link files and hand-written code all carry the id;
+`_skippedDirs` keeps it out of build output and `.fvm/` (a link to the SDK,
+whose templates say `com.example`). Firebase configs are reported, never
+rewritten: they describe an app registered in the console. Files the
+manifest vouched for are re-recorded with their new content, so the rename
+does not make them look edited to `update`.
 
 ### Two stacks, one facade
 

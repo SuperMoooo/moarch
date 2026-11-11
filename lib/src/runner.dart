@@ -5,6 +5,7 @@ import 'commands/create_command.dart';
 import 'commands/doctor_command.dart';
 import 'commands/init_command.dart';
 import 'commands/l10n_command.dart';
+import 'commands/package_name_command.dart';
 import 'commands/release_command.dart';
 import 'commands/update_command.dart';
 import 'version.dart';
@@ -25,6 +26,7 @@ class MoarchRunner {
       ..addCommand(UpdateCommand(logger: _logger))
       ..addCommand(DoctorCommand(logger: _logger))
       ..addCommand(ReleaseCommand(logger: _logger))
+      ..addCommand(PackageNameCommand(logger: _logger))
       ..addCommand(L10nCommand(logger: _logger));
 
     _runner.argParser

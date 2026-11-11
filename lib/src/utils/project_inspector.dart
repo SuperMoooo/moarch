@@ -8,6 +8,7 @@ import '../templates/misc/deep_links_templates.dart';
 import '../templates/misc/project_docs_templates.dart';
 import '../templates/misc/skills_templates.dart';
 import 'api_constants_utils.dart';
+import 'app_id_utils.dart';
 import 'file_utils.dart';
 import 'gradle_utils.dart';
 import 'package_versions.dart';
@@ -110,6 +111,7 @@ abstract final class ProjectInspector {
       ..._platforms(root, context),
       ..._uiScene(root),
       if (pubspec != null) ..._compileSdk(root, pubspec),
+      ..._placeholderAppId(root),
       ..._agents(root),
       ..._skills(root, context),
       ..._newSkills(root, context),
@@ -193,6 +195,32 @@ abstract final class ProjectInspector {
           }
           return 'moved ${written.join(' and ')} to the UIScene lifecycle';
         },
+      ),
+    ];
+  }
+
+  // ── App id ──────────────────────────────────────────────────────────────────
+
+  /// The app still has the `com.example.<name>` id `flutter create` gave it.
+  ///
+  /// A note, not a warning: it builds and runs, and a project fresh from
+  /// `flutter create` should not fail `doctor` for it. It matters at the first
+  /// upload, which Google Play refuses, and every day it stays the id is
+  /// written into more places (Firebase, deep-link files, store listings).
+  static List<Diagnostic> _placeholderAppId(String root) {
+    final ids = AppIdUtils.detect(root);
+    final placeholder = {
+      ...ids.android,
+      ...ids.apple,
+    }.where((id) => id == 'com.example' || id.startsWith('com.example.'));
+    if (placeholder.isEmpty) return const [];
+    return [
+      Diagnostic.info(
+        'the app id is still the placeholder ${placeholder.first}',
+        hint:
+            'Google Play refuses `com.example` ids. `moarch package-name '
+            '<your.app.id>` sets yours on every platform and moves '
+            'MainActivity to it.',
       ),
     ];
   }

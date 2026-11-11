@@ -25,6 +25,7 @@ It needs Dart 3.9 or later (Flutter 3.35+).
 ```bash
 flutter create my_app
 cd my_app
+moarch package-name com.acme.my_app   # your own id instead of com.example.my_app
 moarch init
 fvm use          # creates .fvm/flutter_sdk — see below, do this before opening the editor
 fvm flutter pub get
@@ -83,6 +84,7 @@ moarch update --list # list every name and group update accepts
 moarch doctor        # check the project for common scaffolding issues
 moarch doctor --fix  # ...and apply the ones that don't need a decision
 
+moarch package-name <id> [--ios-bundle-id <id>] [--dry-run]  # your app id in place of com.example.*, MainActivity moved
 moarch release bump <major|minor|patch|build> [--changelog]  # raise version+build in pubspec.yaml
 moarch l10n extract [--dry-run]    # move hard-coded screen strings into the translation files
 ```
@@ -1570,6 +1572,33 @@ project every `DateTime` gets a `@TimestampConverter()`, because a nested map
 lives inside a document just the same — so dates stay sortable and queryable
 server-side instead of being stored as ISO text.
 
+## App id
+
+`flutter create my_app` names the app `com.example.my_app` (`com.example.myApp`
+on iOS), and Google Play refuses `com.example` ids. `moarch package-name`
+replaces it with yours:
+
+```bash
+moarch package-name com.acme.shop --dry-run   # list what would change
+moarch package-name com.acme.shop             # Android and iOS both get com.acme.shop
+moarch package-name com.acme.my_shop          # iOS gets com.acme.myShop: Apple ids cannot hold `_`
+moarch package-name com.acme.shop --ios-bundle-id com.acme.Shop   # a different id on iOS/macOS
+```
+
+It reads the ids the project declares — `applicationId`, `namespace`,
+`MainActivity`'s package, the iOS and macOS bundle ids — and replaces every
+mention in the project: Gradle, the Xcode project, entitlements, Linux,
+the Windows company name and macOS copyright, `flavorizr.yaml` (flavor
+suffixes like `.dev` are kept), fastlane, the deep-link docs, your own code.
+`MainActivity.kt` and anything else in its package move to the new package's
+folder, in every source set, and the old folders are removed.
+
+Build output and `.fvm/` are skipped. `google-services.json`,
+`GoogleService-Info.plist` and `firebase_options.dart` are listed but not
+rewritten: they describe the app registered in the Firebase console, so add
+the new id there and run `flutterfire configure`. Run `fvm flutter clean`
+before the next build. `moarch doctor` notes a project still on `com.example`.
+
 ## Flavors
 
 `moarch create flavors` sets up `dev` / `staging` / `prod` — or the names you
@@ -1687,6 +1716,8 @@ those edits. Run `git diff` after any update before committing.
   URL launcher's `<queries>` — which denies or throws at runtime instead
 - a REST auth feature from before 9.3.0 without the `UserModel` its refreshed
   files import
+- the `com.example` id `flutter create` gave the app, which Google Play
+  refuses — a note, since it builds; `moarch package-name <id>` replaces it
 
 Each finding says what to do about it, and `moarch doctor --fix` applies the
 mechanical ones — generating a missing widget dependency, adding a missing

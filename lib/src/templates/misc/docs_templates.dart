@@ -60,7 +60,9 @@ as it has run.
 - [ ] R8 actually turned on for the release build type — the rules above do
       nothing until it is. The gradle block is in
       `SECURITY_BEFORE_DEPLOYMENT.md`
-- [ ] Correct `applicationId` in `android/app/build.gradle.kts`
+- [ ] Correct `applicationId` in `android/app/build.gradle.kts` — not
+      `com.example.*`, which Play refuses. `moarch package-name <id>` sets it
+      on every platform
 - [ ] Correct `versionName` / `versionCode` (or a `version:` in `pubspec.yaml`
       that produces them)
 - [ ] `targetSdk` meets the current Play requirement

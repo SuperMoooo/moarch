@@ -26,6 +26,7 @@ import '../templates/core/core_templates.dart';
 import '../templates/core/feature_flags_templates.dart';
 import '../templates/core/sync_templates.dart';
 import '../templates/stack_templates.dart';
+import '../utils/app_id_utils.dart';
 import '../utils/file_utils.dart';
 import '../utils/gradle_utils.dart';
 import '../utils/kotlin_utils.dart';
@@ -588,7 +589,9 @@ class InitCommand extends Command<int> {
 
     // MainActivity.kt sits under a package-name folder that varies per
     // project, so it can't be addressed by a fixed path like the files above.
-    final mainActivityFile = _findMainActivityFile(p.absolute(targetPath));
+    final mainActivityFile = AppIdUtils.findMainActivity(
+      p.absolute(targetPath),
+    );
     final mainActivityBackup =
         mainActivityFile != null && mainActivityFile.existsSync()
         ? await mainActivityFile.readAsString()
@@ -1915,26 +1918,6 @@ class InitCommand extends Command<int> {
       p.join(appDir.path, 'proguard-rules.pro'),
       AndroidTemplates.proguardRules(),
     );
-  }
-
-  /// MainActivity.kt/.java lives under a package-name folder that varies per
-  /// project (e.g. android/app/src/main/kotlin/com/example/app/), so it can't
-  /// be addressed by a fixed path like AndroidManifest.xml.
-  File? _findMainActivityFile(String projectRoot) {
-    for (final base in ['kotlin', 'java']) {
-      final dir = Directory(
-        p.join(projectRoot, 'android', 'app', 'src', 'main', base),
-      );
-      if (!dir.existsSync()) continue;
-      for (final entity in dir.listSync(recursive: true)) {
-        if (entity is File &&
-            (entity.path.endsWith('MainActivity.kt') ||
-                entity.path.endsWith('MainActivity.java'))) {
-          return entity;
-        }
-      }
-    }
-    return null;
   }
 
   /// `api_constants.dart` for [stack]: the paths of everything it calls over

@@ -1221,7 +1221,8 @@ ${withRouter ? '5. **Route to it.** `moarch create feature` already added `AppRo
 | `moarch create empty-factories [feature]` | Injects `.empty()` factories into every model |
 | `moarch create tests [feature]` | Unit tests for every state holder, integration tests for every GET endpoint |
 | `moarch create theme` | Switches the project between one theme and light + dark |
-| `moarch create flavors [names…]` | See `docs/FLAVORS.md` |${withLocalCache ? '\n| `moarch create table <feature>` | Gives a feature its own drift table, read from its model (`docs/OFFLINE_FIRST.md`) |' : ''}
+| `moarch create flavors [names…]` | See `docs/FLAVORS.md` |
+| `moarch package-name <id>` | Sets the app id on every platform in place of `com.example.*`, and moves `MainActivity` to it |${withLocalCache ? '\n| `moarch create table <feature>` | Gives a feature its own drift table, read from its model (`docs/OFFLINE_FIRST.md`) |' : ''}
 | `moarch update --list` | Which generated files are out of date, and which you have edited |
 | `moarch doctor` | Checks the project for known problems (`--fix` applies what it can) |
 
