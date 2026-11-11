@@ -491,7 +491,7 @@ $handlerTodo
   /// a bloc of its own.
   static String page(String name, String cls) =>
       '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../config/di/injector.dart';
@@ -532,7 +532,7 @@ class ${cls}Page extends StatelessWidget {
   }) {
     if (!hasBloc) {
       return '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ${cls}View extends StatelessWidget {
   const ${cls}View({super.key});
@@ -549,7 +549,7 @@ class ${cls}View extends StatelessWidget {
     }
 
     return '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../shared/widgets/app_status_view.dart';

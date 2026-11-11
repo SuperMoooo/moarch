@@ -526,7 +526,7 @@ String _digitsOnly(String value) => value.replaceAll(_nonDigits, '');
 
   /// Returns the generated appPhoneInput template.
   static String appPhoneInput() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import './app_country.dart';

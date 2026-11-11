@@ -12,7 +12,7 @@ class SharedTemplates {
   /// Returns the generated appAvatar template.
   static String appAvatar() => r'''
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
@@ -115,7 +115,7 @@ class AppAvatar extends StatelessWidget {
   /// Returns the generated appImage template.
   static String appImage() => r'''
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
@@ -297,7 +297,7 @@ class AppImage extends StatelessWidget {
               '              }';
 
     return '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';$biometricImports
 
 import '../../../core/constants/app_constants.dart';
@@ -566,7 +566,7 @@ $classDeclaration
 
   /// Returns the generated appLeadingIcon template.
   static String appLeadingIcon() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
@@ -699,7 +699,7 @@ class AppLeadingIcon extends StatelessWidget {
 
   /// Returns the generated appInputConfig template.
   static String appInputConfig() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/constants/app_constants.dart';
 
@@ -923,7 +923,7 @@ class AppInputConfig {
 
   /// Returns the generated appInputStyle template.
   static String appInputStyle() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import './app_input_config.dart';
 import '../../../core/constants/app_constants.dart';
@@ -1351,7 +1351,7 @@ class ReadOnlyGate extends StatelessWidget {
 
   /// Returns the generated inputTitle template.
   static String inputTitle() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import './app_input_style.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
@@ -1931,7 +1931,7 @@ int _offsetLeaving(String text, int digits) {
 
   /// Returns the generated appInput template.
   static String appInput() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import './app_input_format.dart';
@@ -2244,8 +2244,8 @@ class _AppInputState extends State<AppInput> {
 
   /// Returns the generated cupertinoPickerSheet template.
   static String cupertinoPickerSheet() => r'''
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -2380,8 +2380,8 @@ class CupertinoPickerSheet extends StatelessWidget {
   static String dateInput() => r'''
 import 'dart:io';
 
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import './app_input_style.dart';
@@ -2637,8 +2637,8 @@ class _AppDateInputState extends State<AppDateInput> {
   static String timeInput() => r'''
 import 'dart:io';
 
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import './app_input_style.dart';
@@ -2884,7 +2884,7 @@ class _AppTimeInputState extends State<AppTimeInput> {
 
   /// Returns the generated searchPickerSheet template.
   static String searchPickerSheet() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import './app_input_style.dart';
@@ -3357,7 +3357,7 @@ const double _maxHeightFactor = 0.85;
 
   /// Returns the generated appDropdown template.
   static String appDropdown() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import './app_input_style.dart';
 import './input_title.dart';
@@ -3791,7 +3791,7 @@ class AppDropdownInput<T> extends StatelessWidget {
 
   /// Returns the generated appCheckbox template.
   static String appCheckbox() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import './app_input_style.dart';
 
@@ -3893,7 +3893,7 @@ class AppCheckbox extends StatelessWidget {
 
   /// Returns the generated appCheckboxLabel template.
   static String appCheckboxLabel() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import './app_checkbox.dart';
 import './app_input_style.dart';
@@ -4054,7 +4054,7 @@ class AppCheckboxLabel extends StatelessWidget {
 
   /// Returns the generated appSwitch template.
   static String appSwitch() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import './app_input_style.dart';
 
@@ -4114,7 +4114,7 @@ class AppSwitch extends StatelessWidget {
 
   /// Returns the generated appSegmented template.
   static String appSegmented() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import './app_input_style.dart';
 import '../../../core/constants/app_constants.dart';
@@ -4232,7 +4232,7 @@ class AppSegmented<T> extends StatelessWidget {
 
   /// Returns the generated appChoiceChip template.
   static String appChoiceChip() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import './app_input_style.dart';
 import '../../../core/constants/app_constants.dart';
@@ -4316,7 +4316,7 @@ class AppChoiceChip extends StatelessWidget {
 
   /// Returns the generated appRadioGroup template.
   static String appRadioGroup() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import './app_input_style.dart';
 import './input_title.dart';
@@ -4521,7 +4521,7 @@ class _RadioLabel extends StatelessWidget {
 
   /// Returns the generated appSlider template.
   static String appSlider() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import './app_input_style.dart';
 
@@ -4612,7 +4612,7 @@ class AppSlider extends StatelessWidget {
 
   /// Returns the generated appListTile template.
   static String appListTile() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
@@ -4734,7 +4734,7 @@ class AppListTile extends StatelessWidget {
 
   /// Returns the generated appCard template.
   static String appCard() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
@@ -4864,7 +4864,7 @@ class AppCard extends StatelessWidget {
 
   /// Returns the generated appCardTile template.
   static String appCardTile() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../cards/app_card.dart';
 import 'app_list_tile.dart';
 
@@ -4936,7 +4936,7 @@ class AppCardTile extends StatelessWidget {
 
   /// Returns the generated appBadge template.
   static String appBadge() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Wraps [child] with a notification [Badge] — a small count or dot in the
 /// top-end corner. Pass [count] for a number (hidden when 0), or leave it null
@@ -5005,7 +5005,7 @@ class AppBadge extends StatelessWidget {
       _withStatusColors(_appTag, withStatusColors);
 
   static const _appTag = r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
 
@@ -5070,7 +5070,7 @@ class AppTag extends StatelessWidget {
 
   /// Returns the generated appSkeletonList template.
   static String appSkeletonList() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import '../../../core/constants/app_constants.dart';
 
@@ -5159,7 +5159,7 @@ class AppSkeletonList extends StatelessWidget {
     return '''
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/app_constants.dart';$statusImport
 
@@ -5672,7 +5672,7 @@ class _ToastCard extends StatelessWidget {
 
   /// Returns the generated appBottomSheetScaffold template.
   static String appBottomSheetScaffold() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -5866,7 +5866,7 @@ class AppBottomSheetScaffold extends StatelessWidget {
 
   /// Returns the generated appOtpInput template.
   static String appOtpInput() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import './app_input_style.dart';
@@ -6333,7 +6333,7 @@ class _OtpCell extends StatelessWidget {
 
   /// Returns the generated appScreenLock template.
   static String appScreenLock() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Wraps a screen (or any subtree) and, while [locked] is true, blocks both
 /// back navigation (via [PopScope]) and all touch input (via [AbsorbPointer]) —
@@ -6422,7 +6422,7 @@ class AppScreenLock extends StatelessWidget {
 
   /// Returns the generated appLoadingData template.
   static String appLoadingData() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class AppLoadingData extends StatelessWidget {
   const AppLoadingData({super.key, this.appBar});
@@ -6442,7 +6442,7 @@ class AppLoadingData extends StatelessWidget {
   static String appLoadingAction() => r'''
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/constants/app_constants.dart';
 
@@ -6570,7 +6570,7 @@ class _AppLoadingActionOverlayState extends State<AppLoadingActionOverlay> {
 
   /// Returns the generated emptyView template.
   static String emptyView() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../core/constants/app_constants.dart';
 
@@ -6665,7 +6665,7 @@ class EmptyView extends StatelessWidget {
 
   /// Returns the generated errorView template.
   static String errorView() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../core/constants/app_constants.dart';
 
@@ -6744,7 +6744,7 @@ class ErrorView extends StatelessWidget {
 
   /// Returns the generated appIconButton template.
   static String appIconButton() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -7013,7 +7013,7 @@ class AppIconButton extends StatelessWidget {
 
   /// Returns the generated appFab template.
   static String appFab() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import './app_button.dart';
@@ -7182,7 +7182,7 @@ class AppFab extends StatelessWidget {
 
   /// Returns the generated appAppBar template.
   static String appAppBar() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
@@ -7340,7 +7340,7 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
       _withStatusColors(_appBanner, withStatusColors);
 
   static const _appBanner = r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -7497,7 +7497,7 @@ class AppBanner extends StatelessWidget {
 
   /// Returns the generated appProgressBar template.
   static String appProgressBar() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
@@ -7619,7 +7619,7 @@ class AppProgressBar extends StatelessWidget {
 /// keystroke.''';
 
     return '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../buttons/app_icon_button.dart';
 import './app_input_style.dart';
@@ -7757,7 +7757,7 @@ class _AppSearchFieldState extends State<AppSearchField> {
 
   /// Returns the generated appStepper template.
   static String appStepper() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -7937,7 +7937,7 @@ class _StepButton extends StatelessWidget {
 
   /// Returns the generated appSectionHeader template.
   static String appSectionHeader() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -8016,7 +8016,7 @@ class AppSectionHeader extends StatelessWidget {
 
   /// Returns the generated appExpansionTile template.
   static String appExpansionTile() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -8098,7 +8098,7 @@ class AppExpansionTile extends StatelessWidget {
 
   /// Returns the generated appSingleScrollView template.
   static String appSingleScrollView() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/constants/app_constants.dart';
 
@@ -8256,7 +8256,7 @@ class AppSingleScrollView extends StatelessWidget {
 
   /// Returns the generated appStepIndicator template.
   static String appStepIndicator() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
@@ -8679,7 +8679,7 @@ class _NumberedStep extends StatelessWidget {
 """;
 
     return '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 $asyncPackageImports
 import '../../config/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';

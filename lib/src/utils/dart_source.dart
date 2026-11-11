@@ -7,7 +7,13 @@ abstract final class DartSource {
       ..sort();
     if (missing.isEmpty) return source;
 
-    final importPattern = RegExp(r"^import\s+'[^']+';$", multiLine: true);
+    // Any import directive, with or without a prefix or a combinator, in
+    // either quote style — so the insert lands after the real last import
+    // rather than before an `as` one.
+    final importPattern = RegExp(
+      r'''^import\s+['"][^'"]+['"](?:\s+(?:deferred\s+)?as\s+\w+)?(?:\s+(?:show|hide)\s+[^;]+)*\s*;$''',
+      multiLine: true,
+    );
     final matches = importPattern.allMatches(source).toList();
     if (matches.isEmpty) return '${missing.join('\n')}\n$source';
 

@@ -102,25 +102,4 @@ end
       );
     });
   });
-
-  group('defaultPodfile', () {
-    test('produces a Podfile with camera/photos uncommented', () {
-      final output = PodfileUtils.defaultPodfile(camera: true, photos: true);
-
-      expect(output, contains("target 'Runner' do"));
-      expect(output, contains("target 'RunnerTests' do"));
-      expect(output, contains("        'PERMISSION_CAMERA=1',"));
-      expect(output, contains("        'PERMISSION_PHOTOS=1',"));
-      expect(output, contains("# 'PERMISSION_EVENTS=1',"));
-      expect(output, contains("CODE_SIGNING_ALLOWED"));
-    });
-
-    test('comments camera/photos out when MediaService is not selected', () {
-      final output = PodfileUtils.defaultPodfile(camera: false, photos: false);
-
-      expect(output, contains("# 'PERMISSION_CAMERA=1',"));
-      expect(output, contains("# 'PERMISSION_PHOTOS=1',"));
-      expect(output, isNot(contains("\n        'PERMISSION_CAMERA=1',")));
-    });
-  });
 }

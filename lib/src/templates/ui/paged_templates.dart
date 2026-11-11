@@ -20,7 +20,7 @@ class PagedTemplates {
   /// page's skeleton, error and empty screens are deliberately absent —
   /// `AppAsyncView` / `AppStatusView` draw those around it.
   static String appPagedList() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/constants/app_constants.dart';
 

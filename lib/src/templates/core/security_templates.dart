@@ -53,7 +53,7 @@ class TokenStorage {
   /// It defaults its own `LocalAuthentication`, so
   /// `registerLazySingleton(BiometricService.new)` needs nothing passed to it.
   static String biometricService() => '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth_android/local_auth_android.dart';

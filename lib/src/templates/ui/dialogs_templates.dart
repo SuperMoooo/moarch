@@ -9,7 +9,7 @@ class DialogsTemplates {
   /// `AppDialogs` in the locator or calls the class directly.
   static String appDialog() {
     return '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../../config/router/app_router.dart';
 import '../../../core/constants/app_constants.dart';
 
@@ -67,7 +67,7 @@ Future<T?> showAppDialog<T>({
   /// Template for the confirm/cancel dialog, built from [AppButton] and
   /// [AppLeadingIcon].
   static String confirmDialog() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../buttons/app_button.dart';

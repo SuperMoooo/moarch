@@ -322,7 +322,7 @@ flutter_launcher_icons:
   static String widgetTest() => '''
 // Put your widget tests here; `test/unit/` and `test/integration/` are
 // scaffolded for the rest.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

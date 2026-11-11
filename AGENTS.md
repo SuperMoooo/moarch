@@ -105,7 +105,11 @@ an FNV-1a hash per generated file. `update` compares it against disk:
 untouched files refresh silently, **edited files are never overwritten** without
 `--force`, and a project with no manifest treats everything as possibly-edited.
 `lib/src/utils/text_diff.dart` renders `update --diff`. Hashes normalize line
-endings so a CRLF checkout isn't misread as an edit.
+endings so a CRLF checkout isn't misread as an edit. The manifest carries two
+versions: `version` is restamped by whoever saves it, `generated_with` is the
+one `init` wrote and never changes — `doctor` gates its "a project from before
+X" offers on the second, so a `create` or `update` cannot make an old project
+look new.
 
 ### Writing and patching
 
@@ -116,7 +120,15 @@ exception; `overwriteWhen` the narrow one, for files `flutter create` wrote).
 
 Files moarch does not own are patched, not rewritten, by one util per format:
 `gradle_utils`, `kotlin_utils`, `manifest_utils`, `plist_utils`,
-`podfile_utils`, `swift_utils`, `pubspec_utils`. Generated files that get
+`podfile_utils`, `swift_utils`, `pubspec_utils`. Patched, never created:
+since Flutter 3.44 plugins arrive through Swift Package Manager and a new
+project has no `ios/Podfile`, and writing one would switch it back to
+CocoaPods, so `podfile_utils` only narrows a Podfile that is already there.
+`swift_utils` anchors on the UIScene-era `AppDelegate` (3.41+), and `doctor`
+moves a project that `init` patched before UIScene — which the Flutter CLI's
+own migration refuses, since it only touches a byte-for-byte stock file.
+`gradle_utils` floors `compileSdk` at what permission_handler and
+flutter_local_notifications compile against. Generated files that get
 patched later carry an anchor comment — `injector_utils.dart` inserts get_it
 registrations above `// moarch:registrations`, `router_utils.dart` each
 feature's path and `GoRoute` above `// moarch:routes`, and
@@ -267,6 +279,23 @@ update `agents_templates.dart` and `skills_templates.dart` in the same change.
 A skill describes commands and files that exist, so it is tested like any
 other template (`test/skills_templates_test.dart`), including that its
 frontmatter parses as YAML.
+
+### Material and Cupertino are packages
+
+Every generated file imports `package:material_ui/material_ui.dart` and
+`package:cupertino_ui/cupertino_ui.dart`, never `package:flutter/material.dart`
+or `package:flutter/cupertino.dart`: the framework copies are frozen since
+3.44 and deprecated from 3.50, and go_router 18, cached_network_image 4 and
+flutter_riverpod 3.5 already depend on the packages. `main.dart` takes the
+localization delegates from material_ui (`GlobalMaterialLocalizations.delegates`;
+easy_localization's own delegate is added beside them). There is no
+`MaterialUiCompatibilityBridge`: material_ui deprecates it, and the two
+dependencies still on the framework copies need nothing from the theme
+(table_calendar reads only `Theme.of(context).platform`, sign_in_with_apple
+draws a `CupertinoButton`). A new dependency with widgets must be on
+material_ui, or it falls back to the framework's default theme.
+`PackageVersions` holds both packages; the two constants in
+`lib/src/utils/package_versions.dart` are where a Flutter floor moves.
 
 ### Template string conventions
 

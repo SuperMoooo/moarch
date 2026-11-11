@@ -2,7 +2,7 @@
 abstract final class DragTemplates {
   /// Returns the generated appDragSection template.
   static String appDragSection() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../inputs/app_input_style.dart';

@@ -3,7 +3,7 @@
 class NavigationTemplates {
   /// Returns the generated appBottomNav template.
   static String appBottomNav() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../indicators/app_badge.dart';
@@ -966,7 +966,7 @@ class _AppNavFold extends StatelessWidget {
 
   /// Returns the generated appTabs template.
   static String appTabs() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../inputs/app_input_style.dart';
@@ -1237,7 +1237,7 @@ class _AppTabsState extends State<AppTabs> with TickerProviderStateMixin {
 
   /// Returns the generated appDrawer template.
   static String appDrawer() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import './app_bottom_nav.dart';
@@ -1424,7 +1424,7 @@ class AppDrawerHeader extends StatelessWidget {
 
   /// Returns the generated appNavRail template.
   static String appNavRail() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import './app_bottom_nav.dart';

@@ -72,7 +72,7 @@ void main() {
     tearDown(() async => tempDir.delete(recursive: true));
 
     test('a package is matched as a whole entry, not as a substring', () {
-      const context = ScaffoldContext(
+      final context = ScaffoldContext(
         projectRoot: '.',
         pubspec:
             'dependencies:\n  dio_smart_retry: ^7.0.0\n'

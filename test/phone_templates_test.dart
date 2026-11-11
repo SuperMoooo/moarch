@@ -179,7 +179,7 @@ void main() {
       expect(output, contains("import 'package:flutter/foundation.dart';"));
       expect(
         output,
-        isNot(contains("import 'package:flutter/material.dart';")),
+        isNot(contains("import 'package:material_ui/material_ui.dart';")),
       );
     });
   });

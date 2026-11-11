@@ -12,6 +12,10 @@ class PodfileUtils {
   /// what happens here for every group except [camera] and [photos]: the
   /// only `Permission.*` values MediaService ever requests.
   ///
+  /// Only a project that still has a Podfile — one a plugin forces back onto
+  /// CocoaPods — is patched; since Flutter 3.44 the plugins come through Swift
+  /// Package Manager, where permission_handler reads `Info.plist` instead.
+  ///
   /// Returns [content] unchanged when the block is already present (the user
   /// wired it up themselves) or when the
   /// `flutter_additional_ios_build_settings(target)` anchor line can't be
@@ -41,75 +45,6 @@ class PodfileUtils {
       '${indent}end',
     ]);
     return lines.join('\n');
-  }
-
-  /// Returns a generic `ios/Podfile`, written only when the target project
-  /// doesn't already have one. Mirrors what `flutter create` + `pod install`
-  /// produce, with the permission_handler block pre-wired the same way
-  /// [ensurePermissionHandlerDefinitions] would patch it.
-  static String defaultPodfile({required bool camera, required bool photos}) {
-    final definitions = _definitionLines(
-      '        ',
-      camera: camera,
-      photos: photos,
-    ).join('\n');
-
-    return '''
-# Uncomment this line to define a global platform for your project
-# platform :ios, '13.0'
-
-# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
-ENV['COCOAPODS_DISABLE_STATS'] = 'true'
-
-project 'Runner', {
-  'Debug' => :debug,
-  'Profile' => :release,
-  'Release' => :release,
-}
-
-def flutter_root
-  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
-  unless File.exist?(generated_xcode_build_settings_path)
-    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
-  end
-
-  File.foreach(generated_xcode_build_settings_path) do |line|
-    matches = line.match(/FLUTTER_ROOT\\=(.*)/)
-    return matches[1].strip if matches
-  end
-  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
-end
-
-require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
-
-flutter_ios_podfile_setup
-
-target 'Runner' do
-  use_frameworks!
-
-  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
-  target 'RunnerTests' do
-    inherit! :search_paths
-  end
-end
-
-post_install do |installer|
-  installer.pods_project.targets.each do |target|
-    flutter_additional_ios_build_settings(target)
-    target.build_configurations.each do |config|
-      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
-        '\$(inherited)',
-
-$definitions
-      ]
-      config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
-      config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
-      config.build_settings['CODE_SIGN_IDENTITY'] = ''
-      config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ''
-    end
-  end
-end
-''';
   }
 
   /// One `## dart: PermissionGroup.x` comment + array entry per

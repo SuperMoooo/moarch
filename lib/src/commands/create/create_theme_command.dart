@@ -4,10 +4,6 @@ import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:path/path.dart' as p;
 
-import '../../templates/config/config_templates.dart';
-import '../../templates/core/core_templates.dart';
-import '../../templates/core/services_templates.dart';
-import '../../templates/ui/shared_templates.dart';
 import '../../utils/package_versions.dart';
 import '../../utils/project_manifest.dart';
 import '../../utils/pubspec_utils.dart';
@@ -45,17 +41,34 @@ class _ThemeFile {
   bool get isCurrent => _sameText(current, generated);
 }
 
-/// The project as it will be once the theme-mode switch is added: the
-/// templates that detect it off disk see it before its files are written.
-class _WithThemeMode extends ScaffoldContext {
-  _WithThemeMode(ScaffoldContext context)
+/// The project as it will be once the theme scope is switched.
+///
+/// Every template reads the theme off disk — `AppTheme.dark` in
+/// `app_theme.dart`, the switch's files under `core/services/` — and here
+/// those files are the ones about to be rewritten. So the catalog renders
+/// against this view of the project, which answers with the target instead:
+/// the same specs `init` and `update` write through, with one option
+/// overridden, rather than a second list of template calls that can drift
+/// from them.
+class _ThemeTarget extends ScaffoldContext {
+  _ThemeTarget(ScaffoldContext context, {required this.dark, this.withSwitch})
     : super(projectRoot: context.projectRoot, pubspec: context.pubspec);
 
-  @override
-  bool get hasThemeMode => true;
+  /// Whether the project is getting the dark theme or losing it.
+  final bool dark;
+
+  /// Whether the saved light / dark / system switch is being added too, or
+  /// null when that is left as the project has it.
+  final bool? withSwitch;
 
   @override
-  bool get hasPreferences => true;
+  bool get hasDarkTheme => dark;
+
+  @override
+  bool get hasThemeMode => withSwitch ?? super.hasThemeMode;
+
+  @override
+  bool get hasPreferences => withSwitch ?? super.hasPreferences;
 }
 
 /// Line endings differ between a CRLF checkout and what the templates write,
@@ -188,8 +201,12 @@ class CreateThemeCommand extends Command<int> {
       _logger.info('');
     }
 
-    final context = addSwitch ? _WithThemeMode(detected) : detected;
-    final files = _collect(root, libPath, manifest, target, context);
+    final context = _ThemeTarget(
+      detected,
+      dark: target,
+      withSwitch: addSwitch ? true : null,
+    );
+    final files = _collect(root, libPath, manifest, context, addSwitch);
     final changed = files.where((f) => !f.isCurrent).toList();
     final created = addSwitch ? _newFiles(context) : const <String, String>{};
 
@@ -363,68 +380,53 @@ class CreateThemeCommand extends Command<int> {
   /// The files whose content depends on the theme scope, in the order they are
   /// reported. A file the project never generated is skipped rather than
   /// added: this switches a scope, it does not scaffold what was declined.
+  ///
+  /// Every one is rendered by its catalog entry against [context], which
+  /// already answers for the target theme — the same call `moarch update`
+  /// makes, so a file this writes is what `update` would then leave alone.
+  /// Spelling the template calls out here instead once dropped the sync
+  /// start out of `main.dart`, because this list had not followed the
+  /// catalog's.
   List<_ThemeFile> _collect(
     String root,
     String libPath,
     ProjectManifest? manifest,
-    bool target,
-    ScaffoldContext context,
+    _ThemeTarget context,
+    bool addSwitch,
   ) {
-    // Sourced from the catalog rather than written out, so the entry that
-    // moved to `shared/views/` cannot drift out of sync here. The pre-move
-    // path is offered too: a project that has not run `moarch update` yet
-    // still has a preview screen, and it should follow the theme scope
-    // wherever it currently sits.
-    final designSystem = WidgetCatalog.byName('design-system')!;
-    final designSystemSource = SharedTemplates.designSystemView(
-      withDark: target,
-      stateManagement: context.stateManagement,
-    );
+    final candidates = <String, String>{};
 
-    final candidates = <String, String>{
-      'lib/core/constants/app_constants.dart': CoreTemplates.appConstants(
-        withDark: target,
-      ),
-      'lib/config/theme/app_theme.dart': ConfigTemplates.appTheme(
-        withDark: target,
-        withStatusColors: context.hasStatusColors,
-      ),
+    for (final name in [
+      'constants',
+      'theme',
       // Holds a `dark` set only while AppConstants has the `*Dark` colors it
       // reads, so it switches with them.
-      'lib/config/theme/app_status_colors.dart':
-          ConfigTemplates.appStatusColors(withDark: target),
-      'lib/main.dart': context.stack.mainDart(
-        withRouter: context.hasRouter,
-        withLocalization: context.hasLocalization,
-        withEasyLocalization: context.hasEasyLocalization,
-        withNotificationsService: context.hasNotifications,
-        withFirebaseNotifications: context.hasFirebaseNotifications,
-        withCrashlytics: context.hasCrashlytics,
-        withFirebase: context.hasFirebase || context.hasCrashlytics,
-        withMaintenanceGate: context.hasMaintenanceGate,
-        withUpdateGate: context.hasUpdateGate,
-        withMoAdapt: context.hasMoAdapt,
-        withDarkTheme: target,
-        withThemeMode: context.hasThemeMode,
-        withOfflineGate: context.hasOfflineGate,
-        withAuthFeature: context.hasAuthFeature,
-        withBlocObserver: context.hasBlocObserver,
-      ),
+      'status-colors',
+      'main',
       // Registers PreferencesService — only while the switch is being added,
       // since core_module.dart is where hand-written services go too, and an
       // edit there should not block switching the palette alone.
-      if (context is _WithThemeMode)
-        'lib/config/di/core_module.dart': ScaffoldCatalog.byName(
-          'di-core',
-        )!.template(context),
-      'lib/shared/widgets/overlays/app_toast.dart': SharedTemplates.appToast(
-        withDark: target,
-        withStatusColors: context.hasStatusColors,
-      ),
-      'lib/${designSystem.libFile}': designSystemSource,
-      if (designSystem.movedFrom != null)
-        'lib/${designSystem.movedFrom}': designSystemSource,
-    };
+      if (addSwitch) 'di-core',
+    ]) {
+      final spec = ScaffoldCatalog.byName(name)!;
+      candidates[spec.pathIn(context)] = spec.template(context);
+    }
+
+    // The kit's two entries that pick a color per brightness, written the way
+    // `create widget` and `update` write them: every other option read off
+    // the project, the theme answered by the target. The preview screen's
+    // pre-move path is offered too: a project that has not run `moarch
+    // update` yet still has one, and it should follow the theme scope
+    // wherever it currently sits.
+    final variants = WidgetVariants.detect(
+      libPath,
+    ).copyWith(hasDarkTheme: context.dark);
+    for (final name in ['toast', 'design-system']) {
+      final spec = WidgetCatalog.byName(name)!;
+      final source = WidgetCatalog.sourceFor(spec, variants);
+      candidates['lib/${spec.libFile}'] = source;
+      if (spec.movedFrom != null) candidates['lib/${spec.movedFrom}'] = source;
+    }
 
     final files = <_ThemeFile>[];
     candidates.forEach((relative, generated) {
@@ -447,12 +449,13 @@ class CreateThemeCommand extends Command<int> {
     return files;
   }
 
-  /// The files the theme-mode switch adds, project-relative.
+  /// The files the theme-mode switch adds, project-relative — from the
+  /// catalog, like everything else this command writes.
   Map<String, String> _newFiles(ScaffoldContext context) => {
-    'lib/core/services/preferences_service.dart':
-        ServicesTemplates.preferencesService(),
-    'lib/core/services/theme_mode_service.dart': context.stack
-        .themeModeService(),
+    for (final name in ['preferences', 'theme-mode'])
+      ScaffoldCatalog.byName(name)!.pathIn(context): ScaffoldCatalog.byName(
+        name,
+      )!.template(context),
   };
 
   void _describe(List<_ThemeFile> files, {required bool showDiff}) {

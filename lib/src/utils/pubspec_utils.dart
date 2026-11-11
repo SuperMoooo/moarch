@@ -4,6 +4,8 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import 'package:yaml_edit/yaml_edit.dart';
 
+import 'package_versions.dart';
+
 /// Utility helpers for keeping generated project dependencies in sync.
 ///
 /// All edits go through [YamlEditor] so existing formatting and comments in
@@ -216,12 +218,16 @@ class PubspecUtils {
 
   /// Like [_parseEntries] but for dependency sections: an unversioned entry
   /// such as `dio:` parses to a null constraint, which would otherwise be
-  /// written as `dio: null` and prevents pub from resolving the latest
-  /// version. Null constraints are normalized to `any` (equivalent to a blank
-  /// constraint) so pub fetches the most recent compatible release.
+  /// written as `dio: null` and prevents pub from resolving anything. It gets
+  /// the constraint [PackageVersions] keeps for the package — the widget kit
+  /// and `doctor --fix` name their packages bare — and `any` only for a
+  /// package the table does not know.
   static Map<String, Object?> _parseDependencies(List<String> entries) {
     final parsed = _parseEntries(entries);
-    return {for (final e in parsed.entries) e.key: e.value ?? 'any'};
+    return {
+      for (final e in parsed.entries)
+        e.key: e.value ?? PackageVersions.constraintFor(e.key),
+    };
   }
 
   static Object? _toPlain(Object? node) {

@@ -4,7 +4,7 @@
 class InputsTemplates {
   /// Returns the generated appMultiSelect template.
   static String appMultiSelect() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import './app_input_style.dart';
@@ -415,7 +415,7 @@ class AppMultiSelectInput<T> extends StatelessWidget {
 
   /// Returns the generated appDateRangeInput template.
   static String appDateRangeInput() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import './app_input_style.dart';
@@ -716,7 +716,7 @@ class _AppDateRangeInputState extends State<AppDateRangeInput> {
   static String appFilePickerField() => r'''
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import './app_input_style.dart';
@@ -1104,7 +1104,7 @@ class _FileRow extends StatelessWidget {
 
   /// Returns the generated appRating template.
   static String appRating() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import './app_input_style.dart';

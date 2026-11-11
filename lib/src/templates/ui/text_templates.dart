@@ -4,7 +4,7 @@
 abstract final class TextTemplates {
   /// Returns the generated appTextButton template.
   static String appTextButton() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -368,7 +368,7 @@ class AppTextButton extends StatelessWidget {
   /// Returns the generated appRichText template.
   static String appRichText() => r'''
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -926,7 +926,7 @@ class _SpanGesture {
 
   /// Returns the generated appHeading template.
   static String appHeading() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';

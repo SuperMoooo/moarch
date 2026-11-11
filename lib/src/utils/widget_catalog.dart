@@ -183,6 +183,20 @@ class WidgetVariants {
 
   /// Shorthand the variant templates branch on.
   bool get hasBloc => stateManagement.isBloc;
+
+  /// This set with [hasDarkTheme] replaced — what `create theme` renders the
+  /// kit against, since the theme it reads off disk is the one being switched.
+  WidgetVariants copyWith({bool? hasDarkTheme}) => WidgetVariants(
+    hasBiometric: hasBiometric,
+    hasFirestore: hasFirestore,
+    hasDio: hasDio,
+    hasDarkTheme: hasDarkTheme ?? this.hasDarkTheme,
+    hasStatusColors: hasStatusColors,
+    hasMotionTokens: hasMotionTokens,
+    hasCornerTokens: hasCornerTokens,
+    apiEndpoints: apiEndpoints,
+    stateManagement: stateManagement,
+  );
 }
 
 /// One entry in the shared-widget kit: everything needed to generate a widget

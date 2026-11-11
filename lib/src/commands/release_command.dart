@@ -174,7 +174,10 @@ class BumpCommand extends Command<int> {
       return;
     }
     final source = file.readAsStringSync();
-    if (source.contains('## ${version.name}\n')) return;
+    // Line endings normalized, or a CRLF changelog would get a second entry.
+    if (source.replaceAll('\r\n', '\n').contains('## ${version.name}\n')) {
+      return;
+    }
     // Under the title (the first `# ` line) when there is one, else on top.
     final title = RegExp(r'^# .*\n+', multiLine: true).firstMatch(source);
     final at = title != null && title.start == 0 ? title.end : 0;

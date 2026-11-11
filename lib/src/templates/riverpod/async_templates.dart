@@ -8,7 +8,7 @@ class AsyncTemplates {
 
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
@@ -322,7 +322,7 @@ class _AsyncSourceState<T> extends State<_AsyncSource<T>> {
 
   /// Returns the generated actionListener template.
   static String actionListener() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // For `ProviderListenable` (Riverpod 3).
 import 'package:flutter_riverpod/misc.dart';

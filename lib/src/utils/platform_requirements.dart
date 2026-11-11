@@ -109,10 +109,16 @@ class PlatformRequirement {
         <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />''',
   );
 
-  /// FCM: the Android 13 prompt `requestPermission()` shows.
+  /// FCM: the Android 13 prompt `requestPermission()` shows, and the iOS
+  /// background mode without which a message only arrives while the app is
+  /// in the foreground. Added to an existing `UIBackgroundModes` rather than
+  /// skipped: the sync task declares `fetch` in the same array.
   static const pushNotifications = PlatformRequirement(
     service: 'FirebaseNotificationsService',
     permissions: ['android.permission.POST_NOTIFICATIONS'],
+    plistArrays: {
+      'UIBackgroundModes': ['remote-notification'],
+    },
   );
 
   /// `UrlLauncherService`: Android 11 hides other apps from `canLaunchUrl`

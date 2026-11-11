@@ -2,6 +2,86 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 11.0.0
+
+### Breaking
+
+- **Material and Cupertino are packages.** Every generated file imports
+  `package:material_ui/material_ui.dart` and
+  `package:cupertino_ui/cupertino_ui.dart` instead of the framework copies,
+  which Flutter froze in 3.44 and deprecates in 3.50. `init` adds both
+  packages, `main.dart` takes the localization delegates from material_ui
+  (`GlobalMaterialLocalizations.delegates`, with easy_localization's own
+  delegate beside them). No `MaterialUiCompatibilityBridge`: it is deprecated,
+  and the dependencies still on `flutter/material.dart` (table_calendar,
+  sign_in_with_apple) read nothing from the theme that matters.
+
+  Existing projects: `moarch update all` refreshes every file moarch wrote;
+  for the rest run `dart fix --apply --code=migrate_design_widgets`, then
+  `flutter pub add material_ui cupertino_ui`. Both need Flutter 3.47, the
+  `.fvmrc` pin.
+- **Dependency majors.** go_router 18, cached_network_image 4 (both on
+  material_ui), skeletonizer 3, file_picker 13, permission_handler 13,
+  flutter_local_notifications 23 and the Firebase line (firebase_core 5,
+  firebase_auth 7, cloud_firestore 7, firebase_messaging 17,
+  firebase_crashlytics 6, firebase_analytics 13: Firebase iOS SDK 13,
+  Android BoM 35, minSdk 24). The generated code needed no change for them.
+  permission_handler 13 and flutter_local_notifications 23 compile against
+  API 37, so `init` now writes
+  `compileSdk = maxOf(flutter.compileSdkVersion, 37)` and `doctor --fix`
+  does the same for an existing project.
+- **No `ios/Podfile` is written any more.** Since Flutter 3.44 plugins come
+  through Swift Package Manager and a new project has no Podfile; writing one
+  switched the project back to CocoaPods. An existing Podfile is still
+  narrowed to the camera and photo groups; under SwiftPM permission_handler
+  compiles the groups whose usage description is in `Info.plist`, which
+  `init` writes.
+
+### Fixed
+
+- **`create theme` dropped offline sync from `main.dart`.** It rendered
+  main.dart from its own parameter list, which lacked `withSync` and the
+  status listener, so switching the theme on a project with sync silently
+  removed `SyncService.start()` and `SyncStatusListener`. Every file the
+  switch rewrites now comes from its catalog entry, the same call `update`
+  makes, and a test scaffolds both stacks and checks `init` and the catalog
+  agree.
+- **iOS notifications under the UIScene lifecycle.** The
+  `UNUserNotificationCenter` delegate `init` adds to `AppDelegate.swift`
+  landed next to plugin registration, which the 3.41+ template runs after
+  launch — too late for the notification that opened the app. It goes into
+  `didFinishLaunchingWithOptions` now. `doctor` also moves a project that
+  `init` patched before UIScene onto it (`UIApplicationSceneManifest` in
+  `Info.plist`, plugins registered from `didInitializeImplicitFlutterEngine`),
+  which the Flutter CLI's own migration refuses for a non-stock AppDelegate;
+  Xcode 27 does not launch an app without it.
+- **FCM's `remote-notification` background mode** was skipped when
+  `Info.plist` already had a `UIBackgroundModes` array; it is added to the
+  array now, and `doctor` checks for it.
+- `create feature` with a local datasource no longer writes a
+  `connectivity_service.dart` nothing used or registered.
+- `release bump --changelog` added a duplicate entry to a CRLF changelog.
+- `doctor` on a fresh clone said to run `init` for the missing `.env`; it now
+  points at `.env.example` and `--fix` copies it.
+
+### Changed
+
+- The iOS workflow pins Xcode (`maxim-lobanov/setup-xcode`, latest stable):
+  App Store Connect refuses uploads not built with Xcode 26 since April 2026.
+- The generated workflows use the current action majors: checkout v7,
+  upload-artifact v7, download-artifact v8, setup-node v7,
+  dependency-review-action v5 (`moarch update workflows`).
+- `.moarch.yaml` keeps `generated_with`, the version `init` scaffolded with,
+  apart from `version`, which every save restamps — so `doctor`'s offers to
+  older projects survive an `update`.
+- Packages the widget kit, `doctor --fix` and `create flavors` add are
+  constrained through the version table instead of `any`.
+- `doctor` reads the project once per run; `ScaffoldContext` caches what it
+  reads, which makes `update` on a large project noticeably faster.
+- `DartSource.addImports` places an import after prefixed, combinated and
+  double-quoted imports too.
+- The deployment checklist asks for `ITSAppUsesNonExemptEncryption`.
+
 ## 10.4.0
 
 ### Added

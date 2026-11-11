@@ -43,7 +43,7 @@ class AppTemplates {
     final localizationImports = withEasyLocalization
         ? "\nimport 'package:easy_localization/easy_localization.dart';\n"
         : withLocalization
-        ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\nimport 'core/services/language_service.dart';\nimport 'package:flutter_localizations/flutter_localizations.dart';\n"
+        ? "\nimport 'l10n/app_localizations.dart';\nimport 'l10n/l10n.dart';\nimport 'core/services/language_service.dart';\n"
         : '';
 
     final easyLocalizationInit = withEasyLocalization
@@ -158,7 +158,13 @@ ${[if (withNotificationsService) _guardedInit('NotificationService', 'Notificati
         ? '''
       locale: context.locale,
       supportedLocales: context.supportedLocales,
-      localizationsDelegates: context.localizationDelegates,
+      // The Material, Cupertino and Widgets delegates come from material_ui
+      // now; easy_localization still bundles the framework's, which the
+      // material_ui widgets cannot read.
+      localizationsDelegates: [
+        EasyLocalization.of(context)!.delegate,
+        ...GlobalMaterialLocalizations.delegates,
+      ],
 '''
         : withLocalization
         ? '''
@@ -166,9 +172,8 @@ ${[if (withNotificationsService) _guardedInit('NotificationService', 'Notificati
       supportedLocales: L10n.all,
       localizationsDelegates: const [
         AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate
+        // Material, Cupertino and Widgets, from material_ui.
+        ...GlobalMaterialLocalizations.delegates,
       ],
 '''
         : '';
@@ -263,7 +268,7 @@ final locale = ref.watch(languageProvider).locale;
     if (withRouter) {
       return '''
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$firebaseImports
 import 'config/di/injector.dart';
@@ -346,7 +351,7 @@ $localizationConfig      routerConfig: router,
 
     return '''
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$firebaseImports
 import 'config/di/injector.dart';
@@ -632,7 +637,7 @@ String? _fromOf(GoRouterState state) {
   ) {
     return '''
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -683,7 +688,7 @@ $authRoutes      GoRoute(
   /// system choice, saved across launches. Only with the dark theme: with one
   /// palette every mode resolves to the same theme.
   static String themeModeService() => '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../config/di/injector.dart';

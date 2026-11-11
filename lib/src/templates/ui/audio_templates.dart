@@ -5,7 +5,7 @@ abstract final class AudioTemplates {
   static String appAudioPlayer() => r'''
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 

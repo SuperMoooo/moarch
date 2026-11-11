@@ -912,7 +912,7 @@ Without a theme a preview renders in Flutter's default one, which is not
 this app. If `lib/shared/previews/app_preview.dart` does not exist, write it:
 
 ```dart
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/widget_previews.dart';
 
 import '../../config/theme/app_theme.dart';

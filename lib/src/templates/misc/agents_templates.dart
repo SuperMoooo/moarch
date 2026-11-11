@@ -325,6 +325,14 @@ test/
       '''
 ## UI
 
+- Material and Cupertino come from `package:material_ui/material_ui.dart`
+  and `package:cupertino_ui/cupertino_ui.dart` — never from
+  `package:flutter/material.dart` or `package:flutter/cupertino.dart`, which
+  are deprecated and provide a `Theme` the kit cannot read. There is no
+  compatibility bridge (material_ui deprecates it): the two dependencies
+  still on the framework copies, table_calendar and sign_in_with_apple, read
+  nothing from the theme that matters, and a new dependency with widgets
+  must be on material_ui.
 - Build screens from `lib/shared/widgets/` (`AppButton`, `AppInput`,
   `AppAppBar`, `AppToast`, `ErrorView`, `EmptyView`…) before raw Material
   widgets. `docs/UI_KIT.md` lists the kit; a widget it lists but the project

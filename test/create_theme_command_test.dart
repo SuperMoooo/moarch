@@ -91,6 +91,26 @@ void main() {
     );
   });
 
+  test('keeps every other option main.dart was generated with', () async {
+    // The files are rendered by their catalog entries, so a project with
+    // offline sync keeps the sync start and the status listener through the
+    // switch — the parameter list that once lived here had dropped both.
+    await placeLightProject();
+    await place('lib/core/sync/sync_service.dart', '// sync');
+    await place('lib/shared/widgets/sync_status.dart', '// status');
+    await place(
+      'lib/main.dart',
+      riverpod.AppTemplates.mainDart(withRouter: false, withSync: true),
+    );
+
+    expect(await run(['--yes']), 0);
+
+    final main = read('lib/main.dart');
+    expect(main, contains('darkTheme: AppTheme.dark,'));
+    expect(main, contains('getIt<SyncService>().start();'));
+    expect(main, contains('SyncStatusListener(child: '));
+  });
+
   test('--no-dark strips it back to one brand theme', () async {
     await place(
       'lib/core/constants/app_constants.dart',

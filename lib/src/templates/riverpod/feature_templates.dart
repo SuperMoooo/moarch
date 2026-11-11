@@ -529,7 +529,7 @@ ${offlineFirst
   }) {
     if (!hasNotifier) {
       return '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ${cls}View extends StatelessWidget {
   const ${cls}View({super.key});
@@ -546,7 +546,7 @@ class ${cls}View extends StatelessWidget {
     }
 
     return '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../shared/widgets/app_async_view.dart';

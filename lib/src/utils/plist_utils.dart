@@ -126,6 +126,49 @@ class PlistUtils {
     return content.replaceRange(insertAt, insertAt, '\n${entry.trimRight()}');
   }
 
+  /// The key the UIScene lifecycle is declared under.
+  static const String sceneManifestKey = 'UIApplicationSceneManifest';
+
+  /// Ensures the `UIApplicationSceneManifest` the UIScene lifecycle needs is
+  /// in the plist [content], pointing at Flutter's own `FlutterSceneDelegate`
+  /// — what the Flutter CLI's migration writes for a project without a
+  /// `SceneDelegate` of its own.
+  ///
+  /// Xcode 27 refuses to launch a UIKit app without it. Returns the content
+  /// unchanged when the key is already present (whatever it holds: a project
+  /// with its own scene delegate keeps it) or when no closing `</dict>` is
+  /// found.
+  static String ensureSceneManifest(String content) {
+    if (content.contains('<key>$sceneManifestKey</key>')) return content;
+
+    final insertAt = content.lastIndexOf('</dict>');
+    if (insertAt == -1) return content;
+
+    const block =
+        '\t<key>$sceneManifestKey</key>\n'
+        '\t<dict>\n'
+        '\t\t<key>UIApplicationSupportsMultipleScenes</key>\n'
+        '\t\t<false/>\n'
+        '\t\t<key>UISceneConfigurations</key>\n'
+        '\t\t<dict>\n'
+        '\t\t\t<key>UIWindowSceneSessionRoleApplication</key>\n'
+        '\t\t\t<array>\n'
+        '\t\t\t\t<dict>\n'
+        '\t\t\t\t\t<key>UISceneClassName</key>\n'
+        '\t\t\t\t\t<string>UIWindowScene</string>\n'
+        '\t\t\t\t\t<key>UISceneConfigurationName</key>\n'
+        '\t\t\t\t\t<string>flutter</string>\n'
+        '\t\t\t\t\t<key>UISceneDelegateClassName</key>\n'
+        '\t\t\t\t\t<string>FlutterSceneDelegate</string>\n'
+        '\t\t\t\t\t<key>UISceneStoryboardFile</key>\n'
+        '\t\t\t\t\t<string>Main</string>\n'
+        '\t\t\t\t</dict>\n'
+        '\t\t\t</array>\n'
+        '\t\t</dict>\n'
+        '\t</dict>\n';
+    return content.replaceRange(insertAt, insertAt, block);
+  }
+
   /// The `<string>` value following `<key>[key]</key>` in [content], or null.
   ///
   /// Enough plist reading to lift `CLIENT_ID` and `REVERSED_CLIENT_ID` out of

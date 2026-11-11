@@ -383,7 +383,7 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
 | `app_env.g.dart` not found, or `_\$XModel` undefined | you skipped step 4 |
 | A model's `toJson()` holds an object instead of a map | `build.yaml` is missing or lost its `explicit_to_json` |
 | build_runner: "conflicting outputs" | re-run it with `--delete-conflicting-outputs` |
-| iOS build fails on pods | `cd ios && pod install && cd ..` |
+| iOS build fails resolving a plugin | plugins come through Swift Package Manager; `fvm flutter clean`, then build again (`cd ios && pod install` only if the project still has a `Podfile`) |
 | The analyzer flags things `fvm flutter analyze` does not | run `fvm use`, then reload the window |
 | Anything stale or inexplicable | `fvm flutter clean && fvm flutter pub get` |${withFirebase ? '\n| Firebase errors on startup | the console side is not done — see `docs/FIREBASE_SETUP.md` |' : ''}${withLocalization ? '\n| `AppLocalizations` not found | `fvm flutter gen-l10n` |' : ''}
 | A generated file looks wrong | `moarch update --list`, then `moarch update <name>` |

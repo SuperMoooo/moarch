@@ -9,7 +9,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 const _view = r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class OrdersView extends StatelessWidget {
   const OrdersView({super.key, this.subtitle = 'Default value'});

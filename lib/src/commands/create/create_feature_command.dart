@@ -4,7 +4,6 @@ import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:moarch/src/templates/core/cache_templates.dart';
 import 'package:moarch/src/templates/core/core_templates.dart';
-import 'package:moarch/src/templates/core/services_templates.dart';
 import 'package:path/path.dart' as p;
 
 import '../../templates/stack_templates.dart';
@@ -133,8 +132,6 @@ class CreateFeatureCommand extends Command<int> {
         selected,
         templates,
         holderItem,
-        includeUnit: false,
-        includeIntegration: false,
         testsOnly: true,
       );
       _logger.info('Generate its tests with: moarch create tests $featureName');
@@ -331,10 +328,8 @@ class CreateFeatureCommand extends Command<int> {
           featureName,
           className,
           varName,
-          libPath,
           templates,
           withCache: withCache,
-          withApiProbe: hasDio,
         );
       }
       if (selected.contains(_kRepository)) {
@@ -461,15 +456,7 @@ class CreateFeatureCommand extends Command<int> {
       return 1;
     }
 
-    _printTree(
-      featureName,
-      className,
-      selected,
-      templates,
-      holderItem,
-      includeUnit: false,
-      includeIntegration: false,
-    );
+    _printTree(featureName, className, selected, templates, holderItem);
     if (useFirestore && selected.contains(_kRemoteDatasource)) {
       _logger.info(
         '  Firestore-backed — point `collectionPath` in ${featureName}_remote_datasource.dart',
@@ -639,7 +626,6 @@ class CreateFeatureCommand extends Command<int> {
   /// importing a file they never generated.
   Future<void> _ensureViewWidgets(String libPath) async {
     final projectRoot = p.dirname(p.absolute(libPath));
-    final widgetsRoot = p.join(libPath, 'shared', 'widgets');
     // Read off the project, so these come out for the stack the view uses.
     final variants = WidgetVariants.detect(libPath);
     final specs = WidgetCatalog.resolve(
@@ -658,7 +644,7 @@ class CreateFeatureCommand extends Command<int> {
 
     for (final spec in specs) {
       final content = WidgetCatalog.sourceFor(spec, variants);
-      final path = p.join(widgetsRoot, spec.file);
+      final path = spec.pathIn(libPath);
       final wrote = await FileUtils.writeFile(path, content);
       if (!wrote) continue;
       // Recorded so `moarch update` can tell a file it wrote from one the user
@@ -778,10 +764,8 @@ class CreateFeatureCommand extends Command<int> {
     String name,
     String cls,
     String varName,
-    String libPath,
     StackTemplates templates, {
     bool withCache = false,
-    bool withApiProbe = false,
   }) async {
     await FileUtils.writeFile(
       p.join(fp, 'data', 'datasources', '${name}_local_datasource.dart'),
@@ -790,18 +774,6 @@ class CreateFeatureCommand extends Command<int> {
         cls,
         varName,
         withCache: withCache,
-      ),
-    );
-    // The cache has what it needs; the stub is left to reach for the
-    // connection itself.
-    if (withCache) return;
-    // CONN SERVICE
-    final c = p.join(libPath, 'core');
-    await FileUtils.writeFile(
-      p.join(c, 'services', 'connectivity_service.dart'),
-      ServicesTemplates.connectivityService(
-        stateManagement: templates.stateManagement,
-        withApiProbe: withApiProbe,
       ),
     );
   }
@@ -946,8 +918,6 @@ class CreateFeatureCommand extends Command<int> {
     Set<String> selected,
     StackTemplates templates,
     String holderItem, {
-    bool includeUnit = true,
-    bool includeIntegration = true,
     bool testsOnly = false,
   }) {
     _logger.success('');

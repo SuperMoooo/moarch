@@ -797,7 +797,7 @@ Future<void> setupInjector() async {
       final spec = ScaffoldCatalog.all.firstWhere(
         (spec) => spec.name == 'analysis-options',
       );
-      const context = ScaffoldContext(
+      final context = ScaffoldContext(
         projectRoot: 'unused',
         pubspec: 'dependencies:\n  flutter_bloc: ^9.1.1\n',
       );

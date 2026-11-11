@@ -9,7 +9,7 @@ class ModalsTemplates {
   /// `AppBottomModals` in the locator or calls the class directly.
   static String appBottomModals() {
     return '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../../config/router/app_router.dart';
 import '../../../core/constants/app_constants.dart';
 
@@ -70,7 +70,7 @@ Future<T?> showAppBottomModal<T>({
   static String appActionSheet() => r'''
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/app_constants.dart';

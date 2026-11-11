@@ -80,7 +80,7 @@ abstract final class AppEnv {
         : '';
 
     return '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../core/constants/app_constants.dart';$statusImport
 
@@ -481,7 +481,7 @@ $darkGetter}
         : '';
 
     return '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../core/constants/app_constants.dart';
 

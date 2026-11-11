@@ -3,7 +3,7 @@
 abstract final class CountryTemplates {
   /// Returns the generated appCountryPicker template.
   static String appCountryPicker() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import './app_country.dart';

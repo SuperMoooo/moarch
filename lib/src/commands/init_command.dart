@@ -594,9 +594,6 @@ class InitCommand extends Command<int> {
         ? await mainActivityFile.readAsString()
         : null;
 
-    // Unversioned, so pub fetches the newest release each package allows. Pub
-    // is free to resolve *backwards* to settle a conflict, so the packages
-    // that break when it does carry a constraint of their own below.
     // Every constraint comes from `PackageVersions`, one table bumped per
     // moarch release. Not `any`: the templates are written against a specific
     // API, and an unconstrained entry lets the next `pub get` walk a project
@@ -622,6 +619,11 @@ class InitCommand extends Command<int> {
       // job either way. What Riverpod keeps is state — the notifiers, which
       // read what they depend on out of here.
       PackageVersions.entry('get_it'),
+      // Material and Cupertino are packages since Flutter 3.47, and the
+      // in-framework copies are deprecated from 3.50: every generated file
+      // imports these.
+      PackageVersions.entry('material_ui'),
+      PackageVersions.entry('cupertino_ui'),
       PackageVersions.entry('flutter_native_splash'),
       PackageVersions.entry('envied'),
       PackageVersions.entry('skeletonizer'),
@@ -1616,10 +1618,7 @@ class InitCommand extends Command<int> {
     if (wantsFcm) {
       // Without the remote-notification background mode, FCM messages are
       // only delivered while the app is in the foreground.
-      content = PlistUtils.ensureArray(content, 'UIBackgroundModes', [
-        'fetch',
-        'remote-notification',
-      ]);
+      content = PlatformRequirement.pushNotifications.patchPlist(content);
     }
     if (wantsSync) {
       // A background app refresh only runs for an identifier listed here.
@@ -1708,12 +1707,17 @@ class InitCommand extends Command<int> {
     _logger.info('  Updated ios/Runner/AppDelegate.swift with $addition.');
   }
 
-  /// permission_handler compiles every permission group's native code by
-  /// default, pulling in usage-description requirements for permissions the
-  /// app never requests. Only camera/photos are turned on.
+  /// Under CocoaPods, permission_handler compiles every permission group's
+  /// native code by default, pulling in usage-description requirements for
+  /// permissions the app never requests; the Podfile block turns on only
+  /// camera/photos.
   ///
-  /// A missing `ios/Podfile` is written rather than skipped, with the same
-  /// block already wired in.
+  /// Only an existing `ios/Podfile` is patched. Since Flutter 3.44 plugins
+  /// are integrated through Swift Package Manager and a new project has no
+  /// Podfile — one appears only while a plugin still needs CocoaPods — and a
+  /// Podfile's mere presence makes the Flutter tool run `pod install` again.
+  /// Under SwiftPM, permission_handler compiles exactly the groups whose
+  /// usage description is in `Info.plist`, which [_patchInfoPlist] writes.
   Future<void> _patchPodfile(
     File podfileFile,
     Set<String> stack, {
@@ -1722,21 +1726,13 @@ class InitCommand extends Command<int> {
     final wantsMedia = stack.contains(_kMediaService);
 
     if (!podfileFile.existsSync()) {
-      if (dryRun) {
+      if (wantsMedia) {
         _logger.info(
-          '  Would create ios/Podfile with permission_handler '
-          'defaults (camera/photos only)',
+          '  No ios/Podfile (Swift Package Manager) — permission_handler '
+          'compiles the camera and photo groups from the usage descriptions '
+          'in Info.plist.',
         );
-        return;
       }
-      await FileUtils.writeFile(
-        podfileFile.path,
-        PodfileUtils.defaultPodfile(camera: wantsMedia, photos: wantsMedia),
-      );
-      _logger.info(
-        '  Created ios/Podfile with permission_handler defaults '
-        '(camera/photos only).',
-      );
       return;
     }
 
@@ -1758,24 +1754,28 @@ class InitCommand extends Command<int> {
     _logger.info('  Updated ios/Podfile with $addition.');
   }
 
-  /// flutter_local_notifications needs Java 8+ core library desugaring
-  /// enabled on Android, or `flutter build apk`/`appbundle` fails the first
-  /// time it runs with the notifications service enabled.
+  /// permission_handler compiles against API 37, above the template's
+  /// default, so `compileSdk` gets a floor; and flutter_local_notifications
+  /// needs Java 8+ core library desugaring enabled on Android, or
+  /// `flutter build apk`/`appbundle` fails the first time it runs with the
+  /// notifications service enabled.
   Future<void> _patchBuildGradle(
     File buildGradleFile,
     Set<String> stack, {
     required bool dryRun,
   }) async {
-    if (!stack.contains(_kNotificationsService)) return;
-
-    const addition =
-        'core library desugaring (isCoreLibraryDesugaringEnabled + desugar_jdk_libs)';
+    final wantsDesugaring = stack.contains(_kNotificationsService);
+    final addition = [
+      'compileSdk ${GradleUtils.requiredCompileSdk}',
+      if (wantsDesugaring)
+        'core library desugaring (isCoreLibraryDesugaringEnabled + '
+            'desugar_jdk_libs)',
+    ].join(' and ');
 
     if (!buildGradleFile.existsSync()) {
       _logger.info(
-        '  Note: android/app/build.gradle.kts not found — enable '
-        'core library desugaring manually once the android folder exists '
-        '(flutter_local_notifications requires it).',
+        '  Note: android/app/build.gradle.kts not found — set $addition '
+        'manually once the android folder exists.',
       );
       return;
     }
@@ -1786,7 +1786,10 @@ class InitCommand extends Command<int> {
     }
 
     final content = await buildGradleFile.readAsString();
-    final patched = GradleUtils.ensureCoreLibraryDesugaring(content);
+    var patched = GradleUtils.ensureCompileSdk(content);
+    if (wantsDesugaring) {
+      patched = GradleUtils.ensureCoreLibraryDesugaring(patched);
+    }
     if (patched == content) return;
     await buildGradleFile.writeAsString(patched);
     _logger.info('  Updated android/app/build.gradle.kts with $addition.');

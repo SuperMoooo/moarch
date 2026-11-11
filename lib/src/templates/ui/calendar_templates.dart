@@ -3,7 +3,7 @@
 class CalendarTemplates {
   /// Returns the generated appCalendar template.
   static String appCalendar() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:table_calendar/table_calendar.dart';
 

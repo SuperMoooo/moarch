@@ -9,6 +9,7 @@ import '../templates/misc/project_docs_templates.dart';
 import '../templates/misc/skills_templates.dart';
 import 'api_constants_utils.dart';
 import 'file_utils.dart';
+import 'gradle_utils.dart';
 import 'package_versions.dart';
 import 'injector_utils.dart';
 import 'platform_requirements.dart';
@@ -18,6 +19,7 @@ import 'router_utils.dart';
 import 'pubspec_utils.dart';
 import 'scaffold_catalog.dart';
 import 'state_management.dart';
+import 'swift_utils.dart';
 import 'widget_catalog.dart';
 
 /// How much a [Diagnostic] matters.
@@ -88,6 +90,8 @@ abstract final class ProjectInspector {
     final pubspec = pubspecFile.existsSync()
         ? pubspecFile.readAsStringSync()
         : null;
+    // Read once: every check below asks the same project the same questions.
+    final context = ScaffoldContext.detect(root);
 
     return [
       ..._structure(root, libPath),
@@ -97,19 +101,144 @@ abstract final class ProjectInspector {
       if (pubspec != null) ..._localization(libPath, pubspec),
       ..._codegen(libPath),
       ..._theme(root, libPath),
-      ..._auth(root),
-      ..._authAccountScreens(root),
-      ..._paging(root),
-      ..._syncStatus(root, libPath),
-      if (pubspec != null) ..._databaseEncryption(root, pubspec),
+      ..._auth(root, context),
+      ..._authAccountScreens(root, context),
+      ..._paging(root, context),
+      ..._syncStatus(root, libPath, context),
+      if (pubspec != null) ..._databaseEncryption(root, pubspec, context),
       ..._endpoints(libPath),
-      ..._platforms(root),
+      ..._platforms(root, context),
+      ..._uiScene(root),
+      if (pubspec != null) ..._compileSdk(root, pubspec),
       ..._agents(root),
-      ..._skills(root),
-      ..._newSkills(root),
-      ..._newGuides(root),
-      ..._dartMcp(root),
+      ..._skills(root, context),
+      ..._newSkills(root, context),
+      ..._newGuides(root, context),
+      ..._dartMcp(root, context),
       ..._widgets(root, libPath, pubspec),
+    ];
+  }
+
+  // ── iOS lifecycle ───────────────────────────────────────────────────────────
+
+  /// A project still on the pre-UIScene launch sequence: no
+  /// `UIApplicationSceneManifest` in `Info.plist`.
+  ///
+  /// Xcode 27 refuses to launch a UIKit app without it. The Flutter CLI
+  /// migrates a project on its own, but only while `AppDelegate.swift` is
+  /// byte-for-byte a stock template — and one `init` patched for
+  /// notifications is not. The fix does both halves when the AppDelegate is
+  /// recognisably the stock one with lines added, since the manifest alone
+  /// would register the plugins before the engine exists; otherwise it names
+  /// the manual steps.
+  static List<Diagnostic> _uiScene(String root) {
+    final plist = File(p.join(root, 'ios', 'Runner', 'Info.plist'));
+    if (!plist.existsSync()) return const [];
+    final plistSource = plist.readAsStringSync();
+    final appDelegate = File(
+      p.join(root, 'ios', 'Runner', 'AppDelegate.swift'),
+    );
+    final delegateSource = appDelegate.existsSync()
+        ? appDelegate.readAsStringSync()
+        : null;
+
+    // Only the Swift template is known here; an Objective-C project is the
+    // Flutter CLI's to migrate.
+    if (delegateSource == null) return const [];
+
+    final hasManifest = plistSource.contains(
+      '<key>${PlistUtils.sceneManifestKey}</key>',
+    );
+    if (hasManifest && SwiftUtils.usesUIScene(delegateSource)) {
+      return const [];
+    }
+
+    final migrated = SwiftUtils.migrateToUIScene(delegateSource);
+    const guide =
+        'https://docs.flutter.dev/release/breaking-changes/uiscenedelegate';
+
+    if (migrated == null) {
+      return [
+        const Diagnostic.warning(
+          'ios/ is not on the UIScene lifecycle, which Xcode 27 requires '
+          'to launch the app',
+          hint:
+              'AppDelegate.swift has been customized, so migrate it by hand: '
+              'conform to FlutterImplicitEngineDelegate, register the plugins '
+              'from didInitializeImplicitFlutterEngine, and add '
+              'UIApplicationSceneManifest to Info.plist — $guide.',
+        ),
+      ];
+    }
+
+    return [
+      Diagnostic.warning(
+        'ios/ is not on the UIScene lifecycle, which Xcode 27 requires to '
+        'launch the app',
+        hint:
+            'Add UIApplicationSceneManifest to Info.plist and move plugin '
+            'registration to didInitializeImplicitFlutterEngine with '
+            '`moarch doctor --fix` ($guide).',
+        fix: () async {
+          final written = <String>[];
+          if (!hasManifest) {
+            await plist.writeAsString(
+              PlistUtils.ensureSceneManifest(plistSource),
+            );
+            written.add('Info.plist');
+          }
+          if (migrated != delegateSource) {
+            await appDelegate.writeAsString(migrated);
+            written.add('AppDelegate.swift');
+          }
+          return 'moved ${written.join(' and ')} to the UIScene lifecycle';
+        },
+      ),
+    ];
+  }
+
+  // ── Android compileSdk ──────────────────────────────────────────────────────
+
+  /// The lowest major of [package] in [pubspec], or null when absent or
+  /// unversioned.
+  static int? _majorOf(String pubspec, String package) {
+    final match = RegExp(
+      '^\\s+${RegExp.escape(package)}:\\s*[\\^]?(\\d+)',
+      multiLine: true,
+    ).firstMatch(pubspec);
+    return match == null ? null : int.parse(match.group(1)!);
+  }
+
+  /// `build.gradle.kts` still compiling against the Flutter default while a
+  /// plugin in the pubspec compiles against API 37 — permission_handler from
+  /// 13, flutter_local_notifications from 23. Gradle builds, but every run
+  /// prints the mismatch, and the plugins' API-37 code paths are compiled
+  /// out.
+  static List<Diagnostic> _compileSdk(String root, String pubspec) {
+    final needs =
+        (_majorOf(pubspec, 'permission_handler') ?? 0) >= 13 ||
+        (_majorOf(pubspec, 'flutter_local_notifications') ?? 0) >= 23;
+    if (!needs) return const [];
+    final gradle = File(p.join(root, 'android', 'app', 'build.gradle.kts'));
+    if (!gradle.existsSync()) return const [];
+    final source = gradle.readAsStringSync();
+    final patched = GradleUtils.ensureCompileSdk(source);
+    if (patched == source) return const [];
+
+    return [
+      Diagnostic.warning(
+        'android/app/build.gradle.kts compiles against the Flutter default '
+        'SDK, below the ${GradleUtils.requiredCompileSdk} permission_handler '
+        'and flutter_local_notifications need',
+        hint:
+            'Set `compileSdk = maxOf(flutter.compileSdkVersion, '
+            '${GradleUtils.requiredCompileSdk})` — `moarch doctor --fix` does.',
+        fix: () async {
+          await gradle.writeAsString(patched);
+          return 'floored compileSdk at ${GradleUtils.requiredCompileSdk} in '
+              'android/app/build.gradle.kts';
+        },
+      ),
     ];
   }
 
@@ -120,8 +249,11 @@ abstract final class ProjectInspector {
   ///
   /// `update` never adds a file. Gated on the manifest like the skills: a
   /// file it has a record of was deleted on purpose.
-  static List<Diagnostic> _syncStatus(String root, String libPath) {
-    final context = ScaffoldContext.detect(root);
+  static List<Diagnostic> _syncStatus(
+    String root,
+    String libPath,
+    ScaffoldContext context,
+  ) {
     const path = 'lib/shared/widgets/sync_status.dart';
     if (!context.hasSync || context.hasSyncStatus) return const [];
     if (ProjectManifest.load(root)?.files[path] != null) return const [];
@@ -159,8 +291,12 @@ abstract final class ProjectInspector {
   ///
   /// Plain SQLite ignores `PRAGMA key`, so the app would write the "encrypted"
   /// database in the clear; only a debug build's assert notices.
-  static List<Diagnostic> _databaseEncryption(String root, String pubspec) {
-    if (!ScaffoldContext.detect(root).hasEncryptedDatabase) return const [];
+  static List<Diagnostic> _databaseEncryption(
+    String root,
+    String pubspec,
+    ScaffoldContext context,
+  ) {
+    if (!context.hasEncryptedDatabase) return const [];
     final source = PubspecUtils.hookUserDefine(pubspec, 'sqlite3', 'source');
     if (source == 'sqlite3mc') return const [];
 
@@ -198,8 +334,10 @@ abstract final class ProjectInspector {
   /// once they and their `AppRoutes` paths exist — so this is the step that
   /// gives an existing project both. Gated on the manifest like the skills:
   /// a screen it has a record of was deleted on purpose.
-  static List<Diagnostic> _authAccountScreens(String root) {
-    final context = ScaffoldContext.detect(root);
+  static List<Diagnostic> _authAccountScreens(
+    String root,
+    ScaffoldContext context,
+  ) {
     if (!context.hasAuthFeature || context.hasAuthAccountScreens) {
       return const [];
     }
@@ -261,8 +399,7 @@ abstract final class ProjectInspector {
   ///
   /// `update` never adds a file, and the refreshed repository, state and
   /// holder all import `UserModel` — so the model has to be there first.
-  static List<Diagnostic> _auth(String root) {
-    final context = ScaffoldContext.detect(root);
+  static List<Diagnostic> _auth(String root, ScaffoldContext context) {
     if (!context.hasRestAuthFeature) return const [];
     final spec = ScaffoldCatalog.byName('auth-me-model')!;
     // A project from 9.3.0 to 10.0.0 has it under `domain/models/`.
@@ -297,8 +434,7 @@ abstract final class ProjectInspector {
   /// `paginated.dart` chose not to page and is not asked. The new file reads
   /// `Paginated.next`, which an older `paginated.dart` lacks, and that file
   /// is often edited — so the fix does not rewrite it and the message says to.
-  static List<Diagnostic> _paging(String root) {
-    final context = ScaffoldContext.detect(root);
+  static List<Diagnostic> _paging(String root, ScaffoldContext context) {
     if (!context.hasFile(ScaffoldCatalog.byName('paginated')!.path)) {
       return const [];
     }
@@ -352,10 +488,8 @@ abstract final class ProjectInspector {
   /// from `AndroidManifest.xml` or `Info.plist` — a project from before
   /// `init` declared them, or one that added a service by hand. Nothing fails
   /// to build; the calls fail at runtime instead.
-  static List<Diagnostic> _platforms(String root) {
-    final requirements = PlatformRequirement.forProject(
-      ScaffoldContext.detect(root),
-    );
+  static List<Diagnostic> _platforms(String root, ScaffoldContext context) {
+    final requirements = PlatformRequirement.forProject(context);
     if (requirements.isEmpty) return const [];
 
     final manifest = File(
@@ -433,7 +567,7 @@ abstract final class ProjectInspector {
   static List<Diagnostic> _agents(String root) {
     if (File(p.join(root, 'AGENTS.md')).existsSync()) return const [];
     final manifest = ProjectManifest.load(root);
-    if (manifest != null && !_predates(manifest.version, _agentsSince)) {
+    if (manifest != null && !_predates(manifest.generatedWith, _agentsSince)) {
       return const [];
     }
 
@@ -456,11 +590,11 @@ abstract final class ProjectInspector {
   /// A project with `AGENTS.md` from before `init` wrote the skills (9.1.0).
   ///
   /// Same rule as [_agents]: a newer project without them chose that.
-  static List<Diagnostic> _skills(String root) {
+  static List<Diagnostic> _skills(String root, ScaffoldContext context) {
     if (!File(p.join(root, 'AGENTS.md')).existsSync()) return const [];
-    if (ScaffoldContext.detect(root).hasAgentSkills) return const [];
+    if (context.hasAgentSkills) return const [];
     final manifest = ProjectManifest.load(root);
-    if (manifest != null && !_predates(manifest.version, _skillsSince)) {
+    if (manifest != null && !_predates(manifest.generatedWith, _skillsSince)) {
       return const [];
     }
 
@@ -492,8 +626,8 @@ abstract final class ProjectInspector {
   /// there. The manifest's version cannot gate it, since every `create` and
   /// `update` restamps that; its file records can: a skill it has a hash for
   /// was generated here once and deleted since, which is a choice to respect.
-  static List<Diagnostic> _newSkills(String root) {
-    if (!ScaffoldContext.detect(root).hasAgentSkills) return const [];
+  static List<Diagnostic> _newSkills(String root, ScaffoldContext context) {
+    if (!context.hasAgentSkills) return const [];
     final manifest = ProjectManifest.load(root);
     final missing = [
       for (final skill in SkillsTemplates.all)
@@ -533,8 +667,7 @@ abstract final class ProjectInspector {
   /// generated here and deleted since, and stays deleted. Only projects that
   /// have a README moarch wrote are offered them, since the README's guides
   /// table is what links them.
-  static List<Diagnostic> _newGuides(String root) {
-    final context = ScaffoldContext.detect(root);
+  static List<Diagnostic> _newGuides(String root, ScaffoldContext context) {
     final manifest = ProjectManifest.load(root);
     if (manifest?.files['README.md'] == null) return const [];
     final options = context.docsOptions;
@@ -570,8 +703,7 @@ abstract final class ProjectInspector {
   /// Gated like [_newSkills], on the manifest's record of `.mcp.json`. A
   /// `.mcp.json` the team wrote is never rewritten: it gets the entry to add
   /// by hand instead.
-  static List<Diagnostic> _dartMcp(String root) {
-    final context = ScaffoldContext.detect(root);
+  static List<Diagnostic> _dartMcp(String root, ScaffoldContext context) {
     if (!context.hasAgentSkills || context.hasDartMcp) return const [];
     const hint =
         'Then `moarch update gemini-settings agents` gives Gemini CLI the same '
@@ -706,13 +838,32 @@ abstract final class ProjectInspector {
       '.fvmrc': File(p.join(root, '.fvmrc')).existsSync(),
     };
 
+    // `.env` is gitignored on purpose, so every fresh clone lacks it; the
+    // committed `.env.example` is what to copy, not `init`.
+    final example = File(p.join(root, '.env.example'));
     return [
       for (final entry in expected.entries)
         if (!entry.value)
-          Diagnostic.error(
-            '${entry.key} is missing',
-            hint: 'Run `moarch init` to scaffold it.',
-          ),
+          entry.key == '.env'
+              ? Diagnostic.error(
+                  '.env is missing',
+                  hint: example.existsSync()
+                      ? 'Copy .env.example to .env and fill it in — '
+                            '`moarch doctor --fix` copies it.'
+                      : 'Create it with the keys lib/config/env/app_env.dart '
+                            'reads (at least BASE_URL=).',
+                  fix: example.existsSync()
+                      ? () async {
+                          await example.copy(p.join(root, '.env'));
+                          return 'copied .env.example to .env — fill in the '
+                              'values, then run build_runner';
+                        }
+                      : null,
+                )
+              : Diagnostic.error(
+                  '${entry.key} is missing',
+                  hint: 'Run `moarch init` to scaffold it.',
+                ),
     ];
   }
 
@@ -1139,7 +1290,7 @@ abstract final class ProjectInspector {
           fix: () async {
             await PubspecUtils.ensureDependencies(
               root,
-              dependencies: ['firebase_core: '],
+              dependencies: [PackageVersions.entry('firebase_core')],
             );
             return 'added firebase_core to pubspec.yaml (run `flutter pub get`)';
           },
@@ -1187,11 +1338,13 @@ abstract final class ProjectInspector {
         Diagnostic.error(
           'google_sign_in is missing from pubspec.yaml but the auth feature '
           'signs in with Google',
-          hint: 'Add `google_sign_in: ^7.0.0` and run `flutter pub get`.',
+          hint:
+              'Add `${PackageVersions.entry('google_sign_in')}` and run '
+              '`flutter pub get`.',
           fix: () async {
             await PubspecUtils.ensureDependencies(
               root,
-              dependencies: ['google_sign_in: ^7.0.0'],
+              dependencies: [PackageVersions.entry('google_sign_in')],
             );
             return 'added google_sign_in to pubspec.yaml (run `flutter pub get`)';
           },

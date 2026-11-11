@@ -29,8 +29,16 @@ abstract final class PackageVersions {
   static Iterable<String> get packages => _constraints.keys;
 
   static const _constraints = <String, String>{
+    // ── Design libraries ────────────────────────────────────────────────────
+    // Material and Cupertino left the framework in Flutter 3.47 and the
+    // in-framework copies are deprecated from 3.50: every generated file
+    // imports these two instead of `package:flutter/material.dart`. Floored
+    // at the line that needs Flutter 3.47, the `.fvmrc` pin.
+    'material_ui': '^1.11.0',
+    'cupertino_ui': '^1.1.6',
+
     // ── State management ────────────────────────────────────────────────────
-    'flutter_riverpod': '^3.4.2',
+    'flutter_riverpod': '^3.5.0',
     'flutter_bloc': '^9.1.1',
     'bloc': '^9.2.1',
     'equatable': '^3.0.0',
@@ -42,7 +50,7 @@ abstract final class PackageVersions {
     // Dev only: makes the icons once, nothing of it ships in the app.
     'flutter_launcher_icons': '^0.14.4',
     'envied': '^1.3.10',
-    'skeletonizer': '^2.1.3',
+    'skeletonizer': '^3.0.0',
     // Deliberately unconstrained, and the only one: `flutter_localizations`
     // depends on an exact `intl` from the Flutter SDK, so any caret here
     // eventually fails to resolve against a Flutter version that wants a
@@ -50,11 +58,11 @@ abstract final class PackageVersions {
     'intl': 'any',
     // Floored because app_logger.dart uses PrettyPrinter's `dateTimeFormat`,
     // which replaced the older `printTime` flag partway through logger 2.x.
-    'logger': '^2.4.0',
-    'connectivity_plus': '^7.3.1',
+    'logger': '^2.8.0',
+    'connectivity_plus': '^7.3.2',
     // Floored for SharedPreferencesWithCache, which preferences_service.dart
     // is built on: loaded once, then read synchronously.
-    'shared_preferences': '^2.5.5',
+    'shared_preferences': '^2.5.6',
 
     // ── Codegen (models) ───────────────────────────────────────
     // The annotations are runtime dependencies — the generated `.freezed.dart`
@@ -66,7 +74,7 @@ abstract final class PackageVersions {
     'json_annotation': '^4.12.0',
 
     // ── Network ─────────────────────────────────────────────────────────────
-    'go_router': '^17.5.0',
+    'go_router': '^18.1.4',
     'dio': '^5.11.1',
     'dio_smart_retry': '^7.0.1',
     'flutter_secure_storage': '^11.2.0',
@@ -75,9 +83,9 @@ abstract final class PackageVersions {
     // Floored at the drift_dev that takes analyzer 14, the line freezed 4
     // needs. `create table` writes `@UseRowClass` tables, which drift has
     // supported for freezed classes since well before this.
-    'drift': '^2.35.3',
+    'drift': '^2.35.4',
     'drift_flutter': '^0.3.1',
-    'drift_dev': '^2.35.2',
+    'drift_dev': '^2.35.3',
     // Where the encrypted database's file is, so a key-less one can be
     // deleted. drift_flutter already depends on it.
     'path_provider': '^2.1.5',
@@ -87,43 +95,53 @@ abstract final class PackageVersions {
     'workmanager': '^0.10.10',
 
     // ── Firebase ────────────────────────────────────────────────────────────
-    'firebase_core': '^4.15.0',
-    'firebase_messaging': '^16.7.0',
-    'firebase_crashlytics': '^5.4.0',
-    'firebase_analytics': '^12.4.5',
-    'firebase_auth': '^6.7.0',
-    'cloud_firestore': '^6.10.0',
+    'firebase_core': '^5.1.0',
+    'firebase_messaging': '^17.0.1',
+    'firebase_crashlytics': '^6.0.1',
+    'firebase_analytics': '^13.0.1',
+    'firebase_auth': '^7.0.1',
+    'cloud_firestore': '^7.1.0',
     // Floored because the generated Google flow is written against the 7.x
     // API — `GoogleSignIn.instance`, `initialize()` and `authenticate()`
     // replaced the constructor and `signIn()` of 6.x.
     'google_sign_in': '^7.2.0',
     // The REST auth feature's Apple sheet. Floored at 8, the line on Flutter
     // 3.44+ that the generated datasource is written against.
-    'sign_in_with_apple': '^8.0.0',
+    'sign_in_with_apple': '^8.2.0',
 
     // ── Device ──────────────────────────────────────────────────────────────
-    // Floored at 12, which is where file_picker stopped depending on win32
-    // directly. Up to 11 it pinned `win32 ^5.9.0`, and flutter_secure_storage
-    // 11 reaches `win32 ^6.0.1` through flutter_secure_storage_windows — the
-    // two simply do not resolve together. 12 also drops `FilePickerResult`:
-    // `pickFiles` returns the `List<PlatformFile>` directly, which is what
-    // `media_service.dart` is written against.
-    'file_picker': '^12.0.0',
-    'image_picker': '^1.2.3',
-    // Capped: permission_handler 13 pulls an android impl written against
-    // AGP 9 / Gradle 9, which fails to compile on the AGP 8 toolchain
-    // `flutter create` still scaffolds. The API is unchanged across the two.
-    'permission_handler': '^12.0.3',
-    'url_launcher': '^6.3.2',
+    // 12 is where file_picker stopped depending on win32 directly (up to 11
+    // it clashed with flutter_secure_storage 11 over it) and dropped
+    // `FilePickerResult`; 13 only removes the parameters 12 had deprecated
+    // and makes `PlatformFile.length()` nullable, neither of which
+    // `media_service.dart` touches.
+    'file_picker': '^13.3.3',
+    'image_picker': '^1.2.4',
+    // 13 compiles against API 37, as does flutter_local_notifications 23:
+    // `init` floors `compileSdk` there (`GradleUtils.requiredCompileSdk`),
+    // and the AGP 9 toolchain it is written for is what Flutter 3.47
+    // scaffolds.
+    'permission_handler': '^13.0.2',
+    'url_launcher': '^6.3.3',
     // The installed version the update gate compares against the backend's
     // minimum.
-    'package_info_plus': '^10.2.1',
-    'flutter_local_notifications': '^22.3.0',
-    'timezone': '^0.11.1',
+    'package_info_plus': '^10.2.2',
+    'flutter_local_notifications': '^23.0.0',
+    'timezone': '^0.11.2',
     'local_auth': '^3.0.2',
     'local_auth_android': '^2.0.9',
     'local_auth_darwin': '^2.0.3',
     'easy_localization': '^3.0.8',
+
+    // ── UI kit (`moarch create widget`) ─────────────────────────────────────
+    // The widget specs name these bare; `PubspecUtils` resolves them here.
+    // cached_network_image 4 is the material_ui line.
+    'cached_network_image': '^4.0.6',
+    'table_calendar': '^3.3.0',
+    'just_audio': '^0.10.6',
+
+    // ── Flavors (`moarch create flavors`) ───────────────────────────────────
+    'flutter_flavorizr': '^2.6.0',
 
     // ── Dev ─────────────────────────────────────────────────────────────────
     // Floored at the first build_runner on analyzer 13.3, where freezed 4
@@ -140,7 +158,7 @@ abstract final class PackageVersions {
     // 0.4.3 caps `_fe_analyzer_shared` at 108, so in a bloc project pub holds
     // analyzer at 13.3 — the reason freezed is floored at 4.0.1, the last
     // that takes analyzer 13. Raise both when a bloc_lint takes a newer one.
-    'bloc_lint': '^0.4.2',
+    'bloc_lint': '^0.4.3',
     // What the tests `moarch create tests` writes import. The generator runs
     // inside moarch, so unlike the mogen packages it replaced it adds no
     // analyzer to the app's dependency graph.

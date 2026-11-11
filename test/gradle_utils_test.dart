@@ -37,6 +37,7 @@ flutter {
 ''';
 
 void main() {
+  _compileSdkTests();
   group('ensureCoreLibraryDesugaring', () {
     test('inserts the flag into an existing compileOptions block', () {
       final output = GradleUtils.ensureCoreLibraryDesugaring(
@@ -62,7 +63,7 @@ void main() {
         output,
         contains(
           'dependencies {\n'
-          '    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n'
+          '    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")\n'
           '}\n',
         ),
       );
@@ -89,7 +90,7 @@ dependencies {
           output,
           contains(
             'dependencies {\n'
-            '    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n'
+            '    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")\n'
             '    implementation("androidx.core:core-ktx:1.13.0")',
           ),
         );
@@ -129,6 +130,47 @@ android {
         GradleUtils.ensureCoreLibraryDesugaring(noAnchor),
         equals(noAnchor),
       );
+    });
+  });
+}
+
+void _compileSdkTests() {
+  group('ensureCompileSdk', () {
+    const template = '''
+android {
+    namespace = "dev.example.app"
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = flutter.ndkVersion
+}
+''';
+
+    test('floors the template default at what the plugins compile against', () {
+      final out = GradleUtils.ensureCompileSdk(template);
+      expect(
+        out,
+        contains('compileSdk = maxOf(flutter.compileSdkVersion, 37)'),
+      );
+      expect(out, isNot(contains('compileSdk = flutter.compileSdkVersion\n')));
+      expect(out, contains('    // At least 37'));
+    });
+
+    test('is idempotent', () {
+      final once = GradleUtils.ensureCompileSdk(template);
+      expect(GradleUtils.ensureCompileSdk(once), once);
+    });
+
+    test('raises a literal below the floor and keeps one at it', () {
+      expect(
+        GradleUtils.ensureCompileSdk('    compileSdk = 36\n'),
+        contains('compileSdk = maxOf(flutter.compileSdkVersion, 37)'),
+      );
+      const high = '    compileSdk = 38\n';
+      expect(GradleUtils.ensureCompileSdk(high), high);
+    });
+
+    test('leaves a file without the line alone', () {
+      const none = 'android {\n}\n';
+      expect(GradleUtils.ensureCompileSdk(none), none);
     });
   });
 }

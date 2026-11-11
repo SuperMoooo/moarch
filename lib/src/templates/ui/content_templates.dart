@@ -3,7 +3,7 @@
 class ContentTemplates {
   /// Returns the generated appTimeline template.
   static String appTimeline() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../inputs/app_input_style.dart';
@@ -307,7 +307,7 @@ class _TimelineRow extends StatelessWidget {
   static String appCarousel() => r'''
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../inputs/app_input_style.dart';
 import '../../../core/constants/app_constants.dart';

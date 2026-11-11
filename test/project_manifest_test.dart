@@ -84,6 +84,22 @@ void main() {
       );
     });
 
+    test('keeps the version init scaffolded with through a resave', () async {
+      // `version` is restamped by whoever writes the manifest; the origin is
+      // what `doctor` gates its "project from before X" offers on.
+      await File(
+        p.join(tempDir.path, ProjectManifest.fileName),
+      ).writeAsString("version: '9.1.0'\nstack: []\nfiles: {}\n");
+
+      final loaded = ProjectManifest.load(tempDir.path)!;
+      expect(loaded.generatedWith, '9.1.0');
+
+      await loaded.save(tempDir.path);
+      final resaved = ProjectManifest.load(tempDir.path)!;
+      expect(resaved.generatedWith, '9.1.0');
+      expect(resaved.version, isNot('9.1.0'));
+    });
+
     test('keys are forward-slashed so a manifest is portable', () async {
       final manifest =
           ProjectManifest(version: '2.2.2', generatedAt: DateTime(2026, 1, 1))

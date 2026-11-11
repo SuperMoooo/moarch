@@ -152,7 +152,7 @@ String _redact(String message) => message
 
   /// Returns the generated extensions template.
   static String extensions() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:intl/intl.dart';
 
 extension ContextX on BuildContext {
@@ -491,7 +491,7 @@ const _unaccented = 'AAAAAAaaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuNnCc';
         : '';
 
     return '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// How round the app's corners are — see [AppConstants.corners].
 enum AppCorners {

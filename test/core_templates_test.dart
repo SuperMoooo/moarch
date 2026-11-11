@@ -5,9 +5,11 @@ import 'package:moarch/src/templates/riverpod/feature_templates.dart';
 import 'package:moarch/src/templates/ui/modals_templates.dart';
 import 'package:moarch/src/templates/ui/shared_templates.dart';
 import 'package:moarch/src/templates/riverpod/app_templates.dart' as riverpod;
+import 'package:moarch/src/templates/bloc/app_templates.dart' as bloc;
 import 'package:test/test.dart';
 
 void main() {
+  _materialUiTests();
   test('mainDart adds notification initialization when requested', () {
     final output = riverpod.AppTemplates.mainDart(
       withRouter: false,
@@ -79,13 +81,11 @@ void main() {
     expect(output, contains('EasyLocalization('));
     expect(output, contains("path: 'assets/translations'"));
     expect(output, contains('locale: context.locale'));
-    expect(
-      output,
-      contains('localizationsDelegates: context.localizationDelegates'),
-    );
+    expect(output, contains('EasyLocalization.of(context)!.delegate,'));
     // Must not pull in the flutter_localizations wiring.
     expect(output, isNot(contains('flutter_localizations')));
     expect(output, isNot(contains('AppLocalizations.delegate')));
+    expect(output, contains('...GlobalMaterialLocalizations.delegates,'));
   });
 
   test(
@@ -488,5 +488,26 @@ void main() {
     );
     expect(output, contains('if (!status.isGranted) {'));
     expect(output, isNot(contains('permission: Permission.')));
+  });
+}
+
+void _materialUiTests() {
+  test('mainDart imports material_ui and bridges legacy dependencies', () {
+    for (final output in [
+      riverpod.AppTemplates.mainDart(),
+      bloc.AppTemplates.mainDart(withLocalization: true),
+    ]) {
+      expect(
+        output,
+        contains("import 'package:material_ui/material_ui.dart';"),
+      );
+      expect(output, isNot(contains("import 'package:flutter/material.dart'")));
+      expect(output, isNot(contains('MaterialUiCompatibilityBridge')));
+    }
+    // flutter_localizations' three delegates became material_ui's bundle.
+    final l10n = riverpod.AppTemplates.mainDart(withLocalization: true);
+    expect(l10n, contains('AppLocalizations.delegate,'));
+    expect(l10n, contains('...GlobalMaterialLocalizations.delegates,'));
+    expect(l10n, isNot(contains('flutter_localizations')));
   });
 }

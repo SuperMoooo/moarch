@@ -24,7 +24,7 @@ class MaintenanceTemplates {
         ? "import 'dart:async';\n"
               '\n'
               "import 'package:cloud_firestore/cloud_firestore.dart';\n"
-              "import 'package:flutter/material.dart';\n"
+              "import 'package:material_ui/material_ui.dart';\n"
               "import 'package:flutter_bloc/flutter_bloc.dart';\n"
               '\n'
               "import '../../config/di/injector.dart';\n"
@@ -33,13 +33,13 @@ class MaintenanceTemplates {
         ? "import 'dart:async';\n"
               '\n'
               "import 'package:dio/dio.dart';\n"
-              "import 'package:flutter/material.dart';\n"
+              "import 'package:material_ui/material_ui.dart';\n"
               "import 'package:flutter_bloc/flutter_bloc.dart';\n"
               '\n'
               "import '../../config/di/injector.dart';\n"
               "import '../../core/constants/api_constants.dart';\n"
               "import 'error_view.dart';\n"
-        : "import 'package:flutter/material.dart';\n"
+        : "import 'package:material_ui/material_ui.dart';\n"
               "import 'package:flutter_bloc/flutter_bloc.dart';\n"
               '\n'
               "import 'error_view.dart';\n";

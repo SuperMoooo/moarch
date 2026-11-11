@@ -2,7 +2,7 @@
 abstract final class TableTemplates {
   /// Returns the generated appTable template.
   static String appTable() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../inputs/app_input_style.dart';

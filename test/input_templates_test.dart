@@ -602,7 +602,10 @@ void main() {
     pickers.forEach((name, output) {
       test('$name picks its picker off the platform', () {
         expect(output, contains("import 'dart:io';"));
-        expect(output, contains("import 'package:flutter/cupertino.dart';"));
+        expect(
+          output,
+          contains("import 'package:cupertino_ui/cupertino_ui.dart';"),
+        );
         expect(output, contains('Platform.isAndroid'));
         expect(output, contains('? _showMaterialPicker(context)'));
         expect(output, contains(': _showCupertinoPicker(context)'));

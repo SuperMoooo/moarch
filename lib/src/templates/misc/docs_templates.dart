@@ -363,10 +363,14 @@ Apps must handle personal data with care and comply with GDPR / App Store privac
 - [x] Permissions are requested at runtime, not assumed —
       `core/services/permission_service.dart`, with the media service asking
       only when it actually needs the camera or the library
-- [x] Only the permissions your options need are compiled in — the generated
-      `ios/Podfile` narrows `permission_handler` to camera and photos, instead
-      of building every group and inheriting their usage-description
-      requirements
+- [x] Only the permissions your options need are compiled in — under Swift
+      Package Manager `permission_handler` compiles exactly the groups whose
+      usage description is in `Info.plist` (a project still on a `Podfile`
+      has the same narrowing in its `post_install` block), instead of every
+      group and their usage-description requirements
+- [ ] `ITSAppUsesNonExemptEncryption` set in `Info.plist` (`false` when the
+      app only uses HTTPS and the OS keychain), so every TestFlight upload
+      stops asking about export compliance
 - [ ] The manifest and `Info.plist` reviewed for permissions a *plugin* pulled
       in that you do not actually use
 - [ ] Analytics and crash reporting configured not to collect PII — Crashlytics

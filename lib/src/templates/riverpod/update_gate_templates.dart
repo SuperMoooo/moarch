@@ -22,7 +22,7 @@ class UpdateGateTemplates {
       if (withDio && !withFirestore) "import 'package:dio/dio.dart';",
       // defaultTargetPlatform, which picks the policy's platform object.
       "import 'package:flutter/foundation.dart';",
-      "import 'package:flutter/material.dart';",
+      "import 'package:material_ui/material_ui.dart';",
       "import 'package:flutter_riverpod/flutter_riverpod.dart';",
       "import 'package:package_info_plus/package_info_plus.dart';",
       "import 'package:url_launcher/url_launcher.dart';",

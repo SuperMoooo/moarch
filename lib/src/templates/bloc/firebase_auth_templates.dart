@@ -1063,7 +1063,7 @@ $syncOnRestore
 
   /// Returns the generated login view template.
   static String loginView() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 // TODO: build your login UI and dispatch
 // context.read<AuthBloc>().add(AuthLoginRequested(email: ..., password: ...))
@@ -1087,7 +1087,7 @@ class LoginView extends StatelessWidget {
   /// Returns the generated forgot-password view template: Firebase emails a
   /// link to its own reset page.
   static String forgotPasswordView() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 // TODO: ask for the email and call
 // context.read<AuthBloc>().add(AuthPasswordResetRequested(email: ...))
@@ -1109,7 +1109,7 @@ class ForgotPasswordView extends StatelessWidget {
   /// Returns the generated verify-email view template — where the router
   /// holds a signed-in user whose address is not verified yet.
   static String verifyEmailView() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 // TODO: say where the email went, and call
 // context.read<AuthBloc>().add(const AuthVerificationEmailRequested())
@@ -1131,7 +1131,7 @@ class VerifyEmailView extends StatelessWidget {
 
   /// Returns the generated register view template.
   static String registerView() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 // TODO: build your register UI and dispatch
 // context.read<AuthBloc>().add(AuthRegisterRequested(email: ..., password: ...))

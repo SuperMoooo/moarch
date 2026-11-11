@@ -68,7 +68,7 @@ jobs:
         timeout-minutes: 20
 
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
             - uses: subosito/flutter-action@v2
               with:
@@ -108,7 +108,7 @@ jobs:
         needs: unit
 
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
             - uses: subosito/flutter-action@v2
               with:
@@ -141,7 +141,7 @@ jobs:
         needs: unit
 
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   fetch-depth: 0
 
@@ -174,7 +174,7 @@ jobs:
 
             - name: Upload secrets report
               if: always()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: secrets-report
                   path: secrets-report.json
@@ -190,10 +190,10 @@ jobs:
         if: github.event_name == 'pull_request'
 
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
             - name: Dependency review
-              uses: actions/dependency-review-action@v4
+              uses: actions/dependency-review-action@v5
               with:
                   fail-on-severity: high
                   # Uncomment to block specific licenses:
@@ -303,7 +303,13 @@ jobs:
         needs: [check-ios-secrets]
         if: needs.check-ios-secrets.outputs.has_secrets == 'true'
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
+            # App Store Connect refuses an upload not built with Xcode 26 and
+            # the iOS 26 SDK (since April 28, 2026); the runner image's
+            # default Xcode is not promised to be that, so pick it.
+            - uses: maxim-lobanov/setup-xcode@v1
+              with:
+                  xcode-version: latest-stable
             - uses: subosito/flutter-action@v2
               with:
                   flutter-version-file: .fvmrc
@@ -415,7 +421,7 @@ jobs:
                     -exportOptionsPlist ExportOptions.plist
 
             - name: Upload IPA artifact
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: release-ipa-${{ inputs.export_method }}-${{ github.run_number }}
                   path: ios/build/ipa/*.ipa
@@ -424,7 +430,7 @@ jobs:
             # The symbols for this exact build: without them its crash stack
             # traces stay unreadable, and they cannot be regenerated later.
             - name: Upload debug symbols
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: debug-info-ios-${{ github.run_number }}
                   path: build/debug-info/ios/
@@ -481,7 +487,7 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
             - uses: subosito/flutter-action@v2
               with:
@@ -492,7 +498,7 @@ jobs:
               run: flutter pub get
 
             - name: Setup Node (for cdxgen)
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: '20'
 
@@ -501,7 +507,7 @@ jobs:
                   npx --yes @cyclonedx/cdxgen@latest -t dart -o sbom.json .
 
             - name: Upload SBOM
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: sbom-cyclonedx
                   path: sbom.json
@@ -511,7 +517,7 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
             - uses: subosito/flutter-action@v2
               with:
@@ -536,7 +542,7 @@ jobs:
                   pana --json . > pana-report.json || true
 
             - name: Upload license report
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: license-report
                   path: pana-report.json
@@ -549,7 +555,7 @@ jobs:
 
         steps:
             - name: Download all reports
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   path: reports
 

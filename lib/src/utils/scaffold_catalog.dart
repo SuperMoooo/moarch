@@ -34,7 +34,17 @@ import 'widget_catalog.dart';
 /// edited.
 class ScaffoldContext {
   /// Creates a context. Prefer [detect] — this exists for tests.
-  const ScaffoldContext({required this.projectRoot, required this.pubspec});
+  ScaffoldContext({required this.projectRoot, required this.pubspec});
+
+  /// What the getters below have already read off disk. A context lives for
+  /// one command, which asks the same questions of the same project many
+  /// times over — `update` renders a hundred templates against it.
+  final Map<String, Object?> _memo = <String, Object?>{};
+
+  T _cache<T>(String key, T Function() read) {
+    if (!_memo.containsKey(key)) _memo[key] = read();
+    return _memo[key] as T;
+  }
 
   /// Reads [projectRoot] and works out which options it was generated with.
   factory ScaffoldContext.detect(String projectRoot) {
@@ -57,7 +67,8 @@ class ScaffoldContext {
       p.joinAll([projectRoot, ...p.posix.split(path)]);
 
   /// Whether the project has a file at the project-relative [path].
-  bool hasFile(String path) => File(resolve(path)).existsSync();
+  bool hasFile(String path) =>
+      _cache('file:$path', () => File(resolve(path)).existsSync());
 
   /// Whether [package] is a dependency.
   ///
@@ -110,7 +121,10 @@ class ScaffoldContext {
   ///
   /// Read off `app_theme.dart` rather than remembered from the checklist, so a
   /// project that added dark later — or removed it — refreshes as what it is.
-  bool get hasDarkTheme => WidgetVariants.hasDarkThemeIn(resolve('lib'));
+  bool get hasDarkTheme => _cache(
+    'hasDarkTheme',
+    () => WidgetVariants.hasDarkThemeIn(resolve('lib')),
+  );
 
   /// `flutter_localizations` (the `.arb` approach) is installed.
   bool get hasLocalization => hasPackage('flutter_localizations');
@@ -145,7 +159,10 @@ class ScaffoldContext {
 
   /// `AppStatusColors` was generated, so `AppTheme` registers it and the
   /// status widgets read it — see [WidgetVariants.hasStatusColorsIn].
-  bool get hasStatusColors => WidgetVariants.hasStatusColorsIn(resolve('lib'));
+  bool get hasStatusColors => _cache(
+    'hasStatusColors',
+    () => WidgetVariants.hasStatusColorsIn(resolve('lib')),
+  );
 
   /// `app_constants.dart` declares the color roles `AppTheme` reads since
   /// 9.9.0 (`onPrimary`, `onSurfaceMuted`…) — or does not exist yet, as

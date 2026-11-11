@@ -10,7 +10,7 @@ class OfflineTemplates {
 
   /// Returns the `shared/widgets/offline_gate.dart` source.
   static String offlineGate() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/connectivity_service.dart';
@@ -72,7 +72,7 @@ class OfflineView extends ConsumerWidget {
       '''
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../config/di/injector.dart';

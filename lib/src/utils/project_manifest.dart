@@ -24,13 +24,23 @@ class ProjectManifest {
     required this.generatedAt,
     this.stack = const [],
     Map<String, String>? files,
-  }) : files = files ?? <String, String>{};
+    String? generatedWith,
+  }) : files = files ?? <String, String>{},
+       generatedWith = generatedWith ?? version;
 
   /// The name of the manifest file at the project root.
   static const String fileName = '.moarch.yaml';
 
   /// The moarch version that last wrote this manifest.
   final String version;
+
+  /// The moarch version `init` scaffolded the project with.
+  ///
+  /// Kept apart from [version], which every `create` and `update` restamps:
+  /// `doctor` offers the files a later release started generating by this
+  /// one, and a restamp must not make a project look newer than it is. A
+  /// manifest from before the field existed reads it as [version].
+  final String generatedWith;
 
   /// When the manifest was last written.
   final DateTime generatedAt;
@@ -104,8 +114,10 @@ class ProjectManifest {
           for (final item in rawStack) '$item',
       ];
 
+      final version = '${doc['version'] ?? 'unknown'}';
       return ProjectManifest(
-        version: '${doc['version'] ?? 'unknown'}',
+        version: version,
+        generatedWith: '${doc['generated_with'] ?? version}',
         generatedAt:
             DateTime.tryParse('${doc['generated_at']}') ?? DateTime.now(),
         stack: stack,
@@ -154,6 +166,7 @@ class ProjectManifest {
         '# Safe to commit. Deleting it only makes `moarch update` more cautious.',
       )
       ..writeln("version: '$packageVersion'")
+      ..writeln("generated_with: '${generatedWith.replaceAll("'", "''")}'")
       ..writeln("generated_at: '${DateTime.now().toIso8601String()}'");
 
     if (stack.isEmpty) {

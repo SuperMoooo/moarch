@@ -105,7 +105,7 @@ mixin ActionBlocMixin<E, S extends StatusState<S>> on Bloc<E, S> {
   /// instead of a `switch` whose arms are the same three shells in every
   /// feature anyone will ever scaffold.
   static String appStatusView() => r'''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
 import './empty_view.dart';

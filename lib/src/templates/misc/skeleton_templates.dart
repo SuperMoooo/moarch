@@ -26,7 +26,7 @@ class SkeletonTemplates {
         : '// TODO: draw the same row the view does.';
 
     return '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 $modelImport
 /// The $cls screen while its first load runs.
