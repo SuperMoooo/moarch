@@ -16,11 +16,17 @@ class PubspecUtils {
   /// Ensures default dependency entries are present in a target pubspec file.
   ///
   /// Entries already present (matched by package name) are left untouched,
-  /// including their version constraints.
+  /// including their version constraints — unless [raiseFloors] is set, when
+  /// an existing caret constraint whose range holds moarch's but starts below
+  /// it is raised to moarch's floor. That only narrows the range, so it never
+  /// admits a version the old constraint refused. `init` sets it: since
+  /// Flutter 3.50 `flutter create` writes its own `material_ui: ^1.1.0`,
+  /// older than the API the templates are written against.
   static Future<void> ensureDependencies(
     String projectPath, {
     required List<String> dependencies,
     List<String> devDependencies = const <String>[],
+    bool raiseFloors = false,
   }) async {
     final pubspecFile = File(p.join(projectPath, 'pubspec.yaml'));
 
@@ -38,8 +44,20 @@ class PubspecUtils {
     final editor = YamlEditor(content);
     final root = loadYaml(content);
 
-    _ensureSection(editor, root, 'dependencies', dependencies);
-    _ensureSection(editor, root, 'dev_dependencies', devDependencies);
+    _ensureSection(
+      editor,
+      root,
+      'dependencies',
+      dependencies,
+      raiseFloors: raiseFloors,
+    );
+    _ensureSection(
+      editor,
+      root,
+      'dev_dependencies',
+      devDependencies,
+      raiseFloors: raiseFloors,
+    );
 
     await pubspecFile.writeAsString(editor.toString());
   }
@@ -181,8 +199,9 @@ class PubspecUtils {
     YamlEditor editor,
     Object? root,
     String section,
-    List<String> entries,
-  ) {
+    List<String> entries, {
+    bool raiseFloors = false,
+  }) {
     if (entries.isEmpty) return;
 
     final parsed = _parseDependencies(entries);
@@ -195,10 +214,41 @@ class PubspecUtils {
     }
 
     for (final entry in parsed.entries) {
-      if (!existing.containsKey(entry.key)) {
+      if (!existing.containsKey(entry.key) ||
+          (raiseFloors && _raisesFloor(existing[entry.key], entry.value))) {
         editor.update([section, entry.key], entry.value);
       }
     }
+  }
+
+  /// Whether [wanted] only narrows [current]: both are caret constraints and
+  /// [wanted]'s floor is above [current]'s while still inside its range — the
+  /// same major, or below 1.0.0 the same minor, where a caret stops.
+  static bool _raisesFloor(Object? current, Object? wanted) {
+    final from = _caretFloor(current);
+    final to = _caretFloor(wanted);
+    if (from == null || to == null) return false;
+    // `^0.0.x` allows that one patch only: there is no range to narrow.
+    if (from[0] == 0 && from[1] == 0) return false;
+    final sameRange = from[0] == 0
+        ? to[0] == 0 && to[1] == from[1]
+        : to[0] == from[0];
+    if (!sameRange) return false;
+    for (var i = 0; i < 3; i++) {
+      if (to[i] != from[i]) return to[i] > from[i];
+    }
+    return false;
+  }
+
+  /// The `[major, minor, patch]` of a `^x.y.z` constraint, or null for any
+  /// other shape (a range, `any`, a pre-release, a path or git source).
+  static List<int>? _caretFloor(Object? constraint) {
+    if (constraint is! String) return null;
+    final match = RegExp(
+      r'^\^(\d+)\.(\d+)\.(\d+)$',
+    ).firstMatch(constraint.trim());
+    if (match == null) return null;
+    return [for (var i = 1; i <= 3; i++) int.parse(match.group(i)!)];
   }
 
   /// Parses entry strings such as `dio: ^5.10.0`, `dio:` or

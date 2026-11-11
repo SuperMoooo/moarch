@@ -2,6 +2,41 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 11.2.0
+
+### Changed
+
+- **Flutter 3.50.0.** The generated `.fvmrc` pins 3.50.0 (Dart 3.14), the
+  stable that follows 3.47 — 3.48 and 3.49 were beta only. The package
+  floors stay as they are: material_ui 1.11 and cupertino_ui 1.1.6 are the
+  newest releases and run on it. `compileSdk` is still floored at 37, since
+  3.50 still defaults to 36. Existing projects: `moarch update fvmrc` (an
+  unedited `.fvmrc`), or `fvm use 3.50.0`.
+
+### Fixed
+
+- A project with flutter_localizations analyzes clean on 3.50. gen-l10n
+  still lists flutter_localizations' Material and Cupertino delegates in
+  `AppLocalizations.localizationsDelegates`. 3.50 deprecates those
+  delegates, and the generated `type=lint` ignore does not cover
+  `deprecated_member_use`, so `flutter analyze` failed on
+  `lib/l10n/app_localizations.dart`. `l10n.yaml` now gives gen-l10n a
+  `header` that ignores that one diagnostic in its output. `main.dart`
+  already registers material_ui's delegates and never reads that list.
+  Existing projects: `moarch doctor --fix` adds the header to `l10n.yaml`
+  once `.fvmrc` pins 3.50, then run `fvm flutter gen-l10n`.
+- `init` on a Flutter 3.50 project no longer leaves `material_ui` at
+  `^1.1.0`. `flutter create` writes that entry itself since 3.50, and `init`
+  kept any constraint it found. It now raises a caret constraint that is
+  inside moarch's range but below its floor; every other command still
+  leaves existing constraints alone.
+- `docs/GENERATE_JKS_FILE.md` no longer tells you to apply
+  `id("kotlin-android")`. `flutter create` has not written it since 3.47:
+  on AGP 9 the Flutter Gradle plugin applies Kotlin itself, and 3.50 warns
+  that an app applying it "will cause build failures in future versions of
+  Flutter". Existing projects: `moarch update jks-doc`, and drop the line
+  from `android/app/build.gradle.kts` if you copied it.
+
 ## 11.1.0
 
 ### Added

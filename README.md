@@ -41,14 +41,14 @@ Skip it and nothing errors: the Dart extension quietly falls back to the first
 Flutter on your `PATH`, so debug, hot reload and the analyzer all run the SDK
 the pin exists to avoid. `moarch doctor` flags it if you forget.
 
-The generated `.fvmrc` pins an exact Flutter release (`"flutter": "3.47.9"`,
+The generated `.fvmrc` pins an exact Flutter release (`"flutter": "3.50.0"`,
 the stable of this moarch version), not the `stable` channel: a channel is
 whatever commit each machine installed it at, while CI resolves the newest, so
 two checkouts could build on two SDKs. To move to another release, edit the
 version in `.fvmrc`, or:
 
 ```bash
-fvm use 3.47.9   # rewrites .fvmrc to that exact version
+fvm use 3.50.0   # rewrites .fvmrc to that exact version
 ```
 
 `fvm use` also rewrites `.vscode/settings.json` to a versioned path and strips

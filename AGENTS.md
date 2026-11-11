@@ -312,6 +312,10 @@ draws a `CupertinoButton`). A new dependency with widgets must be on
 material_ui, or it falls back to the framework's default theme.
 `PackageVersions` holds both packages; the two constants in
 `lib/src/utils/package_versions.dart` are where a Flutter floor moves.
+Since 3.50 `flutter create` writes its own `material_ui: ^1.1.0`, so `init`
+calls `PubspecUtils.ensureDependencies` with `raiseFloors`: a caret
+constraint in moarch's range but below its floor is raised. Every other
+caller leaves an existing constraint alone.
 
 ### Template string conventions
 

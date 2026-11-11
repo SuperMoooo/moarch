@@ -82,6 +82,52 @@ dependencies:
     },
   );
 
+  test('ensureDependencies with raiseFloors raises a lower floor in the same '
+      'caret range, the way flutter create writes material_ui', () async {
+    await writePubspec('''
+name: testing
+
+dependencies:
+  flutter:
+    sdk: flutter
+  material_ui: ^1.1.0 # written by flutter create
+  dio: ^4.0.0
+  logger: ^2.9.0
+  skeletonizer: '>=2.0.0 <4.0.0'
+  bloc_concurrency: ^0.2.0
+''');
+
+    await PubspecUtils.ensureDependencies(
+      tempDir.path,
+      dependencies: [
+        'material_ui: ^1.11.0',
+        'dio: ^5.10.0',
+        'logger: ^2.8.0',
+        'skeletonizer: ^3.0.0',
+        'bloc_concurrency: ^0.3.0',
+      ],
+      devDependencies: ['build_runner: ^2.15.1'],
+      raiseFloors: true,
+    );
+
+    final content = await File(
+      p.join(tempDir.path, 'pubspec.yaml'),
+    ).readAsString();
+    final deps = (loadYaml(content) as YamlMap)['dependencies'] as YamlMap;
+    expect(deps['material_ui'], '^1.11.0');
+    expect(deps['dio'], '^4.0.0', reason: 'another major is a choice');
+    expect(deps['logger'], '^2.9.0', reason: 'already above the floor');
+    expect(deps['skeletonizer'], '>=2.0.0 <4.0.0', reason: 'not a caret');
+    expect(
+      deps['bloc_concurrency'],
+      '^0.2.0',
+      reason: 'below 1.0.0 a minor is another range',
+    );
+    expect((loadYaml(content) as YamlMap)['dev_dependencies'], {
+      'build_runner': '^2.15.1',
+    });
+  });
+
   test(
     'ensureFlutterFlags adds missing keys under the flutter section',
     () async {

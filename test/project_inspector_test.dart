@@ -389,6 +389,108 @@ dependencies:
         hasLength(1),
       );
     });
+
+    group('the gen-l10n header on Flutter 3.50', () {
+      /// A flutter_localizations project pinned to [flutter], whose
+      /// `l10n.yaml` is [l10nYaml] — the one `init` wrote before 11.2.0 by
+      /// default.
+      Future<File> localizedProject({
+        String flutter = '3.50.0',
+        String l10nYaml =
+            'arb-dir: lib/l10n\n'
+            'template-arb-file: app_en.arb\n'
+            'output-localization-file: app_localizations.dart\n\n'
+            '# flutter gen-l10n',
+      }) async {
+        await scaffoldHealthyProject();
+        await File(p.join(root, 'pubspec.yaml')).writeAsString('''
+name: demo
+
+dependencies:
+  flutter_riverpod: ^2.0.0
+  envied: ^0.5.0
+  flutter_localizations:
+    sdk: flutter
+''');
+        await File(
+          p.join(root, '.fvmrc'),
+        ).writeAsString('{\n  "flutter": "$flutter"\n}\n');
+        await Directory(p.join(libPath, 'l10n')).create(recursive: true);
+        final file = File(p.join(root, 'l10n.yaml'));
+        await file.writeAsString(l10nYaml);
+        return file;
+      }
+
+      test('adds the header to an l10n.yaml from before it', () async {
+        final l10nYaml = await localizedProject();
+
+        final finding = matching(
+          await ProjectInspector.inspect(root),
+          'l10n.yaml has no header',
+        ).single;
+        expect(finding.severity, DiagnosticSeverity.warning);
+        expect(finding.isFixable, isTrue);
+        await finding.fix!();
+
+        final fixed = await l10nYaml.readAsString();
+        expect(fixed, startsWith('arb-dir: lib/l10n\n'));
+        expect(
+          fixed,
+          contains('\nheader: "// ignore_for_file: deprecated_member_use"\n'),
+        );
+        expect(
+          matching(
+            await ProjectInspector.inspect(root),
+            'l10n.yaml has no header',
+          ),
+          isEmpty,
+          reason: 'a second run finds nothing to do',
+        );
+      });
+
+      test(
+        'is quiet on a pin before 3.50, where nothing is deprecated',
+        () async {
+          await localizedProject(flutter: '3.47.9');
+
+          expect(
+            matching(
+              await ProjectInspector.inspect(root),
+              'l10n.yaml has no header',
+            ),
+            isEmpty,
+          );
+        },
+      );
+
+      test('leaves a header the project chose alone', () async {
+        await localizedProject(
+          l10nYaml:
+              'arb-dir: lib/l10n\n'
+              'header-file: l10n_header.txt\n',
+        );
+
+        expect(
+          matching(
+            await ProjectInspector.inspect(root),
+            'l10n.yaml has no header',
+          ),
+          isEmpty,
+        );
+      });
+
+      test('what init writes needs no fix', () async {
+        await localizedProject(l10nYaml: DevTemplates.l10nYaml());
+
+        expect(
+          matching(
+            await ProjectInspector.inspect(root),
+            'l10n.yaml has no header',
+          ),
+          isEmpty,
+        );
+      });
+    });
   });
 
   group('router', () {

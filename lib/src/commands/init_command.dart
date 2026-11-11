@@ -1146,6 +1146,9 @@ class InitCommand extends Command<int> {
           p.absolute(targetPath),
           dependencies: defaultDependencies,
           devDependencies: devDependencies,
+          // `flutter create` writes its own `material_ui` (3.50 on), at a
+          // floor below the API the templates use.
+          raiseFloors: true,
         );
         // sqlite3's build hook downloads the SQLite3MultipleCiphers build
         // instead of plain SQLite — what makes `PRAGMA key` mean anything.
@@ -1184,10 +1187,7 @@ class InitCommand extends Command<int> {
         // l10n.yaml config file at project root
         await FileUtils.writeFile(
           p.join(p.absolute(targetPath), 'l10n.yaml'),
-          'arb-dir: lib/l10n\n'
-          'template-arb-file: app_en.arb\n'
-          'output-localization-file: app_localizations.dart\n\n'
-          '# flutter gen-l10n',
+          DevTemplates.l10nYaml(),
         );
 
         // generate: true under flutter: section

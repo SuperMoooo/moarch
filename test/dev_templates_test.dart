@@ -37,6 +37,23 @@ void main() {
     });
   });
 
+  group('l10nYaml', () {
+    test('silences the deprecated delegates gen-l10n still writes', () {
+      final config = loadYaml(DevTemplates.l10nYaml()) as YamlMap;
+
+      expect(config['arb-dir'], 'lib/l10n');
+      expect(config['template-arb-file'], 'app_en.arb');
+      expect(config['output-localization-file'], 'app_localizations.dart');
+      expect(config['header'], '// ignore_for_file: deprecated_member_use');
+    });
+
+    test('the header entry parses on its own, as doctor appends it', () {
+      final entry = loadYaml(DevTemplates.l10nHeaderEntry) as YamlMap;
+
+      expect(entry.keys, ['header']);
+    });
+  });
+
   group('launcherIcons', () {
     test('makes both platforms\' icons from one image', () {
       final yaml = loadYaml(DevTemplates.launcherIcons()) as Map;

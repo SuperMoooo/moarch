@@ -770,7 +770,6 @@ plugins {
     id("com.android.application")
     // Only add this line if the project uses Firebase:
     // id("com.google.gms.google-services")
-    id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
 }
 

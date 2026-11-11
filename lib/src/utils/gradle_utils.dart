@@ -6,7 +6,7 @@ class GradleUtils {
 
   /// The `compileSdk` the plugins `init` adds build against: permission_handler
   /// 13 and flutter_local_notifications 23 compile against API 37, one above
-  /// what the Flutter 3.47 template sets through `flutter.compileSdkVersion`.
+  /// what Flutter (3.47 and 3.50) sets through `flutter.compileSdkVersion`.
   static const int requiredCompileSdk = 37;
 
   /// Ensures `compileSdk` in [content] is at least [minimum].

@@ -5,6 +5,7 @@ import 'package:yaml_edit/yaml_edit.dart';
 
 import '../templates/config/config_templates.dart';
 import '../templates/misc/deep_links_templates.dart';
+import '../templates/misc/dev_templates.dart';
 import '../templates/misc/project_docs_templates.dart';
 import '../templates/misc/skills_templates.dart';
 import 'api_constants_utils.dart';
@@ -100,6 +101,7 @@ abstract final class ProjectInspector {
       if (pubspec != null) ..._dependencies(libPath, pubspec),
       if (pubspec != null) ..._firebase(root, libPath, pubspec),
       if (pubspec != null) ..._localization(libPath, pubspec),
+      if (pubspec != null) ..._l10nHeader(root, pubspec),
       ..._codegen(libPath),
       ..._theme(root, libPath),
       ..._auth(root, context),
@@ -1548,6 +1550,59 @@ abstract final class ProjectInspector {
     }
 
     return const [];
+  }
+
+  /// A flutter_localizations project pinned to Flutter 3.50 or later whose
+  /// `l10n.yaml` has no `header`: gen-l10n writes the delegates 3.50
+  /// deprecates into `app_localizations.dart`, and `flutter analyze` fails on
+  /// them. A header of the project's own (`header` or `header-file`) is left
+  /// alone. Projects still on an older pin are not told: nothing is wrong
+  /// there yet.
+  static List<Diagnostic> _l10nHeader(String root, String pubspec) {
+    if (!pubspec.contains('flutter_localizations:')) return const [];
+    final l10nYaml = File(p.join(root, 'l10n.yaml'));
+    if (!l10nYaml.existsSync()) return const [];
+    final pin = _flutterPin(root);
+    if (pin == null || pin[0] < 3 || (pin[0] == 3 && pin[1] < 50)) {
+      return const [];
+    }
+    final source = l10nYaml.readAsStringSync();
+    if (RegExp(r'^header(-file)?\s*:', multiLine: true).hasMatch(source)) {
+      return const [];
+    }
+
+    return [
+      Diagnostic.warning(
+        'l10n.yaml has no header, so on Flutter 3.50 the generated '
+        "app_localizations.dart fails `flutter analyze` on flutter_localizations' "
+        'deprecated delegates',
+        hint:
+            'Add `header: "// ignore_for_file: deprecated_member_use"` to '
+            'l10n.yaml and run `fvm flutter gen-l10n` — `moarch doctor --fix` '
+            'adds the line.',
+        fix: () async {
+          final separator = source.isEmpty || source.endsWith('\n')
+              ? '\n'
+              : '\n\n';
+          await l10nYaml.writeAsString(
+            '$source$separator${DevTemplates.l10nHeaderEntry}',
+          );
+          return 'added a header to l10n.yaml — run `fvm flutter gen-l10n`';
+        },
+      ),
+    ];
+  }
+
+  /// The `[major, minor]` of the Flutter version `.fvmrc` pins, or null when
+  /// there is no pin or it is a channel rather than a release.
+  static List<int>? _flutterPin(String root) {
+    final fvmrc = File(p.join(root, '.fvmrc'));
+    if (!fvmrc.existsSync()) return null;
+    final match = RegExp(
+      r'"flutter"\s*:\s*"(\d+)\.(\d+)\.',
+    ).firstMatch(fvmrc.readAsStringSync());
+    if (match == null) return null;
+    return [int.parse(match.group(1)!), int.parse(match.group(2)!)];
   }
 
   // ── Code generation ─────────────────────────────────────────────────────────

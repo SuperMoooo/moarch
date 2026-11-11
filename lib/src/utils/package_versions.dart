@@ -33,7 +33,9 @@ abstract final class PackageVersions {
     // Material and Cupertino left the framework in Flutter 3.47 and the
     // in-framework copies are deprecated from 3.50: every generated file
     // imports these two instead of `package:flutter/material.dart`. Floored
-    // at the line that needs Flutter 3.47, the `.fvmrc` pin.
+    // at the newest release, which needs Flutter 3.47; the `.fvmrc` pin is
+    // 3.50. `flutter create` writes its own, lower `material_ui` since 3.50,
+    // and `init` raises it to this floor.
     'material_ui': '^1.11.0',
     'cupertino_ui': '^1.1.6',
 
@@ -119,8 +121,8 @@ abstract final class PackageVersions {
     'image_picker': '^1.2.4',
     // 13 compiles against API 37, as does flutter_local_notifications 23:
     // `init` floors `compileSdk` there (`GradleUtils.requiredCompileSdk`),
-    // and the AGP 9 toolchain it is written for is what Flutter 3.47
-    // scaffolds.
+    // and the AGP 9 toolchain it is written for is what Flutter 3.47 and
+    // 3.50 scaffold.
     'permission_handler': '^13.0.2',
     'url_launcher': '^6.3.3',
     // The installed version the update gate compares against the backend's
@@ -149,9 +151,9 @@ abstract final class PackageVersions {
     // still wants `build` ^4, so pub has to be able to back off to 2.17.0.
     'build_runner': '^2.15.2',
     'envied_generator': '^1.3.10',
-    // freezed 4 needs Dart 3.13 (Flutter 3.47), the line the .fvmrc pin
-    // (`DevTemplates.flutterVersion`) is on. The class shape moarch writes is the
-    // same as in 3.x.
+    // freezed 4 needs Dart 3.13 (Flutter 3.47); the .fvmrc pin
+    // (`DevTemplates.flutterVersion`) is on 3.14 (Flutter 3.50). The class
+    // shape moarch writes is the same as in 3.x.
     'freezed': '^4.0.1',
     'json_serializable': '^6.15.2',
     'flutter_lints': '^6.0.0',

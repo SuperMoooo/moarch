@@ -141,10 +141,39 @@ targets:
   /// the newest stable, so two checkouts of one project could build on two
   /// SDKs. Raise it when a dependency in `package_versions.dart` needs a
   /// newer Dart; a project changes its own `.fvmrc` by hand.
-  static const flutterVersion = '3.47.9';
+  static const flutterVersion = '3.50.0';
 
   /// The FVM pin written at the project root.
   static String fvmrc() => '{\n  "flutter": "$flutterVersion"\n}\n';
+
+  /// The `header` entry of `l10n.yaml`, with the comment that explains it.
+  ///
+  /// Flutter 3.50 deprecates flutter_localizations' Material and Cupertino
+  /// delegates in favour of material_ui's and cupertino_ui's, but gen-l10n
+  /// still lists them in `AppLocalizations.localizationsDelegates`. The
+  /// generated `// ignore_for_file: type=lint` does not cover
+  /// `deprecated_member_use`, which is not a lint, so without this header a
+  /// new project fails `flutter analyze`. `main.dart` registers material_ui's
+  /// delegates and never reads that list. `doctor --fix` appends this to the
+  /// `l10n.yaml` of a project from before it.
+  static const l10nHeaderEntry = '''
+# gen-l10n still lists flutter_localizations' delegates, deprecated since
+# Flutter 3.50; main.dart registers material_ui's instead. Drop this once
+# gen-l10n stops writing them.
+header: "// ignore_for_file: deprecated_member_use"
+''';
+
+  /// `l10n.yaml`, the gen-l10n configuration of a project on
+  /// flutter_localizations (`.arb` files).
+  static String l10nYaml() =>
+      '''
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+
+$l10nHeaderEntry
+# flutter gen-l10n
+''';
 
   /// The workspace settings written to `.vscode/settings.json`, pointing the
   /// Dart/Flutter extension at the SDK [fvmrc] pins.
