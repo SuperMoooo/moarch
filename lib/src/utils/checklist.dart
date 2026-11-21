@@ -12,20 +12,37 @@ class ChecklistCancelled implements Exception {
 class Checklist {
   Checklist._();
 
-  /// Returns the generated prompt template.
+  /// Shows [items] as a checklist and returns the labels left ticked.
+  ///
+  /// [preselected], when given, replaces each item's `defaultOn` as the
+  /// starting selection. Labels in [locked] start ticked and cannot be
+  /// unticked; [lockedReason] says why, next to each of them.
   ///
   /// Throws [ChecklistCancelled] if the user types `q` to quit.
   static Set<String> prompt({
     required String title,
     required List<ChecklistItem> items,
+    Set<String>? preselected,
+    Set<String> locked = const <String>{},
+    String lockedReason = 'required',
   }) {
+    final labels = {for (final item in items) item.label};
+    final lockedHere = locked.intersection(labels);
     final selected = {
-      for (final item in items)
-        if (item.defaultOn) item.label,
+      ...?preselected?.intersection(labels),
+      if (preselected == null)
+        for (final item in items)
+          if (item.defaultOn) item.label,
+      ...lockedHere,
     };
+    String? notice;
 
     while (true) {
-      _render(title, items, selected);
+      _render(title, items, selected, lockedHere, lockedReason);
+      if (notice != null) {
+        stdout.writeln('  $notice');
+        notice = null;
+      }
 
       stdout.write(
         '  Toggle (1-${items.length}), enter to confirm, q to quit: ',
@@ -45,7 +62,13 @@ class Checklist {
         final n = int.tryParse(part);
         if (n != null && n >= 1 && n <= items.length) {
           final item = items[n - 1];
-          if (selected.contains(item.label)) {
+          final clashes = item.excludes.intersection(lockedHere);
+          if (lockedHere.contains(item.label)) {
+            notice = '"${item.label}" is $lockedReason.';
+          } else if (clashes.isNotEmpty) {
+            notice =
+                '"${item.label}" cannot be combined with "${clashes.first}".';
+          } else if (selected.contains(item.label)) {
             selected.remove(item.label);
           } else {
             selected.add(item.label);
@@ -60,10 +83,52 @@ class Checklist {
     return selected;
   }
 
+  /// Shows [items] as a numbered list and returns the index of the one
+  /// picked. Enter alone picks [defaultIndex].
+  ///
+  /// Throws [ChecklistCancelled] if the user types `q` to quit.
+  static int chooseOne({
+    required String title,
+    required List<ChecklistItem> items,
+    int defaultIndex = 0,
+  }) {
+    while (true) {
+      stdout.writeln('');
+      stdout.writeln('  $title');
+      stdout.writeln('');
+      for (int i = 0; i < items.length; i++) {
+        final marker = i == defaultIndex ? '(•)' : '( )';
+        final n = '${i + 1}'.padLeft(2);
+        stdout.writeln('  $n)  $marker  ${items[i].label}');
+        if (items[i].description != null) {
+          stdout.writeln('        ${items[i].description}');
+        }
+      }
+      stdout.writeln('');
+      stdout.write(
+        '  Pick one (1-${items.length}), enter for ${defaultIndex + 1}, '
+        'q to quit: ',
+      );
+      final input = stdin.readLineSync()?.trim() ?? '';
+      if (input.isEmpty) {
+        stdout.writeln('');
+        return defaultIndex;
+      }
+      if (input.toLowerCase() == 'q') throw const ChecklistCancelled();
+      final n = int.tryParse(input);
+      if (n != null && n >= 1 && n <= items.length) {
+        stdout.writeln('');
+        return n - 1;
+      }
+    }
+  }
+
   static void _render(
     String title,
     List<ChecklistItem> items,
     Set<String> selected,
+    Set<String> locked,
+    String lockedReason,
   ) {
     stdout.writeln('');
     stdout.writeln('  $title');
@@ -72,7 +137,8 @@ class Checklist {
       final isOn = selected.contains(items[i].label);
       final checkbox = isOn ? '[✓]' : '[ ]';
       final n = '${i + 1}'.padLeft(2);
-      stdout.writeln('  $n)  $checkbox  ${items[i].label}');
+      final lock = locked.contains(items[i].label) ? '  ($lockedReason)' : '';
+      stdout.writeln('  $n)  $checkbox  ${items[i].label}$lock');
       if (items[i].description != null) {
         stdout.writeln('        ${items[i].description}');
       }

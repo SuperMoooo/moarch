@@ -1,4 +1,5 @@
 import '../../utils/injector_utils.dart';
+import '../../utils/service_options.dart';
 import '../../utils/state_management.dart';
 import '../core/analytics_templates.dart';
 import '../core/feature_flags_templates.dart';
@@ -189,13 +190,19 @@ ${_cascade(entries)}}
     bool withAnalytics = false,
     bool withFeatureFlags = false,
     bool flagsFromFirestore = false,
+    bool withLlm = false,
+    List<ServiceOption> services = const [],
+    ServiceVariant serviceVariant = const ServiceVariant(),
   }) {
     final flagsOverDio = withFeatureFlags && !flagsFromFirestore;
-    final packageImports = [
+    // A set, so the services that also need a Dio or a Firestore handle do
+    // not import it twice; sorted, as the directives_ordering lint wants.
+    final packageImports = {
       if (withFeatureFlags && flagsFromFirestore)
         "import 'package:cloud_firestore/cloud_firestore.dart';",
       if (withSync || flagsOverDio) "import 'package:dio/dio.dart';",
-    ];
+      for (final service in services) ...service.packageImports(serviceVariant),
+    }.toList()..sort();
     final imports = <String>[
       if (packageImports.isNotEmpty) '${packageImports.join('\n')}\n',
       if (withLocalCache) ...[
@@ -216,6 +223,7 @@ ${_cascade(entries)}}
       if (withFeatureFlags) "import '../../core/services/feature_flags.dart';",
       if (withFirebaseNotifications)
         "import '../../core/services/firebase_notifications_service.dart';",
+      if (withLlm) "import '../../core/services/llm_service.dart';",
       if (withMedia) "import '../../core/services/media_service.dart';",
       if (withNotifications)
         "import '../../core/services/notifications_service.dart';",
@@ -224,6 +232,7 @@ ${_cascade(entries)}}
         "import '../../core/services/preferences_service.dart';",
       if (withUrlLauncher)
         "import '../../core/services/url_launcher_service.dart';",
+      for (final service in services) service.import,
       "import 'injector.dart';",
     ].join('\n');
 
@@ -248,6 +257,10 @@ ${_cascade(entries)}}
         '    ..registerFactory<DebouncerService>(DebouncerService.new)',
       if (withBiometric)
         '    ..registerLazySingleton<BiometricService>(BiometricService.new)',
+      if (withLlm)
+        '    ..registerLazySingleton<LlmService>(\n'
+            '        LlmService.new,\n'
+            '        dispose: (service) => service.dispose())',
       if (withConnectivity)
         '    ..registerLazySingleton<ConnectivityService>(ConnectivityService.new)',
       if (withAppLifecycle)
@@ -265,6 +278,7 @@ ${_cascade(entries)}}
             '            ),\n'
             '        dispose: (service) => service.dispose())',
       ],
+      for (final service in services) service.entry(serviceVariant),
     ];
 
     return '''
@@ -368,6 +382,11 @@ Future<void> closeScope(String name) async {
         "import '../../features/auth/data/datasources/auth_remote_datasource.dart';",
         "import '../../features/auth/data/repositories/auth_repository.dart';",
       ],
+      // With no feature yet nothing reads getIt, but `create feature` writes
+      // its registrations through it and adds no import of its own.
+      if (!withAuthFeature)
+        '// `moarch create feature` registers through getIt.\n'
+            '// ignore: unused_import',
       "import 'injector.dart';",
     ].join('\n');
 

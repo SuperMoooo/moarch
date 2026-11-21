@@ -2,6 +2,68 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 11.3.0
+
+### Added
+
+- **Presets.** `moarch init` first asks what you are building: *Let me
+  decide* (the usual defaults) or one of nine kinds of app (FinTech,
+  e-commerce, social, health, field service, content, personal utility, AI
+  assistant, MVP on Firebase). A preset pre-ticks both checklists for that
+  kind of app and locks the options it cannot do without (a FinTech app keeps
+  biometrics, the auth feature and the update gate). Every option stays
+  visible and the rest can be toggled. `--preset <slug>` skips the question;
+  it cannot be combined with `--all`. Nothing records the preset: later
+  commands detect options from disk as before.
+- **Two skills for understanding the code.** `moarch-make-readable` renames
+  confusing variables, functions and classes, splits functions that do
+  several things and comments the parts a reader would stop at, without
+  changing behaviour (and keeps a model's JSON keys when a field is
+  renamed). `moarch-explain` answers how something works by tracing it
+  through the project's files, explains each Flutter and Dart concept on the
+  way with a link to its docs, and ends with something to try and a question
+  to check the idea. The generated `AGENTS.md` now asks for clear names and
+  why-comments, and for a plain-words recap of every change: what changed,
+  what now happens when the app runs, and the concepts it uses. Existing
+  projects: `moarch doctor --fix` offers the two skills, and `moarch update
+  agents` refreshes `AGENTS.md`.
+- **Security and product features.** Two new `init` checklists. *Security*
+  adds device integrity (root/jailbreak checks and Play Integrity / App
+  Attest verified by the backend), a screenshot and screen-recording block,
+  a session lock after time away, and certificate pinning for the Dio
+  client. *Product features* adds onboarding pages, report and block
+  (Firestore or REST), a share sheet, the store review prompt, location, a
+  barcode/QR scanner, Apple Health and Health Connect, in-app purchases
+  verified by the backend, a WebSocket, on-device voice and on-device search
+  (with on-device AI), and a signature pad in the UI kit. Each one declares
+  its permissions, usage descriptions and entitlements, and has a row in
+  `docs/SERVICES.md`. The presets tick the ones their kind of app needs: the
+  FinTech preset now requires integrity, the screenshot block and the
+  session lock, and the social one requires report and block. The services
+  are one table, `ServiceOptions`, which `init`, `update` and `doctor` read.
+- **On-device AI (Gemma 4 via LiteRT-LM).** A new *Backend / networking*
+  option writes `core/services/llm_service.dart`: an `LlmService` running
+  Gemma 4 E2B on the device through `flutter_edge_ai` and
+  `flutter_edge_ai_litertlm` (flutter_gemma's successor). The model is
+  downloaded on first run (~2.6 GB, a pinned catalog build) in an Android
+  foreground service. `init` declares that service and its permissions in
+  `AndroidManifest.xml` and raises `minSdk` to 30. It is registered in the
+  core module, listed in `docs/SERVICES.md`, refreshed by `moarch update
+  llm-service`, and `doctor --fix` checks its manifest entries. The `ai`
+  preset starts from it.
+
+### Fixed
+
+- `moarch create feature` in a project with no backend (neither `dio` nor
+  `cloud_firestore`, and no offline cache) no longer writes a Dio remote
+  datasource that does not compile. The remote datasource is not offered
+  there, and `--all` skips it. The feature gets the local datasource, the
+  repository and the screen.
+- `flutter analyze` no longer warns about an unused `injector.dart` import in
+  `config/di/data_module.dart` in a project without the auth feature. The import stays for `moarch create feature`,
+  marked as such. Existing projects: `moarch update di-data`, while the file
+  is still the generated one.
+
 ## 11.2.0
 
 ### Changed

@@ -82,6 +82,30 @@ notifiers/` + `states/` vs. `presentation/blocs/`, and bloc's extra
 
 State management is the only axis that forks. DI is get_it in both.
 
+### Presets only tick the checklists
+
+`InitCommand.presets` (`commands/init_command.dart`, the `InitPreset` class
+in `utils/init_presets.dart`) is the "Project type" question: each preset
+pre-ticks checklist labels and locks a few. Nothing records the preset, so
+no later command may depend on it. The dependency rules between options
+live in `InitCommand.reconcileSelection`, and `test/init_presets_test.dart`
+fails on a preset those rules would change. A new option a preset should
+tick goes in that preset's `selected` set.
+
+### Optional services are one table
+
+`utils/service_options.dart` lists the services the *Security* and
+*Product features* checklists add (`ServiceOptions.all`). Each entry carries
+its checklist label, file, template (from `templates/core/product_templates.dart`),
+packages, get_it registration, `PlatformRequirement`, `ApiConstants` paths
+and `docs/SERVICES.md` row. `init`, the catalog's specs, the core module,
+`ApiConstants`, `PlatformRequirement.forProject` (so `doctor`) and the docs
+all iterate it, so a new service is one entry and one template. What a
+template varies with is a `ServiceVariant` field, filled from the checklist
+in `init` and from `ScaffoldContext.serviceVariant` everywhere else. The
+on-device AI services share `core/services/edge_ai.dart`, because
+flutter_edge_ai is initialized once per process with every engine.
+
 ### The catalogs are the registry
 
 Two lists decide what exists:

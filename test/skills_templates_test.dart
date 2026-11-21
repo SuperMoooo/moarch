@@ -410,6 +410,45 @@ void main() {
         contains('Notifiers are not registered in get_it'),
       );
     });
+
+    test('make-readable keeps behaviour and the JSON keys', () {
+      final skill = render('make-readable', options(StateManagement.riverpod));
+      expect(skill, contains('Behaviour does not'));
+      expect(skill, contains("@JsonKey(name: 'full_name')"));
+      expect(skill, contains('`old → new`'));
+      expect(skill, isNot(contains('`<Name>Page`')));
+      expect(
+        render('make-readable', options(StateManagement.bloc)),
+        contains('events in the past tense'),
+      );
+    });
+
+    test('explain traces the stack and the backend the project has', () {
+      final riverpod = render(
+        'explain',
+        options(StateManagement.riverpod, withDio: true, withRouter: true),
+      );
+      expect(riverpod, contains('`ref.watch` vs `ref.read`'));
+      expect(riverpod, contains('→ Dio → the API'));
+      expect(riverpod, contains('GoRouter'));
+      expect(riverpod, contains("debugPrint('deleteOrder: id=\$id')"));
+      final bloc = render('explain', options(StateManagement.bloc));
+      expect(bloc, contains('`BlocConsumer`'));
+      expect(bloc, isNot(contains('ref.watch')));
+      expect(bloc, isNot(contains('GoRouter')));
+      expect(bloc, isNot(contains('Dio')));
+    });
+
+    test('explain runs the app itself only with the Dart MCP server', () {
+      expect(
+        render('explain', options(StateManagement.riverpod, withDartMcp: true)),
+        contains('run the app, hot reload it'),
+      );
+      expect(
+        render('explain', options(StateManagement.riverpod)),
+        contains('Ask the user to run it'),
+      );
+    });
   });
 
   group('Claude Code', () {

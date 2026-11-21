@@ -314,6 +314,14 @@ test/
   signature you do not own dictates: overrides (`build(BuildContext context)`),
   callbacks matching a typedef (`onChanged`, `itemBuilder`, bloc handlers),
   operators and setters.
+- **Names say what a thing is** in the app's words: `unpaidOrders`, not
+  `data` or `list`; `isLoading` / `hasMore` for a `bool`; a verb for a
+  function (`submitOrder`, not `handle`). No abbreviations, no `Manager` or
+  `Helper`.
+- **Comment the why** wherever a reader would stop: a business rule, an
+  order that matters, an `await` that can outlive the screen, a workaround,
+  a platform quirk. Never a comment that repeats the code. Every public class
+  and method gets a one-line `///` doc comment.
 ''';
 
   static String _ui({
@@ -530,5 +538,9 @@ fvm flutter test
 ```${bloc ? '\n\nand `bloc lint .` reports nothing new.' : ''}
 
 CI runs the same checks and fails on any of them.
+
+Then tell the user, in plain words, what you changed, what now happens when
+the app runs (the path through the files, step by step), and any Flutter or
+Dart concept the change relies on, with a link to its docs.
 ''';
 }

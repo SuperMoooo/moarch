@@ -134,6 +134,38 @@ abstract final class PackageVersions {
     'local_auth_android': '^2.0.9',
     'local_auth_darwin': '^2.0.3',
     'easy_localization': '^3.0.8',
+    // On-device AI. The engine pins its core to one minor
+    // (flutter_edge_ai_litertlm 1.21 takes flutter_edge_ai >=2.7.0 <2.8.0),
+    // so the two move together. Both need Flutter 3.44 and Dart 3.12.
+    'flutter_edge_ai': '^2.7.1',
+    'flutter_edge_ai_litertlm': '^1.21.0',
+    // Its speech and retrieval companions, on the same core minor.
+    'flutter_edge_ai_speech': '^0.6.2',
+    'flutter_edge_ai_rag': '^1.2.0',
+    'flutter_edge_ai_sqlite': '^2.2.0',
+    // The microphone as 16 kHz PCM, what the recognizer takes.
+    'record': '^7.2.0',
+
+    // ── Security and product features (`ServiceOptions`) ─────────────────────
+    'safe_device': '^1.4.1',
+    'app_device_integrity': '^1.1.0',
+    'no_screenshot': '^2.0.1',
+    'crypto': '^3.0.7',
+    'share_plus': '^13.3.1',
+    'in_app_review': '^2.0.12',
+    // Floored below 14.0.3 on purpose: from there geolocator_linux takes
+    // dbus 0.7, while connectivity_plus 7.3.2 (the connectivity service)
+    // takes dbus 0.8, and the solver settles on 14.0.1. Raise it once
+    // geolocator_linux moves to dbus 0.8.
+    'geolocator': '^14.0.1',
+    'mobile_scanner': '^7.5.0',
+    // Builds against compileSdk 37 and AGP 9.1, which init already floors.
+    'health': '^14.0.0',
+    'in_app_purchase': '^3.3.1',
+    'web_socket_channel': '^3.0.3',
+    // The knowledge index's database path. Flutter pins its own, so a caret
+    // on the line it ships keeps the two resolvable.
+    'path': '^1.9.1',
 
     // ── UI kit (`moarch create widget`) ─────────────────────────────────────
     // The widget specs name these bare; `PubspecUtils` resolves them here.

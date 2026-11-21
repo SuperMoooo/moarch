@@ -1,3 +1,4 @@
+import '../utils/service_options.dart';
 import '../utils/state_management.dart';
 import 'bloc/app_templates.dart' as bloc;
 import 'bloc/async_templates.dart' as bloc;
@@ -128,6 +129,7 @@ class StackTemplates {
     bool withFirebase = false,
     bool withMaintenanceGate = false,
     bool withUpdateGate = false,
+    bool withOnboarding = false,
     bool withMoAdapt = false,
     bool withDarkTheme = false,
     bool withThemeMode = false,
@@ -147,6 +149,7 @@ class StackTemplates {
           withFirebase: withFirebase,
           withMaintenanceGate: withMaintenanceGate,
           withUpdateGate: withUpdateGate,
+          withOnboarding: withOnboarding,
           withMoAdapt: withMoAdapt,
           withDarkTheme: withDarkTheme,
           withThemeMode: withThemeMode,
@@ -166,6 +169,7 @@ class StackTemplates {
           withFirebase: withFirebase,
           withMaintenanceGate: withMaintenanceGate,
           withUpdateGate: withUpdateGate,
+          withOnboarding: withOnboarding,
           withMoAdapt: withMoAdapt,
           withDarkTheme: withDarkTheme,
           withThemeMode: withThemeMode,
@@ -239,9 +243,11 @@ class StackTemplates {
   String dioClient({
     bool withAuthFeature = false,
     bool withAppleSignIn = false,
+    bool withPinning = false,
   }) => CoreTemplates.dioClient(
     withAuthFeature: withAuthFeature,
     withAppleSignIn: withAppleSignIn,
+    withPinning: withPinning,
   );
 
   /// Whether this stack has a `config/di/presentation_module.dart`.
@@ -310,7 +316,13 @@ class StackTemplates {
     bool withAnalytics = false,
     bool withFeatureFlags = false,
     bool flagsFromFirestore = false,
+    bool withLlm = false,
+    List<ServiceOption> services = const [],
+    ServiceVariant serviceVariant = const ServiceVariant(),
   }) => InjectorTemplates.coreModule(
+    services: services,
+    serviceVariant: serviceVariant,
+    withLlm: withLlm,
     withLocalCache: withLocalCache,
     withSync: withSync,
     withAnalytics: withAnalytics,

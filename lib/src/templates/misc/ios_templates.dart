@@ -8,17 +8,37 @@ class IosTemplates {
   /// with an App Store profile upgrades `development` to `production`.
   /// [withAppleSignIn] adds `com.apple.developer.applesignin`, which needs
   /// the Sign in with Apple capability on the App ID.
+  ///
+  /// [withHealthKit] adds the HealthKit capability `HealthService` reads
+  /// through, and [withIncreasedMemory] the larger memory limit a
+  /// multi-gigabyte on-device model needs to load.
   static String runnerEntitlements({
     bool withPush = true,
     bool withAppleSignIn = false,
+    bool withHealthKit = false,
+    bool withIncreasedMemory = false,
   }) =>
       '''
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-${withPush ? _apsEntry : ''}${withAppleSignIn ? _appleSignInEntry : ''}${withPush ? _voipNote : ''}</dict>
+${withPush ? _apsEntry : ''}${withAppleSignIn ? _appleSignInEntry : ''}${withHealthKit ? _healthKitEntry : ''}${withIncreasedMemory ? _memoryEntry : ''}${withPush ? _voipNote : ''}</dict>
 </plist>
+''';
+
+  static const String _healthKitEntry = '''
+    <key>com.apple.developer.healthkit</key>
+    <true/>
+    <key>com.apple.developer.healthkit.access</key>
+    <array/>
+
+''';
+
+  static const String _memoryEntry = '''
+    <key>com.apple.developer.kernel.increased-memory-limit</key>
+    <true/>
+
 ''';
 
   static const String _apsEntry = '''
@@ -49,13 +69,15 @@ ${withPush ? _apsEntry : ''}${withAppleSignIn ? _appleSignInEntry : ''}${withPus
   static String runnerProfileEntitlements({
     bool withPush = true,
     bool withAppleSignIn = false,
+    bool withHealthKit = false,
+    bool withIncreasedMemory = false,
   }) =>
       '''
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-${withPush ? '\t<key>aps-environment</key>\n\t<string>development</string>\n' : ''}${withAppleSignIn ? '\t<key>com.apple.developer.applesignin</key>\n\t<array>\n\t\t<string>Default</string>\n\t</array>\n' : ''}</dict>
+${withPush ? '\t<key>aps-environment</key>\n\t<string>development</string>\n' : ''}${withAppleSignIn ? '\t<key>com.apple.developer.applesignin</key>\n\t<array>\n\t\t<string>Default</string>\n\t</array>\n' : ''}${withHealthKit ? '\t<key>com.apple.developer.healthkit</key>\n\t<true/>\n\t<key>com.apple.developer.healthkit.access</key>\n\t<array/>\n' : ''}${withIncreasedMemory ? '\t<key>com.apple.developer.kernel.increased-memory-limit</key>\n\t<true/>\n' : ''}</dict>
 </plist>
 ''';
 

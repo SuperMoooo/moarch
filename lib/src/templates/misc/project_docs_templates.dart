@@ -1,3 +1,4 @@
+import '../../utils/service_options.dart';
 import '../../utils/state_management.dart';
 import 'readme_templates.dart';
 
@@ -26,6 +27,8 @@ class DocsOptions {
     this.withLocalization = false,
     this.withEasyLocalization = false,
     this.withBiometric = false,
+    this.withLlm = false,
+    this.services = const {},
     this.withDarkTheme = false,
     this.withThemeMode = false,
     this.withStatusColors = false,
@@ -92,6 +95,12 @@ class DocsOptions {
 
   /// Face ID / fingerprint unlock.
   final bool withBiometric;
+
+  /// An on-device language model (`LlmService`).
+  final bool withLlm;
+
+  /// The `ServiceOptions` the project has, by catalog name.
+  final Set<String> services;
 
   /// The palette has a dark half.
   final bool withDarkTheme;
@@ -1065,6 +1074,11 @@ ${header('Notifications', 'How the app notifies the user.')}$local$push
         '| `AppLifecycleService` | `core/services/app_lifecycle_service.dart` | Foreground / background as streams. `resumed` carries how long the app was away, for refreshing stale data on return. |',
       if (o.withBiometric)
         '| `BiometricService` | `core/security/biometric_service.dart` | Face ID / fingerprint: `canAuthenticate()`, then `authenticate()`. |',
+      for (final option in ServiceOptions.all)
+        if (o.services.contains(option.name))
+          '| `${option.title}` | `${option.path.substring('lib/'.length)}` | ${option.docs} |',
+      if (o.withLlm)
+        '| `LlmService` | `core/services/llm_service.dart` | An on-device model (Gemma 4 E2B): `isInstalled()`, `install(onProgress:)` once (~2.6 GB), then `openChat()` and `reply(chat, text)`. Android API 30+, arm64; iOS needs the `com.apple.developer.kernel.increased-memory-limit` entitlement. |',
       if (o.withNotifications)
         '| `NotificationService` | `core/services/notifications_service.dart` | Local notifications (`docs/NOTIFICATIONS.md`). |',
       if (o.withFirebaseNotifications)

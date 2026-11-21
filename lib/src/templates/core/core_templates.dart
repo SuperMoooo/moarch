@@ -744,7 +744,16 @@ $darkPalette
     bool withMaintenanceGate = false,
     bool withUpdateGate = false,
     bool withFeatureFlags = false,
+    Map<String, String> serviceEndpoints = const {},
   }) {
+    final services = serviceEndpoints.isEmpty
+        ? ''
+        : '''
+
+
+  // ── Services ──────────────────────────────────────────────────────────────
+  // Read by the services in `core/` that talk to the backend.
+${[for (final MapEntry(:key, :value) in serviceEndpoints.entries) "  static const $key = '$value';"].join('\n')}''';
     final deviceToken = withDeviceToken
         ? '''
 
@@ -802,7 +811,7 @@ $darkPalette
 abstract final class ApiConstants {
   // BASE_URL comes from envied
   static const Duration connectTimeout = Duration(seconds: 30);
-  static const Duration receiveTimeout = Duration(seconds: 30);$authEndpoints$configEndpoints
+  static const Duration receiveTimeout = Duration(seconds: 30);$authEndpoints$configEndpoints$services
 
   // ── Features ──────────────────────────────────────────────────────────────
   // Every endpoint lives here. `moarch create feature` adds each new feature's
@@ -828,6 +837,12 @@ abstract final class ApiConstants {
     'configMaintenance': '/config/maintenance',
     'configAppVersion': '/config/app-version',
     'configFlags': '/config/flags',
+    'integrityChallenge': '/integrity/challenge',
+    'integrityVerify': '/integrity/verify',
+    'moderationReports': '/moderation/reports',
+    'moderationBlocks': '/moderation/blocks',
+    'purchasesVerify': '/purchases/verify',
+    'realtime': '/ws',
   };
 
   /// The constant names [apiConstants] source declares.
@@ -1303,6 +1318,7 @@ class NullableTimestampConverter implements JsonConverter<DateTime?, Object?> {
   static String dioClient({
     bool withAuthFeature = false,
     bool withAppleSignIn = false,
+    bool withPinning = false,
   }) {
     final publicEndpoints = withAuthFeature
         ? '''
@@ -1384,7 +1400,7 @@ import 'package:flutter/foundation.dart';
 import '../../config/env/app_env.dart';
 import '../constants/api_constants.dart';
 ${exceptionImport}import '../security/secure_storage.dart';
-import '../utils/app_logger.dart';
+import '../utils/app_logger.dart';${withPinning ? "\nimport 'certificate_pins.dart';" : ''}
 
 final _log = appLogger.scoped('Dio');
 
@@ -1451,7 +1467,11 @@ $refreshOnError
 }$retryConst
 
 void _configureHttpClient(Dio dio) {
-  dio.httpClientAdapter = IOHttpClientAdapter(
+  dio.httpClientAdapter = IOHttpClientAdapter(${withPinning ? '''
+    // Only the certificates in certificate_pins.dart (all of them while it
+    // is empty, and in debug builds).
+    validateCertificate: (certificate, host, port) =>
+        CertificatePins.allows(certificate),''' : ''}
     createHttpClient: () {
       final client = HttpClient();
       if (kDebugMode) {

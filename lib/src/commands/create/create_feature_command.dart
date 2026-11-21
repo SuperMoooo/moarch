@@ -155,6 +155,9 @@ class CreateFeatureCommand extends Command<int> {
     // A project with the cache and no backend is an offline app: its
     // features live in the local database, so the remote layer starts off.
     final offlineApp = hasLocalCache && !hasDio && !hasFirestore;
+    // Neither Dio nor Firestore: a remote datasource would import a client
+    // the project does not have, so it is not offered at all.
+    final noBackend = !hasDio && !hasFirestore;
 
     // Layer checklist
     final skipChecklist = argResults?['all'] as bool? ?? false;
@@ -163,13 +166,20 @@ class CreateFeatureCommand extends Command<int> {
 
     if (skipChecklist) {
       selected = {
-        _kRemoteDatasource,
+        if (!noBackend) _kRemoteDatasource,
         _kLocalDatasource,
         _kRepository,
         holderItem,
         _kView,
       };
-    } else {
+    }
+    if (noBackend) {
+      _logger.info(
+        '  No backend in this project (neither dio nor cloud_firestore in '
+        'pubspec.yaml), so no remote datasource is offered.',
+      );
+    }
+    if (!skipChecklist) {
       try {
         selected = Checklist.prompt(
           title: '  Select layers for "$className":',
@@ -188,7 +198,7 @@ class CreateFeatureCommand extends Command<int> {
                     'Reads, writes and watches a Firestore collection.',
                 excludes: {_kDioDatasource},
               ),
-            ] else
+            ] else if (!noBackend)
               ChecklistItem(
                 _kRemoteDatasource,
                 defaultOn: !offlineApp,
@@ -198,7 +208,7 @@ class CreateFeatureCommand extends Command<int> {
               ),
             ChecklistItem(
               _kLocalDatasource,
-              defaultOn: hasLocalCache,
+              defaultOn: hasLocalCache || noBackend,
               description: offlineApp
                   ? 'Keeps the records in the local database; the screen '
                         'follows it.'

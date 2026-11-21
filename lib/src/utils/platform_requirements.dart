@@ -2,6 +2,7 @@ import '../templates/core/sync_templates.dart';
 import 'manifest_utils.dart';
 import 'plist_utils.dart';
 import 'scaffold_catalog.dart';
+import 'service_options.dart';
 
 /// What one generated service needs declared in `AndroidManifest.xml` and
 /// `Info.plist` before it can work.
@@ -23,6 +24,8 @@ class PlatformRequirement {
     this.queriesMarker,
     this.usageDescriptions = const {},
     this.plistArrays = const {},
+    this.activityIntentFilter,
+    this.activityIntentMarker,
   });
 
   /// What needs it, as `doctor` names it.
@@ -54,6 +57,13 @@ class PlatformRequirement {
   /// iOS `Info.plist` array values, by key. Added to an existing array rather
   /// than replacing it: `UIBackgroundModes` is shared between services.
   final Map<String, List<String>> plistArrays;
+
+  /// An `<intent-filter>` for `MainActivity`, and the string that says it is
+  /// already there.
+  final String? activityIntentFilter;
+
+  /// See [activityIntentFilter].
+  final String? activityIntentMarker;
 
   /// Dio's calls. `flutter create` declares `INTERNET` only in the debug and
   /// profile manifests, so a release build without it cannot reach the API.
@@ -169,6 +179,108 @@ class PlatformRequirement {
     },
   );
 
+  /// `LlmService`'s model download: `INTERNET` for a release build, and the
+  /// foreground service it runs in, since a download of gigabytes outlives
+  /// the 9 minutes Android gives a background one.
+  static const localAi = PlatformRequirement(
+    service: 'LlmService',
+    permissions: [
+      'android.permission.INTERNET',
+      'android.permission.FOREGROUND_SERVICE',
+      'android.permission.FOREGROUND_SERVICE_DATA_SYNC',
+    ],
+    applicationChild:
+        '<service\n'
+        '            android:name="androidx.work.impl.foreground.SystemForegroundService"\n'
+        '            android:foregroundServiceType="dataSync" />',
+    applicationMarker: 'androidx.work.impl.foreground.SystemForegroundService',
+  );
+
+  /// `LocationService` (geolocator): while-in-use location.
+  static const location = PlatformRequirement(
+    service: 'LocationService',
+    permissions: [
+      'android.permission.ACCESS_COARSE_LOCATION',
+      'android.permission.ACCESS_FINE_LOCATION',
+    ],
+    usageDescriptions: {
+      'NSLocationWhenInUseUsageDescription':
+          'This app uses your location to show what is near you.',
+    },
+  );
+
+  /// `ScannerService` (mobile_scanner): the camera.
+  static const scanner = PlatformRequirement(
+    service: 'ScannerService',
+    permissions: ['android.permission.CAMERA'],
+    usageDescriptions: {
+      'NSCameraUsageDescription':
+          'This app uses the camera to scan barcodes and QR codes.',
+    },
+  );
+
+  /// `VoiceService` (record): the microphone.
+  static const voice = PlatformRequirement(
+    service: 'VoiceService',
+    permissions: ['android.permission.RECORD_AUDIO'],
+    usageDescriptions: {
+      'NSMicrophoneUsageDescription':
+          'This app listens to what you say and turns it into text on your '
+          'device.',
+    },
+  );
+
+  /// `RealtimeService`: a socket a release build cannot open without
+  /// `INTERNET`.
+  static const realtime = PlatformRequirement(
+    service: 'RealtimeService',
+    permissions: ['android.permission.INTERNET'],
+  );
+
+  /// `HealthService` (health): Health Connect's step permission, the check
+  /// for its app, the permissions-rationale screen it links to, and the
+  /// HealthKit usage descriptions. The Kotlin change (FlutterFragmentActivity)
+  /// and the HealthKit entitlement are separate.
+  static const health = PlatformRequirement(
+    service: 'HealthService',
+    permissions: [
+      'android.permission.health.READ_STEPS',
+      'android.permission.ACTIVITY_RECOGNITION',
+    ],
+    queryIntents:
+        '        <package android:name="com.google.android.apps.healthdata" />\n'
+        '        <intent>\n'
+        '            <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />\n'
+        '        </intent>',
+    queriesMarker: 'com.google.android.apps.healthdata',
+    // Health Connect's "privacy policy" link opens this; point the activity
+    // at a screen that shows the policy (docs/SERVICES.md).
+    applicationChild:
+        '<activity-alias\n'
+        '            android:name="ViewPermissionUsageActivity"\n'
+        '            android:exported="true"\n'
+        '            android:targetActivity=".MainActivity"\n'
+        '            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">\n'
+        '            <intent-filter>\n'
+        '                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />\n'
+        '                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />\n'
+        '            </intent-filter>\n'
+        '        </activity-alias>',
+    applicationMarker: 'ViewPermissionUsageActivity',
+    activityIntentFilter:
+        '            <!-- Health Connect: the permissions rationale -->\n'
+        '            <intent-filter>\n'
+        '                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />\n'
+        '            </intent-filter>',
+    activityIntentMarker: 'Health Connect: the permissions rationale',
+    usageDescriptions: {
+      'NSHealthShareUsageDescription':
+          'This app reads your activity from Health to show your progress.',
+      'NSHealthUpdateUsageDescription':
+          'This app saves the activity you record to Health.',
+    },
+  );
+
   /// The requirements of the services [context] has on disk.
   static List<PlatformRequirement> forProject(ScaffoldContext context) => [
     if (context.hasDio) internet,
@@ -179,6 +291,11 @@ class PlatformRequirement {
       urlLauncher,
     if (context.hasBiometric) biometric,
     if (context.hasSync) backgroundSync,
+    if (context.hasLlm) localAi,
+    for (final option in ServiceOptions.all)
+      if (option.requirement case final requirement?
+          when context.hasFile(option.path))
+        requirement,
   ];
 
   /// [manifest] with everything this declares on Android.
@@ -200,6 +317,13 @@ class PlatformRequirement {
         out,
         intents: queryIntents!,
         marker: queriesMarker!,
+      );
+    }
+    if (activityIntentFilter != null) {
+      out = ManifestUtils.ensureActivityIntentFilter(
+        out,
+        intentFilter: activityIntentFilter!,
+        marker: activityIntentMarker!,
       );
     }
     return out;

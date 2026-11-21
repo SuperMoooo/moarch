@@ -24,10 +24,12 @@ import '../templates/core/analytics_templates.dart';
 import '../templates/core/cache_templates.dart';
 import '../templates/core/core_templates.dart';
 import '../templates/core/feature_flags_templates.dart';
+import '../templates/core/product_templates.dart';
 import '../templates/core/sync_templates.dart';
 import '../templates/stack_templates.dart';
 import '../utils/app_id_utils.dart';
 import '../utils/file_utils.dart';
+import '../utils/init_presets.dart';
 import '../utils/gradle_utils.dart';
 import '../utils/kotlin_utils.dart';
 import '../utils/manifest_utils.dart';
@@ -38,6 +40,7 @@ import '../utils/project_manifest.dart';
 import '../utils/podfile_utils.dart';
 import '../utils/pubspec_utils.dart';
 import '../utils/scaffold_catalog.dart';
+import '../utils/service_options.dart';
 import '../utils/state_management.dart';
 import '../utils/swift_utils.dart';
 import '../utils/widget_catalog.dart';
@@ -60,6 +63,7 @@ const _kAnalytics = 'Firebase Analytics';
 const _kOfflineFirst = 'Offline-first cache (drift)';
 const _kSync = 'Offline sync (outbox + background)';
 const _kEncryptedDb = 'Encrypted local database (SQLite3MultipleCiphers)';
+const _kLocalAi = 'On-device AI (Gemma 4 via LiteRT-LM)';
 
 // ── Feature options ───────────────────────────────────────────────────────────
 // What gets generated into lib/ beyond the bare minimum.
@@ -86,6 +90,272 @@ const _kLocalizations = 'Localization (l10n)';
 const _kEasyLocalization = 'Localization (easy_localization)';
 const _kAgents = 'AI agent guide (AGENTS.md, CLAUDE.md, skills)';
 
+// ── Security and product features ─────────────────────────────────────────────
+// The services among them are `ServiceOptions.all`; these three are not a
+// service under lib/core/.
+
+const _kPinning = 'Certificate pinning (Dio)';
+const _kOnboarding = 'Onboarding pages (first launch)';
+const _kSignaturePad = 'Signature pad';
+
+final _kIntegrity = ServiceOptions.integrity.label;
+final _kScreenSecurity = ServiceOptions.screenSecurity.label;
+final _kSessionLock = ServiceOptions.sessionLock.label;
+final _kModeration = ServiceOptions.moderation.label;
+final _kShare = ServiceOptions.share.label;
+final _kReview = ServiceOptions.review.label;
+final _kLocation = ServiceOptions.location.label;
+final _kScanner = ServiceOptions.scanner.label;
+final _kHealth = ServiceOptions.health.label;
+final _kPurchases = ServiceOptions.purchases.label;
+final _kRealtime = ServiceOptions.realtime.label;
+final _kVoice = ServiceOptions.voice.label;
+final _kKnowledge = ServiceOptions.knowledge.label;
+
+// ── Presets ───────────────────────────────────────────────────────────────────
+// The first question `init` asks: a kind of app, which ticks the checklists
+// below for it and locks what that kind of app cannot do without. Every
+// option stays visible, so a preset is a starting point, never a hidden
+// stack. A preset must survive `reconcileSelection` unchanged
+// (test/init_presets_test.dart), so it never relies on a dependency rule to
+// fix it up.
+
+/// The options every preset below starts from: the router, CI, proportional
+/// scaling and the agent guide.
+const _presetBase = {_kRouter, _kWorkflows, _kMoAdapt, _kAgents};
+
+final _presets = <InitPreset>[
+  InitPreset(
+    slug: 'fintech',
+    name: 'FinTech / banking',
+    description:
+        'Biometrics on sensitive actions, a forced-update gate, no offline '
+        'use: REST with tokens in secure storage.',
+    selected: {
+      ..._presetBase,
+      _kDio,
+      _kAuthFeature,
+      _kBiometricAuth,
+      _kUpdateGate,
+      _kMaintenanceGate,
+      _kFeatureFlags,
+      _kOfflineGate,
+      _kAppLifecycle,
+      _kNotificationsService,
+      _kLaunchUrlService,
+      _kDebouncerService,
+      _kDarkTheme,
+      _kLocalizations,
+      _kIntegrity,
+      _kScreenSecurity,
+      _kSessionLock,
+      _kPinning,
+      _kOnboarding,
+    },
+    required: {
+      _kAuthFeature,
+      _kBiometricAuth,
+      _kUpdateGate,
+      _kIntegrity,
+      _kScreenSecurity,
+      _kSessionLock,
+    },
+  ),
+  InitPreset(
+    slug: 'ecommerce',
+    name: 'E-commerce / marketplace',
+    description:
+        'Product links that open the app, push for orders, analytics, and '
+        'switches for campaigns (Firebase parts need setup).',
+    selected: {
+      ..._presetBase,
+      _kDio,
+      _kAuthFeature,
+      _kDeepLinks,
+      _kAnalytics,
+      _kFirebaseNotifications,
+      _kFeatureFlags,
+      _kMaintenanceGate,
+      _kUpdateGate,
+      _kOfflineGate,
+      _kAppLifecycle,
+      _kLaunchUrlService,
+      _kDebouncerService,
+      _kDarkTheme,
+      _kLocalizations,
+      _kShare,
+      _kReview,
+      _kOnboarding,
+    },
+    required: {_kRouter, _kDeepLinks},
+  ),
+  InitPreset(
+    slug: 'social',
+    name: 'Social / community',
+    description:
+        'Firebase end to end: Auth, Firestore, push, Crashlytics and '
+        'Analytics, with photo and file picking and shareable links.',
+    selected: {
+      ..._presetBase,
+      _kFirestore,
+      _kFirebaseAuth,
+      _kAuthFeature,
+      _kCrashlytics,
+      _kAnalytics,
+      _kFirebaseNotifications,
+      _kMediaService,
+      _kDeepLinks,
+      _kAppLifecycle,
+      _kLaunchUrlService,
+      _kDebouncerService,
+      _kDarkTheme,
+      _kLocalizations,
+      _kModeration,
+      _kShare,
+      _kReview,
+      _kRealtime,
+      _kOnboarding,
+    },
+    required: {_kAuthFeature, _kMediaService, _kModeration},
+  ),
+  InitPreset(
+    slug: 'health',
+    name: 'Health / fitness',
+    description:
+        'Data kept on the device and encrypted at rest, synced when online, '
+        'with reminders and biometric unlock.',
+    selected: {
+      ..._presetBase,
+      _kDio,
+      _kAuthFeature,
+      _kOfflineFirst,
+      _kSync,
+      _kEncryptedDb,
+      _kBiometricAuth,
+      _kNotificationsService,
+      _kAppLifecycle,
+      _kUpdateGate,
+      _kDarkTheme,
+      _kLocalizations,
+      _kHealth,
+      _kScreenSecurity,
+      _kSessionLock,
+      _kOnboarding,
+    },
+    required: {_kOfflineFirst, _kEncryptedDb, _kNotificationsService, _kHealth},
+  ),
+  InitPreset(
+    slug: 'field',
+    name: 'Field service / delivery',
+    description:
+        'Works without signal: an offline cache with a write queue, photos '
+        'for proof, links out to maps and phone.',
+    selected: {
+      ..._presetBase,
+      _kDio,
+      _kAuthFeature,
+      _kOfflineFirst,
+      _kSync,
+      _kMediaService,
+      _kLaunchUrlService,
+      _kNotificationsService,
+      _kAppLifecycle,
+      _kUpdateGate,
+      _kLocation,
+      _kScanner,
+      _kSignaturePad,
+    },
+    required: {_kDio, _kOfflineFirst, _kSync, _kLocation},
+  ),
+  InitPreset(
+    slug: 'content',
+    name: 'News / media / content',
+    description:
+        'Articles that open from links and stay readable offline, push for '
+        'new stories, analytics (Firebase parts need setup).',
+    selected: {
+      ..._presetBase,
+      _kDio,
+      _kAuthFeature,
+      _kOfflineFirst,
+      _kDeepLinks,
+      _kAnalytics,
+      _kFirebaseNotifications,
+      _kFeatureFlags,
+      _kUpdateGate,
+      _kAppLifecycle,
+      _kLaunchUrlService,
+      _kDarkTheme,
+      _kLocalizations,
+      _kShare,
+      _kReview,
+      _kPurchases,
+      _kOnboarding,
+    },
+    required: {_kRouter, _kDeepLinks},
+  ),
+  InitPreset(
+    slug: 'local',
+    name: 'Personal utility (no backend)',
+    description:
+        'Everything lives in a local database: no API, no accounts. '
+        'Reminders, a dark theme and translations.',
+    selected: {
+      ..._presetBase,
+      _kOfflineFirst,
+      _kNotificationsService,
+      _kDebouncerService,
+      _kDarkTheme,
+      _kLocalizations,
+      _kReview,
+      _kOnboarding,
+    },
+    required: {_kOfflineFirst},
+  ),
+  InitPreset(
+    slug: 'ai',
+    name: 'AI assistant (on-device)',
+    description:
+        'A local Gemma model: private, works offline once downloaded, no API '
+        'bill. Conversations kept in a local database; no backend.',
+    selected: {
+      ..._presetBase,
+      _kLocalAi,
+      // Where features keep their records (a chat history) with no API, so
+      // `create feature` starts with the local datasource alone.
+      _kOfflineFirst,
+      _kDebouncerService,
+      _kDarkTheme,
+      _kLocalizations,
+      _kVoice,
+      _kKnowledge,
+      _kReview,
+      _kOnboarding,
+    },
+    required: {_kLocalAi},
+  ),
+  InitPreset(
+    slug: 'mvp',
+    name: 'MVP on Firebase',
+    description:
+        'The least to get a prototype in front of users: Firebase Auth, '
+        'Firestore, Crashlytics and Analytics. No CI yet.',
+    selected: {
+      _kRouter,
+      _kMoAdapt,
+      _kAgents,
+      _kFirestore,
+      _kFirebaseAuth,
+      _kAuthFeature,
+      _kCrashlytics,
+      _kAnalytics,
+      _kShare,
+      _kReview,
+    },
+    required: {_kFirestore, _kFirebaseAuth},
+  ),
+];
+
 /// Creates the project-initialization CLI command.
 class InitCommand extends Command<int> {
   /// Creates the project initialization command.
@@ -104,6 +374,14 @@ class InitCommand extends Command<int> {
         help: 'Skip checklist and generate everything.',
       )
       ..addOption(
+        'preset',
+        allowed: [for (final preset in _presets) preset.slug],
+        allowedHelp: {for (final preset in _presets) preset.slug: preset.name},
+        help:
+            'Start the checklists from a kind of app. Skips the "Project '
+            'type" question; the checklists still follow.',
+      )
+      ..addOption(
         'state',
         abbr: 's',
         allowed: ['riverpod', 'bloc'],
@@ -120,6 +398,117 @@ class InitCommand extends Command<int> {
 
   final Logger _logger;
 
+  /// Every preset the "Project type" question offers after "Let me decide".
+  static List<InitPreset> get presets => _presets;
+
+  /// Applies the rules between checklist options to [stack] in place: what an
+  /// option needs is added or the option is dropped, and of two options that
+  /// exclude each other one wins. Returns one note per change, for the user.
+  static List<String> reconcileSelection(Set<String> stack) {
+    final notes = <String>[];
+    final firebaseAuthFeature =
+        stack.contains(_kAuthFeature) && stack.contains(_kFirebaseAuth);
+
+    // The REST auth feature calls the API through the Dio client and its
+    // refresh interceptor, so generating it without Dio would produce broken
+    // imports. Firebase Auth needs none of that.
+    if (stack.contains(_kAuthFeature) &&
+        !stack.contains(_kDio) &&
+        !firebaseAuthFeature) {
+      stack.add(_kDio);
+      notes.add('Dio added — the auth feature depends on it.');
+    }
+
+    // The two localization options are mutually exclusive (the checklist
+    // enforces this interactively); if both end up selected anyway,
+    // easy_localization wins — matching the mainDart template.
+    if (stack.contains(_kEasyLocalization) && stack.contains(_kLocalizations)) {
+      stack.remove(_kLocalizations);
+      notes.add('flutter_localizations dropped — easy_localization selected.');
+    }
+    // The cache stands without Dio: with no API it is where an offline
+    // app's features keep their records (`create feature` with only the
+    // local datasource). Firestore features are still not cached, since
+    // Firestore keeps its own offline copy.
+    //
+    // The queue lives in the cache's database, a write lands in the cache
+    // before it is sent, and SyncService sends it over Dio.
+    if (stack.contains(_kSync) && !stack.contains(_kOfflineFirst)) {
+      stack.remove(_kSync);
+      notes.add('offline sync skipped — it needs the offline-first cache.');
+    }
+    if (stack.contains(_kSync) && !stack.contains(_kDio)) {
+      stack.remove(_kSync);
+      notes.add('offline sync skipped — it sends the queue over Dio.');
+    }
+    if (stack.contains(_kEncryptedDb) && !stack.contains(_kOfflineFirst)) {
+      stack.remove(_kEncryptedDb);
+      notes.add(
+        'database encryption skipped — there is no database without the '
+        'offline-first cache.',
+      );
+    }
+    // The flags are read from the backend the gates read: a document or an
+    // endpoint. With neither there is nothing to read them from.
+    if (stack.contains(_kFeatureFlags) &&
+        !stack.contains(_kDio) &&
+        !stack.contains(_kFirestore)) {
+      stack.remove(_kFeatureFlags);
+      notes.add(
+        'feature flags skipped — they are read over Dio or from Firestore.',
+      );
+    }
+    // An app that works offline has no business covering itself when the
+    // connection drops.
+    if (stack.contains(_kOfflineFirst) && stack.contains(_kOfflineGate)) {
+      stack.remove(_kOfflineGate);
+      notes.add(
+        'offline screen skipped — the offline-first app keeps working '
+        'without a connection.',
+      );
+    }
+    // A link opens a route, so without the router there is nothing to open.
+    if (stack.contains(_kDeepLinks) && !stack.contains(_kRouter)) {
+      stack.remove(_kDeepLinks);
+      notes.add('deep links skipped — they need the router.');
+    }
+    // The lock counts the time away, which the lifecycle service reports.
+    if (stack.contains(_kSessionLock) && !stack.contains(_kAppLifecycle)) {
+      stack.add(_kAppLifecycle);
+      notes.add(
+        'App lifecycle service added — the session lock listens to it.',
+      );
+    }
+    // The backend checks the attestation, and pins apply to the Dio client.
+    final dio = stack.contains(_kDio);
+    if (stack.contains(_kIntegrity) && !dio) {
+      stack.remove(_kIntegrity);
+      notes.add('device integrity skipped — the backend checks it over Dio.');
+    }
+    if (stack.contains(_kPinning) && !dio) {
+      stack.remove(_kPinning);
+      notes.add('certificate pinning skipped — it pins the Dio client.');
+    }
+    // Reports go to the API, or to Firestore under the signed-in user.
+    final firestoreModeration =
+        stack.contains(_kFirestore) && stack.contains(_kFirebaseAuth);
+    if (stack.contains(_kModeration) && !dio && !firestoreModeration) {
+      stack.remove(_kModeration);
+      notes.add(
+        'report & block skipped — it needs Dio, or Firestore with Firebase '
+        'Auth.',
+      );
+    }
+    // Voice and search run on the on-device AI runtime.
+    for (final label in [_kVoice, _kKnowledge]) {
+      if (stack.contains(label) && !stack.contains(_kLocalAi)) {
+        stack.remove(label);
+        notes.add('"$label" skipped — it needs on-device AI.');
+      }
+    }
+    return notes;
+  }
+
   @override
   String get name => 'init';
 
@@ -132,6 +521,13 @@ class InitCommand extends Command<int> {
     final libPath = p.join(p.absolute(targetPath), 'lib');
     final skipChecklist = argResults?['all'] as bool? ?? false;
     final dryRun = argResults?['dry-run'] as bool? ?? false;
+    final presetFlag = argResults?['preset'] as String?;
+    if (skipChecklist && presetFlag != null) {
+      throw UsageException(
+        '--all and --preset both choose the options; pass one of them.',
+        usage,
+      );
+    }
 
     _logger.info('');
     _logger.info('🧱 moarch — Initializing project...');
@@ -171,6 +567,32 @@ class InitCommand extends Command<int> {
       };
     } else {
       try {
+        // Asked before anything else: it only pre-ticks and locks what the
+        // checklists below offer, so it is answered once, up front.
+        InitPreset? preset;
+        if (presetFlag != null) {
+          preset = _presets.firstWhere((each) => each.slug == presetFlag);
+        } else {
+          final choice = Checklist.chooseOne(
+            title: '  Project type:',
+            items: [
+              const ChecklistItem(
+                'Let me decide',
+                description:
+                    'The usual defaults; tick everything yourself below.',
+              ),
+              for (final each in _presets)
+                ChecklistItem(each.name, description: each.description),
+            ],
+          );
+          preset = choice == 0 ? null : _presets[choice - 1];
+        }
+        final preselected = preset?.selected;
+        final locked = preset?.required ?? const <String>{};
+        final lockedReason = preset == null
+            ? 'required'
+            : 'required by ${preset.name}';
+
         // Asked first, and on its own: it decides the shape of every
         // state-bearing file the two checklists below select. Skipped when
         // --state already answered it.
@@ -204,6 +626,9 @@ class InitCommand extends Command<int> {
 
         stack = Checklist.prompt(
           title: '  Backend / networking:',
+          preselected: preselected,
+          locked: locked,
+          lockedReason: lockedReason,
           items: [
             const ChecklistItem(
               _kDio,
@@ -258,6 +683,14 @@ class InitCommand extends Command<int> {
                   'The cache (and the queue) encrypted at rest, with a key '
                   'kept in the Keychain / Keystore (needs the cache above).',
             ),
+            const ChecklistItem(
+              _kLocalAi,
+              defaultOn: false,
+              description:
+                  'An LlmService running Gemma 4 E2B on the device through '
+                  'flutter_edge_ai, downloaded on first run (~2.6 GB). '
+                  'Raises Android minSdk to 30.',
+            ),
           ],
         );
 
@@ -265,6 +698,9 @@ class InitCommand extends Command<int> {
         // What extra files do you want generated?
         final features = Checklist.prompt(
           title: '  What to generate:',
+          preselected: preselected,
+          locked: locked,
+          lockedReason: lockedReason,
           items: [
             const ChecklistItem(
               _kAuthFeature,
@@ -418,7 +854,60 @@ class InitCommand extends Command<int> {
           ],
         );
 
-        stack = {...stack, ...features};
+        final security = Checklist.prompt(
+          title: '  Security:',
+          preselected: preselected,
+          locked: locked,
+          lockedReason: lockedReason,
+          items: [
+            for (final option in ServiceOptions.all)
+              if (option.list == ServiceList.security)
+                ChecklistItem(
+                  option.label,
+                  defaultOn: false,
+                  description: option.description,
+                ),
+            const ChecklistItem(
+              _kPinning,
+              defaultOn: false,
+              description:
+                  'The Dio client accepts only the server certificates you '
+                  'list in core/network/certificate_pins.dart (needs Dio).',
+            ),
+          ],
+        );
+
+        final product = Checklist.prompt(
+          title: '  Product features:',
+          preselected: preselected,
+          locked: locked,
+          lockedReason: lockedReason,
+          items: [
+            const ChecklistItem(
+              _kOnboarding,
+              defaultOn: false,
+              description:
+                  'First-launch pages over the app until they are finished '
+                  'once (OnboardingGate, saved in PreferencesService).',
+            ),
+            for (final option in ServiceOptions.all)
+              if (option.list == ServiceList.features)
+                ChecklistItem(
+                  option.label,
+                  defaultOn: false,
+                  description: option.description,
+                ),
+            const ChecklistItem(
+              _kSignaturePad,
+              defaultOn: false,
+              description:
+                  'AppSignaturePad in the UI kit: sign with a finger, export '
+                  'a PNG.',
+            ),
+          ],
+        );
+
+        stack = {...stack, ...features, ...security, ...product};
       } on ChecklistCancelled {
         _logger.info('Cancelled — nothing was generated.');
         return 0;
@@ -437,75 +926,8 @@ class InitCommand extends Command<int> {
       );
     }
 
-    // The REST auth feature calls the API through the Dio client and its
-    // refresh interceptor, so generating it without Dio would produce broken
-    // imports. Firebase Auth needs none of that.
-    if (stack.contains(_kAuthFeature) &&
-        !stack.contains(_kDio) &&
-        !firebaseAuthFeature) {
-      stack.add(_kDio);
-      _logger.info('  Note: Dio added — the auth feature depends on it.');
-    }
-
-    // The two localization options are mutually exclusive (the checklist
-    // enforces this interactively); if both end up selected anyway,
-    // easy_localization wins — matching the mainDart template.
-    if (stack.contains(_kEasyLocalization) && stack.contains(_kLocalizations)) {
-      stack.remove(_kLocalizations);
-      _logger.info(
-        '  Note: flutter_localizations dropped — easy_localization selected.',
-      );
-    }
-    // The cache stands without Dio: with no API it is where an offline
-    // app's features keep their records (`create feature` with only the
-    // local datasource). Firestore features are still not cached, since
-    // Firestore keeps its own offline copy.
-    //
-    // The queue lives in the cache's database, a write lands in the cache
-    // before it is sent, and SyncService sends it over Dio.
-    if (stack.contains(_kSync) && !stack.contains(_kOfflineFirst)) {
-      stack.remove(_kSync);
-      _logger.info(
-        '  Note: offline sync skipped — it needs the offline-first cache.',
-      );
-    }
-    if (stack.contains(_kSync) && !stack.contains(_kDio)) {
-      stack.remove(_kSync);
-      _logger.info(
-        '  Note: offline sync skipped — it sends the queue over Dio.',
-      );
-    }
-    if (stack.contains(_kEncryptedDb) && !stack.contains(_kOfflineFirst)) {
-      stack.remove(_kEncryptedDb);
-      _logger.info(
-        '  Note: database encryption skipped — there is no database without '
-        'the offline-first cache.',
-      );
-    }
-    // The flags are read from the backend the gates read: a document or an
-    // endpoint. With neither there is nothing to read them from.
-    if (stack.contains(_kFeatureFlags) &&
-        !stack.contains(_kDio) &&
-        !stack.contains(_kFirestore)) {
-      stack.remove(_kFeatureFlags);
-      _logger.info(
-        '  Note: feature flags skipped — they are read over Dio or from '
-        'Firestore.',
-      );
-    }
-    // An app that works offline has no business covering itself when the
-    // connection drops.
-    if (stack.contains(_kOfflineFirst) && stack.contains(_kOfflineGate)) {
-      stack.remove(_kOfflineGate);
-      _logger.info(
-        '  Note: offline screen skipped — the offline-first app keeps '
-        'working without a connection.',
-      );
-    }
-    // A link opens a route, so without the router there is nothing to open.
-    if (stack.contains(_kDeepLinks) && !stack.contains(_kRouter)) {
-      stack.remove(_kDeepLinks);
-      _logger.info('  Note: deep links skipped — they need the router.');
+    for (final note in reconcileSelection(stack)) {
+      _logger.info('  Note: $note');
     }
 
     // Every state-bearing template goes through this rather than through the
@@ -648,8 +1070,10 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kSync)) PackageVersions.entry('workmanager'),
       if (stack.contains(_kEncryptedDb)) PackageVersions.entry('path_provider'),
       PackageVersions.entry('flutter_secure_storage'),
-      if (stack.contains(_kDarkTheme))
-        PackageVersions.entry('shared_preferences'),
+      if (_wantsPreferences(stack)) PackageVersions.entry('shared_preferences'),
+      if (stack.contains(_kPinning)) PackageVersions.entry('crypto'),
+      for (final option in _services(stack))
+        for (final package in option.packages) PackageVersions.entry(package),
       if (_usesFirebase(stack)) PackageVersions.entry('firebase_core'),
       if (stack.contains(_kFirebaseNotifications))
         PackageVersions.entry('firebase_messaging'),
@@ -680,11 +1104,17 @@ class InitCommand extends Command<int> {
         PackageVersions.entry('local_auth_android'),
       if (stack.contains(_kBiometricAuth))
         PackageVersions.entry('local_auth_darwin'),
+      if (stack.contains(_kLocalAi)) PackageVersions.entry('flutter_edge_ai'),
+      if (stack.contains(_kLocalAi))
+        PackageVersions.entry('flutter_edge_ai_litertlm'),
       if (stack.contains(_kLocalizations))
         'flutter_localizations:\n    sdk: flutter',
       if (stack.contains(_kEasyLocalization))
         PackageVersions.entry('easy_localization'),
     ];
+
+    // Two options can need one package (path_provider): declare it once.
+    final dependencies = {...defaultDependencies}.toList();
 
     final devDependencies = <String>[
       PackageVersions.entry('build_runner'),
@@ -775,6 +1205,7 @@ class InitCommand extends Command<int> {
               stack.contains(_kAnalytics),
           withMaintenanceGate: stack.contains(_kMaintenanceGate),
           withUpdateGate: stack.contains(_kUpdateGate),
+          withOnboarding: stack.contains(_kOnboarding),
           withMoAdapt: stack.contains(_kMoAdapt),
           withDarkTheme: stack.contains(_kDarkTheme),
           withThemeMode: stack.contains(_kDarkTheme),
@@ -867,6 +1298,7 @@ class InitCommand extends Command<int> {
         withLocalization: stack.contains(_kLocalizations),
         withEasyLocalization: stack.contains(_kEasyLocalization),
         withBiometric: stack.contains(_kBiometricAuth),
+        withLlm: stack.contains(_kLocalAi),
         withDarkTheme: stack.contains(_kDarkTheme),
         withThemeMode: stack.contains(_kDarkTheme),
         withStatusColors: true,
@@ -882,8 +1314,9 @@ class InitCommand extends Command<int> {
         withUrlService: stack.contains(_kLaunchUrlService),
         withDebouncer: stack.contains(_kDebouncerService),
         withAppLifecycle: stack.contains(_kAppLifecycle),
-        withPreferences: stack.contains(_kDarkTheme),
+        withPreferences: _wantsPreferences(stack),
         withAppleSignIn: _appleSignIn(stack),
+        services: {for (final option in _services(stack)) option.name},
       );
       await FileUtils.writeFile(
         p.join(p.absolute(targetPath), 'README.md'),
@@ -1138,13 +1571,13 @@ class InitCommand extends Command<int> {
 
       if (dryRun) {
         _logger.info('  Would update pubspec.yaml with:');
-        for (final dep in [...defaultDependencies, ...devDependencies]) {
+        for (final dep in [...dependencies, ...devDependencies]) {
           _logger.info('    + $dep');
         }
       } else {
         await PubspecUtils.ensureDependencies(
           p.absolute(targetPath),
-          dependencies: defaultDependencies,
+          dependencies: dependencies,
           devDependencies: devDependencies,
           // `flutter create` writes its own `material_ui` (3.50 on), at a
           // floor below the API the templates use.
@@ -1241,18 +1674,21 @@ class InitCommand extends Command<int> {
       }
 
       // Two themes are worth choosing between, so the dark theme brings the
-      // saved choice with it — and the preferences it is saved in.
-      if (stack.contains(_kDarkTheme)) {
-        final services = p.join(
-          p.absolute(targetPath),
-          'lib',
-          'core',
-          'services',
-        );
+      // saved choice with it — and the preferences it is saved in, which the
+      // onboarding gate also reads.
+      final services = p.join(
+        p.absolute(targetPath),
+        'lib',
+        'core',
+        'services',
+      );
+      if (_wantsPreferences(stack)) {
         await FileUtils.writeFile(
           p.join(services, 'preferences_service.dart'),
           ServicesTemplates.preferencesService(),
         );
+      }
+      if (stack.contains(_kDarkTheme)) {
         await FileUtils.writeFile(
           p.join(services, 'theme_mode_service.dart'),
           templates.themeModeService(),
@@ -1295,7 +1731,9 @@ class InitCommand extends Command<int> {
       // lacks makes codesigning fail.
       final withPush = stack.contains(_kFirebaseNotifications);
       final withApple = _appleSignIn(stack);
-      if (withPush || withApple) {
+      final withHealthKit = stack.contains(_kHealth);
+      final withMemory = stack.contains(_kLocalAi);
+      if (withPush || withApple || withHealthKit || withMemory) {
         await FileUtils.writeFile(
           p.join(
             p.absolute(targetPath),
@@ -1306,6 +1744,8 @@ class InitCommand extends Command<int> {
           IosTemplates.runnerEntitlements(
             withPush: withPush,
             withAppleSignIn: withApple,
+            withHealthKit: withHealthKit,
+            withIncreasedMemory: withMemory,
           ),
         );
         await FileUtils.writeFile(
@@ -1318,6 +1758,8 @@ class InitCommand extends Command<int> {
           IosTemplates.runnerProfileEntitlements(
             withPush: withPush,
             withAppleSignIn: withApple,
+            withHealthKit: withHealthKit,
+            withIncreasedMemory: withMemory,
           ),
         );
       }
@@ -1562,7 +2004,14 @@ class InitCommand extends Command<int> {
     final wantsSync = stack.contains(_kSync);
     final wantsGoogleSignIn =
         stack.contains(_kFirebaseAuth) && stack.contains(_kAuthFeature);
-    if (!wantsLocales &&
+    final serviceRequirements = [
+      for (final option in _services(stack))
+        if (option.requirement case final requirement?
+            when requirement.usageDescriptions.isNotEmpty)
+          requirement,
+    ];
+    if (serviceRequirements.isEmpty &&
+        !wantsLocales &&
         !wantsMedia &&
         !wantsUrlLauncher &&
         !wantsFcm &&
@@ -1581,6 +2030,8 @@ class InitCommand extends Command<int> {
       if (wantsSync)
         'UIBackgroundModes (fetch) and BGTaskSchedulerPermittedIdentifiers',
       if (wantsGoogleSignIn) 'GIDClientID + the Google sign-in URL scheme',
+      for (final requirement in serviceRequirements)
+        ...requirement.usageDescriptions.keys,
     ].join(' and ');
 
     if (dryRun) {
@@ -1626,6 +2077,9 @@ class InitCommand extends Command<int> {
     if (wantsSync) {
       // A background app refresh only runs for an identifier listed here.
       content = PlatformRequirement.backgroundSync.patchPlist(content);
+    }
+    for (final requirement in serviceRequirements) {
+      content = requirement.patchPlist(content);
     }
     if (wantsGoogleSignIn) {
       content = _patchGoogleSignInPlist(plistFile, content);
@@ -1768,8 +2222,10 @@ class InitCommand extends Command<int> {
     required bool dryRun,
   }) async {
     final wantsDesugaring = stack.contains(_kNotificationsService);
+    final wantsLocalAi = stack.contains(_kLocalAi);
     final addition = [
       'compileSdk ${GradleUtils.requiredCompileSdk}',
+      if (wantsLocalAi) 'minSdk ${GradleUtils.localAiMinSdk}',
       if (wantsDesugaring)
         'core library desugaring (isCoreLibraryDesugaringEnabled + '
             'desugar_jdk_libs)',
@@ -1790,6 +2246,7 @@ class InitCommand extends Command<int> {
 
     final content = await buildGradleFile.readAsString();
     var patched = GradleUtils.ensureCompileSdk(content);
+    if (wantsLocalAi) patched = GradleUtils.ensureMinSdk(patched);
     if (wantsDesugaring) {
       patched = GradleUtils.ensureCoreLibraryDesugaring(patched);
     }
@@ -1816,6 +2273,8 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kLaunchUrlService)) PlatformRequirement.urlLauncher,
       if (stack.contains(_kBiometricAuth)) PlatformRequirement.biometric,
       if (stack.contains(_kSync)) PlatformRequirement.backgroundSync,
+      if (stack.contains(_kLocalAi)) PlatformRequirement.localAi,
+      for (final option in _services(stack)) ?option.requirement,
     ];
     final deepLinks = stack.contains(_kDeepLinks);
     if (requirements.isEmpty && !deepLinks) return;
@@ -1871,9 +2330,10 @@ class InitCommand extends Command<int> {
     Set<String> stack, {
     required bool dryRun,
   }) async {
-    if (!stack.contains(_kBiometricAuth)) return;
+    if (!stack.contains(_kBiometricAuth) && !stack.contains(_kHealth)) return;
 
-    const addition = 'FlutterFragmentActivity (required by local_auth)';
+    const addition =
+        'FlutterFragmentActivity (required by local_auth and health)';
 
     if (mainActivityFile == null || !mainActivityFile.existsSync()) {
       _logger.info(
@@ -1935,8 +2395,30 @@ class InitCommand extends Command<int> {
       withMaintenanceGate: dioConfig && stack.contains(_kMaintenanceGate),
       withUpdateGate: dioConfig && stack.contains(_kUpdateGate),
       withFeatureFlags: dioConfig && stack.contains(_kFeatureFlags),
+      serviceEndpoints: {
+        for (final option in _services(stack))
+          ...option.endpoints(_serviceVariant(stack)),
+      },
     );
   }
+
+  /// The services among the checklist's options, in table order.
+  static List<ServiceOption> _services(Set<String> stack) => [
+    for (final option in ServiceOptions.all)
+      if (stack.contains(option.label)) option,
+  ];
+
+  /// What the services' templates vary with.
+  static ServiceVariant _serviceVariant(Set<String> stack) => ServiceVariant(
+    withDio: stack.contains(_kDio),
+    withFirestore: stack.contains(_kFirestore),
+    withFirebaseAuth: stack.contains(_kFirebaseAuth),
+    withBiometric: stack.contains(_kBiometricAuth),
+  );
+
+  /// PreferencesService: the theme-mode choice and the onboarding flag.
+  static bool _wantsPreferences(Set<String> stack) =>
+      stack.contains(_kDarkTheme) || stack.contains(_kOnboarding);
 
   Future<void> _buildCore(
     String libPath,
@@ -2055,8 +2537,15 @@ class InitCommand extends Command<int> {
         templates.dioClient(
           withAuthFeature: restAuthFeature,
           withAppleSignIn: _restAppleSignIn(stack),
+          withPinning: stack.contains(_kPinning),
         ),
       );
+      if (stack.contains(_kPinning)) {
+        await FileUtils.writeFile(
+          p.join(c, 'network', 'certificate_pins.dart'),
+          ProductTemplates.certificatePins(),
+        );
+      }
       await FileUtils.writeFile(
         p.join(c, 'network', 'safe_api_call.dart'),
         CoreTemplates.safeApiCall(),
@@ -2113,6 +2602,25 @@ class InitCommand extends Command<int> {
       await FileUtils.writeFile(
         p.join(c, 'services', 'media_service.dart'),
         ServicesTemplates.mediaService(),
+      );
+    }
+    if (stack.contains(_kLocalAi)) {
+      await FileUtils.writeFile(
+        p.join(c, 'services', 'llm_service.dart'),
+        ServicesTemplates.llmService(),
+      );
+      await FileUtils.writeFile(
+        p.join(c, 'services', 'edge_ai.dart'),
+        ProductTemplates.edgeAiRuntime(
+          withSpeech: stack.contains(_kVoice),
+          withSearch: stack.contains(_kKnowledge),
+        ),
+      );
+    }
+    for (final option in _services(stack)) {
+      await FileUtils.writeFile(
+        p.join(libPath, option.path.substring('lib/'.length)),
+        option.template(_serviceVariant(stack)),
       );
     }
     if (stack.contains(_kLaunchUrlService)) {
@@ -2406,15 +2914,18 @@ class InitCommand extends Command<int> {
         withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
         withDebouncer: stack.contains(_kDebouncerService),
         withBiometric: stack.contains(_kBiometricAuth),
+        withLlm: stack.contains(_kLocalAi),
         withAppLifecycle: stack.contains(_kAppLifecycle),
         withConnectivity:
             stack.contains(_kOfflineGate) || stack.contains(_kSync),
-        withPreferences: stack.contains(_kDarkTheme),
+        withPreferences: _wantsPreferences(stack),
         withLocalCache: stack.contains(_kOfflineFirst),
         withSync: stack.contains(_kSync),
         withAnalytics: stack.contains(_kAnalytics),
         withFeatureFlags: stack.contains(_kFeatureFlags),
         flagsFromFirestore: stack.contains(_kFirestore),
+        services: _services(stack),
+        serviceVariant: _serviceVariant(stack),
       ),
     );
     await FileUtils.writeFile(
@@ -2479,6 +2990,14 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kMoAdapt))
         ...WidgetCatalog.resolve([
           'mo-adapt',
+        ], stateManagement: stateManagement),
+      if (stack.contains(_kOnboarding))
+        ...WidgetCatalog.resolve([
+          'onboarding-gate',
+        ], stateManagement: stateManagement),
+      if (stack.contains(_kSignaturePad))
+        ...WidgetCatalog.resolve([
+          'signature-pad',
         ], stateManagement: stateManagement),
       // SyncStatusBanner is an AppBanner.
       if (stack.contains(_kSync))

@@ -21,6 +21,7 @@ import '../templates/ui/modals_templates.dart';
 import '../templates/ui/navigation_templates.dart';
 import '../templates/ui/paged_templates.dart';
 import '../templates/ui/phone_templates.dart';
+import '../templates/ui/product_widgets_templates.dart';
 import '../templates/ui/shared_templates.dart';
 import '../templates/stack_templates.dart';
 import '../templates/ui/table_templates.dart';
@@ -604,6 +605,15 @@ abstract final class WidgetCatalog {
       description: 'Variant-colored slider with an optional value label.',
     ),
     WidgetSpec(
+      name: 'signature-pad',
+      title: 'AppSignaturePad',
+      file: 'inputs/app_signature_pad.dart',
+      template: ProductWidgetsTemplates.appSignaturePad,
+      category: 'Inputs',
+      description:
+          'A field to sign with a finger, exported as a transparent PNG — proof of delivery, consent forms.',
+    ),
+    WidgetSpec(
       name: 'otp',
       title: 'AppOtpInput',
       file: 'inputs/app_otp_input.dart',
@@ -988,6 +998,16 @@ abstract final class WidgetCatalog {
       packages: ['package_info_plus: ', 'url_launcher: '],
       description:
           'Replaces the app with an "update required" screen while the installed version is below the backend\'s minimum — mounted in MaterialApp.builder, fails open.',
+    ),
+    WidgetSpec(
+      name: 'onboarding-gate',
+      title: 'OnboardingGate',
+      file: 'onboarding_gate.dart',
+      template: ProductWidgetsTemplates.onboardingGate,
+      category: 'Overlays',
+      deps: ['button', 'step-indicator'],
+      description:
+          'The first-launch pages, over the app until they are finished once — mounted in MaterialApp.builder. Reads PreferencesService (init writes it with this option).',
     ),
     WidgetSpec(
       name: 'confirm-dialog',

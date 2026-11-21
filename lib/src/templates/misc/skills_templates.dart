@@ -109,6 +109,25 @@ abstract final class SkillsTemplates {
           'review a diff, a branch or a PR, and before calling your own '
           'change done.',
     ),
+    AgentSkill._(
+      'make-readable',
+      'Make code in this moarch project easier to read without changing what '
+          'it does: names that say what a variable, function or class is, '
+          'functions that do one thing, and comments that explain why '
+          'wherever the logic is not obvious. Use when asked to clean up, '
+          'clarify, rename, document or comment code, or when code is hard '
+          'to follow.',
+    ),
+    AgentSkill._(
+      'explain',
+      'Explain what code in this moarch project does, step by step, and '
+          'teach the Flutter and Dart behind it with the project\'s own code '
+          'as the example: traces a launch, a tap or a request through every '
+          'layer, names each concept with a short explanation and a link to '
+          'the official docs, and ends with a way to see it happen. Use when '
+          'asked how something works, why it is written that way, what '
+          'happens when…, or to learn Flutter.',
+    ),
   ];
 
   /// The skill named [slug] (`add-feature`), or `null`.
@@ -134,6 +153,8 @@ abstract final class SkillsTemplates {
       'fix-bug' => _fixBug(o),
       'update-scaffold' => _updateScaffold(),
       'review' => _review(o),
+      'make-readable' => _makeReadable(o),
+      'explain' => _explain(o),
       _ => throw ArgumentError.value(skill.slug, 'skill', 'unknown skill'),
     };
     return '${_frontmatter(skill)}\n$body';
@@ -278,6 +299,229 @@ fvm flutter test
 
   static const _buildRunner =
       'fvm dart run build_runner build --delete-conflicting-outputs';
+
+  // ── make-readable ──────────────────────────────────────────────────────────
+
+  static String _makeReadable(SkillOptions o) {
+    final holder = o.bloc ? 'bloc' : 'notifier';
+    return '''
+${_intro('Make code readable')}
+The goal is code someone new can follow on the first read. Behaviour does not
+change: the same inputs give the same outputs, and every test that passed
+before passes after.
+
+## 0. Before touching anything
+
+- Read the code **and its callers** (search for each name you might change).
+- Run the checks once, so you know what "still passes" means:
+  `fvm flutter analyze` and `fvm flutter test`.
+- Keep a readability change apart from a behaviour change. If you find a bug
+  on the way, say so and fix it separately (`moarch-fix-bug`).
+
+## 1. Names
+
+A name should say **what the thing is in this app's words**, not how it is
+stored or that it is a variable.
+
+| Instead of | Write | Why |
+|---|---|---|
+| `data`, `info`, `item`, `obj`, `temp`, `value`, `result` | `order`, `unpaidInvoices`, `signedInUser` | Says what it holds |
+| `list`, `orderList`, `ordersMap` | `orders`, `ordersById` | Plural for collections; no type in the name |
+| `flag`, `check`, `status` (a `bool`) | `isLoading`, `hasMorePages`, `canSubmit` | A `bool` reads as a yes/no question |
+| `handle()`, `process()`, `doStuff()`, `manage()` | `submitOrder()`, `retryUpload()` | A function is a verb for what it does |
+| `onTap` doing three things | `onTap: _openOrder` | The handler's name says the outcome |
+| `getData()` that also saves | `fetchAndCacheOrders()` | No hidden side effects in a name |
+| `t`, `d`, `x`, `cb`, `ctx` | `timeout`, `duration`, `callback`, `context` | No abbreviations (`id`, `url`, `json` are fine) |
+| `timeout = 30` | `timeoutSeconds = 30` or a `Duration` | Units in the name, or in the type |
+| `notDisabled`, `!isNotValid` | `isEnabled`, `isValid` | No double negatives |
+| `OrderManager`, `OrderHelper`, `OrderUtils` | What it really is: `OrderRepository`, `OrderPriceCalculator` | "Manager" and "helper" hide the job |
+
+Use the project's own vocabulary so the same thing has the same name
+everywhere: `<Name>Model`, `<Name>Repository`, `<Name>RemoteDataSource`, the
+$holder, `<Name>View`${o.bloc ? ', `<Name>Page`, events in the past tense (`OrderDeleted`)' : ''}.
+Dart style: `UpperCamelCase` types, `lowerCamelCase` members, `snake_case`
+files, a leading `_` for anything used only inside its file. Single letters
+only for a loop index (`i`) or a short lambda (`(e) => e.id`).
+
+**Renaming safely:**
+- Rename with the editor's rename refactor (F2 in VS Code), which updates
+  every reference, then search for the old name to catch strings and docs.
+- **A freezed model's field is its JSON key.** Renaming `fullName` changes
+  what is read from the API. Keep the wire name with
+  `@JsonKey(name: 'full_name')`, then run `$_buildRunner`.
+- Never edit `*.g.dart` or `*.freezed.dart`; regenerate them.
+- Renaming inside a file moarch generated is fine, but `moarch update` will
+  then treat the file as edited and leave it alone.
+
+## 2. Structure
+
+- **One job per function.** If you need "and" to describe it, or it is
+  longer than ~30 lines, split it into functions whose names say each step.
+- **Return early** instead of nesting: handle the empty, error and
+  not-allowed cases first, then the main path without indentation.
+- **Name complex conditions:**
+
+  ```dart
+  // Hard to read:
+  if (user != null && !user.isBlocked && cart.items.isNotEmpty && !isLoading) …
+
+  // Easy to read:
+  final canCheckout =
+      user != null && !user.isBlocked && cart.items.isNotEmpty && !isLoading;
+  if (canCheckout) …
+  ```
+
+- **No magic numbers:** a spacing or radius is an `AppConstants` token, any
+  other number a named `const` (`const maxRetries = 3;`).
+- **Widgets:** a piece of a screen becomes a private widget class
+  (`class _OrderHeader extends StatelessWidget`), never a `_buildHeader()`
+  method — the class gets its own rebuilds and its name shows in DevTools.
+- Delete commented-out code and unused imports; git keeps the history.
+
+## 3. Comments
+
+Code says **what** happens. A comment says **why**, or what the code cannot
+show. Add one wherever a reader would stop and wonder:
+
+| Comment here | Example |
+|---|---|
+| A business rule | `// Orders under 10 € ship only with another order.` |
+| An order that matters | `// Save before navigating: the next screen reads the cache.` |
+| Async and timing | `// mounted check: the user may have left during the request.` |
+| A workaround | `// The API sends "null" as a string (ticket #123).` |
+| A platform quirk | `// iOS ignores this below 15; Android needs the permission first.` |
+| A regex, a formula, a bit of math | `// Matches PT postcodes: 4 digits, dash, 3 digits.` |
+| A non-obvious choice | `// A Set, so a double tap cannot add the item twice.` |
+
+- **Doc comments (`///`)** on every public class and public method you
+  touch: one sentence saying what it is for, then anything a caller must
+  know (what it throws, what null means, what it costs).
+- A `// TODO:` says what and why: `// TODO: page this once orders exceed 100.`
+- Never a comment that repeats the code (`i++; // add one to i`), and never
+  one that is no longer true — fix or delete it.
+
+## 4. Report
+
+Finish with:
+
+1. The renames, as `old → new`, with one line on why for any that is not
+   obvious.
+2. What you split, moved or commented, by `path:line`.
+3. Anything you left alone on purpose, and why (a public API, a generated
+   file, a name the backend dictates).
+
+${_done(o)}''';
+  }
+
+  // ── explain ────────────────────────────────────────────────────────────────
+
+  static String _explain(SkillOptions o) {
+    final stateConcepts = o.bloc
+        ? '''
+| `Bloc`, events and `emit` | A screen sends an event (`OrderDeleted`); the bloc handles it and `emit`s a new state; the UI redraws from that state. | [bloclibrary.dev](https://bloclibrary.dev/bloc-concepts/) |
+| `BlocProvider` / `context.read` | Puts a bloc in the widget tree so the widgets below can find it. | [flutter_bloc](https://bloclibrary.dev/flutter-bloc-concepts/) |
+| `BlocConsumer`: `builder` vs `listener` | `builder` draws for every state; `listener` runs once per change, for toasts and navigation. | [flutter_bloc](https://bloclibrary.dev/flutter-bloc-concepts/#blocconsumer) |
+| `Equatable` | Two states with the same fields are equal, so bloc skips a redraw that would change nothing. | [equatable](https://pub.dev/packages/equatable) |'''
+        : '''
+| `AsyncNotifier` and `AsyncValue` | The notifier loads and changes the data; the state is loading, data or error, and the screen draws whichever it is. | [riverpod.dev](https://riverpod.dev/docs/essentials/first_request) |
+| `ref.watch` vs `ref.read` | `watch` in `build` redraws when the value changes; `read` in a callback reads it once. | [riverpod.dev](https://riverpod.dev/docs/essentials/combining_requests) |
+| `ConsumerWidget` | A widget that can reach providers through `ref`. | [riverpod.dev](https://riverpod.dev/docs/concepts2/refs) |''';
+    final runIt = o.withDartMcp
+        ? 'With the Dart MCP server (`.mcp.json`) you can run the app, hot '
+              'reload it and read its widget tree yourself — do, and show the '
+              'user what you saw.'
+        : 'Ask the user to run it (`fvm flutter run`) and tell you what they '
+              'see.';
+    return '''
+${_intro('Explain the code and teach the Flutter behind it')}
+The user should leave knowing **what happens, in what order, and why** — and
+the next time, need you a little less. Do not change code while explaining
+unless asked; if the code is what makes it hard to follow, say so and offer
+`moarch-make-readable`.
+
+## 1. Answer first, then show the path
+
+Start with the answer in one or two plain sentences. Then trace it through
+the files, in the order it runs, quoting the few lines that matter as
+`path:line`. Number the steps.
+
+Where things start in this project:
+
+| What happens | Starts at | Then |
+|---|---|---|
+| The app opens | `lib/main.dart` | `setupInjector()` (`lib/config/di/`) registers every service, then `runApp`${o.withRouter ? ', then the router (`lib/config/router/`) picks the first screen' : ''} |
+| A screen appears | its route${o.withRouter ? ' in `lib/config/router/`' : ''} | ${o.bloc ? 'the page creates the bloc and adds the first event; the view draws its states' : 'the view `watch`es its notifier, whose `build()` loads the data'} |
+| The user taps something | the view's `onPressed` | the ${o.bloc ? 'bloc gets an event' : 'notifier method runs'} → `runAction` → the repository → the datasource${o.withDio ? ' → Dio → the API' : ''}${o.withFirestore ? ' / Firestore' : ''}${o.withLocalCache ? ' (and the local cache)' : ''} → a new state → the view redraws |
+| Something fails | the datasource throws an `AppException` | `runAction` turns it into the state's error, and the view shows a toast or the error screen |
+
+For anything with more than three steps, draw it:
+
+```
+OrdersView ──tap──▶ ${o.bloc ? 'OrdersBloc (OrderDeleted)' : 'OrdersNotifier.deleteOrder'}
+                      │ runAction
+                      ▼
+               OrdersRepository.delete ──▶ OrdersRemoteDataSource ──▶ API
+                      │
+                      ▼
+              new state (success / error) ──▶ OrdersView redraws, toast
+```
+
+## 2. Name every concept you pass
+
+The first time a concept comes up, stop for one plain sentence on what it
+is, why it is used here, and the official link. Do not assume the user knows
+it; do not lecture past what the question needs.
+
+| Concept | In one sentence | Read more |
+|---|---|---|
+| Widget, `build` and rebuilds | A widget describes part of the screen; Flutter calls `build` again whenever what it depends on changes. | [docs.flutter.dev](https://docs.flutter.dev/ui) |
+| `StatelessWidget` / `StatefulWidget` | Stateless draws only from its inputs; stateful keeps values (a controller, a counter) between rebuilds. | [docs.flutter.dev](https://docs.flutter.dev/ui/interactivity) |
+| `BuildContext` | The widget's place in the tree — how it finds the theme, the navigator and the state above it. | [api.flutter.dev](https://api.flutter.dev/flutter/widgets/BuildContext-class.html) |
+| `const` widgets | Built once and reused, so Flutter skips rebuilding them. | [docs.flutter.dev](https://docs.flutter.dev/perf/best-practices) |
+| `initState` / `dispose` | Run once when a stateful widget appears and when it goes; controllers are created and closed there. | [api.flutter.dev](https://api.flutter.dev/flutter/widgets/State-class.html) |
+| `Future`, `async`, `await` | Work that finishes later (a request); `await` waits without freezing the screen. | [dart.dev](https://dart.dev/libraries/async/async-await) |
+| `Stream` | Values that arrive over time (live data, connectivity). | [dart.dev](https://dart.dev/libraries/async/using-streams) |
+| `mounted` | After an `await` the screen may be gone; check before using its `context`. | [api.flutter.dev](https://api.flutter.dev/flutter/widgets/State/mounted.html) |
+$stateConcepts
+| get_it (`getIt<T>()`) | One place that builds each service once and hands it to whoever asks — the files in `lib/config/di/`. | [get_it](https://pub.dev/packages/get_it) |
+| freezed models and `build_runner` | You write the fields; code generation writes `copyWith`, equality and JSON (`*.freezed.dart`, `*.g.dart`). | [freezed](https://pub.dev/packages/freezed) |${o.withRouter ? '\n| GoRouter | Maps a path (`/orders/7`) to a screen, and redirects (signed out → login). | [go_router](https://pub.dev/packages/go_router) |' : ''}${o.withDio ? '\n| Dio and interceptors | The HTTP client; interceptors add the token and retry before a request leaves. | [dio](https://pub.dev/packages/dio) |' : ''}
+
+Link the concept to *this* code: "here, ${o.bloc ? 'the `builder` of the `BlocConsumer` on line 14' : '`ref.watch` on line 14'} is why the
+list redraws after a delete". If you are not sure how a package behaves,
+read its source or docs before answering — never guess an API.
+
+## 3. Let them see it happen
+
+Give one small thing to try, so the explanation becomes something they saw:
+
+- add a `debugPrint('deleteOrder: id=\$id');` at a step and watch the
+  console as they tap;
+- change a value and hot reload (`r` in the terminal running the app);
+- open DevTools (`fvm dart devtools`, or the link `fvm flutter run`
+  prints): the Widget Inspector shows the tree, "Highlight repaints" and the
+  rebuild counts show what redraws, the Network tab shows each request.
+
+$runIt
+
+## 4. Check, then go one step further
+
+End with one short question that checks the key idea (${o.bloc ? '"what would happen if the toast were shown in `builder` instead of `listener`?"' : '"what would happen if the view used `read` instead of `watch` here?"'}) or a prediction to test, and
+offer the next thing worth learning from this code. Match the user's level:
+if they already know a concept, skip it; if a word confused them, explain it
+again differently, with a smaller example.
+
+## After changing code
+
+Whenever you change code for this user — in this skill or any other — end
+with a recap in plain words:
+
+1. **What changed:** the files, and what each change does.
+2. **What happens now:** the path through the app, step by step, as above.
+3. **New concepts:** any Flutter or Dart idea the change used, one sentence
+   and a link each.
+4. **See it yourself:** where to tap, or what to run, to watch it work.
+''';
+  }
 
   // ── add-feature ────────────────────────────────────────────────────────────
 

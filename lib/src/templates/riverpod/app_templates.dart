@@ -21,6 +21,7 @@ class AppTemplates {
     bool withFirebase = false,
     bool withMaintenanceGate = false,
     bool withUpdateGate = false,
+    bool withOnboarding = false,
     bool withMoAdapt = false,
     bool withDarkTheme = false,
     bool withThemeMode = false,
@@ -194,6 +195,7 @@ final locale = ref.watch(languageProvider).locale;
       if (withMaintenanceGate)
         "\nimport 'shared/widgets/maintenance_gate.dart';",
       if (withUpdateGate) "\nimport 'shared/widgets/update_gate.dart';",
+      if (withOnboarding) "\nimport 'shared/widgets/onboarding_gate.dart';",
       if (withOfflineGate) ...[
         "\nimport 'core/services/connectivity_service.dart';",
         "\nimport 'shared/widgets/offline_gate.dart';",
@@ -230,6 +232,8 @@ final locale = ref.watch(languageProvider).locale;
     final maintenanceOpen = [
       if (withMaintenanceGate) 'MaintenanceGate(child: ',
       if (withUpdateGate) 'UpdateGate(child: ',
+      // After the two that can block the app outright.
+      if (withOnboarding) 'OnboardingGate(child: ',
       if (withOfflineGate) 'OfflineGate(child: ',
       // Toasts the writes the server refused, wherever the user is.
       if (syncStatus) 'SyncStatusListener(child: ',
@@ -238,6 +242,7 @@ final locale = ref.watch(languageProvider).locale;
         ')' *
         ((withMaintenanceGate ? 1 : 0) +
             (withUpdateGate ? 1 : 0) +
+            (withOnboarding ? 1 : 0) +
             (withOfflineGate ? 1 : 0) +
             (syncStatus ? 1 : 0));
 

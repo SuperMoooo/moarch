@@ -1209,6 +1209,87 @@ class AppLifecycleService {
 }
 ''';
 
+  /// Returns `core/services/llm_service.dart`: an on-device language model
+  /// (Gemma 4 E2B, LiteRT-LM) through flutter_edge_ai, downloaded on first
+  /// run rather than bundled.
+  static String llmService() => r'''
+import 'dart:async';
+
+import 'package:flutter_edge_ai/flutter_edge_ai.dart';
+import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
+
+import 'edge_ai.dart';
+
+/// The on-device language model: Gemma 4 E2B in the LiteRT-LM format, run by
+/// flutter_edge_ai. Prompts and replies never leave the device.
+///
+/// The model is not in the app bundle: [install] downloads it (~2.6 GB) the
+/// first time, and it stays on the device across launches. Check
+/// [isInstalled] first to decide whether to show that download.
+///
+/// Android runs it from API 30 on arm64 devices only. On iOS a model this
+/// size needs the increased-memory-limit entitlement, and the Simulator runs
+/// it on the CPU.
+class LlmService {
+  /// The model to run. A catalog build is pinned to a Hugging Face commit and
+  /// checked against its size, so a changed upload never reaches users. For
+  /// more quality on newer phones, use `LiteRtLmModels.gemma4E4bIt.generic`.
+  static final LiteRtLmVariant model = LiteRtLmModels.gemma4E2bIt.generic;
+
+  /// The context window, prompt and reply together. Gemma 4's half-precision
+  /// GPU path loses track of positions past 2048 tokens.
+  static const int maxTokens = 2048;
+
+  InferenceModel? _model;
+
+  /// Whether the model file is already on the device.
+  Future<bool> isInstalled() async {
+    await ensureEdgeAi();
+    return FlutterEdgeAi.isModelInstalled(model.file.installFilename);
+  }
+
+  /// Downloads the model, reporting 0–100 to [onProgress]. Returns at once
+  /// when it is already installed.
+  ///
+  /// Runs as an Android foreground service with a notification: a download
+  /// this size outlives the 9 minutes Android gives a background one.
+  Future<void> install({void Function(int percent)? onProgress}) async {
+    await ensureEdgeAi();
+    await FlutterEdgeAi.installModelFromCatalog(model, foreground: true)
+        .withProgress((percent) => onProgress?.call(percent))
+        .install();
+  }
+
+  /// Starts a conversation. A chat keeps its own history, so open one per
+  /// conversation and close it when the screen goes away.
+  Future<InferenceChat> openChat() async {
+    await ensureEdgeAi();
+    final loaded = _model ??= await FlutterEdgeAi.getActiveModel(
+      defaults: model.runtimeDefaults,
+      maxTokens: maxTokens,
+      // Text only: the vision and audio encoders cost memory nothing uses.
+      supportImage: false,
+      supportAudio: false,
+    );
+    return loaded.openChat();
+  }
+
+  /// Streams the reply to [message] in [chat], a piece at a time.
+  Stream<String> reply(InferenceChat chat, String message) async* {
+    await chat.addQueryChunk(Message.text(text: message, isUser: true));
+    await for (final response in chat.generateChatResponseAsync()) {
+      if (response is TextResponse) yield response.token;
+    }
+  }
+
+  /// Frees the model's memory. The next [openChat] loads it again.
+  Future<void> dispose() async {
+    await _model?.close();
+    _model = null;
+  }
+}
+''';
+
   /// Returns the generated debouncerService template.
   static String debouncerService() => '''
 import 'dart:async';

@@ -41,6 +41,34 @@ class GradleUtils {
     );
   }
 
+  /// The `minSdk` LiteRT-LM runs on: flutter_edge_ai_litertlm's native
+  /// library needs API 30.
+  static const int localAiMinSdk = 30;
+
+  /// Ensures `minSdk` in [content] is at least [minimum].
+  ///
+  /// Works like [ensureCompileSdk]: `minSdk = flutter.minSdkVersion` becomes
+  /// `maxOf(flutter.minSdkVersion, 30)`, a literal below the minimum is
+  /// raised, and anything at or above it is left alone.
+  static String ensureMinSdk(String content, {int minimum = localAiMinSdk}) {
+    final line = RegExp(r'^(\s*)minSdk\s*=\s*(.+?)\s*$', multiLine: true);
+    final match = line.firstMatch(content);
+    if (match == null) return content;
+    final value = match.group(2)!;
+    final literal = int.tryParse(value);
+    if (literal != null && literal >= minimum) return content;
+    final floor = RegExp(r'maxOf\(\s*(.+?)\s*,\s*(\d+)\s*\)').firstMatch(value);
+    if (floor != null && int.parse(floor.group(2)!) >= minimum) return content;
+    final base =
+        floor?.group(1) ?? (literal == null ? value : 'flutter.minSdkVersion');
+    return content.replaceRange(
+      match.start,
+      match.end,
+      '${match.group(1)}// At least $minimum: what LiteRT-LM (on-device AI) runs on.\n'
+      '${match.group(1)}minSdk = maxOf($base, $minimum)',
+    );
+  }
+
   /// Ensures Java 8+ core library desugaring is enabled.
   ///
   /// flutter_local_notifications relies on `java.time` APIs under the hood,

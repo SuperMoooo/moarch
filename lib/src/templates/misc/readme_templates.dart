@@ -48,6 +48,7 @@ class ReadmeTemplates {
         withLocalization: o.withLocalization,
         withEasyLocalization: o.withEasyLocalization,
         withBiometric: o.withBiometric,
+        withLlm: o.withLlm,
         withFirebaseAuthFeature: o.withFirebaseAuthFeature,
         withFlavors: o.flavors.isNotEmpty,
         withLocalCache: o.withLocalCache,
@@ -408,6 +409,7 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
     required bool withLocalization,
     required bool withEasyLocalization,
     required bool withBiometric,
+    bool withLlm = false,
     required bool withFirebaseAuthFeature,
     required bool withFlavors,
     required bool withLocalCache,
@@ -522,6 +524,13 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
       row('flutter_local_notifications', 'Notifications scheduled on-device.');
     }
     if (withBiometric) row('local_auth', 'Face ID / fingerprint unlock.');
+    if (withLlm) {
+      row(
+        'flutter_edge_ai',
+        'An on-device language model (Gemma 4, LiteRT-LM), downloaded on '
+            'first run.',
+      );
+    }
     if (withEasyLocalization) {
       row(
         'easy_localization',

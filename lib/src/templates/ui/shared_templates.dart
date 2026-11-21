@@ -8716,6 +8716,7 @@ import '../widgets/inputs/app_radio_group.dart';
 import '../widgets/inputs/app_rating.dart';
 import '../widgets/inputs/app_search_field.dart';
 import '../widgets/inputs/app_segmented.dart';
+import '../widgets/inputs/app_signature_pad.dart';
 import '../widgets/inputs/app_slider.dart';
 import '../widgets/inputs/app_stepper.dart';
 import '../widgets/inputs/app_switch.dart';
@@ -8790,10 +8791,17 @@ class _DesignSystemViewState extends State<DesignSystemView> {$themeState
   List<String> _dragCards = const ['Revenue', 'Orders', 'Refunds'];
   double _rating = 3.5;
   List<AppPickedFile> _attachments = const [];
+  final _signature = AppSignatureController();
   int _pagedCount = 12;
   bool _pagedLoading = false;
   String? _pagedError;
   bool _pagedFailedOnce = false;
+
+  @override
+  void dispose() {
+    _signature.dispose();
+    super.dispose();
+  }
 
   /// Stands in for a notifier's `loadMore`: a fake feed of 36 rows, paged in
   /// by 12. The third page fails once, so the retry row can be seen.
@@ -9790,6 +9798,21 @@ $toggleAction              ${withDark ? 'const ' : ''}SizedBox(width: AppConstan
                   length: 5,
                   autoFocus: false,
                   onCompleted: (code) {},
+                ),
+              ),
+
+              // ── AppSignaturePad ───────────────────────────────────────────
+              _Section(
+                title: 'AppSignaturePad',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    AppSignaturePad(controller: _signature),
+                    TextButton(
+                      onPressed: _signature.clear,
+                      child: const Text('Clear'),
+                    ),
+                  ],
                 ),
               ),
 

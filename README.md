@@ -61,6 +61,7 @@ switches never touch the editor config. `moarch doctor --fix` does exactly that.
 moarch init          # interactive scaffold
 moarch init --all    # generate the default structure without prompts
 moarch init --state bloc   # pick the stack without the checklist (riverpod | bloc)
+moarch init --preset fintech   # start the checklists from a kind of app (see below)
 moarch create feature <featureName>   # all layers, registered in the locator, with its route
 moarch create model <featureName> <modelName> # generate the model
 moarch create model <featureName> <modelName> --from-json sample.json # infer the fields from a JSON payload
@@ -108,10 +109,93 @@ moarch l10n extract [--dry-run]    # move hard-coded screen strings into the tra
 - optional localization: flutter_localizations (`lib/l10n/` + `.arb` files) or easy_localization (`assets/translations/` JSON files) — pick one, the checklist keeps them mutually exclusive
 - a backend: Dio against a REST API, Firebase (Firestore / Auth), or both (see below)
 - `AGENTS.md` + `CLAUDE.md` — the project's rules for coding agents (Codex, Cursor, Copilot, Gemini CLI, Claude Code): the layout, no entity layer, the state stack's patterns, the UI kit and tokens, and the commands that prove a change is done. `CLAUDE.md` is only `@AGENTS.md`, so there is one set of instructions. Both are catalog entries, so `moarch update agents claude-md` keeps them in step with the templates; a project from before 9.0.0 gets them from `moarch doctor --fix`
-- `.agents/skills/` — step-by-step skills for the tasks agents get asked most, written for the project's stack and options: `moarch-add-feature`, `moarch-plan-feature` (an interview that settles a feature's data, screens, actions, route and platform needs before any code, one round of questions at a time, each with a recommended answer), `moarch-add-endpoint`, `moarch-add-action`, `moarch-add-model`, `moarch-build-screen`, `moarch-preview-widget` (`@Preview` functions for Flutter's widget previewer, in the app's theme through a project `AppPreview` annotation), `moarch-add-env-key`, `moarch-write-tests`, `moarch-fix-bug` (reproduce first: a failing test at the layer that owns the symptom, then the fix), `moarch-update-scaffold` and `moarch-review` (a checklist review of a diff against the rules). Codex, Cursor, Copilot and Gemini CLI read `.agents/skills/`; Claude Code reads only `.claude/skills/`, so each skill has a pointer there, the same way `CLAUDE.md` imports `AGENTS.md`. Alongside them: `.claude/settings.json` allows the format / analyze / test / build_runner commands without a prompt and denies reading `.env` and editing `*.g.dart`, `*.freezed.dart` and `.moarch.yaml`, and `.gemini/settings.json` points Gemini CLI at `AGENTS.md`. `.mcp.json` (Claude Code) and `.gemini/settings.json` both start the Dart MCP server through FVM (`fvm dart mcp-server`), so an agent can launch the app, hot reload it and read its runtime errors and widget tree; `AGENTS.md` and the build-screen and fix-bug skills tell it to when the server is there. All of it is the `ai` group: `moarch update ai` refreshes it, a project from before 9.1.0 gets it from `moarch doctor --fix`, and so does a project that has the skills but not the ones added since, or no `.mcp.json`. Generic skills can be installed beside these — Flutter ones (like `flutter/skills`' `flutter-fix-layout-issues`) and process ones (like `mattpocock/skills`' `grill-me`); `AGENTS.md` says that where one disagrees with the project's rules, the rules win
+- `.agents/skills/` — step-by-step skills for the tasks agents get asked most, written for the project's stack and options: `moarch-add-feature`, `moarch-plan-feature` (an interview that settles a feature's data, screens, actions, route and platform needs before any code, one round of questions at a time, each with a recommended answer), `moarch-add-endpoint`, `moarch-add-action`, `moarch-add-model`, `moarch-build-screen`, `moarch-preview-widget` (`@Preview` functions for Flutter's widget previewer, in the app's theme through a project `AppPreview` annotation), `moarch-add-env-key`, `moarch-write-tests`, `moarch-fix-bug` (reproduce first: a failing test at the layer that owns the symptom, then the fix), `moarch-update-scaffold`, `moarch-review` (a checklist review of a diff against the rules), `moarch-make-readable` (clear names, one job per function and comments that explain why, without changing behaviour) and `moarch-explain` (traces what happens through the project's files and teaches the Flutter and Dart behind each step, with links and something to try). Codex, Cursor, Copilot and Gemini CLI read `.agents/skills/`; Claude Code reads only `.claude/skills/`, so each skill has a pointer there, the same way `CLAUDE.md` imports `AGENTS.md`. Alongside them: `.claude/settings.json` allows the format / analyze / test / build_runner commands without a prompt and denies reading `.env` and editing `*.g.dart`, `*.freezed.dart` and `.moarch.yaml`, and `.gemini/settings.json` points Gemini CLI at `AGENTS.md`. `.mcp.json` (Claude Code) and `.gemini/settings.json` both start the Dart MCP server through FVM (`fvm dart mcp-server`), so an agent can launch the app, hot reload it and read its runtime errors and widget tree; `AGENTS.md` and the build-screen and fix-bug skills tell it to when the server is there. All of it is the `ai` group: `moarch update ai` refreshes it, a project from before 9.1.0 gets it from `moarch doctor --fix`, and so does a project that has the skills but not the ones added since, or no `.mcp.json`. Generic skills can be installed beside these — Flutter ones (like `flutter/skills`' `flutter-fix-layout-issues`) and process ones (like `mattpocock/skills`' `grill-me`); `AGENTS.md` says that where one disagrees with the project's rules, the rules win
 - `.vscode/` — `settings.json` pointing the Dart extension at the fvm SDK `.fvmrc` pins, and `launch.json` with debug/profile/release entries plus a flavored pair for `dev`, `staging` and `prod` (ready for when the native side declares them)
 - `.github/workflows/` (optional) — CI on every push and pull request (format check, analyze, unit tests, then integration tests, a secret scan and a dependency CVE review on PRs, a newer push cancelling the stale run), the supply-chain report on release tags and by hand, and an iOS build on demand: development, ad hoc or App Store, compiled once on the macOS runner, obfuscated, with its debug symbols kept, and uploaded to TestFlight when an App Store Connect key is in the secrets. Nothing runs on a schedule, so an untouched repository never fails on its own. There is no Android workflow: an Android release needs no Mac, so it is cheaper built on your machine (`docs/BUILD_AND_RELEASE.md`)
 - `android/app/proguard-rules.pro` — the R8 keep rules for the Flutter engine, Firebase, OkHttp and coroutines. Inert until you enable minification for the release build type, so it costs the debug build nothing; the gradle block that turns it on is in `docs/SECURITY_BEFORE_DEPLOYMENT.md`
+
+## Start from a kind of app
+
+The first thing `moarch init` asks is what you are building. **Let me
+decide** opens the checklists with the usual defaults. Any other answer
+pre-ticks them for that kind of app and locks the options it cannot do
+without, shown as `(required by …)`. Everything else stays yours to toggle.
+
+| Preset | `--preset` | Required | Also ticked |
+| --- | --- | --- | --- |
+| FinTech / banking | `fintech` | auth, biometrics, update gate, device integrity, screenshot block, session lock | Dio, certificate pinning, maintenance gate, feature flags, offline screen, lifecycle, notifications, links, debouncer, onboarding, dark theme, l10n |
+| E-commerce / marketplace | `ecommerce` | router, deep links | Dio, auth, analytics, FCM, feature flags, both gates, offline screen, lifecycle, links, debouncer, share, review prompt, onboarding, dark theme, l10n |
+| Social / community | `social` | auth, media, report & block | Firestore, Firebase Auth, Crashlytics, analytics, FCM, deep links, realtime, share, review prompt, lifecycle, links, debouncer, onboarding, dark theme, l10n |
+| Health / fitness | `health` | offline cache, encrypted database, notifications, health data | Dio, auth, sync, biometrics, screenshot block, session lock, lifecycle, update gate, onboarding, dark theme, l10n |
+| Field service / delivery | `field` | Dio, offline cache, sync, location | auth, media, scanner, signature pad, links, notifications, lifecycle, update gate |
+| News / media / content | `content` | router, deep links | Dio, auth, offline cache, analytics, FCM, feature flags, purchases, share, review prompt, update gate, lifecycle, links, onboarding, dark theme, l10n |
+| Personal utility (no backend) | `local` | offline cache | notifications, debouncer, review prompt, onboarding, dark theme, l10n |
+| AI assistant (on-device) | `ai` | on-device AI | voice, on-device search, offline cache, debouncer, review prompt, onboarding, dark theme, l10n |
+| MVP on Firebase | `mvp` | Firestore, Firebase Auth | auth, Crashlytics, analytics, share, review prompt |
+
+Every preset except `mvp` also ticks the router, the workflows, MoAdapt and
+the agent guide. The state management question still follows. Nothing
+records which preset you picked: like every option, what a project has is
+read back off disk.
+
+`--preset <slug>` skips the question. `--all` cannot be combined with it.
+
+### Security and product features
+
+Two checklists follow *What to generate*. Each service is one file under
+`lib/core/`, registered in the core module, with what it needs declared in
+`AndroidManifest.xml` and `Info.plist`, and a row in `docs/SERVICES.md`.
+
+| Option | Writes | Notes |
+| --- | --- | --- |
+| Device integrity | `security/device_integrity_service.dart` | `isCompromised()` (root, jailbreak, emulator) and `attest()`: Play Integrity / App Attest, checked by your backend. Needs Dio. |
+| Screenshot block | `security/screen_security_service.dart` | `protect()` / `release()`, app-wide or per screen (FLAG_SECURE on Android, a blurred app switcher). |
+| Session lock | `security/session_lock_service.dart` | `lockRequired` after more than 5 min away; `unlock()` with biometrics when ticked. Adds the lifecycle service. |
+| Certificate pinning | `network/certificate_pins.dart` | The Dio client accepts only the SHA-256 fingerprints you list. Empty pins nothing. Needs Dio. |
+| Onboarding | `shared/widgets/onboarding_gate.dart` | First-launch pages over the app, seen once (saved in `PreferencesService`). |
+| Report & block | `services/moderation_service.dart` | Required by both stores for user-generated content. Firestore with Firebase Auth, otherwise the REST API. |
+| Share sheet | `services/share_service.dart` | Text, links and files. |
+| Review prompt | `services/review_service.dart` | The store's own rating prompt. |
+| Location | `services/location_service.dart` | `current()`, `watch()`, permission on demand. |
+| Scanner | `services/scanner_service.dart` | `await scan(context)` returns the first barcode or QR code. |
+| Health data | `services/health_service.dart` | Apple Health and Health Connect, steps to start. Adds the HealthKit entitlement and Health Connect's manifest entries. |
+| Purchases | `services/purchase_service.dart` | in_app_purchase. A purchase is delivered only after your backend verifies the receipt (a TODO without Dio). |
+| Realtime | `services/realtime_service.dart` | One WebSocket at `BASE_URL` + `/ws`, reconnecting with backoff. |
+| On-device voice | `services/voice_service.dart` | Whisper speech-to-text and a Matcha voice. Needs on-device AI. |
+| On-device search | `services/knowledge_index.dart` | EmbeddingGemma and a SQLite vector store, to ground the model in your own text. Needs on-device AI. |
+| Signature pad | `shared/widgets/inputs/app_signature_pad.dart` | A kit widget; the PNG goes in a proof of delivery. Also `moarch create widget signature-pad`. |
+
+The endpoints these services call (`/integrity/*`, `/moderation/*`,
+`/purchases/verify`, `/ws`) are in `ApiConstants`, and your backend
+implements them. `moarch update <name>` refreshes each file (`--list` shows
+the names).
+
+### On-device AI
+
+**On-device AI (Gemma 4 via LiteRT-LM)**, under *Backend / networking*,
+writes `core/services/llm_service.dart`: an `LlmService` running Gemma 4 E2B
+on the phone through [flutter_edge_ai](https://pub.dev/packages/flutter_edge_ai)
+and its LiteRT-LM engine (formerly flutter_gemma). Prompts and replies never
+leave the device. There is no screen: the service is registered in the core
+module, and your features call it.
+
+```dart
+final llm = getIt<LlmService>();
+if (!await llm.isInstalled()) {
+  await llm.install(onProgress: (percent) => ...);   // ~2.6 GB, once
+}
+final chat = await llm.openChat();                  // one per conversation
+await for (final piece in llm.reply(chat, 'Hello')) { ... }
+```
+
+The model is not bundled. `install` downloads a catalog build pinned to a
+Hugging Face commit and checked against its size. It is Apache 2.0 and needs
+no token. On Android the download runs as a foreground service, so it
+outlives the 9 minutes Android gives a background one. `init` declares that
+service and its permissions in `AndroidManifest.xml` and raises `minSdk` to
+30, the floor LiteRT-LM runs on. Only arm64 devices run it. On iOS, add the
+`com.apple.developer.kernel.increased-memory-limit` entitlement to the Runner
+before loading a model this size. The Simulator runs it on the CPU only.
 
 ## Riverpod or flutter_bloc
 

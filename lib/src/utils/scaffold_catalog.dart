@@ -22,7 +22,9 @@ import '../templates/misc/ios_templates.dart';
 import '../templates/misc/readme_templates.dart';
 import '../templates/misc/skills_templates.dart';
 import '../templates/misc/workflow_templates.dart';
+import '../templates/core/product_templates.dart';
 import '../templates/stack_templates.dart';
+import 'service_options.dart';
 import 'state_management.dart';
 import 'widget_catalog.dart';
 
@@ -142,6 +144,40 @@ class ScaffoldContext {
 
   /// The biometric service was generated — `AppButton` varies with it.
   bool get hasBiometric => hasFile('lib/core/security/biometric_service.dart');
+
+  /// The on-device language model service was generated.
+  bool get hasLlm => hasFile('lib/core/services/llm_service.dart');
+
+  /// The `ServiceOptions` whose file is on disk, in table order.
+  List<ServiceOption> get services => [
+    for (final option in ServiceOptions.all)
+      if (hasFile(option.path)) option,
+  ];
+
+  /// [option]'s file is on disk.
+  bool hasService(ServiceOption option) => hasFile(option.path);
+
+  /// What the services' templates vary with.
+  ServiceVariant get serviceVariant => ServiceVariant(
+    withDio: hasDio,
+    withFirestore: hasFirestore,
+    withFirebaseAuth: hasFirebaseAuth,
+    withBiometric: hasBiometric,
+  );
+
+  /// The Dio client pins certificates (`certificate_pins.dart`).
+  bool get hasPinning => hasFile('lib/core/network/certificate_pins.dart');
+
+  /// The onboarding gate wraps the app.
+  bool get hasOnboarding => hasFile('lib/shared/widgets/onboarding_gate.dart');
+
+  /// `Runner.entitlements` declares HealthKit.
+  bool get hasHealthKitEntitlement =>
+      _entitlement('com.apple.developer.healthkit');
+
+  /// `Runner.entitlements` raises the memory limit (an on-device model).
+  bool get hasMemoryEntitlement =>
+      _entitlement('com.apple.developer.kernel.increased-memory-limit');
 
   /// The maintenance gate was generated. `main.dart` mounts it in
   /// `MaterialApp.builder`, so refreshing main without checking would quietly
@@ -283,6 +319,7 @@ class ScaffoldContext {
     withLocalization: hasLocalization,
     withEasyLocalization: hasEasyLocalization,
     withBiometric: hasBiometric,
+    withLlm: hasLlm,
     withDarkTheme: hasDarkTheme,
     withThemeMode: hasThemeMode,
     withStatusColors: hasStatusColors,
@@ -300,6 +337,7 @@ class ScaffoldContext {
     withAppLifecycle: hasAppLifecycle,
     withPreferences: hasPreferences,
     withAppleSignIn: hasAppleSignIn,
+    services: {for (final option in services) option.name},
   );
 
   /// The tables `moarch create table` wrote, one per feature that has one,
@@ -782,6 +820,10 @@ abstract final class ScaffoldCatalog {
             c.hasMaintenanceGate && c.hasDio && !c.hasFirestore,
         withUpdateGate: c.hasUpdateGate && c.hasDio && !c.hasFirestore,
         withFeatureFlags: c.hasFeatureFlags && !c.hasFirestore,
+        serviceEndpoints: {
+          for (final option in c.services)
+            ...option.endpoints(c.serviceVariant),
+        },
       ),
       description: 'Every endpoint path, and the API timeouts.',
     ),
@@ -800,6 +842,7 @@ abstract final class ScaffoldCatalog {
         withFirebase: c.hasFirebase || c.hasCrashlytics || c.hasAnalytics,
         withMaintenanceGate: c.hasMaintenanceGate,
         withUpdateGate: c.hasUpdateGate,
+        withOnboarding: c.hasOnboarding,
         withMoAdapt: c.hasMoAdapt,
         withDarkTheme: c.hasDarkTheme,
         withThemeMode: c.hasThemeMode,
@@ -815,6 +858,15 @@ abstract final class ScaffoldCatalog {
 
     // ── Network ─────────────────────────────────────────────────────────────
     ScaffoldSpec(
+      name: 'certificate-pins',
+      title: 'CertificatePins',
+      path: 'lib/core/network/certificate_pins.dart',
+      category: 'Network',
+      template: (_) => ProductTemplates.certificatePins(),
+      description:
+          'The SHA-256 fingerprints of the server certificates the Dio client accepts.',
+    ),
+    ScaffoldSpec(
       name: 'dio-client',
       title: 'DioClient',
       path: 'lib/core/network/dio_client.dart',
@@ -823,6 +875,7 @@ abstract final class ScaffoldCatalog {
         c.stack.dioClient(
           withAuthFeature: c.hasRestAuthFeature,
           withAppleSignIn: c.hasRestAppleSignIn,
+          withPinning: c.hasPinning,
         ),
         c.apiEndpoints,
       ),
@@ -904,6 +957,39 @@ abstract final class ScaffoldCatalog {
     ),
 
     // ── Services ────────────────────────────────────────────────────────────
+    for (final option in ServiceOptions.all)
+      ScaffoldSpec(
+        name: option.name,
+        title: option.title,
+        path: option.path,
+        category: option.path.contains('/security/') ? 'Security' : 'Services',
+        template: (c) => CoreTemplates.inlineMissingEndpoints(
+          option.template(c.serviceVariant),
+          c.apiEndpoints,
+        ),
+        description: option.description,
+      ),
+    ScaffoldSpec(
+      name: 'edge-ai',
+      title: 'ensureEdgeAi',
+      path: 'lib/core/services/edge_ai.dart',
+      category: 'Services',
+      template: (c) => ProductTemplates.edgeAiRuntime(
+        withSpeech: c.hasService(ServiceOptions.voice),
+        withSearch: c.hasService(ServiceOptions.knowledge),
+      ),
+      description:
+          'The one flutter_edge_ai initialization, with every on-device engine the app uses.',
+    ),
+    ScaffoldSpec(
+      name: 'llm-service',
+      title: 'LlmService',
+      path: 'lib/core/services/llm_service.dart',
+      category: 'Services',
+      template: (_) => ServicesTemplates.llmService(),
+      description:
+          'An on-device language model (Gemma 4, LiteRT-LM), downloaded on first run.',
+    ),
     ScaffoldSpec(
       name: 'media-service',
       title: 'MediaService',
@@ -1186,6 +1272,7 @@ abstract final class ScaffoldCatalog {
         withFirebaseNotifications: c.hasFirebaseNotifications,
         withDebouncer: c.hasFile('lib/core/services/debouncer_service.dart'),
         withBiometric: c.hasBiometric,
+        withLlm: c.hasLlm,
         withConnectivity: c.hasFile(
           'lib/core/services/connectivity_service.dart',
         ),
@@ -1193,6 +1280,8 @@ abstract final class ScaffoldCatalog {
         withPreferences: c.hasPreferences,
         withLocalCache: c.hasLocalCache,
         withSync: c.hasSync,
+        services: c.services,
+        serviceVariant: c.serviceVariant,
         withAnalytics: c.hasAnalytics,
         withFeatureFlags: c.hasFeatureFlags,
         flagsFromFirestore: c.hasFirestore,
@@ -1752,6 +1841,8 @@ abstract final class ScaffoldCatalog {
       template: (c) => IosTemplates.runnerEntitlements(
         withPush: c.hasPushEntitlement,
         withAppleSignIn: c.hasAppleSignInEntitlement,
+        withHealthKit: c.hasHealthKitEntitlement,
+        withIncreasedMemory: c.hasMemoryEntitlement,
       ),
       description: 'Push and Sign in with Apple entitlements.',
     ),
@@ -1763,6 +1854,8 @@ abstract final class ScaffoldCatalog {
       template: (c) => IosTemplates.runnerProfileEntitlements(
         withPush: c.hasPushEntitlement,
         withAppleSignIn: c.hasAppleSignInEntitlement,
+        withHealthKit: c.hasHealthKitEntitlement,
+        withIncreasedMemory: c.hasMemoryEntitlement,
       ),
       description: 'The profile-build counterpart of Runner.entitlements.',
     ),
