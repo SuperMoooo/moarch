@@ -125,11 +125,16 @@ class MockValueGenerator {
   ///   `Future<void>`             → `null`
   ///   `Future<String?>`          → `null`
   ///   `Future<String>`           → `null`
+  ///   `Stream<List<UserEntity>>` → `null`
   static String? extractCustomType(String rawType) {
     final nullable = rawType.trim().endsWith('?');
     if (nullable) return null;
 
     final type = rawType.replaceAll('?', '').trim();
+
+    // A Stream is stubbed as `const Stream.empty()`, which names no type, so
+    // importing its element type would only be an unused import.
+    if (type == 'Stream' || type.startsWith('Stream<')) return null;
 
     // Unwrap Future<T>/FutureOr<T>
     final inner = _isFutureWrapped(type) ? _generic(type) : type;
@@ -152,8 +157,17 @@ class MockValueGenerator {
       return null;
     }
 
+    // Still generic or otherwise not a bare class name (`Either<A, B>`, a
+    // record, a function type): no file name can be derived from it, and a
+    // guessed import of `either<a, b>.dart` is a compile error.
+    if (!_bareClassName.hasMatch(candidateClean)) return null;
+
     return candidateClean;
   }
+
+  /// A Dart class name: an identifier starting with a capital letter
+  /// (`OrdersModel`, `_PrivateState`, `UserV2`).
+  static final _bareClassName = RegExp(r'^_?[A-Z][A-Za-z0-9_$]*$');
 
   /// Whether [type] is a `Future<T>`/`FutureOr<T>` wrapper whose inner type
   /// carries the actual stub value.

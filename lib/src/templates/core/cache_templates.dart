@@ -723,7 +723,7 @@ $values
       // Unsent writes show only through the cache: keep it until the sync
       // has sent them, then refetches.
       if (await _sync.hasPending(${cls}LocalDataSource.collection)) {
-        return _local.readAll();
+        return await _local.readAll();
       }
 '''
         : '';

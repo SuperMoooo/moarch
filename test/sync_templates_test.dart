@@ -369,7 +369,7 @@ void main() {
           '      // Unsent writes show only through the cache: keep it until the sync\n'
           '      // has sent them, then refetches.\n'
           '      if (await _sync.hasPending(OrderLocalDataSource.collection)) {\n'
-          '        return _local.readAll();\n'
+          '        return await _local.readAll();\n'
           '      }\n'
           '      await _local.saveAll(items);',
         ),

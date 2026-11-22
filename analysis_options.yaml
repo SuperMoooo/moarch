@@ -1,5 +1,16 @@
 include: package:lints/recommended.yaml
 
+analyzer:
+    # Every value has a type a reader can see: these turn the places Dart
+    # would quietly fall back to `dynamic` into errors.
+    language:
+        # No implicit downcast from dynamic (`String s = json['name'];`).
+        strict-casts: true
+        # No type silently inferred as dynamic (an untyped `var x;`, `[]`).
+        strict-inference: true
+        # No List / Map / Future without its type arguments.
+        strict-raw-types: true
+
 linter:
     rules:
         # Enforce public API documentation.
@@ -9,3 +20,13 @@ linter:
         prefer_const_declarations: true
         # Avoid print statements in production code.
         avoid_print: true
+        # No method calls or property reads on a dynamic value: parsed
+        # JSON/YAML gets a type first (see test/support/yaml_path.dart).
+        avoid_dynamic_calls: true
+        # Every function says what it returns, and public APIs declare their
+        # parameter and field types.
+        always_declare_return_types: true
+        type_annotate_public_apis: true
+        # Top-level variables and fields whose type cannot be inferred must
+        # be written out.
+        strict_top_level_inference: true

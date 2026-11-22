@@ -7,7 +7,11 @@ class DevTemplates {
   /// Analysis options for better performance and security.
   ///
   /// `strong-mode: implicit-dynamic` is absent on purpose — the analyzer
-  /// dropped it; `strict-raw-types` covers the same ground.
+  /// dropped it; the three `strict-*` modes cover the same ground and more.
+  /// Together with `avoid_dynamic_calls` they keep `dynamic` out of the app:
+  /// every template moarch writes must pass them, so a new template that
+  /// calls a generic without its type argument fails a fresh project's
+  /// `flutter analyze`.
   ///
   /// A bloc project also carries the `bloc:` section. That one is **not** read
   /// by `dart analyze` — the rules are the bloc analysis server's, run with
@@ -61,7 +65,14 @@ analyzer:
         - windows/**
         - macos/**
         - linux/**
+    # Every value has a type a reader can see: these turn the places Dart
+    # would quietly fall back to `dynamic` into errors.
     language:
+        # No implicit downcast from dynamic (`String s = json['name'];`).
+        strict-casts: true
+        # No type silently inferred as dynamic (`showDialog(...)`, `[]`).
+        strict-inference: true
+        # No List / Map / Future without its type arguments.
         strict-raw-types: true
 
 linter:
@@ -75,6 +86,13 @@ linter:
         void_checks: true
         use_super_parameters: true
         avoid_print: true
+        # No method calls on a dynamic value: parse JSON into a model first.
+        avoid_dynamic_calls: true
+        # Every function says what it returns; public APIs and fields whose
+        # type cannot be inferred declare it.
+        always_declare_return_types: true
+        type_annotate_public_apis: true
+        strict_top_level_inference: true
 ''';
 
   /// The `build.yaml` that configures the generators behind the

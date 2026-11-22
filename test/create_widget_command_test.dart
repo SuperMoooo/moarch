@@ -152,6 +152,46 @@ void main() {
     expect(manifestFiles(), before);
   });
 
+  // OnboardingGate imports PreferencesService, which `init` writes only with
+  // the onboarding or dark theme option: without it the gate did not compile.
+  group('a widget that reads PreferencesService', () {
+    const preferences = 'lib/core/services/preferences_service.dart';
+
+    test('is left out of `all` when the project has no such service', () async {
+      expect(await run(['all']), 0);
+
+      expect(File(pathOf('onboarding-gate')).existsSync(), isFalse);
+      expect(File(at(preferences)).existsSync(), isFalse);
+    });
+
+    test('is part of `all` when the project has the service', () async {
+      await place(preferences, '// the project already has it\n');
+
+      expect(await run(['all']), 0);
+
+      expect(File(pathOf('onboarding-gate')).existsSync(), isTrue);
+      expect(
+        File(at(preferences)).readAsStringSync(),
+        '// the project already has it\n',
+      );
+    });
+
+    test('brings the service along when asked for by name', () async {
+      expect(await run(['onboarding-gate']), 0);
+
+      expect(File(pathOf('onboarding-gate')).existsSync(), isTrue);
+      expect(
+        File(at(preferences)).readAsStringSync(),
+        contains('class PreferencesService'),
+      );
+      expect(manifestFiles(), contains(preferences));
+      expect(
+        File(at('pubspec.yaml')).readAsStringSync(),
+        contains('shared_preferences'),
+      );
+    });
+  });
+
   test('a run that writes nothing new still adopts what it finds', () async {
     // Every file present and none of them tracked: the manifest is written
     // even though the run created nothing.

@@ -218,6 +218,7 @@ class WidgetSpec {
     this.packages = const [],
     this.common = false,
     this.needsRouter = false,
+    this.needsPreferences = false,
     this.stacks = const {},
   });
 
@@ -291,6 +292,12 @@ class WidgetSpec {
 
   /// Imports `config/router/app_router.dart` — needs the GoRouter option.
   final bool needsRouter;
+
+  /// Imports `core/services/preferences_service.dart` and reads it from the
+  /// locator. `init` writes that service only with the onboarding or dark
+  /// theme option, so `create widget` must bring it along or leave the widget
+  /// out — the file does not compile without it.
+  final bool needsPreferences;
 
   /// The stacks this widget exists for. Empty means every stack.
   ///
@@ -1006,8 +1013,9 @@ abstract final class WidgetCatalog {
       template: ProductWidgetsTemplates.onboardingGate,
       category: 'Overlays',
       deps: ['button', 'step-indicator'],
+      needsPreferences: true,
       description:
-          'The first-launch pages, over the app until they are finished once — mounted in MaterialApp.builder. Reads PreferencesService (init writes it with this option).',
+          'The first-launch pages, over the app until they are finished once — mounted in MaterialApp.builder. Reads PreferencesService (init writes it with this option; `create widget onboarding-gate` adds it when missing).',
     ),
     WidgetSpec(
       name: 'confirm-dialog',

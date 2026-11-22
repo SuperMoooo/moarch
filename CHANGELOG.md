@@ -2,6 +2,41 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 11.4.0
+
+### Changed
+
+- **Strict typing in new projects.** The generated `analysis_options.yaml`
+  adds `strict-casts` and `strict-inference` next to `strict-raw-types`, and
+  the `avoid_dynamic_calls`, `always_declare_return_types`,
+  `type_annotate_public_apis` and `strict_top_level_inference` lint rules, so
+  `dynamic` cannot slip into the app unnoticed. Every template passes them.
+  Existing projects: `moarch update analysis-options` brings it in (expect
+  analyzer findings in code written before; fix them or the CI step fails).
+- The design-system preview passes `<void>` to `showDialog` and
+  `showModalBottomSheet`, which `strict-inference` requires.
+- moarch's own code is held to the same rules.
+
+### Fixed
+
+- `AppException.fromDioError` reads `message` only from a JSON object
+  body. An HTML error page (a proxy's 502) used to make it throw and return
+  `UnknownException`, losing the status code; it now becomes a
+  `ServerException` with Dio's message and the status code.
+- `moarch create widget all` no longer writes an `OnboardingGate` that cannot
+  compile in a project without `PreferencesService` (any project made without
+  the onboarding or dark theme option): `all` leaves it out and says how to
+  add it. `moarch create widget onboarding-gate` now writes
+  `preferences_service.dart` and adds `shared_preferences` when they are
+  missing, and prints the line that registers the service.
+- `moarch create tests` no longer writes `import '…/stream<list<…>>.dart'`
+  for a repository method returning a `Stream` (the offline cache's
+  `watchAll()`). A Stream is stubbed with `Stream.empty()`, which needs no
+  import, and a type that cannot be a file name is never guessed into one.
+- The offline-first repository awaits the cached read inside its `try`
+  (`return await _local.readAll()`), so an error from it reaches the
+  `catch` (`unawaited_return_in_try_block`).
+
 ## 11.3.0
 
 ### Added

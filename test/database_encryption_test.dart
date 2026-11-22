@@ -10,6 +10,8 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
+import 'support/yaml_path.dart';
+
 void main() {
   group('the encrypted database', () {
     test('opens through the key, only when encrypted', () {
@@ -97,8 +99,8 @@ void main() {
       );
 
       final yaml = loadYaml(readPubspec()) as Map;
-      expect(yaml['hooks']['user_defines']['sqlite3']['source'], 'sqlite3mc');
-      expect(yaml['dependencies']['drift'], '^2.35.3');
+      expect(yamlAt(yaml, 'hooks.user_defines.sqlite3.source'), 'sqlite3mc');
+      expect(yamlAt(yaml, 'dependencies.drift'), '^2.35.3');
     });
 
     test(
@@ -114,8 +116,8 @@ void main() {
           value: 'sqlite3mc',
         );
         var yaml = loadYaml(readPubspec()) as Map;
-        expect(yaml['hooks']['user_defines']['other']['a'], 'b');
-        expect(yaml['hooks']['user_defines']['sqlite3']['source'], 'sqlite3mc');
+        expect(yamlAt(yaml, 'hooks.user_defines.other.a'), 'b');
+        expect(yamlAt(yaml, 'hooks.user_defines.sqlite3.source'), 'sqlite3mc');
 
         await writePubspec(
           'name: demo\nhooks:\n  user_defines:\n    sqlite3:\n      source: system\n',
@@ -127,7 +129,7 @@ void main() {
           value: 'sqlite3mc',
         );
         yaml = loadYaml(readPubspec()) as Map;
-        expect(yaml['hooks']['user_defines']['sqlite3']['source'], 'system');
+        expect(yamlAt(yaml, 'hooks.user_defines.sqlite3.source'), 'system');
       },
     );
 

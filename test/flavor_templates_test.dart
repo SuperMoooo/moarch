@@ -2,6 +2,8 @@ import 'package:moarch/src/templates/config/flavor_templates.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
+import 'support/yaml_path.dart';
+
 void main() {
   String render({List<String> flavors = const ['dev', 'staging', 'prod']}) =>
       FlavorTemplates.flavorizrYaml(
@@ -19,19 +21,25 @@ void main() {
     final doc = loadYaml(render()) as YamlMap;
     final flavors = doc['flavors'] as YamlMap;
 
-    expect(flavors['prod']['android']['applicationId'], 'com.acme.coolshop');
-    expect(flavors['prod']['ios']['bundleId'], 'com.acme.coolshop');
-    expect(flavors['dev']['android']['applicationId'], 'com.acme.coolshop.dev');
-    expect(flavors['staging']['ios']['bundleId'], 'com.acme.coolshop.staging');
+    expect(yamlAt(flavors, 'prod.android.applicationId'), 'com.acme.coolshop');
+    expect(yamlAt(flavors, 'prod.ios.bundleId'), 'com.acme.coolshop');
+    expect(
+      yamlAt(flavors, 'dev.android.applicationId'),
+      'com.acme.coolshop.dev',
+    );
+    expect(
+      yamlAt(flavors, 'staging.ios.bundleId'),
+      'com.acme.coolshop.staging',
+    );
   });
 
   test('prod keeps the plain app name, the rest are labelled', () {
     final doc = loadYaml(render()) as YamlMap;
     final flavors = doc['flavors'] as YamlMap;
 
-    expect(flavors['prod']['app']['name'], 'Cool Shop');
-    expect(flavors['dev']['app']['name'], 'Cool Shop Dev');
-    expect(flavors['staging']['app']['name'], 'Cool Shop Staging');
+    expect(yamlAt(flavors, 'prod.app.name'), 'Cool Shop');
+    expect(yamlAt(flavors, 'dev.app.name'), 'Cool Shop Dev');
+    expect(yamlAt(flavors, 'staging.app.name'), 'Cool Shop Staging');
   });
 
   test('instructions run the native processors and flutter:flavors — '
@@ -59,15 +67,15 @@ void main() {
     expect(flavors.keys, ['qa', 'production']);
     // 'production' counts as the production flavor and keeps the bare id.
     expect(
-      flavors['production']['android']['applicationId'],
+      yamlAt(flavors, 'production.android.applicationId'),
       'com.acme.coolshop',
     );
-    expect(flavors['qa']['android']['applicationId'], 'com.acme.coolshop.qa');
+    expect(yamlAt(flavors, 'qa.android.applicationId'), 'com.acme.coolshop.qa');
   });
 
   test('declares the flavor dimension Gradle requires', () {
     final doc = loadYaml(render()) as YamlMap;
 
-    expect(doc['app']['android']['flavorDimensions'], 'flavor');
+    expect(yamlAt(doc, 'app.android.flavorDimensions'), 'flavor');
   });
 }

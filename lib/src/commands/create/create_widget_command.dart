@@ -4,7 +4,9 @@ import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:path/path.dart' as p;
 
+import '../../templates/core/services_templates.dart';
 import '../../utils/file_utils.dart';
+import '../../utils/package_versions.dart';
 import '../../utils/project_manifest.dart';
 import '../../utils/project_paths.dart';
 import '../../utils/pubspec_utils.dart';
@@ -83,13 +85,33 @@ class CreateWidgetCommand extends Command<int> {
     // A widget the project's stack has no use for is dropped rather than
     // written: `create widget all` on a bloc project leaves out the two
     // Riverpod-only pieces instead of adding files that cannot compile.
-    final specs = WidgetCatalog.resolve(
+    final resolved = WidgetCatalog.resolve(
       requested,
       stateManagement: variants.stateManagement,
     );
     final unsupported = requested
-        .where((name) => !specs.any((spec) => spec.name == name))
+        .where((name) => !resolved.any((spec) => spec.name == name))
         .toList();
+
+    // OnboardingGate reads PreferencesService, which `init` writes only with
+    // the onboarding or dark theme option. `all` leaves such widgets out of a
+    // project without it, like the stack-specific ones above; asked for by
+    // name, a widget brings the service along instead, so it compiles.
+    final preferencesPath = p.join(
+      libPath,
+      'core',
+      'services',
+      'preferences_service.dart',
+    );
+    final hasPreferences = File(preferencesPath).existsSync();
+    final leftOutForPreferences = rest.contains('all') && !hasPreferences
+        ? resolved.where((spec) => spec.needsPreferences).toList()
+        : const <WidgetSpec>[];
+    final specs = resolved
+        .where((spec) => !leftOutForPreferences.contains(spec))
+        .toList();
+    final addsPreferences =
+        !hasPreferences && specs.any((spec) => spec.needsPreferences);
     if (unsupported.isNotEmpty && !rest.contains('all')) {
       _logger.warn(
         'Not available on '
@@ -102,7 +124,10 @@ class CreateWidgetCommand extends Command<int> {
       return 0;
     }
 
-    final packages = <String>{for (final spec in specs) ...spec.packages};
+    final packages = <String>{
+      for (final spec in specs) ...spec.packages,
+      if (addsPreferences) PackageVersions.entry('shared_preferences'),
+    };
 
     _logger.info('');
     _logger.info('🧱 Generating ${specs.length} widget(s)');
@@ -128,8 +153,16 @@ class CreateWidgetCommand extends Command<int> {
     // files apart from ones the user edited. A skipped file whose content
     // differs is left out: that content is the user's, not ours to vouch for.
     final manifest = ProjectManifest.loadOrCreate(projectRoot);
+    var wrotePreferences = false;
 
     try {
+      if (addsPreferences) {
+        final content = ServicesTemplates.preferencesService();
+        wrotePreferences = await FileUtils.writeFile(preferencesPath, content);
+        if (wrotePreferences) {
+          manifest.record(projectRoot, preferencesPath, content);
+        }
+      }
       for (final spec in specs) {
         final content = WidgetCatalog.sourceFor(spec, variants);
         final path = spec.pathIn(libPath);
@@ -162,7 +195,7 @@ class CreateWidgetCommand extends Command<int> {
           dependencies: packages.toList(),
         );
       }
-      if (created.isNotEmpty || adopted.isNotEmpty) {
+      if (created.isNotEmpty || adopted.isNotEmpty || wrotePreferences) {
         await manifest.save(projectRoot);
       }
       progress.complete('Widgets scaffolded');
@@ -174,6 +207,9 @@ class CreateWidgetCommand extends Command<int> {
     }
 
     _logger.success('');
+    if (wrotePreferences) {
+      _logger.info('  + core/services/preferences_service.dart');
+    }
     for (final spec in created) {
       _logger.info('  + ${spec.libFile}');
     }
@@ -222,6 +258,33 @@ class CreateWidgetCommand extends Command<int> {
     final hasRouter = File(
       p.join(libPath, 'config', 'router', 'app_router.dart'),
     ).existsSync();
+    if (leftOutForPreferences.isNotEmpty) {
+      _logger.info('');
+      _logger.info(
+        '  Left out ${leftOutForPreferences.map((s) => s.title).join(', ')}: '
+        'it reads PreferencesService, which this project does not have.',
+      );
+      _logger.info(
+        '  Add it with `moarch create widget '
+        '${leftOutForPreferences.map((s) => s.name).join(' ')}`, which brings the service.',
+      );
+    }
+
+    // The service file compiles on its own, but the gate reads it from the
+    // locator: unregistered, getIt throws on the first frame.
+    if (wrotePreferences) {
+      _logger.info('');
+      _logger.warn(
+        '  Register PreferencesService in lib/config/di/core_module.dart',
+      );
+      _logger.warn(
+        '  (setupInjector already waits for it with getIt.allReady()):',
+      );
+      _logger.warn(
+        '    ..registerSingletonAsync<PreferencesService>(PreferencesService.create)',
+      );
+    }
+
     if (needsRouter && !hasRouter) {
       _logger.info('');
       _logger.warn(

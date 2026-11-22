@@ -9450,7 +9450,7 @@ $toggleAction              ${withDark ? 'const ' : ''}SizedBox(width: AppConstan
                   runSpacing: AppConstants.space8,
                   children: [
                     OutlinedButton(
-                      onPressed: () => showDialog(
+                      onPressed: () => showDialog<void>(
                         context: context,
                         builder: (_) => AlertDialog(
                           title: const Text('Dialog title'),
@@ -9486,7 +9486,7 @@ $toggleAction              ${withDark ? 'const ' : ''}SizedBox(width: AppConstan
               _Section(
                 title: 'Bottom Sheet',
                 child: OutlinedButton(
-                  onPressed: () => showModalBottomSheet(
+                  onPressed: () => showModalBottomSheet<void>(
                     context: context,
                     shape: const RoundedRectangleBorder(
                       borderRadius: BorderRadius.vertical(
@@ -10116,7 +10116,7 @@ $toggleAction              ${withDark ? 'const ' : ''}SizedBox(width: AppConstan
               _Section(
                 title: 'AppBottomSheetScaffold',
                 child: OutlinedButton(
-                  onPressed: () => showModalBottomSheet(
+                  onPressed: () => showModalBottomSheet<void>(
                     context: context,
                     backgroundColor: Colors.transparent,
                     isScrollControlled: true,

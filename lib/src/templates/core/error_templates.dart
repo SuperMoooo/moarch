@@ -47,7 +47,11 @@ class ErrorTemplates {
         '''
   factory AppException.fromDioError(DioException dioError) {
     try {
-      final message = dioError.response?.data?['message'] as String? ??
+      // The body is untyped: read `message` only from a JSON object that
+      // holds a string, so an HTML error page keeps its status code.
+      final body = dioError.response?.data;
+      final Object? serverMessage = body is Map ? body['message'] : null;
+      final message = (serverMessage is String ? serverMessage : null) ??
           dioError.message ??
           'Unknown error';
       final statusCode = dioError.response?.statusCode;
