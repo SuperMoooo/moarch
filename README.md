@@ -494,6 +494,24 @@ checklist option: `sign_in_with_apple` returns Apple's identity token and
 `POST /auth/apple` trades it for a session; your backend verifies the token.
 Either way `Runner.entitlements` declares the capability.
 
+**Sign in with Google** for the REST feature is the **Sign in with Google**
+checklist option: `google_sign_in` returns Google's ID token and
+`POST /auth/google` `{id_token}` trades it for a session; your backend checks
+it was issued to one of your client ids. Set `kGoogleServerClientId` (the web
+client id) and `kGoogleIosClientId` in `auth_remote_datasource.dart`; `init`
+adds `GIDClientID` and the URL scheme to `Info.plist` as placeholders, which
+`moarch doctor --fix` finishes. A project gets it later by adding
+`google_sign_in` to the pubspec and running `moarch update auth`.
+
+**Errors from the API** reach the app as an `AppException` with the server's
+`message` and its `code` (`account_locked`, `invalid_credentials`,
+`weak_password`…), read from `{"error": {"code", "message"}}` (the
+[moarch-py](https://pypi.org/project/moarch-py/) shape) or a flat
+`{"message", "code"}`. Branch on `code`, never on the wording; 401, 403 and 423
+arrive as an `AuthException`. The paths and bodies of the auth feature and of
+the integrity, report & block, purchases and realtime services match what a
+moarch-py backend serves.
+
 Selecting **Firebase Auth** together with the auth feature generates it against
 Firebase instead of REST: email/password, Google and Apple sign-in, password
 reset, email verification, account deletion, and a session restored from

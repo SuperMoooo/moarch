@@ -237,8 +237,40 @@ void main() {
     // A 404 is its own kind: a screen usually draws that as empty, not broken.
     expect(
       output,
-      contains('NotFoundException(message: message, statusCode: statusCode)'),
+      contains(
+        '404 => NotFoundException(message: message, statusCode: statusCode, code: code)',
+      ),
     );
+  });
+
+  test('appException reads the error body moarch-py sends, and its code', () {
+    final output = ErrorTemplates.appException(hasDio: true);
+
+    // `{"error": {"code", "message"}}` first, then a flat body.
+    expect(output, contains("final Object? nested = body['error'];"));
+    expect(
+      output,
+      contains(
+        'final Map<Object?, Object?> fields = nested is Map ? nested : body;',
+      ),
+    );
+    expect(output, contains('final String? code;'));
+    // Locked and refused accounts reach the auth flow, told apart by code.
+    expect(
+      output,
+      contains(
+        '401 || 403 || 423 => AuthException(message: message, statusCode: statusCode, code: code)',
+      ),
+    );
+  });
+
+  test('appException without Dio has no body parser', () {
+    final output = ErrorTemplates.appException(
+      hasDio: false,
+      hasFirebase: true,
+    );
+
+    expect(output, isNot(contains('_ServerError')));
   });
 
   test('appException records to Crashlytics when requested', () {

@@ -250,6 +250,12 @@ class ScaffoldContext {
   bool get hasRestAppleSignIn =>
       hasRestAuthFeature && hasPackage('sign_in_with_apple');
 
+  /// The REST auth feature has Sign in with Google: `google_sign_in` is a
+  /// dependency. (The Firebase auth feature has it too, but signs in through
+  /// FirebaseAuth, so it is not this.)
+  bool get hasRestGoogleSignIn =>
+      hasRestAuthFeature && hasPackage('google_sign_in');
+
   /// Sign in with Apple, on either backend.
   bool get hasAppleSignIn => hasFirebaseAuthFeature || hasRestAppleSignIn;
 
@@ -815,6 +821,7 @@ abstract final class ScaffoldCatalog {
       template: (c) => CoreTemplates.apiConstants(
         withAuthFeature: c.hasRestAuthFeature,
         withAppleSignIn: c.hasRestAppleSignIn,
+        withGoogleSignIn: c.hasRestGoogleSignIn,
         withDeviceToken: c.hasRestAuthFeature && c.hasFirebaseNotifications,
         withMaintenanceGate:
             c.hasMaintenanceGate && c.hasDio && !c.hasFirestore,
@@ -875,6 +882,7 @@ abstract final class ScaffoldCatalog {
         c.stack.dioClient(
           withAuthFeature: c.hasRestAuthFeature,
           withAppleSignIn: c.hasRestAppleSignIn,
+          withGoogleSignIn: c.hasRestGoogleSignIn,
           withPinning: c.hasPinning,
         ),
         c.apiEndpoints,
@@ -1374,6 +1382,7 @@ abstract final class ScaffoldCatalog {
               c.stack.authRemoteDatasource(
                 withPushNotifications: c.hasFirebaseNotifications,
                 withAppleSignIn: c.hasRestAppleSignIn,
+                withGoogleSignIn: c.hasRestGoogleSignIn,
               ),
               c.apiEndpoints,
             ),
@@ -1399,6 +1408,7 @@ abstract final class ScaffoldCatalog {
               withPushNotifications: c.hasFirebaseNotifications,
               withLocalCache: c.hasLocalCache,
               withAppleSignIn: c.hasRestAppleSignIn,
+              withGoogleSignIn: c.hasRestGoogleSignIn,
             ),
       description:
           'What the state holder calls: the datasource and the session storage.',
@@ -1430,6 +1440,7 @@ abstract final class ScaffoldCatalog {
               withPushNotifications: c.hasFirebaseNotifications,
               withConcurrency: c.hasBlocConcurrency,
               withAppleSignIn: c.hasRestAppleSignIn,
+              withGoogleSignIn: c.hasRestGoogleSignIn,
             ),
       description:
           'Login, register, refresh, logout, delete and session '
@@ -1449,6 +1460,7 @@ abstract final class ScaffoldCatalog {
               withPushNotifications: c.hasFirebaseNotifications,
               withConcurrency: c.hasBlocConcurrency,
               withAppleSignIn: c.hasRestAppleSignIn,
+              withGoogleSignIn: c.hasRestGoogleSignIn,
             ),
       description:
           'Login, register, refresh, logout, delete and session '
@@ -1461,7 +1473,10 @@ abstract final class ScaffoldCatalog {
       category: 'Auth feature',
       template: (c) => c.hasFirebaseAuthFeature
           ? c.stack.firebaseAuthEvent()
-          : c.stack.authEvent(withAppleSignIn: c.hasRestAppleSignIn),
+          : c.stack.authEvent(
+              withAppleSignIn: c.hasRestAppleSignIn,
+              withGoogleSignIn: c.hasRestGoogleSignIn,
+            ),
       description: 'The sealed event family AuthBloc handles (flutter_bloc).',
     ),
     ScaffoldSpec(

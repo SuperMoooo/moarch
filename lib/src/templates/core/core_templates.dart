@@ -740,6 +740,7 @@ $darkPalette
   static String apiConstants({
     bool withAuthFeature = false,
     bool withAppleSignIn = false,
+    bool withGoogleSignIn = false,
     bool withDeviceToken = false,
     bool withMaintenanceGate = false,
     bool withUpdateGate = false,
@@ -784,7 +785,10 @@ ${[for (final MapEntry(:key, :value) in serviceEndpoints.entries) "  static cons
   static const authEmailResend = '/auth/email/resend';${withAppleSignIn ? '''
 
   /// Trades Apple's identity token for a session.
-  static const authApple = '/auth/apple';''' : ''}$deviceToken'''
+  static const authApple = '/auth/apple';''' : ''}${withGoogleSignIn ? '''
+
+  /// Trades Google's ID token for a session.
+  static const authGoogle = '/auth/google';''' : ''}$deviceToken'''
         : '';
 
     final maintenance = withMaintenanceGate
@@ -837,6 +841,7 @@ abstract final class ApiConstants {
     'configMaintenance': '/config/maintenance',
     'configAppVersion': '/config/app-version',
     'configFlags': '/config/flags',
+    'authGoogle': '/auth/google',
     'integrityChallenge': '/integrity/challenge',
     'integrityVerify': '/integrity/verify',
     'moderationReports': '/moderation/reports',
@@ -1318,6 +1323,7 @@ class NullableTimestampConverter implements JsonConverter<DateTime?, Object?> {
   static String dioClient({
     bool withAuthFeature = false,
     bool withAppleSignIn = false,
+    bool withGoogleSignIn = false,
     bool withPinning = false,
   }) {
     final publicEndpoints = withAuthFeature
@@ -1327,7 +1333,7 @@ class NullableTimestampConverter implements JsonConverter<DateTime?, Object?> {
   ApiConstants.authRegister,
   ApiConstants.authRefresh,
   ApiConstants.authPasswordForgot,
-  ApiConstants.authPasswordReset,${withAppleSignIn ? '\n  ApiConstants.authApple,' : ''}'''
+  ApiConstants.authPasswordReset,${withAppleSignIn ? '\n  ApiConstants.authApple,' : ''}${withGoogleSignIn ? '\n  ApiConstants.authGoogle,' : ''}'''
         : r'''
   // Routes that never receive the Authorization header (and are never
   // retried after a token refresh). Add your API's sign-in routes here.''';

@@ -70,6 +70,7 @@ const _kLocalAi = 'On-device AI (Gemma 4 via LiteRT-LM)';
 
 const _kAuthFeature = 'Auth feature (login/register/refresh/logout/delete)';
 const _kAppleSignIn = 'Sign in with Apple (REST auth)';
+const _kGoogleSignIn = 'Sign in with Google (REST auth)';
 const _kRouter = 'Router (GoRouter)';
 const _kWorkflows = 'Workflows (security, tests, build)';
 const _kMediaService = 'Media Service (Image Picker and File Picker)';
@@ -718,6 +719,14 @@ class InitCommand extends Command<int> {
                   'it. (Firebase auth always has Apple sign-in.)',
             ),
             const ChecklistItem(
+              _kGoogleSignIn,
+              defaultOn: false,
+              description:
+                  'For the REST auth feature: the Google sheet, then its '
+                  'ID token POSTed to /auth/google. Your backend verifies '
+                  'it. (Firebase auth always has Google sign-in.)',
+            ),
+            const ChecklistItem(
               _kRouter,
               defaultOn: true,
               description: 'GoRouter with an auth-aware redirect.',
@@ -1084,7 +1093,8 @@ class InitCommand extends Command<int> {
       if (stack.contains(_kFirebaseAuth))
         PackageVersions.entry('firebase_auth'),
       if (stack.contains(_kFirestore)) PackageVersions.entry('cloud_firestore'),
-      if (firebaseAuthFeature) PackageVersions.entry('google_sign_in'),
+      if (firebaseAuthFeature || _restGoogleSignIn(stack))
+        PackageVersions.entry('google_sign_in'),
       if (_restAppleSignIn(stack)) PackageVersions.entry('sign_in_with_apple'),
       if (stack.contains(_kMediaService)) PackageVersions.entry('file_picker'),
       if (stack.contains(_kMediaService)) PackageVersions.entry('image_picker'),
@@ -1167,6 +1177,7 @@ class InitCommand extends Command<int> {
             withPushNotifications: stack.contains(_kFirebaseNotifications),
             withLocalCache: stack.contains(_kOfflineFirst),
             withAppleSignIn: _restAppleSignIn(stack),
+            withGoogleSignIn: _restGoogleSignIn(stack),
           );
         }
       }
@@ -2003,7 +2014,8 @@ class InitCommand extends Command<int> {
     final wantsBiometrics = stack.contains(_kBiometricAuth);
     final wantsSync = stack.contains(_kSync);
     final wantsGoogleSignIn =
-        stack.contains(_kFirebaseAuth) && stack.contains(_kAuthFeature);
+        (stack.contains(_kFirebaseAuth) && stack.contains(_kAuthFeature)) ||
+        _restGoogleSignIn(stack);
     final serviceRequirements = [
       for (final option in _services(stack))
         if (option.requirement case final requirement?
@@ -2390,6 +2402,7 @@ class InitCommand extends Command<int> {
     return CoreTemplates.apiConstants(
       withAuthFeature: restAuthFeature,
       withAppleSignIn: _restAppleSignIn(stack),
+      withGoogleSignIn: _restGoogleSignIn(stack),
       withDeviceToken:
           restAuthFeature && stack.contains(_kFirebaseNotifications),
       withMaintenanceGate: dioConfig && stack.contains(_kMaintenanceGate),
@@ -2537,6 +2550,7 @@ class InitCommand extends Command<int> {
         templates.dioClient(
           withAuthFeature: restAuthFeature,
           withAppleSignIn: _restAppleSignIn(stack),
+          withGoogleSignIn: _restGoogleSignIn(stack),
           withPinning: stack.contains(_kPinning),
         ),
       );
@@ -2672,6 +2686,7 @@ class InitCommand extends Command<int> {
     required bool withPushNotifications,
     required bool withLocalCache,
     bool withAppleSignIn = false,
+    bool withGoogleSignIn = false,
   }) async {
     final f = p.join(libPath, 'features', 'auth');
 
@@ -2688,6 +2703,7 @@ class InitCommand extends Command<int> {
       templates.authRemoteDatasource(
         withPushNotifications: withPushNotifications,
         withAppleSignIn: withAppleSignIn,
+        withGoogleSignIn: withGoogleSignIn,
       ),
     );
     await FileUtils.writeFile(
@@ -2696,6 +2712,7 @@ class InitCommand extends Command<int> {
         withPushNotifications: withPushNotifications,
         withLocalCache: withLocalCache,
         withAppleSignIn: withAppleSignIn,
+        withGoogleSignIn: withGoogleSignIn,
       ),
     );
     await FileUtils.writeFile(
@@ -2705,7 +2722,10 @@ class InitCommand extends Command<int> {
     if (templates.isBloc) {
       await FileUtils.writeFile(
         p.join(f, 'presentation', 'blocs', 'auth_event.dart'),
-        templates.authEvent(withAppleSignIn: withAppleSignIn),
+        templates.authEvent(
+          withAppleSignIn: withAppleSignIn,
+          withGoogleSignIn: withGoogleSignIn,
+        ),
       );
     }
     await FileUtils.writeFile(
@@ -2719,6 +2739,7 @@ class InitCommand extends Command<int> {
         withPushNotifications: withPushNotifications,
         withConcurrency: templates.isBloc,
         withAppleSignIn: withAppleSignIn,
+        withGoogleSignIn: withGoogleSignIn,
       ),
     );
     await FileUtils.writeFile(
@@ -2758,6 +2779,13 @@ class InitCommand extends Command<int> {
   /// The REST variant alone — see [_appleSignIn].
   bool _restAppleSignIn(Set<String> stack) =>
       stack.contains(_kAppleSignIn) &&
+      stack.contains(_kAuthFeature) &&
+      !stack.contains(_kFirebaseAuth);
+
+  /// The REST auth feature with Sign in with Google. The Firebase auth
+  /// feature has Google built in, through FirebaseAuth, so this is REST only.
+  bool _restGoogleSignIn(Set<String> stack) =>
+      stack.contains(_kGoogleSignIn) &&
       stack.contains(_kAuthFeature) &&
       !stack.contains(_kFirebaseAuth);
 

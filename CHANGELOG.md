@@ -2,6 +2,27 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 11.5.0
+
+### Added
+
+- **Sign in with Google for the REST auth feature**, a checklist option beside
+  Sign in with Apple, on both stacks: `google_sign_in` gets the ID token and
+  `POST /auth/google` `{id_token}` trades it for a session (the endpoint
+  moarch-py serves). `kGoogleServerClientId` and `kGoogleIosClientId` hold the
+  client ids, and `Info.plist` gets `GIDClientID` and the URL scheme. A project
+  that adds `google_sign_in` gets it with `moarch update auth`.
+- **`AppException.code`**: the API's own name for a failure, read with its
+  message from `{"error": {"code", "message"}}` (moarch-py) or a flat
+  `{"message", "code"}`. 401, 403 and 423 (a locked account) now arrive as
+  an `AuthException`, so the auth flow handles them.
+
+### Changed
+
+- `AppException.fromDioError` used to read only a top-level `message`, so a
+  moarch-py backend's messages never reached the screen. `moarch update exception`
+  refreshes `app_exception.dart` in an existing project.
+
 ## 11.4.0
 
 ### Changed

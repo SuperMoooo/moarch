@@ -55,6 +55,64 @@ void main() {
       );
     });
 
+    test('Sign in with Google only when asked for, against /auth/google', () {
+      for (final t in stacks) {
+        expect(t.authRemoteDatasource(), isNot(contains('google_sign_in')));
+        final google = t.authRemoteDatasource(withGoogleSignIn: true);
+        expect(
+          google,
+          contains("import 'package:google_sign_in/google_sign_in.dart';"),
+        );
+        expect(google, contains('await google.authenticate();'));
+        // The ID token is what moarch-py's POST /auth/google takes.
+        expect(google, contains("data: {'id_token': idToken},"));
+        expect(google, contains('ApiConstants.authGoogle'));
+        expect(google, contains('const String? kGoogleServerClientId = null;'));
+        expect(google, contains('throw AppException.cancelled();'));
+        // With Apple too, both methods and one AppException import.
+        final both = t.authRemoteDatasource(
+          withAppleSignIn: true,
+          withGoogleSignIn: true,
+        );
+        expect(both, contains('signInWithApple()'));
+        expect(both, contains('signInWithGoogle()'));
+        expect(
+          "import '../../../../core/errors/app_exception.dart';"
+              .allMatches(both)
+              .length,
+          1,
+        );
+        expect(
+          t.authRepository(withGoogleSignIn: true),
+          contains('Future<UserModel> signInWithGoogle() async {'),
+        );
+        expect(
+          t.authHolder(withGoogleSignIn: true),
+          contains('_repo.signInWithGoogle()'),
+        );
+      }
+      const bloc = StackTemplates(StateManagement.bloc);
+      expect(
+        bloc.authEvent(withGoogleSignIn: true),
+        contains('final class AuthGoogleSignInRequested extends AuthEvent'),
+      );
+      expect(
+        bloc.authHolder(withGoogleSignIn: true, withConcurrency: true),
+        contains('on<AuthGoogleSignInRequested>(_onGoogleSignIn'),
+      );
+      expect(
+        CoreTemplates.apiConstants(
+          withAuthFeature: true,
+          withGoogleSignIn: true,
+        ),
+        contains("authGoogle = '/auth/google'"),
+      );
+      expect(
+        CoreTemplates.dioClient(withAuthFeature: true, withGoogleSignIn: true),
+        contains('ApiConstants.authGoogle,'),
+      );
+    });
+
     test(
       'the model carries emailVerified, and the state reads it only if so',
       () {

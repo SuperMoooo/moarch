@@ -43,22 +43,51 @@ class ErrorTemplates {
         ? '\n    FirebaseCrashlytics.instance.recordError(error, error.stackTrace, reason: message);'
         : '';
 
+    // Reads the error body. The moarch-py shape is `{"error": {"code",
+    // "message"}}`; a flat `{"message", "code"}` is read too, so other
+    // backends keep working. The body is untyped: a value counts only when it
+    // is a string, so an HTML error page keeps its status code.
+    final serverErrorParser = hasDio
+        ? r'''
+
+/// The `message` and `code` an error response carries, where it has them.
+final class _ServerError {
+  const _ServerError({this.message, this.code});
+
+  factory _ServerError.from(Object? body) {
+    if (body is! Map) return const _ServerError();
+    final Object? nested = body['error'];
+    final Map<Object?, Object?> fields = nested is Map ? nested : body;
+    final Object? message = fields['message'];
+    final Object? code = fields['code'];
+    return _ServerError(
+      message: message is String ? message : null,
+      code: code is String ? code : null,
+    );
+  }
+
+  final String? message;
+  final String? code;
+}
+'''
+        : '';
+
     final dioFactory =
         '''
   factory AppException.fromDioError(DioException dioError) {
     try {
-      // The body is untyped: read `message` only from a JSON object that
-      // holds a string, so an HTML error page keeps its status code.
-      final body = dioError.response?.data;
-      final Object? serverMessage = body is Map ? body['message'] : null;
-      final message = (serverMessage is String ? serverMessage : null) ??
-          dioError.message ??
-          'Unknown error';
+      final error = _ServerError.from(dioError.response?.data);
+      final message = error.message ?? dioError.message ?? 'Unknown error';
       final statusCode = dioError.response?.statusCode;
-      appLogger.e('[AppException] — \$message', error: dioError, stackTrace: dioError.stackTrace);$crashlyticsDio
-      return statusCode == 404
-          ? NotFoundException(message: message, statusCode: statusCode)
-          : ServerException(message: message, statusCode: statusCode);
+      final code = error.code;
+      appLogger.e('[AppException] — \$message (\${code ?? 'no code'})', error: dioError, stackTrace: dioError.stackTrace);$crashlyticsDio
+      return switch (statusCode) {
+        404 => NotFoundException(message: message, statusCode: statusCode, code: code),
+        // Not signed in, not allowed, or the account is locked (423):
+        // all cases the auth flow handles, told apart by [code].
+        401 || 403 || 423 => AuthException(message: message, statusCode: statusCode, code: code),
+        _ => ServerException(message: message, statusCode: statusCode, code: code),
+      };
     } catch (error) {
       appLogger.e('[AppException] — \$error', error: error, stackTrace: dioError.stackTrace);$crashlyticsDioCatch
       return const UnknownException(message: 'Unknown error');
@@ -185,13 +214,18 @@ enum AppExceptionType { network, server, notFound, auth, cancelled, unknown }
 /// Catch the base class to show [message]; catch a subclass where one failure
 /// needs its own path (`on NetworkException { ... }`).
 sealed class AppException implements Exception {
-  const AppException({required this.message, this.statusCode});
+  const AppException({required this.message, this.statusCode, this.code});
 
   /// Safe to show as-is.
   final String message;
 
   /// The HTTP status behind the failure, where there was one.
   final int? statusCode;
+
+  /// The API's own name for the failure (`account_locked`,
+  /// `invalid_credentials`, `weak_password`…), where it sent one. Branch on
+  /// this rather than on [message], which is worded for people.
+  final String? code;
 
   /// Which kind this is, as a value.
   AppExceptionType get type => switch (this) {
@@ -205,7 +239,7 @@ sealed class AppException implements Exception {
 
   @override
   String toString() =>
-      '\$runtimeType(message: \$message, statusCode: \$statusCode)';
+      '\$runtimeType(message: \$message, statusCode: \$statusCode, code: \$code)';
 
   factory AppException.noInternet() =>
       const NetworkException(message: 'No internet connection');
@@ -233,17 +267,17 @@ final class NetworkException extends AppException {
 
 /// The server answered, and the answer was a failure.
 final class ServerException extends AppException {
-  const ServerException({required super.message, super.statusCode});
+  const ServerException({required super.message, super.statusCode, super.code});
 }
 
 /// A 404, or a document that does not exist.
 final class NotFoundException extends AppException {
-  const NotFoundException({required super.message, super.statusCode});
+  const NotFoundException({required super.message, super.statusCode, super.code});
 }
 
 /// Not signed in, not allowed, or refused credentials.
 final class AuthException extends AppException {
-  const AuthException({required super.message, super.statusCode});
+  const AuthException({required super.message, super.statusCode, super.code});
 }
 
 /// The user backed out (a dismissed sheet, a closed popup).
@@ -255,6 +289,6 @@ final class CancelledException extends AppException {
 final class UnknownException extends AppException {
   const UnknownException({required super.message});
 }
-''';
+$serverErrorParser''';
   }
 }

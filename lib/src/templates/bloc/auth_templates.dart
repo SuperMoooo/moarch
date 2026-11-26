@@ -69,14 +69,23 @@ abstract class UserModel with _$UserModel {
   ///
   /// [withAppleSignIn] adds Sign in with Apple: the Apple sheet, then its
   /// identity token traded for a session at `POST /auth/apple`.
+  ///
+  /// [withGoogleSignIn] adds Sign in with Google: the Google sheet, then its
+  /// ID token traded for a session at `POST /auth/google`.
   static String remoteDatasource({
     bool withPushNotifications = false,
     bool withAppleSignIn = false,
+    bool withGoogleSignIn = false,
   }) {
+    final googleImports = withGoogleSignIn
+        ? "import 'package:google_sign_in/google_sign_in.dart';\n"
+        : '';
+    final googleOptions = withGoogleSignIn ? _googleOptions : '';
+    final google = withGoogleSignIn ? _googleSignIn : '';
     final appleImports = withAppleSignIn
         ? "import 'package:sign_in_with_apple/sign_in_with_apple.dart';\n"
         : '';
-    final appleExceptionImport = withAppleSignIn
+    final appleExceptionImport = withAppleSignIn || withGoogleSignIn
         ? "import '../../../../core/errors/app_exception.dart';\n"
         : '';
     final appleOptions = withAppleSignIn ? _appleWebOptions : '';
@@ -103,12 +112,12 @@ abstract class UserModel with _$UserModel {
 
     return '''
 import 'package:dio/dio.dart';
-$appleImports
+$googleImports$appleImports
 import '../../../../core/constants/api_constants.dart';
 ${appleExceptionImport}import '../../../../core/network/safe_api_call.dart';
 import '../models/auth_tokens_model.dart';
 import '../models/user_model.dart';
-$appleOptions
+$googleOptions$appleOptions
 class AuthRemoteDataSource {
   const AuthRemoteDataSource(this._dio);
 
@@ -228,7 +237,7 @@ class AuthRemoteDataSource {
       },
     );
   }
-$apple$saveDeviceToken}
+$google$apple$saveDeviceToken}
 ''';
   }
 
@@ -239,6 +248,80 @@ $apple$saveDeviceToken}
 /// serves (docs/AUTH.md). Null on iOS and macOS, where the native sheet is
 /// used.
 const WebAuthenticationOptions? kAppleWebAuthentication = null;
+""";
+
+  static const String _googleOptions = r'''
+
+/// The OAuth client ids Google sign-in uses, from Google Cloud console →
+/// APIs & Services → Credentials.
+///
+/// [kGoogleServerClientId] is the **web** client id: Google issues the ID
+/// token for it, and your API must list it among the client ids it accepts
+/// (moarch-py: `GOOGLE_CLIENT_IDS`). [kGoogleIosClientId] is the iOS client
+/// id, also `GIDClientID` in Info.plist; Android needs none, it is matched by
+/// package name and signing certificate.
+const String? kGoogleServerClientId = null;
+
+/// See [kGoogleServerClientId].
+const String? kGoogleIosClientId = null;
+''';
+
+  static const String _googleSignIn = r"""
+
+  // google_sign_in is initialized once per process, before its first call.
+  static bool _googleReady = false;
+
+  /// The Google sheet, then its ID token traded for a session.
+  ///
+  /// Your API verifies the token against Google's public keys and checks it
+  /// was issued to one of your client ids (see [kGoogleServerClientId]).
+  Future<AuthTokensModel> signInWithGoogle() async {
+    final google = GoogleSignIn.instance;
+    if (!_googleReady) {
+      await google.initialize(
+        clientId: kGoogleIosClientId,
+        serverClientId: kGoogleServerClientId,
+      );
+      _googleReady = true;
+    }
+
+    // google_sign_in has no interactive call on the web: render its own
+    // button there (see the package's web documentation) instead.
+    if (!google.supportsAuthenticate()) {
+      throw AppException.fromError(
+        'Google sign-in needs the platform button on this target',
+        StackTrace.current,
+      );
+    }
+
+    final GoogleSignInAccount account;
+    try {
+      account = await google.authenticate();
+    } on GoogleSignInException catch (error) {
+      if (error.code == GoogleSignInExceptionCode.canceled) {
+        throw AppException.cancelled();
+      }
+      throw AppException.fromError(error, StackTrace.current);
+    }
+
+    final idToken = account.authentication.idToken;
+    if (idToken == null) {
+      throw AppException.fromError(
+        'Google returned no ID token — set kGoogleServerClientId',
+        StackTrace.current,
+      );
+    }
+
+    return safeApiCall<AuthTokensModel>(
+      apiCall: () async {
+        final response = await _dio.post<dynamic>(
+          ApiConstants.authGoogle,
+          data: {'id_token': idToken},
+        );
+        return AuthTokensModel.fromJson(response.data as Map<String, dynamic>);
+      },
+    );
+  }
 """;
 
   static const String _appleSignIn = r"""
@@ -299,7 +382,19 @@ const WebAuthenticationOptions? kAppleWebAuthentication = null;
     bool withPushNotifications = false,
     bool withLocalCache = false,
     bool withAppleSignIn = false,
+    bool withGoogleSignIn = false,
   }) {
+    final google = withGoogleSignIn
+        ? '''
+
+  /// Sign in with Google: the Google sheet, then a session like a login.
+  ///
+  /// Throws a `CancelledException` when the user dismisses the sheet.
+  Future<UserModel> signInWithGoogle() async {
+    final tokens = await _remote.signInWithGoogle();
+    return _startSession(tokens);
+  }'''
+        : '';
     final apple = withAppleSignIn
         ? '''
 
@@ -483,7 +578,7 @@ class AuthRepository {
     await _remote.delete();
     await _tokens.clearSession();$clearCacheOnDelete
   }
-$apple
+$google$apple
   /// Emails [email] a reset code. No session involved.
   Future<void> requestPasswordReset({required String email}) =>
       _remote.requestPasswordReset(email: email);
@@ -588,9 +683,21 @@ final class AuthFailure extends AuthState {
   // ── Presentation — Events ───────────────────────────────────────────────────
 
   /// Returns the generated auth event template. [withAppleSignIn] adds
-  /// `AuthAppleSignInRequested`.
-  static String event({bool withAppleSignIn = false}) =>
-      _event + (withAppleSignIn ? _appleEvent : '');
+  /// `AuthAppleSignInRequested`, [withGoogleSignIn] `AuthGoogleSignInRequested`.
+  static String event({
+    bool withAppleSignIn = false,
+    bool withGoogleSignIn = false,
+  }) =>
+      _event +
+      (withAppleSignIn ? _appleEvent : '') +
+      (withGoogleSignIn ? _googleEvent : '');
+
+  static const String _googleEvent = r'''
+
+final class AuthGoogleSignInRequested extends AuthEvent {
+  const AuthGoogleSignInRequested();
+}
+''';
 
   static const String _appleEvent = r'''
 
@@ -808,16 +915,19 @@ class RegisterView extends StatelessWidget {
     bool withPushNotifications = false,
     bool withConcurrency = false,
     bool withAppleSignIn = false,
+    bool withGoogleSignIn = false,
   }) {
     final source = _bloc(
       withPushNotifications: withPushNotifications,
       withAppleSignIn: withAppleSignIn,
+      withGoogleSignIn: withGoogleSignIn,
     );
     return withConcurrency
         ? withDroppable(source, [
             'AuthLoginRequested',
             'AuthRegisterRequested',
             if (withAppleSignIn) 'AuthAppleSignInRequested',
+            if (withGoogleSignIn) 'AuthGoogleSignInRequested',
             'AuthUserReloadRequested',
             'AuthPasswordResetRequested',
             'AuthPasswordResetConfirmed',
@@ -831,7 +941,31 @@ class RegisterView extends StatelessWidget {
   static String _bloc({
     bool withPushNotifications = false,
     bool withAppleSignIn = false,
+    bool withGoogleSignIn = false,
   }) {
+    final googleRegistration = withGoogleSignIn
+        ? '\n    on<AuthGoogleSignInRequested>(_onGoogleSignIn);'
+        : '';
+    final googleHandler = withGoogleSignIn
+        ? '''
+
+  Future<void> _onGoogleSignIn(
+    AuthGoogleSignInRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final current = state;
+    emit(const AuthLoading());
+    try {
+      final user = await _repo.signInWithGoogle();${withPushNotifications ? '\n      unawaited(_repo.syncDeviceToken());' : ''}
+      emit(AuthAuthenticated(user: user));
+    } on CancelledException {
+      // Dismissing the Google sheet is not a failure worth showing.
+      emit(current);
+    } on AppException catch (e) {
+      emit(AuthFailure(e.message));
+    }
+  }'''
+        : '';
     final appleRegistration = withAppleSignIn
         ? '\n    on<AuthAppleSignInRequested>(_onAppleSignIn);'
         : '';
@@ -887,7 +1021,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthStarted>(_onStarted);
     on<AuthLoginRequested>(_onLogin);
     on<AuthRegisterRequested>(_onRegister);
-    on<AuthUserReloadRequested>(_onUserReload);$appleRegistration
+    on<AuthUserReloadRequested>(_onUserReload);$appleRegistration$googleRegistration
     on<AuthPasswordResetRequested>(_onPasswordReset);
     on<AuthPasswordResetConfirmed>(_onPasswordResetConfirmed);
     on<AuthVerificationEmailRequested>(_onVerificationEmail);
@@ -994,7 +1128,7 @@ $syncOnRestore
     } on AppException catch (e) {
       emit(AuthFailure(e.message, session: current));
     }
-  }$appleHandler
+  }$appleHandler$googleHandler
 
   // The three below do not change the session, so only a failure is a state;
   // the screen confirms the send itself. A failure carries the session it

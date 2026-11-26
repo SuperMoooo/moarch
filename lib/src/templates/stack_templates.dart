@@ -243,10 +243,12 @@ class StackTemplates {
   String dioClient({
     bool withAuthFeature = false,
     bool withAppleSignIn = false,
+    bool withGoogleSignIn = false,
     bool withPinning = false,
   }) => CoreTemplates.dioClient(
     withAuthFeature: withAuthFeature,
     withAppleSignIn: withAppleSignIn,
+    withGoogleSignIn: withGoogleSignIn,
     withPinning: withPinning,
   );
 
@@ -660,18 +662,22 @@ class StackTemplates {
       ? bloc.AuthTemplates.userModel()
       : riverpod.AuthTemplates.userModel();
 
-  /// The auth datasource. [withAppleSignIn] adds Sign in with Apple.
+  /// The auth datasource. [withAppleSignIn] adds Sign in with Apple,
+  /// [withGoogleSignIn] Sign in with Google.
   String authRemoteDatasource({
     bool withPushNotifications = false,
     bool withAppleSignIn = false,
+    bool withGoogleSignIn = false,
   }) => isBloc
       ? bloc.AuthTemplates.remoteDatasource(
           withPushNotifications: withPushNotifications,
           withAppleSignIn: withAppleSignIn,
+          withGoogleSignIn: withGoogleSignIn,
         )
       : riverpod.AuthTemplates.remoteDatasource(
           withPushNotifications: withPushNotifications,
           withAppleSignIn: withAppleSignIn,
+          withGoogleSignIn: withGoogleSignIn,
         );
 
   /// The auth repository. [withLocalCache] empties the
@@ -680,16 +686,19 @@ class StackTemplates {
     bool withPushNotifications = false,
     bool withLocalCache = false,
     bool withAppleSignIn = false,
+    bool withGoogleSignIn = false,
   }) => isBloc
       ? bloc.AuthTemplates.repository(
           withPushNotifications: withPushNotifications,
           withLocalCache: withLocalCache,
           withAppleSignIn: withAppleSignIn,
+          withGoogleSignIn: withGoogleSignIn,
         )
       : riverpod.AuthTemplates.repository(
           withPushNotifications: withPushNotifications,
           withLocalCache: withLocalCache,
           withAppleSignIn: withAppleSignIn,
+          withGoogleSignIn: withGoogleSignIn,
         );
 
   /// The auth state. [withEmailVerification] reads `UserModel.emailVerified`.
@@ -700,8 +709,13 @@ class StackTemplates {
         );
 
   /// The auth event family — bloc only.
-  String authEvent({bool withAppleSignIn = false}) =>
-      bloc.AuthTemplates.event(withAppleSignIn: withAppleSignIn);
+  String authEvent({
+    bool withAppleSignIn = false,
+    bool withGoogleSignIn = false,
+  }) => bloc.AuthTemplates.event(
+    withAppleSignIn: withAppleSignIn,
+    withGoogleSignIn: withGoogleSignIn,
+  );
 
   /// The auth state holder.
   ///
@@ -710,15 +724,18 @@ class StackTemplates {
     bool withPushNotifications = false,
     bool withConcurrency = false,
     bool withAppleSignIn = false,
+    bool withGoogleSignIn = false,
   }) => isBloc
       ? bloc.AuthTemplates.bloc(
           withPushNotifications: withPushNotifications,
           withConcurrency: withConcurrency,
           withAppleSignIn: withAppleSignIn,
+          withGoogleSignIn: withGoogleSignIn,
         )
       : riverpod.AuthTemplates.notifier(
           withPushNotifications: withPushNotifications,
           withAppleSignIn: withAppleSignIn,
+          withGoogleSignIn: withGoogleSignIn,
         );
 
   /// The forgot-password screen: a code by email, then a new password.
