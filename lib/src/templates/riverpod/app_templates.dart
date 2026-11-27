@@ -18,6 +18,7 @@ class AppTemplates {
     bool withNotificationsService = false,
     bool withFirebaseNotifications = false,
     bool withCrashlytics = false,
+    bool withSentry = false,
     bool withFirebase = false,
     bool withMaintenanceGate = false,
     bool withUpdateGate = false,
@@ -155,6 +156,33 @@ ${[if (withNotificationsService) _guardedInit('NotificationService', 'Notificati
         ? '\n    FirebaseCrashlytics.instance.recordFlutterFatalError(details);'
         : '';
 
+    // Sentry starts before the handlers below are installed, and those
+    // handlers replace its own; so each of them reports to it explicitly.
+    final sentryImport = withSentry
+        ? "\nimport 'package:sentry_flutter/sentry_flutter.dart';"
+        : '';
+    final sentryInit = withSentry
+        ? '''
+
+  // Errors go to Sentry from release builds, when the DSN is given at build
+  // time: --dart-define=SENTRY_DSN=https://… An empty DSN turns Sentry off.
+  await SentryFlutter.init((options) {
+    options
+      ..dsn = kReleaseMode ? const String.fromEnvironment('SENTRY_DSN') : ''
+      // A share of the calls traced; their trace headers reach the backend.
+      ..tracesSampleRate = 0.1
+      // AppException reports every failed call once, with its request ID.
+      ..captureFailedRequests = false;
+  });
+'''
+        : '';
+    final sentryUncaught = withSentry
+        ? '\n    Sentry.captureException(error, stackTrace: st);'
+        : '';
+    final sentryFlutterError = withSentry
+        ? '\n    Sentry.captureException(details.exception, stackTrace: details.stack);'
+        : '';
+
     final localizationConfig = withEasyLocalization
         ? '''
       locale: context.locale,
@@ -275,7 +303,7 @@ final locale = ref.watch(languageProvider).locale;
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$firebaseImports
+import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$firebaseImports$sentryImport
 import 'config/di/injector.dart';
 import 'core/utils/app_logger.dart';
 import 'shared/widgets/error_view.dart';$maintenanceImport$moAdaptImport
@@ -286,16 +314,16 @@ Future<void> main() async {
   // Preserve the splash before anything else runs.
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-$easyLocalizationInit$firebaseInit
+$easyLocalizationInit$firebaseInit$sentryInit
   // Installed first, so nothing on the way to runApp() dies unreported.
   PlatformDispatcher.instance.onError = (error, st) {
-    appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught
+    appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught$sentryUncaught
     if (kDebugMode) return false; // false = let Flutter crash normally in dev
     return true; // true = swallow in prod, app stays alive
   };
 
   FlutterError.onError = (details) {
-    appLogger.e('[Flutter error]', error: details.exception, stackTrace: details.stack);$crashlyticsFlutterError
+    appLogger.e('[Flutter error]', error: details.exception, stackTrace: details.stack);$crashlyticsFlutterError$sentryFlutterError
     if (kDebugMode) {
       FlutterError.presentError(details);
     }
@@ -358,7 +386,7 @@ $localizationConfig      routerConfig: router,
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$firebaseImports
+import 'package:flutter_riverpod/flutter_riverpod.dart';$localizationImports$notificationImport$firebaseNotificationImport$firebaseImports$sentryImport
 import 'config/di/injector.dart';
 import 'core/utils/app_logger.dart';
 import 'shared/widgets/error_view.dart';$maintenanceImport$moAdaptImport
@@ -368,16 +396,16 @@ Future<void> main() async {
   // Preserve the splash before anything else runs.
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-$easyLocalizationInit$firebaseInit
+$easyLocalizationInit$firebaseInit$sentryInit
   // Installed first, so nothing on the way to runApp() dies unreported.
   PlatformDispatcher.instance.onError = (error, st) {
-    appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught
+    appLogger.e('[Uncaught error]', error: error, stackTrace: st);$crashlyticsUncaught$sentryUncaught
     if (kDebugMode) return false; // false = let Flutter crash normally in dev
     return true; // true = swallow in prod, app stays alive
   };
 
   FlutterError.onError = (details) {
-    appLogger.e('[Flutter error]', error: details.exception, stackTrace: details.stack);$crashlyticsFlutterError
+    appLogger.e('[Flutter error]', error: details.exception, stackTrace: details.stack);$crashlyticsFlutterError$sentryFlutterError
     if (kDebugMode) {
       FlutterError.presentError(details);
     }

@@ -112,6 +112,17 @@ class ScaffoldContext {
   /// Crash reporting is wired into the error handlers.
   bool get hasCrashlytics => hasPackage('firebase_crashlytics');
 
+  /// Errors go to Sentry (`sentry_flutter` is installed).
+  bool get hasSentry => hasPackage('sentry_flutter');
+
+  /// The Dio client reports its calls to Sentry (`sentry_dio` is installed).
+  bool get hasSentryDio => hasDio && hasPackage('sentry_dio');
+
+  /// Every Dio call carries an `X-Request-ID` (11.6.0 on). Read off disk,
+  /// so the client and AppException of an older project refresh into
+  /// files that still compile until `moarch doctor --fix` adds it.
+  bool get hasRequestId => hasFile('lib/core/network/request_id.dart');
+
   /// `AnalyticsService` was generated (10.3.0 on, with Firebase Analytics).
   bool get hasAnalytics => hasFile('lib/core/services/analytics_service.dart');
 
@@ -319,6 +330,8 @@ class ScaffoldContext {
     withFirebase: hasAnyFirebase,
     withFirestore: hasFirestore,
     withCrashlytics: hasCrashlytics,
+    withSentry: hasSentry,
+    withRequestId: hasRequestId,
     withAnalytics: hasAnalytics,
     withFirebaseNotifications: hasFirebaseNotifications,
     withNotifications: hasNotifications,
@@ -670,6 +683,8 @@ abstract final class ScaffoldCatalog {
         hasFirebase: c.hasFirebase,
         hasFirebaseAuth: c.hasFirebaseAuth,
         hasCrashlytics: c.hasCrashlytics,
+        hasSentry: c.hasSentry,
+        hasRequestId: c.hasRequestId,
       ),
       description:
           'One exception type every layer throws, mapped from Dio, Firebase and platform errors.',
@@ -766,8 +781,10 @@ abstract final class ScaffoldCatalog {
       title: 'AppLogger',
       path: 'lib/core/utils/app_logger.dart',
       category: 'Core',
-      template: (c) =>
-          CoreTemplates.appLogger(withCrashlytics: c.hasCrashlytics),
+      template: (c) => CoreTemplates.appLogger(
+        withCrashlytics: c.hasCrashlytics,
+        withSentry: c.hasSentry,
+      ),
       description:
           'The app-wide logger, forwarding to Crashlytics when it is installed.',
     ),
@@ -846,6 +863,7 @@ abstract final class ScaffoldCatalog {
         withNotificationsService: c.hasNotifications,
         withFirebaseNotifications: c.hasFirebaseNotifications,
         withCrashlytics: c.hasCrashlytics,
+        withSentry: c.hasSentry,
         withFirebase: c.hasFirebase || c.hasCrashlytics || c.hasAnalytics,
         withMaintenanceGate: c.hasMaintenanceGate,
         withUpdateGate: c.hasUpdateGate,
@@ -874,6 +892,16 @@ abstract final class ScaffoldCatalog {
           'The SHA-256 fingerprints of the server certificates the Dio client accepts.',
     ),
     ScaffoldSpec(
+      name: 'request-id',
+      title: 'RequestIdInterceptor',
+      path: 'lib/core/network/request_id.dart',
+      category: 'Network',
+      template: (_) => CoreTemplates.requestId(),
+      description:
+          'The X-Request-ID every Dio call carries, which ties a failure to '
+          "the backend's log lines for it.",
+    ),
+    ScaffoldSpec(
       name: 'dio-client',
       title: 'DioClient',
       path: 'lib/core/network/dio_client.dart',
@@ -884,6 +912,8 @@ abstract final class ScaffoldCatalog {
           withAppleSignIn: c.hasRestAppleSignIn,
           withGoogleSignIn: c.hasRestGoogleSignIn,
           withPinning: c.hasPinning,
+          withRequestId: c.hasRequestId,
+          withSentry: c.hasSentryDio,
         ),
         c.apiEndpoints,
       ),

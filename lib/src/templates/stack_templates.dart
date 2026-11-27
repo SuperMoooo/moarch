@@ -126,6 +126,7 @@ class StackTemplates {
     bool withNotificationsService = false,
     bool withFirebaseNotifications = false,
     bool withCrashlytics = false,
+    bool withSentry = false,
     bool withFirebase = false,
     bool withMaintenanceGate = false,
     bool withUpdateGate = false,
@@ -146,6 +147,7 @@ class StackTemplates {
           withNotificationsService: withNotificationsService,
           withFirebaseNotifications: withFirebaseNotifications,
           withCrashlytics: withCrashlytics,
+          withSentry: withSentry,
           withFirebase: withFirebase,
           withMaintenanceGate: withMaintenanceGate,
           withUpdateGate: withUpdateGate,
@@ -166,6 +168,7 @@ class StackTemplates {
           withNotificationsService: withNotificationsService,
           withFirebaseNotifications: withFirebaseNotifications,
           withCrashlytics: withCrashlytics,
+          withSentry: withSentry,
           withFirebase: withFirebase,
           withMaintenanceGate: withMaintenanceGate,
           withUpdateGate: withUpdateGate,
@@ -245,11 +248,15 @@ class StackTemplates {
     bool withAppleSignIn = false,
     bool withGoogleSignIn = false,
     bool withPinning = false,
+    bool withRequestId = false,
+    bool withSentry = false,
   }) => CoreTemplates.dioClient(
     withAuthFeature: withAuthFeature,
     withAppleSignIn: withAppleSignIn,
     withGoogleSignIn: withGoogleSignIn,
     withPinning: withPinning,
+    withRequestId: withRequestId,
+    withSentry: withSentry,
   );
 
   /// Whether this stack has a `config/di/presentation_module.dart`.

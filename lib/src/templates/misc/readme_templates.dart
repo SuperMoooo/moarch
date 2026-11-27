@@ -42,6 +42,7 @@ class ReadmeTemplates {
         withFirebase: o.withFirebase,
         withFirestore: o.withFirestore,
         withCrashlytics: o.withCrashlytics,
+        withSentry: o.withSentry,
         withAnalytics: o.withAnalytics,
         withFirebaseNotifications: o.withFirebaseNotifications,
         withNotifications: o.withNotifications,
@@ -403,6 +404,7 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
     required bool withFirebase,
     required bool withFirestore,
     required bool withCrashlytics,
+    bool withSentry = false,
     bool withAnalytics = false,
     required bool withFirebaseNotifications,
     required bool withNotifications,
@@ -510,6 +512,15 @@ configurations (`debug`, `profile`, `release`${flavors.isEmpty ? '' : ', and one
         'firebase_crashlytics',
         'Crash reporting, wired into the app-wide error handlers.',
       );
+    }
+    if (withSentry) {
+      row(
+        'sentry_flutter',
+        'Error reporting, tagged with the request ID — `SENTRY_DSN` at build time.',
+      );
+      if (withDio) {
+        row('sentry_dio', 'Each Dio call as a Sentry span.');
+      }
     }
     if (withAnalytics) {
       row(

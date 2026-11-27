@@ -11,6 +11,8 @@ class ErrorTemplates {
     bool hasFirebase = false,
     bool hasFirebaseAuth = false,
     bool hasCrashlytics = false,
+    bool hasSentry = false,
+    bool hasRequestId = false,
   }) {
     // firebase_auth brings firebase_core with it.
     final withFirebase = hasFirebase || hasFirebaseAuth;
@@ -26,7 +28,14 @@ class ErrorTemplates {
       if (hasFirebaseAuth) "import 'package:firebase_auth/firebase_auth.dart';",
       if (hasCrashlytics)
         "import 'package:firebase_crashlytics/firebase_crashlytics.dart';",
+      if (hasSentry) "import 'package:sentry_flutter/sentry_flutter.dart';",
     ].join('\n');
+    // Read off disk elsewhere (`request_id.dart` exists), so a project from
+    // before it refreshes into an exception that still compiles.
+    final withRequestId = hasDio && hasRequestId;
+    final requestIdImport = withRequestId
+        ? "\nimport '../network/request_id.dart';"
+        : '';
 
     // Collection is toggled off for debug builds in main.dart, so these are
     // safe to leave unconditional.
@@ -42,6 +51,29 @@ class ErrorTemplates {
     final crashlyticsFirebase = hasCrashlytics
         ? '\n    FirebaseCrashlytics.instance.recordError(error, error.stackTrace, reason: message);'
         : '';
+
+    // Sentry, where Crashlytics records. A Dio failure carries its request ID
+    // as a tag: the key to the backend's log lines for that call.
+    final sentryFromError = hasSentry
+        ? '\n    Sentry.captureException(error, stackTrace: stackTrace);'
+        : '';
+    final sentryDio = hasSentry
+        ? withRequestId
+              ? "\n      Sentry.captureException(dioError, stackTrace: dioError.stackTrace, withScope: (scope) => scope.setTag('request_id', requestId ?? '-'));"
+              : '\n      Sentry.captureException(dioError, stackTrace: dioError.stackTrace);'
+        : '';
+    final sentryDioCatch = hasSentry
+        ? '\n      Sentry.captureException(error, stackTrace: dioError.stackTrace);'
+        : '';
+    final sentryFirebase = hasSentry
+        ? '\n    Sentry.captureException(error, stackTrace: error.stackTrace);'
+        : '';
+
+    final requestIdRead = withRequestId
+        ? '\n      final requestId = requestIdOf(dioError);'
+        : '';
+    final requestIdLog = withRequestId ? r", request ${requestId ?? '-'}" : '';
+    final requestIdArgument = withRequestId ? ', requestId: requestId' : '';
 
     // Reads the error body. The moarch-py shape is `{"error": {"code",
     // "message"}}`; a flat `{"message", "code"}` is read too, so other
@@ -79,17 +111,17 @@ final class _ServerError {
       final error = _ServerError.from(dioError.response?.data);
       final message = error.message ?? dioError.message ?? 'Unknown error';
       final statusCode = dioError.response?.statusCode;
-      final code = error.code;
-      appLogger.e('[AppException] — \$message (\${code ?? 'no code'})', error: dioError, stackTrace: dioError.stackTrace);$crashlyticsDio
+      final code = error.code;$requestIdRead
+      appLogger.e('[AppException] — \$message (\${code ?? 'no code'}$requestIdLog)', error: dioError, stackTrace: dioError.stackTrace);$crashlyticsDio$sentryDio
       return switch (statusCode) {
-        404 => NotFoundException(message: message, statusCode: statusCode, code: code),
+        404 => NotFoundException(message: message, statusCode: statusCode, code: code$requestIdArgument),
         // Not signed in, not allowed, or the account is locked (423):
         // all cases the auth flow handles, told apart by [code].
-        401 || 403 || 423 => AuthException(message: message, statusCode: statusCode, code: code),
-        _ => ServerException(message: message, statusCode: statusCode, code: code),
+        401 || 403 || 423 => AuthException(message: message, statusCode: statusCode, code: code$requestIdArgument),
+        _ => ServerException(message: message, statusCode: statusCode, code: code$requestIdArgument),
       };
     } catch (error) {
-      appLogger.e('[AppException] — \$error', error: error, stackTrace: dioError.stackTrace);$crashlyticsDioCatch
+      appLogger.e('[AppException] — \$error', error: error, stackTrace: dioError.stackTrace);$crashlyticsDioCatch$sentryDioCatch
       return const UnknownException(message: 'Unknown error');
     }
   }
@@ -106,7 +138,7 @@ final class _ServerError {
       '[AppException] — \${error.plugin}/\${error.code}',
       error: error,
       stackTrace: error.stackTrace,
-    );$crashlyticsFirebase
+    );$crashlyticsFirebase$sentryFirebase
 
     switch (error.code) {
       case 'permission-denied':
@@ -145,7 +177,7 @@ final class _ServerError {
       '[AppException] — auth/\${error.code}',
       error: error,
       stackTrace: error.stackTrace,
-    );$crashlyticsFirebase
+    );$crashlyticsFirebase$sentryFirebase
 
     switch (error.code) {
       // Older SDKs still send user-not-found / wrong-password.
@@ -201,7 +233,7 @@ final class _ServerError {
 
     return '''
 $imports
-import '../../core/utils/app_logger.dart';
+import '../../core/utils/app_logger.dart';$requestIdImport
 
 /// The kind of a failure as a value. Prefer switching on the exception itself;
 /// delete this and [AppException.type] if nothing reads `.type`.
@@ -214,7 +246,12 @@ enum AppExceptionType { network, server, notFound, auth, cancelled, unknown }
 /// Catch the base class to show [message]; catch a subclass where one failure
 /// needs its own path (`on NetworkException { ... }`).
 sealed class AppException implements Exception {
-  const AppException({required this.message, this.statusCode, this.code});
+  const AppException({
+    required this.message,
+    this.statusCode,
+    this.code,
+    this.requestId,
+  });
 
   /// Safe to show as-is.
   final String message;
@@ -226,6 +263,11 @@ sealed class AppException implements Exception {
   /// `invalid_credentials`, `weak_password`…), where it sent one. Branch on
   /// this rather than on [message], which is worded for people.
   final String? code;
+
+  /// The `X-Request-ID` of the call that failed, where there was one: the key
+  /// to the backend's log lines for it. Show it in an error, or attach it to
+  /// a bug report, when support needs to find the call.
+  final String? requestId;
 
   /// Which kind this is, as a value.
   AppExceptionType get type => switch (this) {
@@ -239,7 +281,7 @@ sealed class AppException implements Exception {
 
   @override
   String toString() =>
-      '\$runtimeType(message: \$message, statusCode: \$statusCode, code: \$code)';
+      '\$runtimeType(message: \$message, statusCode: \$statusCode, code: \$code, requestId: \$requestId)';
 
   factory AppException.noInternet() =>
       const NetworkException(message: 'No internet connection');
@@ -253,7 +295,7 @@ sealed class AppException implements Exception {
 
   factory AppException.fromError(Object error, StackTrace stackTrace) {
     final message = error.toString();
-$catchError$crashlyticsFromError
+$catchError$crashlyticsFromError$sentryFromError
     return UnknownException(message: message);
   }
 
@@ -267,17 +309,32 @@ final class NetworkException extends AppException {
 
 /// The server answered, and the answer was a failure.
 final class ServerException extends AppException {
-  const ServerException({required super.message, super.statusCode, super.code});
+  const ServerException({
+    required super.message,
+    super.statusCode,
+    super.code,
+    super.requestId,
+  });
 }
 
 /// A 404, or a document that does not exist.
 final class NotFoundException extends AppException {
-  const NotFoundException({required super.message, super.statusCode, super.code});
+  const NotFoundException({
+    required super.message,
+    super.statusCode,
+    super.code,
+    super.requestId,
+  });
 }
 
 /// Not signed in, not allowed, or refused credentials.
 final class AuthException extends AppException {
-  const AuthException({required super.message, super.statusCode, super.code});
+  const AuthException({
+    required super.message,
+    super.statusCode,
+    super.code,
+    super.requestId,
+  });
 }
 
 /// The user backed out (a dismissed sheet, a closed popup).

@@ -21,6 +21,8 @@ class DocsOptions {
     this.withFirebase = false,
     this.withFirestore = false,
     this.withCrashlytics = false,
+    this.withSentry = false,
+    this.withRequestId = false,
     this.withAnalytics = false,
     this.withFirebaseNotifications = false,
     this.withNotifications = false,
@@ -77,6 +79,12 @@ class DocsOptions {
 
   /// Crashlytics is installed.
   final bool withCrashlytics;
+
+  /// Sentry is installed.
+  final bool withSentry;
+
+  /// Dio calls carry an `X-Request-ID` (`request_id.dart` exists).
+  final bool withRequestId;
 
   /// `AnalyticsService` on Firebase Analytics was generated.
   final bool withAnalytics;
@@ -400,6 +408,21 @@ abstract final class ProjectDocsTemplates {
   /// error the screen shows.
   static String networking(DocsOptions o) {
     final holder = o.bloc ? 'bloc' : 'notifier';
+    final requestIds =
+        '''
+## Request IDs
+
+Every call carries an `X-Request-ID` (`lib/core/network/request_id.dart`),
+set once, so the retries of one call share it. A moarch-py backend keeps the
+ID, logs every line of that request under it and sends it back. When a call
+fails, `AppException.requestId` holds it (the server's answer, or the one the
+app sent), and the error's log line shows it${o.withSentry ? ', as does its Sentry report (the `request_id` tag)' : ''}}.
+
+To find a failure on the server, search its logs for that ID. Show it in an
+error message, or attach it to a bug report, when support needs to find the
+call.
+
+''';
     final refresh = o.withAuthFeature && !o.withFirebaseAuthFeature
         ? '''
 ## The token refresh
@@ -485,7 +508,7 @@ ${header('Networking', 'How the app talks to its REST API.')}
 | `lib/config/env/app_env.dart` | `AppEnv.baseUrl`, compiled in from `BASE_URL` in `.env` |
 | `lib/core/constants/api_constants.dart` | Every endpoint path, and the timeouts |
 | `lib/core/network/dio_client.dart` | The one `Dio`: base URL, timeouts, the auth header, retries, logging |
-| `lib/core/network/safe_api_call.dart` | Turns any failure into an `AppException` |
+${o.withRequestId ? '| `lib/core/network/request_id.dart` | The `X-Request-ID` each call carries |\n' : ''}| `lib/core/network/safe_api_call.dart` | Turns any failure into an `AppException` |
 | `lib/core/errors/app_exception.dart` | The one error type the UI sees |
 | `lib/core/network/paginated.dart` | A page of items and the key of the next one |
 
@@ -517,7 +540,7 @@ Future<List<OrderModel>> fetchAll() => safeApiCall(
 4. **The repository** passes the model up; the $holder shows
    `AppException.message` when it throws.
 
-## Retries and timeouts
+${o.withRequestId ? requestIds : ''}## Retries and timeouts
 
 `dio_smart_retry` retries a request that failed on a transient error — a
 dropped connection, a timeout, a 408, 429 or 5xx — a few times with a growing
@@ -1123,7 +1146,7 @@ ${gates.isEmpty ? '' : '\n## App-wide gates\n\nWrapped around the app in `main.d
 3. Read it with `getIt<YourService>()`. A test replaces it with a mock in
    the locator.
 
-Logging goes through `AppLogger` (`core/utils/app_logger.dart`)${o.withCrashlytics ? ', which also\nforwards errors to Crashlytics' : ''}; never `print`.
+Logging goes through `AppLogger` (`core/utils/app_logger.dart`)${o.withCrashlytics ? ', which also\nforwards errors to Crashlytics' : ''}${o.withSentry ? '${o.withCrashlytics ? ' and' : ', which also\nforwards'} its records to Sentry as breadcrumbs' : ''}; never `print`.
 ''';
   }
 

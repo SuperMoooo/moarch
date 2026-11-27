@@ -108,6 +108,7 @@ abstract final class ProjectInspector {
       ..._authAccountScreens(root, context),
       ..._paging(root, context),
       ..._syncStatus(root, libPath, context),
+      ..._requestId(root, context),
       if (pubspec != null) ..._databaseEncryption(root, pubspec, context),
       ..._endpoints(libPath),
       ..._platforms(root, context),
@@ -267,6 +268,36 @@ abstract final class ProjectInspector {
           await gradle.writeAsString(patched);
           return 'floored compileSdk at ${GradleUtils.requiredCompileSdk} in '
               'android/app/build.gradle.kts';
+        },
+      ),
+    ];
+  }
+
+  // ── Network ─────────────────────────────────────────────────────────────────
+
+  /// A Dio project from before 11.6.0: no `request_id.dart`, so its calls
+  /// carry no `X-Request-ID` and a failure cannot be matched to the backend's
+  /// log lines.
+  ///
+  /// Gated on the manifest like the skills: a file it has a record of was
+  /// deleted on purpose.
+  static List<Diagnostic> _requestId(String root, ScaffoldContext context) {
+    const path = 'lib/core/network/request_id.dart';
+    if (!context.hasDio || context.hasRequestId) return const [];
+    if (ProjectManifest.load(root)?.files[path] != null) return const [];
+
+    return [
+      Diagnostic.info(
+        'Dio calls without an X-Request-ID — a failure cannot be traced to '
+        "the backend's log lines",
+        hint:
+            'Generate $path with `moarch doctor --fix`, then '
+            '`moarch update dio-client exception` to send and read it.',
+        fix: () async {
+          final result = await _generate(root, [
+            'request-id',
+          ], 'the file already exists');
+          return '$result — run `moarch update dio-client exception` to use it';
         },
       ),
     ];

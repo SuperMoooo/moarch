@@ -79,6 +79,12 @@ abstract final class PackageVersions {
     'go_router': '^18.1.4',
     'dio': '^5.11.1',
     'dio_smart_retry': '^7.0.1',
+
+    // ── Error reporting ─────────────────────────────────────────────────────
+    // Floored at 10, the line on Flutter 3.44+ that main.dart and
+    // app_exception.dart are written against.
+    'sentry_flutter': '^10.7.0',
+    'sentry_dio': '^10.7.0',
     'flutter_secure_storage': '^11.2.0',
 
     // ── Offline-first cache ─────────────────────────────────────────────────

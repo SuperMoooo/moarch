@@ -60,6 +60,7 @@ const _kFirestore = 'Firebase Firestore';
 const _kFirebaseAuth = 'Firebase Auth';
 const _kCrashlytics = 'Firebase Crashlytics';
 const _kAnalytics = 'Firebase Analytics';
+const _kSentry = 'Error reporting (Sentry)';
 const _kOfflineFirst = 'Offline-first cache (drift)';
 const _kSync = 'Offline sync (outbox + background)';
 const _kEncryptedDb = 'Encrypted local database (SQLite3MultipleCiphers)';
@@ -655,6 +656,14 @@ class InitCommand extends Command<int> {
                   'Crash reporting wired into the error handlers (requires Firebase setup).',
             ),
             const ChecklistItem(
+              _kSentry,
+              defaultOn: false,
+              description:
+                  'Errors to Sentry from release builds, each tagged with the '
+                  'request ID the backend logged it under (SENTRY_DSN at build '
+                  'time; no Firebase needed).',
+            ),
+            const ChecklistItem(
               _kAnalytics,
               defaultOn: false,
               description:
@@ -1090,6 +1099,9 @@ class InitCommand extends Command<int> {
         PackageVersions.entry('firebase_crashlytics'),
       if (stack.contains(_kAnalytics))
         PackageVersions.entry('firebase_analytics'),
+      if (stack.contains(_kSentry)) PackageVersions.entry('sentry_flutter'),
+      if (stack.contains(_kSentry) && stack.contains(_kDio))
+        PackageVersions.entry('sentry_dio'),
       if (stack.contains(_kFirebaseAuth))
         PackageVersions.entry('firebase_auth'),
       if (stack.contains(_kFirestore)) PackageVersions.entry('cloud_firestore'),
@@ -1207,6 +1219,7 @@ class InitCommand extends Command<int> {
           withNotificationsService: stack.contains(_kNotificationsService),
           withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
           withCrashlytics: stack.contains(_kCrashlytics),
+          withSentry: stack.contains(_kSentry),
           // Firestore and Firebase Auth are read through providers the app
           // touches on its first frame, so Firebase has to be up by then.
           withFirebase:
@@ -1303,6 +1316,8 @@ class InitCommand extends Command<int> {
         withFirebase: _usesFirebase(stack),
         withFirestore: stack.contains(_kFirestore),
         withCrashlytics: stack.contains(_kCrashlytics),
+        withSentry: stack.contains(_kSentry),
+        withRequestId: stack.contains(_kDio),
         withAnalytics: stack.contains(_kAnalytics),
         withFirebaseNotifications: stack.contains(_kFirebaseNotifications),
         withNotifications: stack.contains(_kNotificationsService),
@@ -2455,6 +2470,8 @@ class InitCommand extends Command<int> {
             stack.contains(_kFirestore) || stack.contains(_kFirebaseAuth),
         hasFirebaseAuth: stack.contains(_kFirebaseAuth),
         hasCrashlytics: stack.contains(_kCrashlytics),
+        hasSentry: stack.contains(_kSentry),
+        hasRequestId: stack.contains(_kDio),
       ),
     );
 
@@ -2518,7 +2535,10 @@ class InitCommand extends Command<int> {
     }
     await FileUtils.writeFile(
       p.join(c, 'utils', 'app_logger.dart'),
-      CoreTemplates.appLogger(withCrashlytics: stack.contains(_kCrashlytics)),
+      CoreTemplates.appLogger(
+        withCrashlytics: stack.contains(_kCrashlytics),
+        withSentry: stack.contains(_kSentry),
+      ),
     );
     // Both stacks' state holders share a runAction mixin — Riverpod's in
     // action_notifier.dart, bloc's beside AppStatus in app_status.dart.
@@ -2552,7 +2572,13 @@ class InitCommand extends Command<int> {
           withAppleSignIn: _restAppleSignIn(stack),
           withGoogleSignIn: _restGoogleSignIn(stack),
           withPinning: stack.contains(_kPinning),
+          withRequestId: true,
+          withSentry: stack.contains(_kSentry),
         ),
+      );
+      await FileUtils.writeFile(
+        p.join(c, 'network', 'request_id.dart'),
+        CoreTemplates.requestId(),
       );
       if (stack.contains(_kPinning)) {
         await FileUtils.writeFile(

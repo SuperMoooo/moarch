@@ -4,19 +4,30 @@ class CoreTemplates {
 
   /// Returns the generated appLogger template.
   ///
-  /// [withCrashlytics] adds a sink that mirrors records into Crashlytics.
-  static String appLogger({bool withCrashlytics = false}) {
-    final crashlyticsImport = withCrashlytics
-        ? "\nimport 'package:firebase_core/firebase_core.dart';"
-              "\nimport 'package:firebase_crashlytics/firebase_crashlytics.dart';"
-        : '';
+  /// [withCrashlytics] adds a sink that mirrors records into Crashlytics, and
+  /// [withSentry] one that mirrors them into Sentry.
+  static String appLogger({
+    bool withCrashlytics = false,
+    bool withSentry = false,
+  }) {
+    final imports = [
+      if (withCrashlytics) ...[
+        "\nimport 'package:firebase_core/firebase_core.dart';",
+        "\nimport 'package:firebase_crashlytics/firebase_crashlytics.dart';",
+      ],
+      if (withSentry) "\nimport 'package:sentry_flutter/sentry_flutter.dart';",
+    ].join();
 
-    final sinks = withCrashlytics
-        ? r'''
-final _sinks = <LogOutput>[
-  _DeveloperOutput(),
-  _CrashlyticsOutput(),
-];
+    final sinkNames = [
+      '_DeveloperOutput()',
+      if (withCrashlytics) '_CrashlyticsOutput()',
+      if (withSentry) '_SentryOutput()',
+    ];
+    final sinkList = sinkNames.length == 1
+        ? 'final _sinks = <LogOutput>[${sinkNames.single}];\n'
+        : 'final _sinks = <LogOutput>[\n${sinkNames.map((sink) => '  $sink,\n').join()}];\n';
+
+    const crashlyticsSink = r'''
 
 /// Mirrors records into Crashlytics as breadcrumbs.
 ///
@@ -30,16 +41,47 @@ class _CrashlyticsOutput extends LogOutput {
     FirebaseCrashlytics.instance.log(_redact(event.lines.join('\n')));
   }
 }
-'''
-        : r'''
-final _sinks = <LogOutput>[_DeveloperOutput()];
 ''';
+
+    const sentrySink = r'''
+
+/// Mirrors records into Sentry as breadcrumbs, the trail before an error.
+///
+/// Breadcrumbs only — errors are reported by AppException and the handlers
+/// in main.dart. Before SentryFlutter.init (or with no DSN) this does nothing.
+class _SentryOutput extends LogOutput {
+  @override
+  void output(OutputEvent event) {
+    Sentry.addBreadcrumb(
+      Breadcrumb(
+        message: _redact(event.lines.join('\n')),
+        level: _sentryLevels[event.level] ?? SentryLevel.info,
+      ),
+    );
+  }
+}
+
+const _sentryLevels = <Level, SentryLevel>{
+  Level.trace: SentryLevel.debug,
+  Level.debug: SentryLevel.debug,
+  Level.info: SentryLevel.info,
+  Level.warning: SentryLevel.warning,
+  Level.error: SentryLevel.error,
+  Level.fatal: SentryLevel.fatal,
+};
+''';
+
+    final sinks = [
+      sinkList,
+      if (withCrashlytics) crashlyticsSink,
+      if (withSentry) sentrySink,
+    ].join();
 
     return '''
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
-import 'package:logger/logger.dart';$crashlyticsImport
+import 'package:logger/logger.dart';$imports
 
 $_appLoggerBody$sinks''';
   }
@@ -1314,6 +1356,48 @@ class NullableTimestampConverter implements JsonConverter<DateTime?, Object?> {
 }
 ''';
 
+  /// Returns the generated requestId template: the `X-Request-ID` every Dio
+  /// call carries, so a failure in the app leads to the backend's log lines
+  /// for that call (moarch-py logs and returns the same header).
+  static String requestId() => r'''
+import 'dart:math';
+
+import 'package:dio/dio.dart';
+
+/// The header that ties one call to the backend's log lines for it.
+const requestIdHeader = 'X-Request-ID';
+
+final _random = Random.secure();
+
+/// A new random ID: 32 hex characters, the form the backend makes its own in.
+String newRequestId() => List.generate(
+  16,
+  (_) => _random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+).join();
+
+/// Gives every call an ID, once.
+///
+/// Set only when absent: a retry (dio_smart_retry, the refresh-and-retry)
+/// resends the same options, so all its attempts share one ID, and a caller
+/// that chose an ID keeps it.
+class RequestIdInterceptor extends Interceptor {
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    options.headers.putIfAbsent(requestIdHeader, newRequestId);
+    handler.next(options);
+  }
+}
+
+/// The ID a failed call is known by: the server's answer when it sent one
+/// back, otherwise the one the app sent.
+String? requestIdOf(DioException error) {
+  final answered = error.response?.headers.value(requestIdHeader);
+  if (answered != null) return answered;
+  final Object? sent = error.requestOptions.headers[requestIdHeader];
+  return sent is String ? sent : null;
+}
+''';
+
   /// Returns the generated dioClient template.
   ///
   /// The same client in both stacks: `buildDioClient` takes the
@@ -1325,7 +1409,28 @@ class NullableTimestampConverter implements JsonConverter<DateTime?, Object?> {
     bool withAppleSignIn = false,
     bool withGoogleSignIn = false,
     bool withPinning = false,
+    bool withRequestId = false,
+    bool withSentry = false,
   }) {
+    // Read off disk elsewhere (`request_id.dart` exists): a project from
+    // before it refreshes into a client that still compiles.
+    final requestIdImport = withRequestId ? "\nimport 'request_id.dart';" : '';
+    final requestIdInterceptor = withRequestId
+        ? '''
+    // First, so every call has its ID before anything logs or retries it.
+    ..interceptors.add(RequestIdInterceptor())'''
+        : '';
+    final sentryImport = withSentry
+        ? "\nimport 'package:sentry_dio/sentry_dio.dart';"
+        : '';
+    final sentrySetup = withSentry
+        ? '''
+
+  // Last, as sentry_dio asks: it wraps the adapter set above, so each call
+  // is a span and carries the trace headers the backend continues.
+  dio.addSentry();'''
+        : '';
+
     final publicEndpoints = withAuthFeature
         ? '''
   // Routes that never get the Authorization header or a refresh retry.
@@ -1401,12 +1506,12 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:dio_smart_retry/dio_smart_retry.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';$sentryImport
 
 import '../../config/env/app_env.dart';
 import '../constants/api_constants.dart';
 ${exceptionImport}import '../security/secure_storage.dart';
-import '../utils/app_logger.dart';${withPinning ? "\nimport 'certificate_pins.dart';" : ''}
+import '../utils/app_logger.dart';${withPinning ? "\nimport 'certificate_pins.dart';" : ''}$requestIdImport
 
 final _log = appLogger.scoped('Dio');
 
@@ -1437,7 +1542,7 @@ $refreshParam
 
   _configureHttpClient(dio);
 
-  dio
+  dio$requestIdInterceptor
     ..interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
@@ -1467,7 +1572,7 @@ $refreshOnError
         logPrint: (msg) => _log.d(msg.toString()),
       ),
     );
-  }
+  }$sentrySetup
 
   return dio;
 }$retryConst

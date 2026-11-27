@@ -2,6 +2,25 @@
 
 All notable changes to this package are documented in this file, newest first.
 
+## 11.6.0
+
+### Added
+
+- **A request ID on every Dio call.** `lib/core/network/request_id.dart`'s
+  `RequestIdInterceptor`, first in the chain, sets `X-Request-ID` once, so a
+  call's retries share it; moarch-py logs the request under it and returns
+  it. `AppException.requestId` holds the ID of the call that failed (the
+  server's answer, or the one the app sent), and the error's log line shows
+  it. `docs/NETWORKING.md` explains it. A Dio project from before this gets
+  the file from `moarch doctor --fix`, then `moarch update dio-client exception`.
+- **Error reporting (Sentry)**, a Backend / networking option on both stacks:
+  `sentry_flutter` started in `main.dart` from `SENTRY_DSN` (a
+  `--dart-define`, release builds only), both error handlers and every
+  `AppException` reporting to it (a Dio failure tagged with its
+  `request_id`), `AppLogger` records as breadcrumbs, and with Dio
+  `sentry_dio` for spans and trace headers. A project that adds the packages
+  later gets it with `moarch update main exception logger dio-client`.
+
 ## 11.5.0
 
 ### Added

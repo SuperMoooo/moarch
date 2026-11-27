@@ -103,6 +103,7 @@ moarch l10n extract [--dry-run]    # move hard-coded screen strings into the tra
 - an optional maintenance gate — a backend flag that empties the app (see below)
 - optional feature flags — typed switches read from the backend the gates read, with a default each while it cannot be read (see below)
 - optional analytics — an `AnalyticsService` interface on Firebase Analytics, with every screen view logged by a router observer (see below)
+- an `X-Request-ID` on every Dio call, and optional error reporting with Sentry, so a failure leads to the backend's log lines for it (see below)
 - `flutter_launcher_icons.yaml` — the app icon on both platforms, every size made from one 1024px `assets/icon/icon.png` (`fvm dart run flutter_launcher_icons`); `moarch create flavors` adds one `flutter_launcher_icons-<flavor>.yaml` per flavor, so dev and prod are told apart on a home screen
 - an optional offline screen over the app, and a hook that runs when the connection comes back — for a sync (see below)
 - optional deep links: https links open the app on the matching route, Android App Links and iOS Universal Links (see below)
@@ -655,6 +656,25 @@ provider is a second class registered in `core_module.dart`, and nothing that
 logs changes. With the router, `AnalyticsRouteObserver` logs a screen view for
 every page under its route's name or path pattern (`/orders/:id`), so no id
 ends up in a screen name.
+
+### Request IDs and error reporting
+
+With Dio, every call carries an `X-Request-ID`
+(`lib/core/network/request_id.dart`), set once so that a call's retries share
+it. A [moarch-py](https://pypi.org/project/moarch-py/) backend logs every line
+of the request under that ID and returns it; a failed call's `AppException`
+holds it as `requestId`, and its log line shows it. A project from before
+11.6.0 gets the file from `moarch doctor --fix`, then
+`moarch update dio-client exception`.
+
+Tick **Error reporting (Sentry)** and errors go to Sentry from release builds,
+when the DSN is given at build time (`--dart-define=SENTRY_DSN=https://…`; an
+empty DSN turns it off). No Firebase needed. The two error handlers in
+`main.dart` and every `AppException` report to it, a Dio failure tagged with
+its `request_id`; `AppLogger` records become breadcrumbs; and with Dio,
+`sentry_dio` makes each call a span whose trace headers the backend continues.
+It can sit beside Crashlytics. A project that adds `sentry_flutter` (and
+`sentry_dio`) later gets it with `moarch update main exception logger dio-client`.
 
 ### Offline screen and reconnect
 
